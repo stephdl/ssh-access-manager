@@ -128,7 +128,8 @@ def _deploy_script(
 ) -> None:
     sftp.putfo(io.BytesIO(content), tmp_path)
     name = os.path.basename(remote_path)
-    _run(client, f"sudo /bin/mv {tmp_path} {remote_path}")
+    # sudoers rule uses directory as destination: /bin/mv /tmp/sam-* /usr/local/bin/
+    _run(client, f"sudo /bin/mv {tmp_path} /usr/local/bin/")
     _run(client, f"sudo /bin/chown root:root {remote_path}")
     _run(client, f"sudo /bin/chmod 755 {remote_path}")
 
