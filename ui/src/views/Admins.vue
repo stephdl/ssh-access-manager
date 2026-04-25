@@ -54,21 +54,11 @@
         <form class="add-form" @submit.prevent="submitAdd">
           <div class="field">
             <label for="adm-username">Username <span class="required">*</span></label>
-            <input
-              id="adm-username"
-              v-model="newUsername"
-              type="text"
-              placeholder="username"
-            />
+            <input id="adm-username" v-model="newUsername" type="text" placeholder="username" />
           </div>
           <div class="field">
             <label for="adm-email">Email</label>
-            <input
-              id="adm-email"
-              v-model="newEmail"
-              type="email"
-              placeholder="admin@example.com"
-            />
+            <input id="adm-email" v-model="newEmail" type="email" placeholder="admin@example.com" />
           </div>
           <div class="field">
             <label for="adm-password">Mot de passe <span class="required">*</span></label>
@@ -77,7 +67,9 @@
               v-model="newPassword"
               type="password"
               placeholder="••••••••"
+              :class="{ 'input-error': newPassword && !passwordValid(newPassword).ok }"
             />
+            <PasswordStrength v-if="newPassword" :password="newPassword" />
           </div>
           <div class="field">
             <label for="adm-password-confirm">Confirmer le mot de passe <span class="required">*</span></label>
@@ -93,13 +85,7 @@
             </span>
           </div>
           <div class="form-actions">
-            <button
-              type="submit"
-              class="btn-primary"
-              :disabled="!canSubmitAdd"
-            >
-              Ajouter
-            </button>
+            <button type="submit" class="btn-primary" :disabled="!canSubmitAdd">Ajouter</button>
           </div>
         </form>
       </section>
@@ -133,7 +119,9 @@
               type="password"
               placeholder="••••••••"
               autofocus
+              :class="{ 'input-error': editPassword && !passwordValid(editPassword).ok }"
             />
+            <PasswordStrength v-if="editPassword" :password="editPassword" />
           </div>
           <div class="field" style="margin-bottom:1rem">
             <label for="edit-password-confirm">Confirmer <span class="required">*</span></label>
@@ -149,11 +137,7 @@
             </span>
           </div>
           <div class="modal-actions">
-            <button
-              type="submit"
-              class="btn-primary"
-              :disabled="!canSubmitEdit"
-            >Enregistrer</button>
+            <button type="submit" class="btn-primary" :disabled="!canSubmitEdit">Enregistrer</button>
             <button type="button" @click="closeEditPassword">Annuler</button>
           </div>
         </form>
@@ -165,6 +149,47 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 
+// ---------------------------------------------------------------------------
+// Composant interne : indicateur de robustesse du mot de passe
+// ---------------------------------------------------------------------------
+const PasswordStrength = {
+  props: { password: { type: String, required: true } },
+  setup(props) {
+    const rules = computed(() => [
+      { label: '8 caractères minimum',    ok: props.password.length >= 8 },
+      { label: 'Une lettre majuscule',    ok: /[A-Z]/.test(props.password) },
+      { label: 'Une lettre minuscule',    ok: /[a-z]/.test(props.password) },
+      { label: 'Un chiffre',             ok: /\d/.test(props.password) },
+      { label: 'Un caractère spécial',   ok: /[!@#$%^&*()\-_=+\[\]{}|;:'",.<>?/\\`~]/.test(props.password) },
+    ])
+    return { rules }
+  },
+  template: `
+    <ul class="pwd-rules">
+      <li v-for="r in rules" :key="r.label" :class="r.ok ? 'rule-ok' : 'rule-fail'">
+        {{ r.ok ? '✓' : '✗' }} {{ r.label }}
+      </li>
+    </ul>
+  `,
+}
+
+// ---------------------------------------------------------------------------
+// Validation partagée
+// ---------------------------------------------------------------------------
+function passwordValid(pwd) {
+  const rules = [
+    pwd.length >= 8,
+    /[A-Z]/.test(pwd),
+    /[a-z]/.test(pwd),
+    /\d/.test(pwd),
+    /[!@#$%^&*()\-_=+\[\]{}|;:'",.<>?/\\`~]/.test(pwd),
+  ]
+  return { ok: rules.every(Boolean) }
+}
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
 const admins             = ref([])
 const loading            = ref(true)
 const error              = ref('')
@@ -174,21 +199,24 @@ const newEmail           = ref('')
 const newPassword        = ref('')
 const newPasswordConfirm = ref('')
 const disableTarget      = ref(null)
-const editPasswordTarget = ref(null)
-const editPassword       = ref('')
+const editPasswordTarget  = ref(null)
+const editPassword        = ref('')
 const editPasswordConfirm = ref('')
 
 const canSubmitAdd = computed(() =>
   newUsername.value.trim() &&
-  newPassword.value.trim() &&
+  passwordValid(newPassword.value).ok &&
   newPassword.value === newPasswordConfirm.value
 )
 
 const canSubmitEdit = computed(() =>
-  editPassword.value.trim() &&
+  passwordValid(editPassword.value).ok &&
   editPassword.value === editPasswordConfirm.value
 )
 
+// ---------------------------------------------------------------------------
+// API calls
+// ---------------------------------------------------------------------------
 async function load() {
   loading.value = true
   error.value = ''
@@ -232,9 +260,7 @@ async function submitAdd() {
   }
 }
 
-function openDisable(username) {
-  disableTarget.value = username
-}
+function openDisable(username) { disableTarget.value = username }
 
 async function confirmDisable() {
   const username = disableTarget.value
@@ -330,6 +356,18 @@ input[type="password"] {
 input.input-error { border-color: #dc3545; }
 .field-error { color: #dc3545; font-size: 0.8rem; }
 
+.pwd-rules {
+  list-style: none;
+  padding: 0.4rem 0 0 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.pwd-rules li { font-size: 0.8rem; }
+.rule-ok   { color: #198754; }
+.rule-fail { color: #dc3545; }
+
 .form-actions { display: flex; gap: 0.75rem; }
 
 .empty   { text-align: center; color: #888; padding: 1rem 0; }
@@ -359,7 +397,7 @@ input.input-error { border-color: #dc3545; }
   background: #fff;
   border-radius: 8px;
   padding: 1.5rem;
-  width: 400px;
+  width: 420px;
   max-width: 90vw;
   display: flex;
   flex-direction: column;

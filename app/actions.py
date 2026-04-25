@@ -446,9 +446,28 @@ def disable_server(hostname: str, admin_id: str | None = None) -> None:
 # Administrateurs
 # ---------------------------------------------------------------------------
 
+def _validate_password_strength(password: str) -> None:
+    """Raise ValueError if password does not meet complexity requirements."""
+    import re
+    errors = []
+    if len(password) < 8:
+        errors.append("au moins 8 caractères")
+    if not re.search(r"[A-Z]", password):
+        errors.append("au moins une majuscule")
+    if not re.search(r"[a-z]", password):
+        errors.append("au moins une minuscule")
+    if not re.search(r"\d", password):
+        errors.append("au moins un chiffre")
+    if not re.search(r"[!@#$%^&*()\-_=+\[\]{}|;:'\",.<>?/\\`~]", password):
+        errors.append("au moins un caractère spécial")
+    if errors:
+        raise ValueError("Mot de passe insuffisant : " + ", ".join(errors))
+
+
 def add_admin(username: str, email: str, password: str, admin_id: str | None = None) -> dict:
     """Insert a new administrator and log ADMIN_ADDED."""
     from werkzeug.security import generate_password_hash
+    _validate_password_strength(password)
     password_hash = generate_password_hash(password)
     db.execute(
         "INSERT INTO administrators (username, email, password_hash) VALUES (%s, %s, %s)",
@@ -468,6 +487,7 @@ def add_admin(username: str, email: str, password: str, admin_id: str | None = N
 def change_password(username: str, new_password: str) -> None:
     """Update password_hash for an active administrator."""
     from werkzeug.security import generate_password_hash
+    _validate_password_strength(new_password)
     admin = db.query_one(
         "SELECT id FROM administrators WHERE username = %s AND is_active = true", (username,)
     )
