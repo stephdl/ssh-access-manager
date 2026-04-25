@@ -98,7 +98,7 @@ def test_ssh_ensure_scripts_deploys_when_hash_differs(sample_server):
 
         client.exec_command.return_value = (MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b"")))
 
-        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"])
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
 
         assert sftp.putfo.called
         assert mock_db.execute.called
@@ -129,7 +129,7 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
 
         client.exec_command.side_effect = exec_side_effect
 
-        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"])
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
 
         sftp.putfo.assert_not_called()
         mock_db.execute.assert_not_called()
@@ -151,7 +151,7 @@ def test_ssh_revoke_on_server_calls_sam_revoke_with_fingerprint(sample_key):
         stderr.read.return_value = b""
         client.exec_command.return_value = (MagicMock(), stdout, stderr)
 
-        ssh.revoke_on_server("server-test-01", sample_key["fingerprint"])
+        ssh.revoke_on_server("server-test-01", sample_key["fingerprint"], ip="192.168.1.10")
 
         cmd = client.exec_command.call_args[0][0]
         assert "sam-revoke" in cmd
@@ -171,7 +171,7 @@ def test_ssh_revoke_on_server_raises_on_nonzero_exit(sample_key):
         client.exec_command.return_value = (MagicMock(), stdout, stderr)
 
         with pytest.raises(RuntimeError):
-            ssh.revoke_on_server("server-test-01", sample_key["fingerprint"])
+            ssh.revoke_on_server("server-test-01", sample_key["fingerprint"], ip="192.168.1.10")
 
 
 # ---------------------------------------------------------------------------

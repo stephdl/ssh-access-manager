@@ -1,4 +1,10 @@
+flask
+click
+paramiko
+psycopg2-binary
+pyyaml
 pytest>=8.0
 pytest-cov
 pytest-mock
 freezegun
+werkzeug

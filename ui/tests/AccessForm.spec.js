@@ -1,30 +1,33 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
 import AccessForm from '../src/components/AccessForm.vue'
 
+const i18n = createI18n({ legacy: false, locale: 'en', messages: { en: {} } })
 const VALID_KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKeyPayload user@host'
+const mk = (props = {}) => mount(AccessForm, { props, global: { plugins: [i18n] } })
 
 describe('AccessForm', () => {
   it('le bouton soumettre est désactivé par défaut', () => {
-    const w = mount(AccessForm)
+    const w = mk()
     expect(w.find('[data-testid="submit-btn"]').attributes('disabled')).toBeDefined()
   })
 
   it('démarre en mode heures', () => {
-    const w = mount(AccessForm)
+    const w = mk()
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(true)
     expect(w.find('[data-testid="input-date"]').exists()).toBe(false)
   })
 
   it('passe en mode date quand on sélectionne date précise', async () => {
-    const w = mount(AccessForm)
+    const w = mk()
     await w.find('[data-testid="mode-date"]').setChecked(true)
     expect(w.find('[data-testid="input-date"]').exists()).toBe(true)
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(false)
   })
 
   it('les modes heures et date ne sont jamais affichés simultanément', async () => {
-    const w = mount(AccessForm)
+    const w = mk()
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(true)
     expect(w.find('[data-testid="input-date"]').exists()).toBe(false)
 
@@ -34,25 +37,25 @@ describe('AccessForm', () => {
   })
 
   it('affiche une erreur si le type de clé est invalide', async () => {
-    const w = mount(AccessForm)
+    const w = mk()
     await w.find('[data-testid="input-pubkey"]').setValue('ssh-dsa AAAA invalid')
     expect(w.find('[data-testid="error-pubkey"]').exists()).toBe(true)
   })
 
   it('n\'affiche pas d\'erreur si la clé est ssh-ed25519 valide', async () => {
-    const w = mount(AccessForm)
+    const w = mk()
     await w.find('[data-testid="input-pubkey"]').setValue(VALID_KEY)
     expect(w.find('[data-testid="error-pubkey"]').exists()).toBe(false)
   })
 
   it('n\'affiche pas d\'erreur si la clé est ssh-rsa', async () => {
-    const w = mount(AccessForm)
+    const w = mk()
     await w.find('[data-testid="input-pubkey"]').setValue('ssh-rsa AAAAB3Nza user@host')
     expect(w.find('[data-testid="error-pubkey"]').exists()).toBe(false)
   })
 
   it('le bouton soumettre reste désactivé si durée < 1', async () => {
-    const w = mount(AccessForm)
+    const w = mk()
     await w.find('[data-testid="input-pubkey"]').setValue(VALID_KEY)
     await w.find('[data-testid="input-server"]').setValue('prod-01')
     await w.find('[data-testid="input-hours"]').setValue('0')
@@ -61,7 +64,7 @@ describe('AccessForm', () => {
   })
 
   it('le bouton soumettre est actif avec tous les champs valides (mode heures)', async () => {
-    const w = mount(AccessForm)
+    const w = mk()
     await w.find('[data-testid="input-pubkey"]').setValue(VALID_KEY)
     await w.find('[data-testid="input-server"]').setValue('prod-01')
     await w.find('[data-testid="input-hours"]').setValue('24')
@@ -70,7 +73,7 @@ describe('AccessForm', () => {
   })
 
   it('émet submit avec payload heures correct', async () => {
-    const w = mount(AccessForm)
+    const w = mk()
     await w.find('[data-testid="input-pubkey"]').setValue(VALID_KEY)
     await w.find('[data-testid="input-server"]').setValue('prod-01')
     await w.find('[data-testid="input-hours"]').setValue('8')
@@ -85,7 +88,7 @@ describe('AccessForm', () => {
   })
 
   it('émet submit sans heures quand mode date', async () => {
-    const w = mount(AccessForm)
+    const w = mk()
     await w.find('[data-testid="input-pubkey"]').setValue(VALID_KEY)
     await w.find('[data-testid="input-server"]').setValue('prod-01')
     await w.find('[data-testid="mode-date"]').setChecked(true)
@@ -100,7 +103,7 @@ describe('AccessForm', () => {
   })
 
   it('n\'émet pas submit si le formulaire est invalide', async () => {
-    const w = mount(AccessForm)
+    const w = mk()
     await w.find('form').trigger('submit')
     expect(w.emitted('submit')).toBeFalsy()
   })

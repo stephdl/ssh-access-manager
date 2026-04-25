@@ -111,7 +111,7 @@ def test_collect_scan_server_scenario2_disappeared_key_calls_handle_disappeared(
         result = collect.scan_server(SAMPLE_SERVER)
 
         mock_actions.handle_disappeared_key.assert_called_once_with(
-            KEY_ID, SERVER_ID, "server-test-01"
+            KEY_ID, SERVER_ID, "server-test-01", ip="192.168.1.10"
         )
         assert result["disappeared"] == 1
 
