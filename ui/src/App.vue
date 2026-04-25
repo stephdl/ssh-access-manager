@@ -138,11 +138,22 @@ button {
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.85rem;
+  transition: opacity 0.15s, filter 0.15s;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(30%);
+  pointer-events: none;
 }
 .btn-primary   { background: #0d6efd; color: #fff; }
+.btn-primary:hover:not(:disabled)   { background: #0b5ed7; }
 .btn-secondary { background: #fff; color: #0d6efd; border-color: #0d6efd; }
-.btn-secondary:hover { background: #e7f0ff; }
+.btn-secondary:hover:not(:disabled) { background: #e7f0ff; }
 .btn-danger    { background: #dc3545; color: #fff; }
+.btn-danger:hover:not(:disabled)    { background: #bb2d3b; }
 .btn-success   { background: #198754; color: #fff; }
+.btn-success:hover:not(:disabled)   { background: #146c43; }
 .btn-warning   { background: #ffc107; color: #000; }
+.btn-warning:hover:not(:disabled)   { background: #e0a800; }
 </style>
