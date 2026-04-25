@@ -67,9 +67,13 @@
               v-model="newPassword"
               type="password"
               placeholder="••••••••"
-              :class="{ 'input-error': newPassword && !passwordValid(newPassword).ok }"
+              :class="{ 'input-error': newPassword && !pwdRules(newPassword).every(r => r.ok) }"
             />
-            <PasswordStrength v-if="newPassword" :password="newPassword" />
+            <ul v-if="newPassword" class="pwd-rules">
+              <li v-for="r in pwdRules(newPassword)" :key="r.label" :class="r.ok ? 'rule-ok' : 'rule-fail'">
+                {{ r.ok ? '✓' : '✗' }} {{ r.label }}
+              </li>
+            </ul>
           </div>
           <div class="field">
             <label for="adm-password-confirm">Confirmer le mot de passe <span class="required">*</span></label>
@@ -119,9 +123,13 @@
               type="password"
               placeholder="••••••••"
               autofocus
-              :class="{ 'input-error': editPassword && !passwordValid(editPassword).ok }"
+              :class="{ 'input-error': editPassword && !pwdRules(editPassword).every(r => r.ok) }"
             />
-            <PasswordStrength v-if="editPassword" :password="editPassword" />
+            <ul v-if="editPassword" class="pwd-rules">
+              <li v-for="r in pwdRules(editPassword)" :key="r.label" :class="r.ok ? 'rule-ok' : 'rule-fail'">
+                {{ r.ok ? '✓' : '✗' }} {{ r.label }}
+              </li>
+            </ul>
           </div>
           <div class="field" style="margin-bottom:1rem">
             <label for="edit-password-confirm">Confirmer <span class="required">*</span></label>
@@ -150,67 +158,48 @@
 import { ref, computed, onMounted } from 'vue'
 
 // ---------------------------------------------------------------------------
-// Composant interne : indicateur de robustesse du mot de passe
+// Validation — règles de robustesse du mot de passe
 // ---------------------------------------------------------------------------
-const PasswordStrength = {
-  props: { password: { type: String, required: true } },
-  setup(props) {
-    const rules = computed(() => [
-      { label: '8 caractères minimum',    ok: props.password.length >= 8 },
-      { label: 'Une lettre majuscule',    ok: /[A-Z]/.test(props.password) },
-      { label: 'Une lettre minuscule',    ok: /[a-z]/.test(props.password) },
-      { label: 'Un chiffre',             ok: /\d/.test(props.password) },
-      { label: 'Un caractère spécial',   ok: /[!@#$%^&*()\-_=+\[\]{}|;:'",.<>?/\\`~]/.test(props.password) },
-    ])
-    return { rules }
-  },
-  template: `
-    <ul class="pwd-rules">
-      <li v-for="r in rules" :key="r.label" :class="r.ok ? 'rule-ok' : 'rule-fail'">
-        {{ r.ok ? '✓' : '✗' }} {{ r.label }}
-      </li>
-    </ul>
-  `,
+const SPECIAL = /[!@#$%^&*()\-_=+[\]{}|;:'",.<>?\\`~]/
+
+function pwdRules(pwd) {
+  return [
+    { label: '8 caractères minimum',  ok: pwd.length >= 8 },
+    { label: 'Une lettre majuscule',  ok: /[A-Z]/.test(pwd) },
+    { label: 'Une lettre minuscule',  ok: /[a-z]/.test(pwd) },
+    { label: 'Un chiffre',           ok: /\d/.test(pwd) },
+    { label: 'Un caractère spécial', ok: SPECIAL.test(pwd) },
+  ]
 }
 
-// ---------------------------------------------------------------------------
-// Validation partagée
-// ---------------------------------------------------------------------------
-function passwordValid(pwd) {
-  const rules = [
-    pwd.length >= 8,
-    /[A-Z]/.test(pwd),
-    /[a-z]/.test(pwd),
-    /\d/.test(pwd),
-    /[!@#$%^&*()\-_=+\[\]{}|;:'",.<>?/\\`~]/.test(pwd),
-  ]
-  return { ok: rules.every(Boolean) }
+function pwdOk(pwd) {
+  return pwdRules(pwd).every(r => r.ok)
 }
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
-const admins             = ref([])
-const loading            = ref(true)
-const error              = ref('')
-const message            = ref('')
-const newUsername        = ref('')
-const newEmail           = ref('')
-const newPassword        = ref('')
-const newPasswordConfirm = ref('')
-const disableTarget      = ref(null)
+const admins              = ref([])
+const loading             = ref(true)
+const error               = ref('')
+const message             = ref('')
+const newUsername         = ref('')
+const newEmail            = ref('')
+const newPassword         = ref('')
+const newPasswordConfirm  = ref('')
+const disableTarget       = ref(null)
 const editPasswordTarget  = ref(null)
 const editPassword        = ref('')
 const editPasswordConfirm = ref('')
 
 const canSubmitAdd = computed(() =>
-  newUsername.value.trim() &&
-  passwordValid(newPassword.value).ok &&
+  newUsername.value.trim().length > 0 &&
+  pwdOk(newPassword.value) &&
   newPassword.value === newPasswordConfirm.value
 )
 
 const canSubmitEdit = computed(() =>
-  passwordValid(editPassword.value).ok &&
+  pwdOk(editPassword.value) &&
   editPassword.value === editPasswordConfirm.value
 )
 
@@ -294,7 +283,9 @@ function closeEditPassword() {
 
 async function confirmEditPassword() {
   if (!canSubmitEdit.value) return
+  // Capture before closing (closeEditPassword resets the refs)
   const username = editPasswordTarget.value
+  const password = editPassword.value
   closeEditPassword()
   error.value   = ''
   message.value = ''
@@ -302,7 +293,7 @@ async function confirmEditPassword() {
     const res = await fetch(`/api/admins/${username}/password`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: editPassword.value }),
+      body: JSON.stringify({ password }),
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
@@ -358,7 +349,7 @@ input.input-error { border-color: #dc3545; }
 
 .pwd-rules {
   list-style: none;
-  padding: 0.4rem 0 0 0;
+  padding: 0.35rem 0 0 0;
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -375,6 +366,13 @@ input.input-error { border-color: #dc3545; }
 
 .alert-error { background: #f8d7da; color: #721c24; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
 .alert-info  { background: #d4edda; color: #155724; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+
+.btn-primary:disabled {
+  background: #6c9fd6;
+  border-color: #6c9fd6;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
 
 .btn-secondary {
   padding: 0.3rem 0.7rem;
