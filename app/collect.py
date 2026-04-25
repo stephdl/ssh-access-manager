@@ -129,8 +129,8 @@ def scan_server(server: dict) -> dict:
             result["new"] += 1
         else:
             db.execute(
-                "UPDATE ssh_keys SET last_seen = now() WHERE id = %s",
-                (existing_key["id"],),
+                "UPDATE ssh_keys SET last_seen = now(), key_size_bits = %s WHERE id = %s",
+                (parsed["key_size_bits"], existing_key["id"]),
             )
             auth = db.query_one(
                 """
