@@ -452,8 +452,12 @@ test_actions.py :
 - revoke_key : scénario 1 (via système, revoked_by=admin_id)
 - collect : scénario 2 (hors système, revoked_automatically=TRUE)
 - collect : scénario 3 (clé inconnue → PENDING_REVIEW)
-- expire : scénario 4 (expiration programmée → sam-revoke)
 - Anti-spam EXPIRY_WARNING : second appel dans 24h ne renvoie pas d'email
+
+test_expire.py :
+- expire : scénario 4 (expiration programmée → sam-revoke)
+  Justification : expire.py orchestre le workflow complet,
+  actions.py couvre uniquement les scénarios 1, 2, 3.
 
 test_ssh.py :
 - RejectPolicy présent sur chaque connexion
