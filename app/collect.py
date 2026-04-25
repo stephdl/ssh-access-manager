@@ -69,12 +69,13 @@ def scan_server(server: dict) -> dict:
     Returns a result dict with counts and optional error.
     """
     hostname = server["hostname"]
+    ip = server["ip_address"]
     server_id = server["id"]
     result = {"hostname": hostname, "new": 0, "disappeared": 0, "known": 0, "error": None}
 
     try:
-        ssh.ensure_scripts(hostname, server_id)
-        raw_lines = ssh.collect_keys(hostname)
+        ssh.ensure_scripts(ip, server_id)
+        raw_lines = ssh.collect_keys(ip)
     except Exception as exc:
         result["error"] = str(exc)
         db.execute(
@@ -154,7 +155,7 @@ def scan_server(server: dict) -> dict:
     )
     for row in active_on_server:
         if row["fingerprint"] not in collected_fps:
-            actions.handle_disappeared_key(row["key_id"], server_id, hostname)
+            actions.handle_disappeared_key(row["key_id"], server_id, ip)
             result["disappeared"] += 1
 
     db.execute(

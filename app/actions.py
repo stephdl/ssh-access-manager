@@ -412,9 +412,9 @@ def add_server(
     """Insert a new server, run ssh-keyscan, and log SERVER_ADDED."""
     import servers as servers_mod
     try:
-        servers_mod.add_to_known_hosts(hostname)
+        servers_mod.add_to_known_hosts(ip)
     except Exception as e:
-        raise ValueError(f"Impossible de joindre {hostname} pour le keyscan : {e}") from e
+        raise ValueError(f"Impossible de joindre {hostname} ({ip}) pour le keyscan : {e}") from e
     db.execute(
         "INSERT INTO servers (hostname, ip_address, environment, os_family) VALUES (%s, %s, %s, %s)",
         (hostname, ip, env, os_family),
