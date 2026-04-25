@@ -73,7 +73,9 @@ revoke_from_file() {
         fi
     done < "$keyfile"
     if [ "$changed" -eq 1 ]; then
+        dir_owner=$(stat -c '%u:%g' "$(dirname "$keyfile")")
         chmod 600 "$tmp"
+        chown "$dir_owner" "$tmp"
         mv "$tmp" "$keyfile"
     else
         rm -f "$tmp"
