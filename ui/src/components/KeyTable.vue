@@ -44,9 +44,9 @@
           >Expiry</button>
           <button
             v-if="k.status === 'ACTIVE' && k.expires_at"
-            class="btn-secondary"
+            class="btn-unlimited"
             @click="$emit('remove-expiry', k.fingerprint)"
-          >Illimité</button>
+          >∞ Illimité</button>
           <button
             v-if="!k.owner && k.status === 'ACTIVE'"
             class="btn-primary"
@@ -80,6 +80,16 @@ function formatDate(iso) {
 
 <style scoped>
 .fp { font-size: 0.75rem; max-width: 260px; word-break: break-all; }
+.btn-unlimited {
+  background: #6f42c1;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.btn-unlimited:hover { background: #5a32a3; }
 .empty { text-align: center; color: #888; padding: 1rem 0; }
 .actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 code { font-size: 0.8rem; background: #f4f4f4; padding: 0 3px; border-radius: 3px; }
