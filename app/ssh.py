@@ -1,7 +1,6 @@
 import hashlib
 import io
 import os
-import socket
 
 import paramiko
 
@@ -92,21 +91,12 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _try_connect(host: str) -> paramiko.SSHClient:
+def _connect(ip: str) -> paramiko.SSHClient:
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.RejectPolicy())
     client.load_host_keys(KNOWN_HOSTS)
-    client.connect(hostname=host, username=SSH_USER, key_filename=COLLECTOR_KEY, timeout=15)
+    client.connect(hostname=ip, username=SSH_USER, key_filename=COLLECTOR_KEY, timeout=15)
     return client
-
-
-def _connect(hostname: str, ip: str | None = None) -> paramiko.SSHClient:
-    try:
-        return _try_connect(hostname)
-    except (socket.gaierror, OSError):
-        if ip and ip != hostname:
-            return _try_connect(ip)
-        raise
 
 
 def _run(client: paramiko.SSHClient, cmd: str) -> tuple[str, str, int]:
@@ -139,12 +129,12 @@ def _deploy_script(
     _run(client, f"sudo /bin/chmod 755 {remote_path}")
 
 
-def ensure_scripts(hostname: str, server_id: str, ip: str | None = None) -> None:
+def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
     """
     Deploy SAM_COLLECT and SAM_REVOKE on the remote host if absent or outdated.
     Logs SCRIPT_DEPLOYED to audit_log for each script actually deployed.
     """
-    client = _connect(hostname, ip)
+    client = _connect(ip)
     try:
         sftp = client.open_sftp()
         for content, remote_path in (
@@ -174,9 +164,9 @@ def ensure_scripts(hostname: str, server_id: str, ip: str | None = None) -> None
         client.close()
 
 
-def revoke_on_server(hostname: str, fingerprint: str, ip: str | None = None) -> None:
+def revoke_on_server(hostname: str, fingerprint: str, ip: str) -> None:
     """Run sam-revoke on the remote host to remove the key with given fingerprint."""
-    client = _connect(hostname, ip)
+    client = _connect(ip)
     try:
         _, err, rc = _run(
             client, f"sudo {SAM_REVOKE_PATH} '{fingerprint}'"
@@ -189,9 +179,9 @@ def revoke_on_server(hostname: str, fingerprint: str, ip: str | None = None) -> 
         client.close()
 
 
-def collect_keys(hostname: str, ip: str | None = None) -> list[str]:
+def collect_keys(hostname: str, ip: str) -> list[str]:
     """Run sam-collect on the remote host and return raw output lines."""
-    client = _connect(hostname, ip)
+    client = _connect(ip)
     try:
         out, _, rc = _run(client, f"sudo {SAM_COLLECT_PATH}")
         if rc != 0:
