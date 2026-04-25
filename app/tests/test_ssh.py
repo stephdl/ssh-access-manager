@@ -189,3 +189,16 @@ def test_ssh_sam_revoke_is_bytes():
     assert b"TARGET_FP" in ssh.SAM_REVOKE
     assert b"mktemp" in ssh.SAM_REVOKE
     assert b"mv" in ssh.SAM_REVOKE
+
+
+def test_ssh_sam_revoke_preserves_file_ownership():
+    # Verify the script preserves original file ownership before atomic mv
+    assert b"chown" in ssh.SAM_REVOKE
+    assert b"stat" in ssh.SAM_REVOKE
+    assert b"dirname" in ssh.SAM_REVOKE
+
+
+def test_ssh_sam_revoke_atomic_rewrite_only_when_changed():
+    # The mv only happens if changed=1, otherwise the tmp is removed
+    assert b"changed" in ssh.SAM_REVOKE
+    assert b"rm -f" in ssh.SAM_REVOKE

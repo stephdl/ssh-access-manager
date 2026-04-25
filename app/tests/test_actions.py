@@ -389,3 +389,58 @@ def test_actions_disable_admin_raises_if_not_found():
         mock_db.query_one.return_value = None
         with pytest.raises(ValueError, match="not found"):
             actions.disable_admin("ghost")
+
+
+# ---------------------------------------------------------------------------
+# enable_server
+# ---------------------------------------------------------------------------
+
+def test_actions_enable_server_sets_active():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": SERVER_ID}
+        actions.enable_server("server-test-01", ADMIN_ID)
+        update_call = mock_db.execute.call_args_list[0][0][0]
+        assert "is_active = true" in update_call
+
+
+def test_actions_enable_server_logs_server_added():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": SERVER_ID}
+        actions.enable_server("server-test-01", ADMIN_ID)
+        calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("SERVER_ADDED" in c for c in calls)
+
+
+def test_actions_enable_server_raises_if_not_found():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(ValueError, match="not found"):
+            actions.enable_server("ghost")
+
+
+# ---------------------------------------------------------------------------
+# delete_server
+# ---------------------------------------------------------------------------
+
+def test_actions_delete_server_removes_server_row():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": SERVER_ID}
+        actions.delete_server("server-test-01", ADMIN_ID)
+        delete_calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("DELETE FROM servers" in c for c in delete_calls)
+
+
+def test_actions_delete_server_removes_authorizations_and_requests():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": SERVER_ID}
+        actions.delete_server("server-test-01", ADMIN_ID)
+        delete_calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("key_authorizations" in c for c in delete_calls)
+        assert any("access_requests" in c for c in delete_calls)
+
+
+def test_actions_delete_server_raises_if_not_found():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(ValueError, match="not found"):
+            actions.delete_server("ghost")

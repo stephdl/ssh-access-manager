@@ -1,3 +1,4 @@
+import base64
 import os
 import sys
 import uuid
@@ -30,8 +31,10 @@ def client():
 
 @pytest.fixture
 def auth_client(client):
+    """Client with an active admin session."""
     with client.session_transaction() as sess:
         sess["admin_id"] = ADMIN_ID
+        sess["admin_username"] = "admin"
     return client
 
 
@@ -40,15 +43,16 @@ def auth_client(client):
 # ---------------------------------------------------------------------------
 
 def test_web_no_auth_returns_401(client):
-    resp = client.get("/api/keys")
-    assert resp.status_code == 401
-
-
-def test_web_authenticated_returns_200(auth_client):
     with patch("web.db") as mock_db:
-        mock_db.query.return_value = []
+        resp = client.get("/api/keys")
+        assert resp.status_code == 401
+
+
+def test_web_invalid_admin_returns_401(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = None  # admin not found in DB
         resp = auth_client.get("/api/keys")
-        assert resp.status_code == 200
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -58,9 +62,10 @@ def test_web_authenticated_returns_200(auth_client):
 def test_web_get_keys_returns_200_and_list(auth_client):
     key_row = {
         "id": KEY_ID, "fingerprint": FINGERPRINT,
-        "key_type": "ssh-ed25519", "is_compliant": True,
+        "key_type": "ssh-ed25519", "is_compliant": True, "owner": None,
     }
     with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
         mock_db.query.return_value = [key_row]
         resp = auth_client.get("/api/keys")
         assert resp.status_code == 200
@@ -71,6 +76,7 @@ def test_web_get_keys_returns_200_and_list(auth_client):
 
 def test_web_get_keys_with_status_filter(auth_client):
     with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
         mock_db.query.return_value = []
         resp = auth_client.get("/api/keys?status=ACTIVE")
         assert resp.status_code == 200
@@ -79,7 +85,39 @@ def test_web_get_keys_with_status_filter(auth_client):
 
 
 # ---------------------------------------------------------------------------
-# POST /api/keys/<fp>/revoke — 200 si authentifié, 401 si non authentifié
+# GET /api/keys — champ owner présent dans la réponse
+# ---------------------------------------------------------------------------
+
+def test_web_get_keys_includes_owner_field(auth_client):
+    key_row = {
+        "id": KEY_ID, "fingerprint": FINGERPRINT,
+        "key_type": "ssh-ed25519", "is_compliant": True, "owner": "alice",
+    }
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = [key_row]
+        resp = auth_client.get("/api/keys")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data[0].get("owner") == "alice"
+
+
+def test_web_get_keys_owner_is_none_when_unassigned(auth_client):
+    key_row = {
+        "id": KEY_ID, "fingerprint": FINGERPRINT,
+        "key_type": "ssh-ed25519", "is_compliant": True, "owner": None,
+    }
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = [key_row]
+        resp = auth_client.get("/api/keys")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data[0].get("owner") is None
+
+
+# ---------------------------------------------------------------------------
+# POST /api/keys/revoke/<fp> — 200 si authentifie, 401 si non authentifie
 # ---------------------------------------------------------------------------
 
 def test_web_revoke_key_returns_200_if_authenticated(auth_client):
@@ -116,6 +154,7 @@ def test_web_revoke_key_returns_404_if_key_not_found(auth_client):
 def test_web_grant_access_returns_201_with_expires_at(auth_client):
     expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=8)
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
         mock_actions.grant_access.return_value = {
             "key_id": KEY_ID,
             "server_id": SERVER_ID,
@@ -138,6 +177,7 @@ def test_web_grant_access_returns_201_with_expires_at(auth_client):
 
 def test_web_grant_access_returns_400_without_expiry(auth_client):
     with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
         resp = auth_client.post(
             "/api/access/grant",
             json={"key_fp": FINGERPRINT, "hostname": "host", "justification": "x"},
@@ -151,6 +191,7 @@ def test_web_grant_access_returns_400_without_expiry(auth_client):
 
 def test_web_get_servers_returns_200(auth_client):
     with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
         mock_db.query.return_value = [{"hostname": "srv-01"}]
         resp = auth_client.get("/api/servers")
         assert resp.status_code == 200
@@ -162,6 +203,7 @@ def test_web_get_servers_returns_200(auth_client):
 
 def test_web_add_server_returns_201(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
         mock_actions.add_server.return_value = {"id": SERVER_ID}
         resp = auth_client.post(
             "/api/servers",
@@ -171,11 +213,52 @@ def test_web_add_server_returns_201(auth_client):
 
 
 # ---------------------------------------------------------------------------
+# PUT /api/servers/<hostname>/enable
+# ---------------------------------------------------------------------------
+
+def test_web_enable_server_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/servers/server-test-01/enable")
+        assert resp.status_code == 200
+        mock_actions.enable_server.assert_called_once_with("server-test-01", ADMIN_ID)
+
+
+def test_web_enable_server_returns_404_if_not_found(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.enable_server.side_effect = ValueError("not found")
+        resp = auth_client.put("/api/servers/ghost/enable")
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/servers/<hostname>
+# ---------------------------------------------------------------------------
+
+def test_web_delete_server_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.delete("/api/servers/server-test-01")
+        assert resp.status_code == 200
+        mock_actions.delete_server.assert_called_once_with("server-test-01", ADMIN_ID)
+
+
+def test_web_delete_server_returns_404_if_not_found(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.delete_server.side_effect = ValueError("not found")
+        resp = auth_client.delete("/api/servers/ghost")
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # GET /api/audit
 # ---------------------------------------------------------------------------
 
 def test_web_get_audit_returns_200(auth_client):
     with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
         mock_db.query.return_value = []
         resp = auth_client.get("/api/audit")
         assert resp.status_code == 200
@@ -183,6 +266,7 @@ def test_web_get_audit_returns_200(auth_client):
 
 def test_web_get_audit_filters_by_action(auth_client):
     with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
         mock_db.query.return_value = []
         resp = auth_client.get("/api/audit?action=KEY_REVOKED")
         assert resp.status_code == 200
@@ -197,11 +281,11 @@ def test_web_get_audit_filters_by_action(auth_client):
 def test_web_system_status_returns_200(auth_client):
     with patch("web.db") as mock_db:
         mock_db.query_one.side_effect = [
-            _admin_row(),   # require_auth
-            {"n": 3},       # servers_active
-            {"n": 1},       # keys_pending
-            {"n": 10},      # keys_active
-            None,           # last_scan
+            _admin_row(),
+            {"n": 3},   # servers_active
+            {"n": 1},   # keys_pending
+            {"n": 10},  # keys_active
+            None,       # last_scan
         ]
         resp = auth_client.get("/api/system/status")
         assert resp.status_code == 200

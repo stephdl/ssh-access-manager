@@ -4,7 +4,7 @@ import { createI18n } from 'vue-i18n'
 import ExpiryPicker from '../src/components/ExpiryPicker.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'en', messages: { en: {} } })
-const mk = (props = {}) => mount(ExpiryPicker, { props, global: { plugins: [i18n] } })
+const mk = () => mount(ExpiryPicker, { global: { plugins: [i18n] } })
 
 describe('ExpiryPicker', () => {
   it('démarre en mode heures', () => {
