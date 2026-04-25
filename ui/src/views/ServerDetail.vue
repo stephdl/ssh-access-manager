@@ -264,7 +264,7 @@ async function scanServer() {
 const efp = (fp) => encodeURIComponent(fp)
 
 async function validateKey(fingerprint) {
-  await apiAction(`/api/keys/validate/${efp(fingerprint)}`, {}, `Clé validée.`)
+  await apiAction(`/api/keys/validate/${efp(fingerprint)}`, {}, 'POST', 'Clé validée.')
 }
 
 function openRevoke(key) {
@@ -274,7 +274,7 @@ function openRevoke(key) {
 
 async function confirmRevoke() {
   const fp = revokeTarget.value.fingerprint
-  await apiAction(`/api/keys/revoke/${efp(fp)}`, { reason: revokeReason.value }, `Clé révoquée.`)
+  await apiAction(`/api/keys/revoke/${efp(fp)}`, { reason: revokeReason.value }, 'POST', 'Clé révoquée.')
   revokeTarget.value = null
 }
 
@@ -287,6 +287,7 @@ async function confirmAssign() {
   await apiAction(
     `/api/keys/assign/${efp(assignTarget.value)}`,
     { owner_username: assignUsername.value },
+    'POST',
     `Clé assignée à ${assignUsername.value}.`,
   )
   assignTarget.value = null
@@ -306,13 +307,13 @@ async function confirmExpiry() {
   await apiAction(
     `/api/keys/set-expiry/${efp(expiryTarget.value.fingerprint)}`,
     body,
+    'POST',
     'Expiration définie.',
   )
   expiryTarget.value = null
 }
 
 async function apiAction(url, body, method = 'POST', successMsg) {
-  if (typeof method !== 'string') { successMsg = method; method = 'POST' }
   error.value = ''
   message.value = ''
   try {
