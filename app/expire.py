@@ -1,0 +1,120 @@
+"""
+expire.py — gestion des expirations de cles SSH.
+Appelee par cron a chaque cycle (SCAN_INTERVAL_HOURS).
+
+warn_expiring_keys() : alerte J-7 et J-2 avec anti-spam 24h
+expire_keys()        : scenario 4 — revocation automatique a echeance
+"""
+import json
+import os
+
+import actions
+import alerts
+import db
+import ssh
+
+EXPIRE_WARN_DAYS = int(os.environ.get("EXPIRE_WARN_DAYS", "7"))
+EXPIRE_WARN_DAYS_2 = int(os.environ.get("EXPIRE_WARN_DAYS_2", "2"))
+
+
+def warn_expiring_keys() -> int:
+    """
+    Find ACTIVE keys expiring within EXPIRE_WARN_DAYS or EXPIRE_WARN_DAYS_2 days.
+    Delegates to actions.warn_expiring_key() which enforces the 24h anti-spam.
+    Returns the number of warnings actually sent.
+    """
+    rows = db.query(
+        """
+        SELECT ka.key_id, ka.server_id, ka.expires_at
+        FROM key_authorizations ka
+        WHERE ka.status = 'ACTIVE'
+          AND ka.expires_at IS NOT NULL
+          AND ka.expires_at > now()
+          AND ka.expires_at <= now() + INTERVAL '%s days'
+        """,
+        (max(EXPIRE_WARN_DAYS, EXPIRE_WARN_DAYS_2),),
+    )
+    sent = 0
+    for row in rows:
+        before = db.query_one(
+            """
+            SELECT id FROM audit_log
+            WHERE action = 'EXPIRY_WARNING'
+              AND target_key = %s
+              AND target_server = %s
+              AND performed_at > now() - INTERVAL '24 hours'
+            """,
+            (row["key_id"], row["server_id"]),
+        )
+        if before:
+            continue
+        actions.warn_expiring_key(row["key_id"], row["server_id"], row["expires_at"])
+        sent += 1
+    return sent
+
+
+def expire_keys() -> int:
+    """
+    Scenario 4 — revoke all ACTIVE keys whose expires_at < NOW().
+    Calls sam-revoke on each server, sets EXPIRED + revoked_automatically=True.
+    Returns the number of keys expired.
+    """
+    rows = db.query(
+        """
+        SELECT ka.key_id, ka.server_id, sk.fingerprint, s.hostname
+        FROM key_authorizations ka
+        JOIN ssh_keys sk ON sk.id = ka.key_id
+        JOIN servers s ON s.id = ka.server_id
+        WHERE ka.status = 'ACTIVE'
+          AND ka.expires_at IS NOT NULL
+          AND ka.expires_at <= now()
+        """,
+        (),
+    )
+    expired = 0
+    for row in rows:
+        try:
+            ssh.revoke_on_server(row["hostname"], row["fingerprint"])
+        except Exception as exc:
+            alerts.send_alert(
+                "CRITICAL",
+                f"[ssh-access-manager] Echec revocation expiree sur {row['hostname']}",
+                f"Fingerprint: {row['fingerprint']}\nErreur: {exc}",
+            )
+            continue
+
+        db.execute(
+            """
+            UPDATE key_authorizations
+            SET status = 'EXPIRED',
+                revoked_at = now(),
+                revoked_by = NULL,
+                revoked_automatically = true,
+                revocation_justification = 'Scheduled expiration reached'
+            WHERE key_id = %s AND server_id = %s
+            """,
+            (row["key_id"], row["server_id"]),
+        )
+        db.execute(
+            """
+            INSERT INTO audit_log (action, target_key, target_server, details)
+            VALUES ('KEY_EXPIRED', %s, %s, %s::jsonb)
+            """,
+            (
+                row["key_id"],
+                row["server_id"],
+                json.dumps({
+                    "fingerprint": row["fingerprint"],
+                    "hostname": row["hostname"],
+                    "reason": "scheduled_expiration",
+                }),
+            ),
+        )
+        expired += 1
+    return expired
+
+
+if __name__ == "__main__":
+    warned = warn_expiring_keys()
+    expired = expire_keys()
+    print(f"expire.py: {warned} warnings sent, {expired} keys expired")
