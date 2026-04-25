@@ -41,12 +41,12 @@
             v-if="k.status === 'ACTIVE'"
             class="btn-warning"
             @click="$emit('set-expiry', k)"
-          >Expiry</button>
+          >Expiration</button>
           <button
             v-if="k.status === 'ACTIVE' && k.expires_at"
             class="btn-unlimited"
             @click="$emit('remove-expiry', k.fingerprint)"
-          >∞ Illimité</button>
+          >Illimité</button>
           <button
             v-if="!k.owner && k.status === 'ACTIVE'"
             class="btn-primary"
