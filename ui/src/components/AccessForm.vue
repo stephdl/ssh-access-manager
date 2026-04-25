@@ -1,38 +1,38 @@
 <template>
   <form class="access-form" @submit.prevent="submit">
     <div class="field">
-      <label for="af-pubkey">Clé publique <span class="required">*</span></label>
+      <label for="af-pubkey">{{ $t('access_form.public_key_label') }} <span class="required">{{ $t('common.required') }}</span></label>
       <textarea
         id="af-pubkey"
         v-model="publicKey"
         rows="4"
-        placeholder="Coller la clé publique SSH (ssh-ed25519 / ssh-rsa …)"
+        :placeholder="$t('access_form.public_key_placeholder')"
         data-testid="input-pubkey"
       ></textarea>
       <span v-if="pubkeyError" class="field-error" data-testid="error-pubkey">{{ pubkeyError }}</span>
     </div>
 
     <div class="field">
-      <label for="af-server">Serveur <span class="required">*</span></label>
+      <label for="af-server">{{ $t('access_form.server_label') }} <span class="required">{{ $t('common.required') }}</span></label>
       <input
         id="af-server"
         v-model="server"
         type="text"
-        placeholder="hostname"
+        :placeholder="$t('access_form.server_placeholder')"
         data-testid="input-server"
       />
     </div>
 
     <div class="field">
-      <label>Durée d'accès <span class="required">*</span></label>
+      <label>{{ $t('access_form.duration_label') }} <span class="required">{{ $t('common.required') }}</span></label>
       <div class="mode-toggle">
         <label>
           <input v-model="mode" type="radio" value="hours" data-testid="mode-hours" />
-          Durée (heures)
+          {{ $t('access_form.hours_label') }}
         </label>
         <label>
           <input v-model="mode" type="radio" value="date" data-testid="mode-date" />
-          Date précise
+          {{ $t('access_form.date_label') }}
         </label>
       </div>
       <input
@@ -40,7 +40,7 @@
         v-model.number="hours"
         type="number"
         min="1"
-        placeholder="ex : 24"
+        :placeholder="$t('access_form.hours_placeholder')"
         data-testid="input-hours"
       />
       <input
@@ -54,28 +54,30 @@
     </div>
 
     <div class="field">
-      <label for="af-justification">Justification <span class="required">*</span></label>
+      <label for="af-justification">{{ $t('access_form.justification_label') }} <span class="required">{{ $t('common.required') }}</span></label>
       <textarea
         id="af-justification"
         v-model="justification"
         rows="3"
-        placeholder="Raison de la demande d'accès…"
+        :placeholder="$t('access_form.justification_placeholder')"
         data-testid="input-justification"
       ></textarea>
     </div>
 
     <div class="form-actions">
       <button type="submit" class="btn-primary" :disabled="!isValid" data-testid="submit-btn">
-        Soumettre la demande
+        {{ $t('access_form.submit') }}
       </button>
-      <button type="button" @click="reset">Réinitialiser</button>
+      <button type="button" @click="reset">{{ $t('access_form.reset') }}</button>
     </div>
   </form>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const emit = defineEmits(['submit'])
 
 const publicKey    = ref('')
@@ -97,18 +99,18 @@ const pubkeyError = computed(() => {
   const validTypes = ['ssh-ed25519', 'ssh-rsa', 'ecdsa-sha2-nistp256']
   const keyType = trimmed.split(/\s+/)[0]
   if (!validTypes.includes(keyType)) {
-    return `Type non supporté. Types acceptés : ${validTypes.join(', ')}`
+    return t('access_form.error_unsupported_type', { types: validTypes.join(', ') })
   }
   return ''
 })
 
 const durationError = computed(() => {
   if (mode.value === 'hours') {
-    if (hours.value !== '' && hours.value < 1) return 'La durée doit être d\'au moins 1 heure.'
+    if (hours.value !== '' && hours.value < 1) return t('access_form.error_min_hours')
     return ''
   }
   if (date.value && new Date(date.value) <= new Date()) {
-    return 'La date doit être dans le futur.'
+    return t('access_form.error_future_date')
   }
   return ''
 })

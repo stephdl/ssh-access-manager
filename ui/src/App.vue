@@ -2,14 +2,21 @@
   <div id="app">
     <nav v-if="admin" class="navbar">
       <span class="brand">ssh-access-manager</span>
-      <router-link to="/">Dashboard</router-link>
-      <router-link to="/anomalies">Anomalies</router-link>
-      <router-link to="/access">Accès</router-link>
-      <router-link to="/audit">Audit</router-link>
-      <router-link to="/admins">Admins</router-link>
+      <router-link to="/">{{ $t('nav.dashboard') }}</router-link>
+      <router-link to="/anomalies">{{ $t('nav.anomalies') }}</router-link>
+      <router-link to="/access">{{ $t('nav.access') }}</router-link>
+      <router-link to="/audit">{{ $t('nav.audit') }}</router-link>
+      <router-link to="/admins">{{ $t('nav.admins') }}</router-link>
       <span class="nav-spacer"></span>
+      <select class="lang-select" :value="locale" @change="changeLang($event.target.value)">
+        <option value="en">EN</option>
+        <option value="fr">FR</option>
+        <option value="es">ES</option>
+        <option value="it">IT</option>
+        <option value="de">DE</option>
+      </select>
       <span class="nav-user">{{ admin.username }}</span>
-      <button class="btn-logout" @click="handleLogout">Déconnexion</button>
+      <button class="btn-logout" @click="handleLogout">{{ $t('nav.logout') }}</button>
     </nav>
     <main class="content">
       <router-view />
@@ -19,14 +26,21 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuth } from './composables/useAuth.js'
 
 const router = useRouter()
 const { admin, logout } = useAuth()
+const { locale } = useI18n()
 
 async function handleLogout() {
   await logout()
   router.push('/login')
+}
+
+function changeLang(lang) {
+  locale.value = lang
+  localStorage.setItem('lang', lang)
 }
 </script>
 
@@ -82,6 +96,17 @@ body {
   cursor: pointer;
 }
 .btn-logout:hover { border-color: #fff; color: #fff; }
+
+.lang-select {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.4);
+  color: #fff;
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.lang-select option { color: #000; background: #fff; }
 
 .content {
   padding: 1.5rem;

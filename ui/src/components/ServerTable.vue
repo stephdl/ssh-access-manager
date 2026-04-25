@@ -4,7 +4,7 @@
       <input
         v-model="search"
         type="text"
-        placeholder="Rechercher un serveur…"
+        :placeholder="$t('server_table.search_placeholder')"
         class="search-input"
       />
     </div>
@@ -12,18 +12,18 @@
     <table>
       <thead>
         <tr>
-          <th>Statut</th>
-          <th>Hostname</th>
-          <th>IP</th>
-          <th>Environnement</th>
-          <th>OS</th>
-          <th>Ajouté le</th>
-          <th>Actions</th>
+          <th>{{ $t('server_table.col_status') }}</th>
+          <th>{{ $t('server_table.col_hostname') }}</th>
+          <th>{{ $t('server_table.col_ip') }}</th>
+          <th>{{ $t('server_table.col_environment') }}</th>
+          <th>{{ $t('server_table.col_os') }}</th>
+          <th>{{ $t('server_table.col_added') }}</th>
+          <th>{{ $t('server_table.col_actions') }}</th>
         </tr>
       </thead>
       <tbody>
         <tr v-if="filtered.length === 0">
-          <td colspan="7" class="empty">Aucun serveur trouvé.</td>
+          <td colspan="7" class="empty">{{ $t('server_table.empty') }}</td>
         </tr>
         <tr v-for="s in filtered" :key="s.id" :class="rowClass(s)">
           <td>{{ statusIcon(s) }}</td>
@@ -31,7 +31,7 @@
             <router-link :to="`/servers/${s.hostname}`" class="server-link" :class="{ 'link-disabled': !s.is_active }">
               {{ s.hostname }}
             </router-link>
-            <span v-if="!s.is_active" class="badge badge-disabled">DÉSACTIVÉ</span>
+            <span v-if="!s.is_active" class="badge badge-disabled">{{ $t('server_table.disabled_badge') }}</span>
           </td>
           <td>{{ s.ip_address }}</td>
           <td>
@@ -43,7 +43,7 @@
           <td>{{ formatDate(s.added_at) }}</td>
           <td>
             <button class="btn-primary" @click="$emit('scan', s.hostname)">
-              Scanner
+              {{ $t('server_table.scan') }}
             </button>
           </td>
         </tr>

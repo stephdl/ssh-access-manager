@@ -1,11 +1,11 @@
 <template>
   <div class="dashboard-view">
     <div class="page-header">
-      <h1>Dashboard</h1>
+      <h1>{{ $t('dashboard.title') }}</h1>
       <div class="header-actions">
-        <button class="btn-secondary" @click="openAddServer">+ Ajouter un serveur</button>
+        <button class="btn-secondary" @click="openAddServer">{{ $t('dashboard.add_server') }}</button>
         <button class="btn-primary" :disabled="scanning" @click="scanAll">
-          {{ scanning ? 'Scan en cours…' : 'Scanner maintenant' }}
+          {{ scanning ? $t('dashboard.scanning') : $t('dashboard.scan_now') }}
         </button>
       </div>
     </div>
@@ -16,59 +16,59 @@
     <div class="counters">
       <div class="counter counter-ok">
         <span class="counter-value">{{ counts.ok }}</span>
-        <span class="counter-label">✅ OK</span>
+        <span class="counter-label">{{ $t('dashboard.status_ok') }}</span>
       </div>
       <div class="counter counter-warn">
         <span class="counter-value">{{ counts.warn }}</span>
-        <span class="counter-label">🟡 Alerte</span>
+        <span class="counter-label">{{ $t('dashboard.status_alert') }}</span>
       </div>
       <div class="counter counter-danger">
         <span class="counter-value">{{ counts.danger }}</span>
-        <span class="counter-label">🔴 Inactif</span>
+        <span class="counter-label">{{ $t('dashboard.status_inactive') }}</span>
       </div>
       <div class="counter counter-total">
         <span class="counter-value">{{ servers.length }}</span>
-        <span class="counter-label">Total</span>
+        <span class="counter-label">{{ $t('dashboard.status_total') }}</span>
       </div>
     </div>
 
-    <!-- Clé collecteur -->
+    <!-- Collector key -->
     <div v-if="collectorKey" class="collector-key-block">
-      <span class="collector-key-label">Clé publique collecteur</span>
+      <span class="collector-key-label">{{ $t('dashboard.collector_key') }}</span>
       <code class="collector-key-value">{{ collectorKey }}</code>
       <button class="btn-copy" @click="copyKey(collectorKey, 'main')">
-        {{ copied === 'main' ? 'Copié !' : 'Copier' }}
+        {{ copied === 'main' ? $t('dashboard.copied') : $t('dashboard.copy') }}
       </button>
     </div>
 
-    <div v-if="loading" class="loading">Chargement…</div>
+    <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
     <ServerTable v-else :servers="servers" @scan="scanOne" />
 
-    <!-- Modal ajout serveur -->
+    <!-- Add server modal -->
     <div v-if="showAddServer" class="modal-overlay" @click.self="closeAddServer">
       <div class="modal">
 
-        <!-- Étape 1 : formulaire -->
+        <!-- Step 1: form -->
         <template v-if="!addSuccess">
-          <h3>Ajouter un serveur</h3>
+          <h3>{{ $t('add_server.title') }}</h3>
           <div v-if="addError" class="alert-error">{{ addError }}</div>
 
-          <label>Hostname <span class="required">*</span></label>
-          <input v-model="addForm.hostname" type="text" placeholder="ex: server-prod-01" />
+          <label>{{ $t('add_server.hostname') }} <span class="required">{{ $t('common.required') }}</span></label>
+          <input v-model="addForm.hostname" type="text" :placeholder="$t('add_server.hostname_placeholder')" />
 
-          <label>Adresse IP <span class="required">*</span></label>
-          <input v-model="addForm.ip" type="text" placeholder="ex: 192.168.1.10" />
+          <label>{{ $t('add_server.ip') }} <span class="required">{{ $t('common.required') }}</span></label>
+          <input v-model="addForm.ip" type="text" :placeholder="$t('add_server.ip_placeholder')" />
 
-          <label>Environnement <span class="required">*</span></label>
+          <label>{{ $t('add_server.environment') }} <span class="required">{{ $t('common.required') }}</span></label>
           <select v-model="addForm.environment">
-            <option value="">— Choisir —</option>
+            <option value="">{{ $t('add_server.env_placeholder') }}</option>
             <option value="production">production</option>
             <option value="staging">staging</option>
             <option value="lab">lab</option>
           </select>
 
-          <label>OS Family</label>
-          <input v-model="addForm.os_family" type="text" placeholder="ex: rhel, debian (optionnel)" />
+          <label>{{ $t('add_server.os_family') }}</label>
+          <input v-model="addForm.os_family" type="text" :placeholder="$t('add_server.os_placeholder')" />
 
           <div class="modal-actions">
             <button
@@ -76,31 +76,26 @@
               :disabled="!addFormValid || adding"
               @click="confirmAddServer"
             >
-              {{ adding ? 'Ajout en cours…' : 'Ajouter' }}
+              {{ adding ? $t('add_server.submitting') : $t('add_server.submit') }}
             </button>
-            <button @click="closeAddServer">Annuler</button>
+            <button @click="closeAddServer">{{ $t('common.cancel') }}</button>
           </div>
         </template>
 
-        <!-- Étape 2 : succès + affichage clé -->
+        <!-- Step 2: success + key display -->
         <template v-else>
-          <h3>Serveur ajouté</h3>
-          <p class="success-msg">✅ <strong>{{ addForm.hostname }}</strong> a été ajouté.</p>
-          <p class="deploy-hint">
-            Déployez maintenant la clé collecteur sur ce serveur dans
-            <code>/home/audit-collector/.ssh/authorized_keys</code> :
-          </p>
+          <h3>{{ $t('add_server.success_title') }}</h3>
+          <p class="success-msg">{{ $t('add_server.success_msg', { hostname: addForm.hostname }) }}</p>
+          <p class="deploy-hint">{{ $t('add_server.deploy_hint') }}</p>
           <div class="key-display">
-            <code>{{ collectorKey || 'Chargement…' }}</code>
+            <code>{{ collectorKey || $t('common.loading') }}</code>
             <button class="btn-copy" @click="copyKey(collectorKey, 'modal')">
-              {{ copied === 'modal' ? 'Copié !' : 'Copier' }}
+              {{ copied === 'modal' ? $t('dashboard.copied') : $t('dashboard.copy') }}
             </button>
           </div>
-          <p class="deploy-hint small">
-            Ou relancez <code>provision-host.sh</code> avec cette clé.
-          </p>
+          <p class="deploy-hint small">{{ $t('add_server.deploy_hint2') }}</p>
           <div class="modal-actions">
-            <button class="btn-primary" @click="closeAddServer">Fermer</button>
+            <button class="btn-primary" @click="closeAddServer">{{ $t('add_server.close') }}</button>
           </div>
         </template>
 
@@ -111,7 +106,10 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ServerTable from '../components/ServerTable.vue'
+
+const { t } = useI18n()
 
 const servers = ref([])
 const loading = ref(true)
@@ -202,7 +200,7 @@ async function loadServers() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     servers.value = await res.json()
   } catch (e) {
-    error.value = `Impossible de charger les serveurs : ${e.message}`
+    error.value = t('dashboard.load_error', { error: e.message })
   } finally {
     loading.value = false
   }
@@ -223,10 +221,12 @@ async function triggerScan(url, hostname) {
   try {
     const res = await fetch(url, { method: 'POST' })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    scanMessage.value = hostname ? `Scan de ${hostname} lancé.` : 'Scan global lancé.'
+    scanMessage.value = hostname
+      ? t('dashboard.scan_success', { hostname })
+      : t('dashboard.scan_global_success')
     await loadServers()
   } catch (e) {
-    error.value = `Erreur scan : ${e.message}`
+    error.value = t('dashboard.scan_error', { error: e.message })
   } finally {
     scanning.value = false
   }

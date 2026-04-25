@@ -2,23 +2,23 @@
   <div class="login-page">
     <div class="login-card">
       <h1>ssh-access-manager</h1>
-      <p class="subtitle">Connexion</p>
+      <p class="subtitle">{{ $t('auth.subtitle') }}</p>
 
       <form @submit.prevent="submit">
         <div class="field">
-          <label for="username">Username</label>
+          <label for="username">{{ $t('auth.username') }}</label>
           <input
             id="username"
             v-model="username"
             type="text"
             autocomplete="username"
-            placeholder="admin"
+            :placeholder="$t('auth.username_placeholder')"
             :disabled="loading"
           />
         </div>
 
         <div class="field">
-          <label for="password">Mot de passe</label>
+          <label for="password">{{ $t('auth.password') }}</label>
           <input
             id="password"
             v-model="password"
@@ -32,7 +32,7 @@
         <div v-if="error" class="alert-error">{{ error }}</div>
 
         <button type="submit" class="btn-primary btn-full" :disabled="loading || !canSubmit">
-          {{ loading ? 'Connexion…' : 'Se connecter' }}
+          {{ loading ? $t('auth.submitting') : $t('auth.submit') }}
         </button>
       </form>
     </div>

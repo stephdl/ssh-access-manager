@@ -1,17 +1,17 @@
 <template>
   <div class="anomalies-view">
-    <h1>Anomalies</h1>
+    <h1>{{ $t('anomalies.title') }}</h1>
 
     <div v-if="error" class="alert-error">{{ error }}</div>
     <div v-if="message" class="alert-info">{{ message }}</div>
 
-    <div v-if="loading" class="loading">Chargement…</div>
+    <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
 
     <template v-else>
-      <!-- Clés PENDING_REVIEW -->
+      <!-- PENDING_REVIEW keys -->
       <section class="card">
         <h2>
-          Clés en attente de validation
+          {{ $t('anomalies.section_pending') }}
           <span class="count-badge" :class="pending.length ? 'count-warn' : 'count-ok'">
             {{ pending.length }}
           </span>
@@ -19,12 +19,12 @@
         <table v-if="pending.length">
           <thead>
             <tr>
-              <th>Fingerprint</th>
-              <th>Type</th>
-              <th>Serveur</th>
-              <th>Première détection</th>
-              <th>Conforme</th>
-              <th>Actions</th>
+              <th>{{ $t('anomalies.col_fingerprint') }}</th>
+              <th>{{ $t('anomalies.col_type') }}</th>
+              <th>{{ $t('anomalies.col_server') }}</th>
+              <th>{{ $t('anomalies.col_first_seen') }}</th>
+              <th>{{ $t('anomalies.col_compliant') }}</th>
+              <th>{{ $t('anomalies.col_actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -39,32 +39,32 @@
               <td>{{ formatDate(k.first_seen) }}</td>
               <td>{{ k.is_compliant ? '✅' : '⚠️' }}</td>
               <td class="actions">
-                <button class="btn-success" @click="validate(k.fingerprint)">Valider</button>
-                <button class="btn-danger" @click="openRevoke(k)">Révoquer</button>
+                <button class="btn-success" @click="validate(k.fingerprint)">{{ $t('anomalies.btn_validate') }}</button>
+                <button class="btn-danger" @click="openRevoke(k)">{{ $t('anomalies.btn_revoke') }}</button>
               </td>
             </tr>
           </tbody>
         </table>
-        <p v-else class="empty">Aucune clé en attente de validation.</p>
+        <p v-else class="empty">{{ $t('anomalies.no_pending') }}</p>
       </section>
 
-      <!-- Révocations hors système (30 derniers jours) -->
+      <!-- Out-of-system revocations (last 30 days) -->
       <section class="card">
         <h2>
-          Révocations hors système
+          {{ $t('anomalies.section_revoked') }}
           <span class="count-badge" :class="outOfSystem.length ? 'count-danger' : 'count-ok'">
             {{ outOfSystem.length }}
           </span>
-          <span class="subtitle">30 derniers jours</span>
+          <span class="subtitle">{{ $t('anomalies.subtitle_revoked') }}</span>
         </h2>
         <table v-if="outOfSystem.length">
           <thead>
             <tr>
-              <th>Fingerprint</th>
-              <th>Type</th>
-              <th>Serveur</th>
-              <th>Révoquée le</th>
-              <th>Détails</th>
+              <th>{{ $t('anomalies.col_fingerprint') }}</th>
+              <th>{{ $t('anomalies.col_type') }}</th>
+              <th>{{ $t('anomalies.col_server') }}</th>
+              <th>{{ $t('anomalies.col_revoked_at') }}</th>
+              <th>{{ $t('anomalies.col_details') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -81,29 +81,29 @@
             </tr>
           </tbody>
         </table>
-        <p v-else class="empty">Aucune révocation hors système sur 30 jours.</p>
+        <p v-else class="empty">{{ $t('anomalies.no_revoked') }}</p>
       </section>
     </template>
 
-    <!-- Modal révocation -->
+    <!-- Revoke modal -->
     <div v-if="revokeTarget" class="modal-overlay" @click.self="revokeTarget = null">
       <div class="modal">
-        <h3>Révoquer la clé</h3>
+        <h3>{{ $t('anomalies.revoke_modal_title') }}</h3>
         <p class="fp-display"><code>{{ revokeTarget.fingerprint }}</code></p>
-        <label for="revoke-reason">Motif <span class="required">*</span></label>
+        <label for="revoke-reason">{{ $t('anomalies.revoke_reason_label') }} <span class="required">{{ $t('common.required') }}</span></label>
         <textarea
           id="revoke-reason"
           v-model="revokeReason"
           rows="3"
-          placeholder="Raison de révocation…"
+          :placeholder="$t('anomalies.revoke_reason_placeholder')"
         ></textarea>
         <div class="modal-actions">
           <button
             class="btn-danger"
             :disabled="!revokeReason.trim()"
             @click="confirmRevoke"
-          >Révoquer</button>
-          <button @click="revokeTarget = null">Annuler</button>
+          >{{ $t('anomalies.btn_revoke_confirm') }}</button>
+          <button @click="revokeTarget = null">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
@@ -112,6 +112,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const allKeys = ref([])
 const loading = ref(true)
@@ -144,7 +147,7 @@ async function load() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     allKeys.value = await res.json()
   } catch (e) {
-    error.value = `Impossible de charger les clés : ${e.message}`
+    error.value = t('anomalies.load_error', { error: e.message })
   } finally {
     loading.value = false
   }
@@ -153,7 +156,7 @@ async function load() {
 const efp = (fp) => encodeURIComponent(fp)
 
 async function validate(fingerprint) {
-  await apiAction(`/api/keys/validate/${efp(fingerprint)}`, {}, 'Clé validée.')
+  await apiAction(`/api/keys/validate/${efp(fingerprint)}`, {}, t('anomalies.key_validated'))
 }
 
 function openRevoke(key) {
@@ -163,7 +166,7 @@ function openRevoke(key) {
 
 async function confirmRevoke() {
   const fp = revokeTarget.value.fingerprint
-  await apiAction(`/api/keys/revoke/${efp(fp)}`, { reason: revokeReason.value }, 'Clé révoquée.')
+  await apiAction(`/api/keys/revoke/${efp(fp)}`, { reason: revokeReason.value }, t('anomalies.key_revoked'))
   revokeTarget.value = null
 }
 

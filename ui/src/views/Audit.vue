@@ -1,48 +1,48 @@
 <template>
   <div class="audit-view">
-    <h1>Audit</h1>
+    <h1>{{ $t('audit.title') }}</h1>
 
-    <!-- Filtres -->
+    <!-- Filters -->
     <section class="filters card">
       <div class="filter-row">
         <div class="field">
-          <label for="f-server">Serveur</label>
+          <label for="f-server">{{ $t('audit.filter_server') }}</label>
           <input id="f-server" v-model="filters.server" type="text" placeholder="hostname" />
         </div>
         <div class="field">
-          <label for="f-action">Action</label>
+          <label for="f-action">{{ $t('audit.filter_action') }}</label>
           <select id="f-action" v-model="filters.action">
-            <option value="">Toutes</option>
+            <option value="">{{ $t('audit.filter_all') }}</option>
             <option v-for="a in ACTIONS" :key="a" :value="a">{{ a }}</option>
           </select>
         </div>
         <div class="field">
-          <label for="f-since">Depuis</label>
+          <label for="f-since">{{ $t('audit.filter_since') }}</label>
           <input id="f-since" v-model="filters.since" type="date" />
         </div>
-        <button class="btn-primary" @click="load">Filtrer</button>
-        <button @click="resetFilters">Réinitialiser</button>
+        <button class="btn-primary" @click="load">{{ $t('audit.filter_btn') }}</button>
+        <button @click="resetFilters">{{ $t('audit.reset_btn') }}</button>
       </div>
     </section>
 
     <div v-if="error" class="alert-error">{{ error }}</div>
-    <div v-if="loading" class="loading">Chargement…</div>
+    <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
 
     <section v-else class="card">
       <table>
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Action</th>
-            <th>Par</th>
-            <th>Serveur</th>
-            <th>Clé</th>
-            <th>Détails</th>
+            <th>{{ $t('audit.col_date') }}</th>
+            <th>{{ $t('audit.col_action') }}</th>
+            <th>{{ $t('audit.col_by') }}</th>
+            <th>{{ $t('audit.col_server') }}</th>
+            <th>{{ $t('audit.col_key') }}</th>
+            <th>{{ $t('audit.col_details') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="entries.length === 0">
-            <td colspan="6" class="empty">Aucune entrée d'audit.</td>
+            <td colspan="6" class="empty">{{ $t('audit.empty') }}</td>
           </tr>
           <tr
             v-for="e in entries"
@@ -69,6 +69,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const ACTIONS = [
   'KEY_ADDED', 'KEY_REVOKED', 'KEY_EXPIRED', 'EXPIRY_WARNING',
@@ -98,7 +101,7 @@ async function load() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     entries.value = await res.json()
   } catch (e) {
-    error.value = `Impossible de charger l'audit : ${e.message}`
+    error.value = t('audit.load_error', { error: e.message })
   } finally {
     loading.value = false
   }

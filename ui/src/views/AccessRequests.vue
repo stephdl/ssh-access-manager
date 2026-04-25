@@ -1,17 +1,17 @@
 <template>
   <div class="access-requests-view">
-    <h1>Accès temporaires</h1>
+    <h1>{{ $t('access.title') }}</h1>
 
     <div v-if="error" class="alert-error">{{ error }}</div>
     <div v-if="message" class="alert-info">{{ message }}</div>
 
-    <div v-if="loading" class="loading">Chargement…</div>
+    <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
 
     <template v-else>
-      <!-- Accès actifs avec countdown -->
+      <!-- Active access with countdown -->
       <section class="card">
         <h2>
-          Accès actifs
+          {{ $t('access.section_active') }}
           <span class="count-badge" :class="active.length ? 'count-active' : 'count-ok'">
             {{ active.length }}
           </span>
@@ -19,12 +19,12 @@
         <table v-if="active.length">
           <thead>
             <tr>
-              <th>Demandeur</th>
-              <th>Serveur</th>
-              <th>Fingerprint</th>
-              <th>Justification</th>
-              <th>Expire dans</th>
-              <th>Actions</th>
+              <th>{{ $t('access.col_requester') }}</th>
+              <th>{{ $t('access.col_server') }}</th>
+              <th>{{ $t('access.col_fingerprint') }}</th>
+              <th>{{ $t('access.col_justification') }}</th>
+              <th>{{ $t('access.col_expires_in') }}</th>
+              <th>{{ $t('access.col_actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -37,18 +37,18 @@
                 <span :class="countdownClass(a)">{{ countdown(a.expires_at) }}</span>
               </td>
               <td>
-                <button class="btn-danger" @click="revokeAccess(a.id)">Révoquer</button>
+                <button class="btn-danger" @click="revokeAccess(a.id)">{{ $t('access.btn_revoke') }}</button>
               </td>
             </tr>
           </tbody>
         </table>
-        <p v-else class="empty">Aucun accès temporaire actif.</p>
+        <p v-else class="empty">{{ $t('access.no_active') }}</p>
       </section>
 
-      <!-- Demandes en attente -->
+      <!-- Pending requests -->
       <section class="card">
         <h2>
-          Demandes en attente
+          {{ $t('access.section_pending') }}
           <span class="count-badge" :class="pending.length ? 'count-warn' : 'count-ok'">
             {{ pending.length }}
           </span>
@@ -56,12 +56,12 @@
         <table v-if="pending.length">
           <thead>
             <tr>
-              <th>Demandeur</th>
-              <th>Serveur</th>
-              <th>Fingerprint</th>
-              <th>Justification</th>
-              <th>Demandé le</th>
-              <th>Actions</th>
+              <th>{{ $t('access.col_requester') }}</th>
+              <th>{{ $t('access.col_server') }}</th>
+              <th>{{ $t('access.col_fingerprint') }}</th>
+              <th>{{ $t('access.col_justification') }}</th>
+              <th>{{ $t('access.col_requested_at') }}</th>
+              <th>{{ $t('access.col_actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -72,18 +72,18 @@
               <td>{{ a.justification }}</td>
               <td>{{ formatDate(a.requested_at) }}</td>
               <td class="actions">
-                <button class="btn-success" @click="approve(a.id)">Approuver</button>
-                <button class="btn-danger" @click="reject(a.id)">Rejeter</button>
+                <button class="btn-success" @click="approve(a.id)">{{ $t('access.btn_approve') }}</button>
+                <button class="btn-danger" @click="reject(a.id)">{{ $t('access.btn_reject') }}</button>
               </td>
             </tr>
           </tbody>
         </table>
-        <p v-else class="empty">Aucune demande en attente.</p>
+        <p v-else class="empty">{{ $t('access.no_pending') }}</p>
       </section>
 
-      <!-- Formulaire nouvelle demande -->
+      <!-- New access request form -->
       <section class="card">
-        <h2>Nouvelle demande d'accès</h2>
+        <h2>{{ $t('access.section_new') }}</h2>
         <AccessForm @submit="submitRequest" />
       </section>
     </template>
@@ -92,7 +92,10 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import AccessForm from '../components/AccessForm.vue'
+
+const { t } = useI18n()
 
 const requests = ref([])
 const loading  = ref(true)
@@ -116,22 +119,22 @@ async function load() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     requests.value = await res.json()
   } catch (e) {
-    error.value = `Impossible de charger les accès : ${e.message}`
+    error.value = t('access.load_error', { error: e.message })
   } finally {
     loading.value = false
   }
 }
 
 async function approve(id) {
-  await apiAction(`/api/access/${id}/approve`, {}, 'Accès approuvé.')
+  await apiAction(`/api/access/${id}/approve`, {}, t('access.approved'))
 }
 
 async function reject(id) {
-  await apiAction(`/api/access/${id}/reject`, {}, 'Demande rejetée.')
+  await apiAction(`/api/access/${id}/reject`, {}, t('access.rejected'))
 }
 
 async function revokeAccess(id) {
-  await apiAction(`/api/access/${id}/revoke`, {}, 'Accès révoqué.')
+  await apiAction(`/api/access/${id}/revoke`, {}, t('access.revoked'))
 }
 
 async function submitRequest(payload) {
@@ -147,7 +150,7 @@ async function submitRequest(payload) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || `HTTP ${res.status}`)
     }
-    message.value = 'Demande soumise avec succès.'
+    message.value = t('access.submitted')
     await load()
   } catch (e) {
     error.value = e.message
@@ -177,7 +180,7 @@ async function apiAction(url, body, successMsg) {
 function countdown(iso) {
   if (!iso) return '—'
   const diff = new Date(iso) - Date.now()
-  if (diff <= 0) return 'Expiré'
+  if (diff <= 0) return t('access.expired')
   const h = Math.floor(diff / 3600000)
   const m = Math.floor((diff % 3600000) / 60000)
   if (h > 48) return `${Math.floor(h / 24)}j ${h % 24}h`
