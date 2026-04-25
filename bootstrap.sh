@@ -69,12 +69,9 @@ if [ ! -f /data/pg/PG_VERSION ]; then
     su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' start -w"
 
     # 7. Créer la base et l'utilisateur depuis ENV
-    su -s /bin/sh postgres -c "psql -h /tmp -c \"
-        CREATE USER ${POSTGRES_USER:-ssh_manager}
-            WITH PASSWORD '${POSTGRES_PASSWORD:-changeme}';
-        CREATE DATABASE ${POSTGRES_DB:-ssh_manager}
-            OWNER ${POSTGRES_USER:-ssh_manager};
-    \""
+    # CREATE DATABASE ne peut pas s'exécuter dans une transaction : deux appels séparés
+    su -s /bin/sh postgres -c "psql -h /tmp -c \"CREATE USER ${POSTGRES_USER:-ssh_manager} WITH PASSWORD '${POSTGRES_PASSWORD:-changeme}';\""
+    su -s /bin/sh postgres -c "psql -h /tmp -c \"CREATE DATABASE ${POSTGRES_DB:-ssh_manager} OWNER ${POSTGRES_USER:-ssh_manager};\""
 
     # 8. Appliquer le schéma SQL
     su -s /bin/sh postgres -c \
@@ -123,6 +120,12 @@ else
     generate_msmtprc
     generate_crontab
 fi
+
+# ---------------------------------------------------------------------------
+# Préparer le répertoire de socket PostgreSQL (requis par Alpine postgresql18)
+# ---------------------------------------------------------------------------
+mkdir -p /run/postgresql
+chown postgres:postgres /run/postgresql
 
 # ---------------------------------------------------------------------------
 # Lancer supervisord (toujours en dernier)
