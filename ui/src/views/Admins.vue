@@ -71,8 +71,17 @@
               placeholder="admin@example.com"
             />
           </div>
+          <div class="field">
+            <label for="adm-password">Mot de passe <span class="required">*</span></label>
+            <input
+              id="adm-password"
+              v-model="newPassword"
+              type="password"
+              placeholder="••••••••"
+            />
+          </div>
           <div class="form-actions">
-            <button type="submit" class="btn-primary" :disabled="!newUsername.trim()">
+            <button type="submit" class="btn-primary" :disabled="!newUsername.trim() || !newPassword.trim()">
               Ajouter
             </button>
           </div>
@@ -106,6 +115,7 @@ const error       = ref('')
 const message     = ref('')
 const newUsername = ref('')
 const newEmail    = ref('')
+const newPassword = ref('')
 const disableTarget = ref(null)
 
 async function load() {
@@ -123,7 +133,7 @@ async function load() {
 }
 
 async function submitAdd() {
-  if (!newUsername.value.trim()) return
+  if (!newUsername.value.trim() || !newPassword.value.trim()) return
   error.value = ''
   message.value = ''
   try {
@@ -133,6 +143,7 @@ async function submitAdd() {
       body: JSON.stringify({
         username: newUsername.value.trim(),
         email:    newEmail.value.trim() || null,
+        password: newPassword.value,
       }),
     })
     if (!res.ok) {
@@ -142,6 +153,7 @@ async function submitAdd() {
     message.value = `Administrateur ${newUsername.value} ajouté.`
     newUsername.value = ''
     newEmail.value    = ''
+    newPassword.value = ''
     await load()
   } catch (e) {
     error.value = e.message
