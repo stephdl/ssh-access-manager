@@ -58,7 +58,7 @@ if [ ! -f /data/pg/PG_VERSION ]; then
 
     # 4. Créer known_hosts vide
     touch /data/keys/known_hosts
-    chmod 600 /data/keys/known_hosts
+    chmod 644 /data/keys/known_hosts
 
     # 5. Initialiser le cluster PostgreSQL
     su -s /bin/sh postgres -c "initdb -D /data/pg --encoding=UTF8 --locale=C"
