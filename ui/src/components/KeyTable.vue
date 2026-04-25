@@ -91,6 +91,17 @@ function formatDate(iso) {
 }
 .btn-unlimited:hover { background: #5a32a3; }
 .empty { text-align: center; color: #888; padding: 1rem 0; }
-.actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  min-width: 160px;
+}
+.actions button {
+  width: 100%;
+  text-align: center;
+  padding: 0.25rem 0;
+  font-size: 0.8rem;
+}
 code { font-size: 0.8rem; background: #f4f4f4; padding: 0 3px; border-radius: 3px; }
 </style>
