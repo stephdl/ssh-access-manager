@@ -105,7 +105,26 @@ done
 grep -q "GENERATED ALWAYS AS" sql/schema.sql || echo "MANQUANT : colonne GENERATED"
 ```
 
-### 9. Frontend — build check
+### 9. Tests pytest
+
+```bash
+# a. Lancer la suite complète
+pytest app/tests/ -v --tb=short 2>&1 | tail -30
+```
+
+Si des tests échouent : **bloquant**, ne pas commiter.
+
+```bash
+# b. Si app/app/actions.py modifié : vérifier couverture 80%
+if git diff --staged --name-only | grep -q "actions.py"; then
+    pytest app/tests/test_actions.py \
+        --cov=app/app/actions \
+        --cov-fail-under=80 \
+        --tb=short 2>&1
+fi
+```
+
+### 10. Frontend — build check
 
 Si des fichiers `ui/` sont modifiés :
 
@@ -115,7 +134,14 @@ cd ui && npm run build 2>&1 | tail -20
 
 Le build doit réussir sans erreur.
 
-### 10. Rapport
+```bash
+# Tests Vitest si ui/tests/ modifié
+if git diff --staged --name-only | grep -q "^ui/"; then
+    cd ui && npm run test -- --run 2>&1 | tail -20
+fi
+```
+
+### 11. Rapport
 
 ```
 ## Pre-commit check — [date]
@@ -129,7 +155,10 @@ AutoAddPolicy     : ✅ Absent / ❌ DÉTECTÉ
 Injection SQL     : ✅ Clean / ❌ [détail]
 shell=True        : ✅ Absent / ⚠️ [fichier:ligne]
 Schéma SQL        : ✅ Complet / ❌ [détail]
+pytest            : ✅ OK (N passed) / ❌ Erreurs / N/A
+Couverture        : ✅ ≥80% actions.py / ❌ [%] / N/A
 Build frontend    : ✅ OK / ❌ Erreurs / N/A
+Tests Vitest      : ✅ OK / ❌ Erreurs / N/A
 
 Verdict : ✅ Prêt pour commit / ❌ Corrections requises
 ```
