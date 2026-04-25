@@ -389,11 +389,12 @@ def admin_list():
 @admin.command("add")
 @click.option("--username", required=True, help="Login")
 @click.option("--email", required=True, help="Email")
-def admin_add(username, email):
+@click.option("--password", required=True, help="Mot de passe")
+def admin_add(username, email, password):
     """Ajouter un administrateur."""
     performer_id = _require_admin()
     try:
-        actions.add_admin(username, email, performer_id)
+        actions.add_admin(username, email, password, performer_id)
         click.echo(f"Administrateur {username} cree.")
     except Exception as e:
         raise click.ClickException(str(e))

@@ -56,11 +56,13 @@ CREATE TABLE administrators (
     -- Adresse email pour les notifications
     email       VARCHAR(255),
     -- Rôle fonctionnel (extensible)
-    role        VARCHAR(50) DEFAULT 'sysadmin',
+    role          VARCHAR(50) DEFAULT 'sysadmin',
+    -- Hash du mot de passe (werkzeug generate_password_hash)
+    password_hash VARCHAR(255),
     -- Compte actif ou désactivé (jamais supprimé pour préserver l'audit)
-    is_active   BOOLEAN DEFAULT true,
+    is_active     BOOLEAN DEFAULT true,
     -- Date de création du compte
-    created_at  TIMESTAMPTZ DEFAULT now()
+    created_at    TIMESTAMPTZ DEFAULT now()
 );
 
 COMMENT ON TABLE administrators IS 'Utilisateurs autorisés à gérer les accès SSH';
@@ -68,6 +70,7 @@ COMMENT ON COLUMN administrators.id IS 'UUID généré automatiquement';
 COMMENT ON COLUMN administrators.username IS 'Login unique de l''administrateur';
 COMMENT ON COLUMN administrators.email IS 'Email pour les alertes et notifications';
 COMMENT ON COLUMN administrators.role IS 'Rôle fonctionnel, défaut : sysadmin';
+COMMENT ON COLUMN administrators.password_hash IS 'Hash werkzeug (pbkdf2:sha256) du mot de passe';
 COMMENT ON COLUMN administrators.is_active IS 'False = compte désactivé (jamais supprimé)';
 COMMENT ON COLUMN administrators.created_at IS 'Horodatage de création du compte';
 

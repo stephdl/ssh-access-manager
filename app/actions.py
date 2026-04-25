@@ -446,10 +446,13 @@ def disable_server(hostname: str, admin_id: str | None = None) -> None:
 # Administrateurs
 # ---------------------------------------------------------------------------
 
-def add_admin(username: str, email: str, admin_id: str | None = None) -> dict:
+def add_admin(username: str, email: str, password: str, admin_id: str | None = None) -> dict:
     """Insert a new administrator and log ADMIN_ADDED."""
+    from werkzeug.security import generate_password_hash
+    password_hash = generate_password_hash(password)
     db.execute(
-        "INSERT INTO administrators (username, email) VALUES (%s, %s)", (username, email)
+        "INSERT INTO administrators (username, email, password_hash) VALUES (%s, %s, %s)",
+        (username, email, password_hash),
     )
     admin = db.query_one("SELECT id FROM administrators WHERE username = %s", (username,))
     db.execute(
