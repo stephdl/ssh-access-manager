@@ -2,52 +2,50 @@
   <div class="server-detail">
     <div class="page-header">
       <div>
-        <button class="btn-back" @click="$router.back()">← Retour</button>
+        <button class="btn-back" @click="$router.back()">{{ $t('common.back') }}</button>
         <h1>{{ hostname }}</h1>
       </div>
       <div class="header-actions">
         <button class="btn-primary" :disabled="scanning" @click="scanServer">
-          {{ scanning ? 'Scan en cours…' : 'Scanner' }}
+          {{ scanning ? $t('server_detail.scanning') : $t('server_detail.scan') }}
         </button>
         <button v-if="server.is_active" class="btn-warning" @click="confirmDisable">
-          Désactiver
+          {{ $t('server_detail.disable') }}
         </button>
         <button v-else class="btn-success" @click="reactivate">
-          Réactiver
+          {{ $t('server_detail.reactivate') }}
         </button>
         <button class="btn-danger" @click="showDeleteModal = true">
-          Supprimer
+          {{ $t('server_detail.delete') }}
         </button>
       </div>
     </div>
 
-    <div v-if="!loading && !server.is_active" class="alert-disabled">
-      🔴 Ce serveur est <strong>désactivé</strong> — il n'est plus scanné automatiquement.
-    </div>
+    <div v-if="!loading && !server.is_active" class="alert-disabled" v-html="$t('server_detail.disabled_alert')"></div>
 
     <div v-if="error" class="alert-error">{{ error }}</div>
     <div v-if="message" class="alert-info">{{ message }}</div>
 
-    <div v-if="loading" class="loading">Chargement…</div>
+    <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
 
     <template v-else>
-      <!-- Infos serveur -->
+      <!-- Server info -->
       <section class="card">
-        <h2>Informations</h2>
+        <h2>{{ $t('server_detail.section_info') }}</h2>
         <dl class="info-grid">
-          <dt>Hostname</dt>  <dd>{{ server.hostname }}</dd>
-          <dt>IP</dt>        <dd>{{ server.ip_address }}</dd>
-          <dt>Environnement</dt>
+          <dt>{{ $t('server_detail.field_hostname') }}</dt>  <dd>{{ server.hostname }}</dd>
+          <dt>{{ $t('server_detail.field_ip') }}</dt>        <dd>{{ server.ip_address }}</dd>
+          <dt>{{ $t('server_detail.field_environment') }}</dt>
           <dd><span class="badge" :class="envBadge(server.environment)">{{ server.environment }}</span></dd>
-          <dt>OS</dt>        <dd>{{ server.os_family || '—' }} {{ server.os_version || '' }}</dd>
-          <dt>Actif</dt>     <dd>{{ server.is_active ? '✅ Oui' : '🔴 Non' }}</dd>
-          <dt>Ajouté le</dt> <dd>{{ formatDate(server.added_at) }}</dd>
+          <dt>{{ $t('server_detail.field_os') }}</dt>        <dd>{{ server.os_family || '—' }} {{ server.os_version || '' }}</dd>
+          <dt>{{ $t('server_detail.field_active') }}</dt>    <dd>{{ server.is_active ? $t('server_detail.active_yes') : $t('server_detail.active_no') }}</dd>
+          <dt>{{ $t('server_detail.field_added') }}</dt>     <dd>{{ formatDate(server.added_at) }}</dd>
         </dl>
       </section>
 
-      <!-- Clés SSH -->
+      <!-- SSH Keys -->
       <section class="card">
-        <h2>Clés SSH</h2>
+        <h2>{{ $t('server_detail.section_keys') }}</h2>
         <KeyTable
           :keys="keys"
           @validate="validateKey"
@@ -58,17 +56,17 @@
         />
       </section>
 
-      <!-- Accès temporaires actifs -->
+      <!-- Active temporary access -->
       <section class="card">
-        <h2>Accès temporaires actifs</h2>
+        <h2>{{ $t('server_detail.section_access') }}</h2>
         <table v-if="accessList.length">
           <thead>
             <tr>
-              <th>Demandeur</th>
-              <th>Fingerprint</th>
-              <th>Justification</th>
-              <th>Expire le</th>
-              <th>Statut</th>
+              <th>{{ $t('server_detail.col_requester') }}</th>
+              <th>{{ $t('server_detail.col_fingerprint') }}</th>
+              <th>{{ $t('server_detail.col_justification') }}</th>
+              <th>{{ $t('server_detail.col_expires') }}</th>
+              <th>{{ $t('server_detail.col_status') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -81,69 +79,65 @@
             </tr>
           </tbody>
         </table>
-        <p v-else class="empty">Aucun accès temporaire actif.</p>
+        <p v-else class="empty">{{ $t('server_detail.no_access') }}</p>
       </section>
     </template>
 
-    <!-- Modal suppression -->
+    <!-- Delete modal -->
     <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
       <div class="modal">
-        <h3>Supprimer le serveur</h3>
-        <p class="warn-text">
-          ⚠️ Cette action est <strong>irréversible</strong>. Toutes les clés,
-          autorisations et logs associés à <strong>{{ hostname }}</strong> seront
-          définitivement supprimés.
-        </p>
+        <h3>{{ $t('server_detail.delete_modal_title') }}</h3>
+        <p class="warn-text" v-html="$t('server_detail.delete_modal_warning', { hostname })"></p>
         <div class="modal-actions">
-          <button class="btn-danger" @click="deleteServer">Supprimer définitivement</button>
-          <button @click="showDeleteModal = false">Annuler</button>
+          <button class="btn-danger" @click="deleteServer">{{ $t('server_detail.delete_confirm') }}</button>
+          <button @click="showDeleteModal = false">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
 
-    <!-- Modal révocation -->
+    <!-- Revoke modal -->
     <div v-if="revokeTarget" class="modal-overlay" @click.self="revokeTarget = null">
       <div class="modal">
-        <h3>Révoquer la clé</h3>
+        <h3>{{ $t('server_detail.revoke_modal_title') }}</h3>
         <p class="fp-display"><code>{{ revokeTarget.fingerprint }}</code></p>
-        <label>Motif <span class="required">*</span></label>
-        <textarea v-model="revokeReason" rows="3" placeholder="Raison de révocation…"></textarea>
+        <label>{{ $t('server_detail.revoke_reason_label') }} <span class="required">{{ $t('common.required') }}</span></label>
+        <textarea v-model="revokeReason" rows="3" :placeholder="$t('server_detail.revoke_reason_placeholder')"></textarea>
         <div class="modal-actions">
           <button class="btn-danger" :disabled="!revokeReason.trim()" @click="confirmRevoke">
-            Révoquer
+            {{ $t('server_detail.revoke_confirm') }}
           </button>
-          <button @click="revokeTarget = null">Annuler</button>
+          <button @click="revokeTarget = null">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
 
-    <!-- Modal assignation -->
+    <!-- Assign modal -->
     <div v-if="assignTarget" class="modal-overlay" @click.self="assignTarget = null">
       <div class="modal">
-        <h3>Assigner la clé</h3>
+        <h3>{{ $t('server_detail.assign_modal_title') }}</h3>
         <p class="fp-display"><code>{{ assignTarget }}</code></p>
-        <label>Username administrateur <span class="required">*</span></label>
-        <input v-model="assignUsername" type="text" placeholder="username" />
+        <label>{{ $t('server_detail.assign_username_label') }} <span class="required">{{ $t('common.required') }}</span></label>
+        <input v-model="assignUsername" type="text" :placeholder="$t('server_detail.assign_username_placeholder')" />
         <div class="modal-actions">
           <button class="btn-primary" :disabled="!assignUsername.trim()" @click="confirmAssign">
-            Assigner
+            {{ $t('server_detail.assign_confirm') }}
           </button>
-          <button @click="assignTarget = null">Annuler</button>
+          <button @click="assignTarget = null">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
 
-    <!-- Modal expiry -->
+    <!-- Expiry modal -->
     <div v-if="expiryTarget" class="modal-overlay" @click.self="expiryTarget = null">
       <div class="modal">
-        <h3>Définir l'expiration</h3>
+        <h3>{{ $t('server_detail.expiry_modal_title') }}</h3>
         <p class="fp-display"><code>{{ expiryTarget.fingerprint }}</code></p>
         <div class="expiry-modes">
           <label>
-            <input v-model="expiryMode" type="radio" value="hours" /> Durée (heures)
+            <input v-model="expiryMode" type="radio" value="hours" /> {{ $t('server_detail.expiry_hours_label') }}
           </label>
           <label>
-            <input v-model="expiryMode" type="radio" value="date" /> Date précise
+            <input v-model="expiryMode" type="radio" value="date" /> {{ $t('server_detail.expiry_date_label') }}
           </label>
         </div>
         <input
@@ -151,7 +145,7 @@
           v-model.number="expiryHours"
           type="number"
           min="1"
-          placeholder="Nombre d'heures"
+          :placeholder="$t('server_detail.expiry_hours_placeholder')"
         />
         <input
           v-else
@@ -160,9 +154,9 @@
         />
         <div class="modal-actions">
           <button class="btn-primary" :disabled="!expiryValid" @click="confirmExpiry">
-            Définir
+            {{ $t('server_detail.expiry_confirm') }}
           </button>
-          <button @click="expiryTarget = null">Annuler</button>
+          <button @click="expiryTarget = null">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
@@ -172,8 +166,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import KeyTable from '../components/KeyTable.vue'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const hostname = route.params.hostname
@@ -211,7 +207,7 @@ async function load() {
       fetch(`/api/keys?server=${hostname}`),
       fetch(`/api/access?server=${hostname}`),
     ])
-    if (!sRes.ok) throw new Error(`Serveur introuvable (HTTP ${sRes.status})`)
+    if (!sRes.ok) throw new Error(t('server_detail.load_error', { status: sRes.status }))
     server.value = await sRes.json()
     keys.value = kRes.ok ? await kRes.json() : []
     accessList.value = aRes.ok ? await aRes.json() : []
@@ -223,12 +219,12 @@ async function load() {
 }
 
 async function confirmDisable() {
-  if (!confirm(`Désactiver ${hostname} ?`)) return
-  await apiAction(`/api/servers/${hostname}/disable`, null, 'PUT', 'Serveur désactivé.')
+  if (!confirm(`${t('server_detail.disable')} ${hostname} ?`)) return
+  await apiAction(`/api/servers/${hostname}/disable`, null, 'PUT', t('server_detail.disable_success'))
 }
 
 async function reactivate() {
-  await apiAction(`/api/servers/${hostname}/enable`, null, 'PUT', 'Serveur réactivé.')
+  await apiAction(`/api/servers/${hostname}/enable`, null, 'PUT', t('server_detail.reactivate_success'))
 }
 
 async function deleteServer() {
@@ -253,10 +249,10 @@ async function scanServer() {
   try {
     const res = await fetch(`/api/servers/${hostname}/scan`, { method: 'POST' })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    message.value = 'Scan lancé avec succès.'
+    message.value = t('server_detail.scan_success')
     await load()
   } catch (e) {
-    error.value = `Erreur scan : ${e.message}`
+    error.value = t('server_detail.scan_error', { error: e.message })
   } finally {
     scanning.value = false
   }
@@ -265,7 +261,7 @@ async function scanServer() {
 const efp = (fp) => encodeURIComponent(fp)
 
 async function validateKey(fingerprint) {
-  await apiAction(`/api/keys/validate/${efp(fingerprint)}`, {}, 'POST', 'Clé validée.')
+  await apiAction(`/api/keys/validate/${efp(fingerprint)}`, {}, 'POST', t('server_detail.key_validated'))
 }
 
 function openRevoke(key) {
@@ -275,7 +271,7 @@ function openRevoke(key) {
 
 async function confirmRevoke() {
   const fp = revokeTarget.value.fingerprint
-  await apiAction(`/api/keys/revoke/${efp(fp)}`, { reason: revokeReason.value }, 'POST', 'Clé révoquée.')
+  await apiAction(`/api/keys/revoke/${efp(fp)}`, { reason: revokeReason.value }, 'POST', t('server_detail.key_revoked'))
   revokeTarget.value = null
 }
 
@@ -289,7 +285,7 @@ async function confirmAssign() {
     `/api/keys/assign/${efp(assignTarget.value)}`,
     { owner_username: assignUsername.value },
     'POST',
-    `Clé assignée à ${assignUsername.value}.`,
+    t('server_detail.key_assigned', { username: assignUsername.value }),
   )
   assignTarget.value = null
 }
@@ -309,13 +305,13 @@ async function confirmExpiry() {
     `/api/keys/set-expiry/${efp(expiryTarget.value.fingerprint)}`,
     body,
     'POST',
-    'Expiration définie.',
+    t('server_detail.expiry_set'),
   )
   expiryTarget.value = null
 }
 
 async function removeExpiry(fingerprint) {
-  await apiAction(`/api/keys/remove-expiry/${efp(fingerprint)}`, null, 'POST', 'Expiration retirée — clé illimitée.')
+  await apiAction(`/api/keys/remove-expiry/${efp(fingerprint)}`, null, 'POST', t('server_detail.expiry_removed'))
 }
 
 async function apiAction(url, body, method = 'POST', successMsg) {

@@ -7,7 +7,7 @@
           type="radio"
           value="hours"
           data-testid="mode-hours"
-        /> Durée (heures)
+        /> {{ $t('server_detail.expiry_hours_label') }}
       </label>
       <label>
         <input
@@ -15,28 +15,28 @@
           type="radio"
           value="date"
           data-testid="mode-date"
-        /> Date précise
+        /> {{ $t('server_detail.expiry_date_label') }}
       </label>
     </div>
 
     <div v-if="mode === 'hours'" class="field">
-      <label for="expiry-hours">Nombre d'heures <span class="required">*</span></label>
+      <label for="expiry-hours">{{ $t('access_form.hours_label') }} <span class="required">{{ $t('common.required') }}</span></label>
       <input
         id="expiry-hours"
         v-model.number="hours"
         type="number"
         min="1"
-        placeholder="ex : 24"
+        :placeholder="$t('access_form.hours_placeholder')"
         data-testid="input-hours"
         @input="emitValue"
       />
       <span v-if="hours !== '' && hours < 1" class="field-error">
-        La durée doit être d'au moins 1 heure.
+        {{ $t('access_form.error_min_hours') }}
       </span>
     </div>
 
     <div v-else class="field">
-      <label for="expiry-date">Date et heure d'expiration <span class="required">*</span></label>
+      <label for="expiry-date">{{ $t('server_detail.expiry_date_label') }} <span class="required">{{ $t('common.required') }}</span></label>
       <input
         id="expiry-date"
         v-model="date"
@@ -46,7 +46,7 @@
         @input="emitValue"
       />
       <span v-if="date && !dateValid" class="field-error">
-        La date doit être dans le futur.
+        {{ $t('access_form.error_future_date') }}
       </span>
     </div>
   </div>

@@ -1,30 +1,30 @@
 <template>
   <div class="admins-view">
-    <h1>Administrateurs</h1>
+    <h1>{{ $t('admins.title') }}</h1>
 
     <div v-if="error" class="alert-error">{{ error }}</div>
     <div v-if="message" class="alert-info">{{ message }}</div>
 
-    <div v-if="loading" class="loading">Chargement…</div>
+    <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
 
     <template v-else>
-      <!-- Liste des administrateurs -->
+      <!-- Administrators list -->
       <section class="card">
-        <h2>Liste</h2>
+        <h2>{{ $t('admins.section_list') }}</h2>
         <table>
           <thead>
             <tr>
-              <th>Username</th>
-              <th>Email</th>
-              <th>Rôle</th>
-              <th>Actif</th>
-              <th>Créé le</th>
-              <th>Actions</th>
+              <th>{{ $t('admins.col_username') }}</th>
+              <th>{{ $t('admins.col_email') }}</th>
+              <th>{{ $t('admins.col_role') }}</th>
+              <th>{{ $t('admins.col_active') }}</th>
+              <th>{{ $t('admins.col_created') }}</th>
+              <th>{{ $t('admins.col_actions') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="admins.length === 0">
-              <td colspan="6" class="empty">Aucun administrateur.</td>
+              <td colspan="6" class="empty">{{ $t('admins.empty') }}</td>
             </tr>
             <tr v-for="a in admins" :key="a.id" :class="{ 'row-inactive': !a.is_active }">
               <td><strong>{{ a.username }}</strong></td>
@@ -32,14 +32,14 @@
               <td>{{ a.role }}</td>
               <td>
                 <span class="badge" :class="a.is_active ? 'badge-active' : 'badge-revoked'">
-                  {{ a.is_active ? 'Actif' : 'Désactivé' }}
+                  {{ a.is_active ? $t('admins.status_active') : $t('admins.status_disabled') }}
                 </span>
               </td>
               <td>{{ formatDate(a.created_at) }}</td>
               <td class="actions-cell">
                 <template v-if="a.is_active">
-                  <button class="btn-secondary" @click="openEditPassword(a.username)">Mot de passe</button>
-                  <button class="btn-danger" @click="openDisable(a.username)">Désactiver</button>
+                  <button class="btn-secondary" @click="openEditPassword(a.username)">{{ $t('admins.btn_password') }}</button>
+                  <button class="btn-danger" @click="openDisable(a.username)">{{ $t('admins.btn_disable') }}</button>
                 </template>
                 <span v-else class="text-muted">—</span>
               </td>
@@ -48,20 +48,20 @@
         </table>
       </section>
 
-      <!-- Formulaire ajout -->
+      <!-- Add administrator form -->
       <section class="card">
-        <h2>Ajouter un administrateur</h2>
+        <h2>{{ $t('admins.section_add') }}</h2>
         <form class="add-form" @submit.prevent="submitAdd">
           <div class="field">
-            <label for="adm-username">Username <span class="required">*</span></label>
+            <label for="adm-username">{{ $t('admins.field_username') }} <span class="required">{{ $t('common.required') }}</span></label>
             <input id="adm-username" v-model="newUsername" type="text" placeholder="username" />
           </div>
           <div class="field">
-            <label for="adm-email">Email</label>
+            <label for="adm-email">{{ $t('admins.field_email') }}</label>
             <input id="adm-email" v-model="newEmail" type="email" placeholder="admin@example.com" />
           </div>
           <div class="field">
-            <label for="adm-password">Mot de passe <span class="required">*</span></label>
+            <label for="adm-password">{{ $t('admins.field_password') }} <span class="required">{{ $t('common.required') }}</span></label>
             <div class="pwd-wrap">
               <input
                 id="adm-password"
@@ -70,7 +70,7 @@
                 placeholder="••••••••"
                 :class="{ 'input-error': newPassword && !pwdRules(newPassword).every(r => r.ok) }"
               />
-              <button type="button" class="eye-btn" @click="showNewPwd = !showNewPwd" :title="showNewPwd ? 'Masquer' : 'Afficher'">
+              <button type="button" class="eye-btn" @click="showNewPwd = !showNewPwd">
                 <svg v-if="showNewPwd" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
                   <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
@@ -89,7 +89,7 @@
             </ul>
           </div>
           <div class="field">
-            <label for="adm-password-confirm">Confirmer le mot de passe <span class="required">*</span></label>
+            <label for="adm-password-confirm">{{ $t('admins.field_confirm_password') }} <span class="required">{{ $t('common.required') }}</span></label>
             <div class="pwd-wrap">
               <input
                 id="adm-password-confirm"
@@ -98,7 +98,7 @@
                 placeholder="••••••••"
                 :class="{ 'input-error': newPasswordConfirm && newPassword !== newPasswordConfirm }"
               />
-              <button type="button" class="eye-btn" @click="showNewPwdConfirm = !showNewPwdConfirm" :title="showNewPwdConfirm ? 'Masquer' : 'Afficher'">
+              <button type="button" class="eye-btn" @click="showNewPwdConfirm = !showNewPwdConfirm">
                 <svg v-if="showNewPwdConfirm" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
                   <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
@@ -111,48 +111,45 @@
               </button>
             </div>
             <span v-if="newPasswordConfirm && newPassword !== newPasswordConfirm" class="field-error">
-              Les mots de passe ne correspondent pas.
+              {{ $t('admins.error_password_mismatch') }}
             </span>
           </div>
           <div class="form-actions">
-            <button type="submit" class="btn-primary" :disabled="!canSubmitAdd">Ajouter</button>
+            <button type="submit" class="btn-primary" :disabled="!canSubmitAdd">{{ $t('admins.btn_add') }}</button>
           </div>
         </form>
       </section>
     </template>
 
-    <!-- Modal confirmation désactivation -->
+    <!-- Disable confirmation modal -->
     <div v-if="disableTarget" class="modal-overlay" @click.self="disableTarget = null">
       <div class="modal">
-        <h3>Désactiver l'administrateur</h3>
-        <p>
-          Confirmer la désactivation de <strong>{{ disableTarget }}</strong> ?
-          Cette action est irréversible depuis l'interface.
-        </p>
+        <h3>{{ $t('admins.disable_modal_title') }}</h3>
+        <p>{{ $t('admins.disable_modal_text', { username: disableTarget }) }}</p>
         <div class="modal-actions">
-          <button class="btn-danger" @click="confirmDisable">Désactiver</button>
-          <button @click="disableTarget = null">Annuler</button>
+          <button class="btn-danger" @click="confirmDisable">{{ $t('admins.btn_disable_confirm') }}</button>
+          <button @click="disableTarget = null">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
 
-    <!-- Modal changement de mot de passe -->
+    <!-- Change password modal -->
     <div v-if="editPasswordTarget" class="modal-overlay" @click.self="closeEditPassword">
       <div class="modal">
-        <h3>Changer le mot de passe — {{ editPasswordTarget }}</h3>
+        <h3>{{ $t('admins.pwd_modal_title', { username: editPasswordTarget }) }}</h3>
         <form @submit.prevent="confirmEditPassword">
           <div class="field" style="margin-bottom:0.75rem">
-            <label for="edit-password">Nouveau mot de passe <span class="required">*</span></label>
+            <label for="edit-password">{{ $t('admins.pwd_new_label') }} <span class="required">{{ $t('common.required') }}</span></label>
             <div class="pwd-wrap">
               <input
                 id="edit-password"
                 v-model="editPassword"
                 :type="showEditPwd ? 'text' : 'password'"
-                placeholder="Nouveau mot de passe"
+                :placeholder="$t('admins.pwd_new_placeholder')"
                 autofocus
                 :class="{ 'input-error': editPassword && !pwdRules(editPassword).every(r => r.ok) }"
               />
-              <button type="button" class="eye-btn" @click="showEditPwd = !showEditPwd" :title="showEditPwd ? 'Masquer' : 'Afficher'">
+              <button type="button" class="eye-btn" @click="showEditPwd = !showEditPwd">
                 <svg v-if="showEditPwd" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
                   <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
@@ -171,16 +168,16 @@
             </ul>
           </div>
           <div class="field" style="margin-bottom:1rem">
-            <label for="edit-password-confirm">Confirmer <span class="required">*</span></label>
+            <label for="edit-password-confirm">{{ $t('admins.pwd_confirm_label') }} <span class="required">{{ $t('common.required') }}</span></label>
             <div class="pwd-wrap">
               <input
                 id="edit-password-confirm"
                 v-model="editPasswordConfirm"
                 :type="showEditPwdConfirm ? 'text' : 'password'"
-                placeholder="Confirmer le mot de passe"
+                :placeholder="$t('admins.pwd_confirm_placeholder')"
                 :class="{ 'input-error': editPasswordConfirm && editPassword !== editPasswordConfirm }"
               />
-              <button type="button" class="eye-btn" @click="showEditPwdConfirm = !showEditPwdConfirm" :title="showEditPwdConfirm ? 'Masquer' : 'Afficher'">
+              <button type="button" class="eye-btn" @click="showEditPwdConfirm = !showEditPwdConfirm">
                 <svg v-if="showEditPwdConfirm" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
                   <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
@@ -193,12 +190,12 @@
               </button>
             </div>
             <span v-if="editPasswordConfirm && editPassword !== editPasswordConfirm" class="field-error">
-              Les mots de passe ne correspondent pas.
+              {{ $t('admins.error_password_mismatch') }}
             </span>
           </div>
           <div class="modal-actions">
-            <button type="submit" class="btn-primary" :disabled="!canSubmitEdit">Enregistrer</button>
-            <button type="button" @click="closeEditPassword">Annuler</button>
+            <button type="submit" class="btn-primary" :disabled="!canSubmitEdit">{{ $t('admins.btn_save') }}</button>
+            <button type="button" @click="closeEditPassword">{{ $t('common.cancel') }}</button>
           </div>
         </form>
       </div>
@@ -208,6 +205,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -216,11 +216,11 @@ const SPECIAL = /[!@#$%^&*()\-_=+[\]{}|;:'",.<>?\\`~]/
 
 function pwdRules(pwd) {
   return [
-    { label: '8 caractères minimum',  ok: pwd.length >= 8 },
-    { label: 'Une lettre majuscule',  ok: /[A-Z]/.test(pwd) },
-    { label: 'Une lettre minuscule',  ok: /[a-z]/.test(pwd) },
-    { label: 'Un chiffre',           ok: /\d/.test(pwd) },
-    { label: 'Un caractère spécial', ok: SPECIAL.test(pwd) },
+    { label: t('admins.rule_min_length'),  ok: pwd.length >= 8 },
+    { label: t('admins.rule_uppercase'),   ok: /[A-Z]/.test(pwd) },
+    { label: t('admins.rule_lowercase'),   ok: /[a-z]/.test(pwd) },
+    { label: t('admins.rule_digit'),       ok: /\d/.test(pwd) },
+    { label: t('admins.rule_special'),     ok: SPECIAL.test(pwd) },
   ]
 }
 
@@ -268,7 +268,7 @@ async function load() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     admins.value = await res.json()
   } catch (e) {
-    error.value = `Impossible de charger les administrateurs : ${e.message}`
+    error.value = t('admins.load_error', { error: e.message })
   } finally {
     loading.value = false
   }
@@ -292,7 +292,7 @@ async function submitAdd() {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || `HTTP ${res.status}`)
     }
-    message.value = `Administrateur ${newUsername.value} ajouté.`
+    message.value = t('admins.success_added', { username: newUsername.value })
     newUsername.value        = ''
     newEmail.value           = ''
     newPassword.value        = ''
@@ -318,7 +318,7 @@ async function confirmDisable() {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || `HTTP ${res.status}`)
     }
-    message.value = `Administrateur ${username} désactivé.`
+    message.value = t('admins.success_disabled', { username })
     await load()
   } catch (e) {
     error.value = e.message
@@ -358,7 +358,7 @@ async function confirmEditPassword() {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || `HTTP ${res.status}`)
     }
-    message.value = `Mot de passe de ${username} mis à jour.`
+    message.value = t('admins.success_pwd', { username })
   } catch (e) {
     error.value = e.message
   }

@@ -2,19 +2,19 @@
   <table>
     <thead>
       <tr>
-        <th>Statut</th>
-        <th>Type</th>
-        <th>Fingerprint</th>
-        <th>Commentaire</th>
-        <th>Propriétaire</th>
-        <th>Expire le</th>
-        <th>Conforme</th>
-        <th>Actions</th>
+        <th>{{ $t('key_table.col_status') }}</th>
+        <th>{{ $t('key_table.col_type') }}</th>
+        <th>{{ $t('key_table.col_fingerprint') }}</th>
+        <th>{{ $t('key_table.col_comment') }}</th>
+        <th>{{ $t('key_table.col_owner') }}</th>
+        <th>{{ $t('key_table.col_expires') }}</th>
+        <th>{{ $t('key_table.col_compliant') }}</th>
+        <th>{{ $t('key_table.col_actions') }}</th>
       </tr>
     </thead>
     <tbody>
       <tr v-if="keys.length === 0">
-        <td colspan="8" class="empty">Aucune clé.</td>
+        <td colspan="8" class="empty">{{ $t('key_table.empty') }}</td>
       </tr>
       <tr v-for="k in keys" :key="k.fingerprint">
         <td>
@@ -31,27 +31,27 @@
             v-if="k.status === 'PENDING_REVIEW'"
             class="btn-success"
             @click="$emit('validate', k.fingerprint)"
-          >Valider</button>
+          >{{ $t('key_table.btn_validate') }}</button>
           <button
             v-if="k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW'"
             class="btn-danger"
             @click="$emit('revoke', k)"
-          >Révoquer</button>
+          >{{ $t('key_table.btn_revoke') }}</button>
           <button
             v-if="!k.owner && k.status === 'ACTIVE'"
             class="btn-primary"
             @click="$emit('assign', k.fingerprint)"
-          >Assigner</button>
+          >{{ $t('key_table.btn_assign') }}</button>
           <button
             v-if="k.status === 'ACTIVE'"
             class="btn-warning"
             @click="$emit('set-expiry', k)"
-          >Expiration</button>
+          >{{ $t('key_table.btn_expiry') }}</button>
           <button
             v-if="k.status === 'ACTIVE' && k.expires_at"
             class="btn-unlimited"
             @click="$emit('remove-expiry', k.fingerprint)"
-          >Illimité</button>
+          >{{ $t('key_table.btn_unlimited') }}</button>
         </td>
       </tr>
     </tbody>

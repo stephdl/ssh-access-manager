@@ -4,33 +4,33 @@
       v-if="showValidate"
       class="btn-success"
       @click="$emit('validate', fingerprint)"
-    >Valider</button>
+    >{{ $t('key_table.btn_validate') }}</button>
 
     <button
       v-if="showRevoke"
       class="btn-danger"
       @click="openConfirm"
-    >Révoquer</button>
+    >{{ $t('key_table.btn_revoke') }}</button>
 
     <button
       v-if="showExpiry"
       class="btn-warning"
       @click="$emit('set-expiry', fingerprint)"
-    >Expiry</button>
+    >{{ $t('key_table.btn_expiry') }}</button>
 
-    <!-- Modal confirmation révocation -->
+    <!-- Revoke confirmation modal -->
     <div v-if="confirming" class="modal-overlay" @click.self="confirming = false">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-        <h3 id="modal-title">Confirmer la révocation</h3>
+        <h3 id="modal-title">{{ $t('server_detail.revoke_modal_title') }}</h3>
         <p class="fp-display">
-          Clé : <code>{{ fingerprint }}</code>
+          <code>{{ fingerprint }}</code>
         </p>
-        <label for="revoke-reason">Motif <span class="required">*</span></label>
+        <label for="revoke-reason">{{ $t('server_detail.revoke_reason_label') }} <span class="required">{{ $t('common.required') }}</span></label>
         <textarea
           id="revoke-reason"
           v-model="reason"
           rows="3"
-          placeholder="Raison de révocation…"
+          :placeholder="$t('server_detail.revoke_reason_placeholder')"
         ></textarea>
         <div class="modal-actions">
           <button
@@ -38,8 +38,8 @@
             :disabled="!reason.trim()"
             data-testid="confirm-revoke"
             @click="confirmRevoke"
-          >Confirmer la révocation</button>
-          <button data-testid="cancel-revoke" @click="confirming = false">Annuler</button>
+          >{{ $t('server_detail.revoke_confirm') }}</button>
+          <button data-testid="cancel-revoke" @click="confirming = false">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
