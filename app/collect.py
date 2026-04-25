@@ -74,8 +74,8 @@ def scan_server(server: dict) -> dict:
     result = {"hostname": hostname, "new": 0, "disappeared": 0, "known": 0, "error": None}
 
     try:
-        ssh.ensure_scripts(ip, server_id)
-        raw_lines = ssh.collect_keys(ip)
+        ssh.ensure_scripts(hostname, server_id, ip=ip)
+        raw_lines = ssh.collect_keys(hostname, ip=ip)
     except Exception as exc:
         result["error"] = str(exc)
         db.execute(
@@ -155,7 +155,7 @@ def scan_server(server: dict) -> dict:
     )
     for row in active_on_server:
         if row["fingerprint"] not in collected_fps:
-            actions.handle_disappeared_key(row["key_id"], server_id, ip)
+            actions.handle_disappeared_key(row["key_id"], server_id, hostname, ip=ip)
             result["disappeared"] += 1
 
     db.execute(
