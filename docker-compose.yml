@@ -1,0 +1,17 @@
+services:
+  ssh-access-manager:
+    build: .
+    container_name: ssh-access-manager
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-8080}:${NGINX_PORT:-8080}"
+    volumes:
+      - ssh_data:/data
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+
+volumes:
+  ssh_data:
+    driver: local
