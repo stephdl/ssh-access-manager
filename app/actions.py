@@ -60,7 +60,7 @@ def revoke_key(fingerprint: str, admin_id: str, reason: str) -> None:
 
     active_auths = db.query(
         """
-        SELECT ka.server_id, s.hostname
+        SELECT ka.server_id, s.hostname, s.ip_address
         FROM key_authorizations ka
         JOIN servers s ON s.id = ka.server_id
         WHERE ka.key_id = %s AND ka.status = 'ACTIVE'
@@ -69,7 +69,7 @@ def revoke_key(fingerprint: str, admin_id: str, reason: str) -> None:
     )
 
     for auth in active_auths:
-        ssh.revoke_on_server(auth["hostname"], fingerprint)
+        ssh.revoke_on_server(auth["hostname"], fingerprint, ip=auth["ip_address"])
         db.execute(
             """
             UPDATE key_authorizations
@@ -96,7 +96,7 @@ def revoke_key(fingerprint: str, admin_id: str, reason: str) -> None:
         )
 
 
-def handle_disappeared_key(key_id: str, server_id: str, hostname: str, ip: str | None = None) -> None:
+def handle_disappeared_key(key_id: str, server_id: str, hostname: str, ip: str) -> None:
     """
     Scenario 2 — key was ACTIVE but disappeared from server (out-of-system revocation).
     Sets REVOKED + revoked_automatically=True, logs ANOMALY_DETECTED, sends CRITICAL alert.
@@ -383,9 +383,9 @@ def revoke_request(request_id: str, admin_id: str) -> None:
 
     key = db.query_one("SELECT fingerprint FROM ssh_keys WHERE id = %s", (req["key_id"],))
     if key:
-        server = db.query_one("SELECT hostname FROM servers WHERE id = %s", (req["server_id"],))
+        server = db.query_one("SELECT hostname, ip_address FROM servers WHERE id = %s", (req["server_id"],))
         if server:
-            ssh.revoke_on_server(server["hostname"], key["fingerprint"])
+            ssh.revoke_on_server(server["hostname"], key["fingerprint"], ip=server["ip_address"])
 
     db.execute(
         """
@@ -412,7 +412,7 @@ def add_server(
     """Insert a new server, run ssh-keyscan, and log SERVER_ADDED."""
     import servers as servers_mod
     try:
-        servers_mod.add_to_known_hosts(hostname, ip=ip)
+        servers_mod.add_to_known_hosts(ip)
     except Exception as e:
         raise ValueError(f"Impossible de joindre {hostname} ({ip}) pour le keyscan : {e}") from e
     db.execute(
