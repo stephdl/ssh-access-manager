@@ -32,6 +32,7 @@ RUN apk update && apk add --no-cache \
     nginx \
     msmtp \
     openssh-client \
+    openssl \
     busybox-extras \
     wget \
     tzdata && \
