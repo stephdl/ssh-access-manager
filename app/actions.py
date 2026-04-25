@@ -447,6 +447,35 @@ def disable_server(hostname: str, admin_id: str | None = None) -> None:
     )
 
 
+def enable_server(hostname: str, admin_id: str | None = None) -> None:
+    """Set is_active=true and log SERVER_ADDED."""
+    server = db.query_one(
+        "SELECT id FROM servers WHERE hostname = %s AND is_active = false", (hostname,)
+    )
+    if not server:
+        raise ValueError(f"Inactive server not found: {hostname}")
+    db.execute("UPDATE servers SET is_active = true WHERE id = %s", (server["id"],))
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, target_server, details)
+        VALUES ('SERVER_ADDED', %s, %s, %s::jsonb)
+        """,
+        (admin_id, server["id"], json.dumps({"hostname": hostname, "reactivated": True})),
+    )
+
+
+def delete_server(hostname: str, admin_id: str | None = None) -> None:
+    """Hard delete a server and all related data."""
+    server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
+    if not server:
+        raise ValueError(f"Server not found: {hostname}")
+    sid = server["id"]
+    db.execute("DELETE FROM audit_log WHERE target_server = %s", (sid,))
+    db.execute("DELETE FROM access_requests WHERE server_id = %s", (sid,))
+    db.execute("DELETE FROM key_authorizations WHERE server_id = %s", (sid,))
+    db.execute("DELETE FROM servers WHERE id = %s", (sid,))
+
+
 # ---------------------------------------------------------------------------
 # Administrateurs
 # ---------------------------------------------------------------------------
