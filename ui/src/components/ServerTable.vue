@@ -28,9 +28,10 @@
         <tr v-for="s in filtered" :key="s.id" :class="rowClass(s)">
           <td>{{ statusIcon(s) }}</td>
           <td>
-            <router-link :to="`/servers/${s.hostname}`" class="server-link">
+            <router-link :to="`/servers/${s.hostname}`" class="server-link" :class="{ 'link-disabled': !s.is_active }">
               {{ s.hostname }}
             </router-link>
+            <span v-if="!s.is_active" class="badge badge-disabled">DÉSACTIVÉ</span>
           </td>
           <td>{{ s.ip_address }}</td>
           <td>
@@ -124,8 +125,14 @@ function formatDate(iso) {
 
 .empty { text-align: center; color: #888; padding: 1rem 0; }
 
-.row-danger { background: #fff5f5; }
+.row-danger { background: #fde8e8; opacity: 0.8; }
+.row-danger td { color: #6c6c6c; }
 .row-warning { background: #fffbf0; }
+
+.link-disabled { color: #999; }
+.link-disabled:hover { color: #777; }
+
+.badge-disabled { background: #dc3545; color: #fff; margin-left: 0.5rem; font-size: 0.7rem; padding: 0.1rem 0.4rem; }
 
 .badge-critical { background: #f8d7da; color: #721c24; }
 .badge-pending  { background: #fff3cd; color: #856404; }
