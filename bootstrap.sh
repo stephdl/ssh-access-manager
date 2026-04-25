@@ -8,11 +8,6 @@ generate_nginx_conf() {
     sed \
         -e "s|{{NGINX_PORT}}|${NGINX_PORT:-8080}|g" \
         /app/nginx.conf.template > /etc/nginx/nginx.conf
-
-    # Générer /etc/nginx/.htpasswd
-    _hash=$(openssl passwd -apr1 "${NGINX_PASSWORD:-changeme}")
-    printf '%s:%s\n' "${NGINX_USER:-admin}" "${_hash}" > /etc/nginx/.htpasswd
-    chmod 644 /etc/nginx/.htpasswd
 }
 
 # ---------------------------------------------------------------------------
