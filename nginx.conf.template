@@ -12,10 +12,6 @@ http {
     access_log    /dev/stdout;
     sendfile      on;
 
-    # Fichier htpasswd généré au bootstrap depuis ENV
-    auth_basic           "ssh-access-manager";
-    auth_basic_user_file /etc/nginx/.htpasswd;
-
     server {
         listen {{NGINX_PORT}};
         server_name _;
