@@ -1,23 +1,27 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
 import ExpiryPicker from '../src/components/ExpiryPicker.vue'
+
+const i18n = createI18n({ legacy: false, locale: 'en', messages: { en: {} } })
+const mk = () => mount(ExpiryPicker, { global: { plugins: [i18n] } })
 
 describe('ExpiryPicker', () => {
   it('démarre en mode heures', () => {
-    const w = mount(ExpiryPicker)
+    const w = mk()
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(true)
     expect(w.find('[data-testid="input-date"]').exists()).toBe(false)
   })
 
   it('passe en mode date quand on sélectionne date précise', async () => {
-    const w = mount(ExpiryPicker)
+    const w = mk()
     await w.find('[data-testid="mode-date"]').setChecked(true)
     expect(w.find('[data-testid="input-date"]').exists()).toBe(true)
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(false)
   })
 
   it('repasse en mode heures depuis le mode date', async () => {
-    const w = mount(ExpiryPicker)
+    const w = mk()
     await w.find('[data-testid="mode-date"]').setChecked(true)
     await w.find('[data-testid="mode-hours"]').setChecked(true)
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(true)
@@ -25,7 +29,7 @@ describe('ExpiryPicker', () => {
   })
 
   it('les deux modes ne sont jamais affichés simultanément', async () => {
-    const w = mount(ExpiryPicker)
+    const w = mk()
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(true)
     expect(w.find('[data-testid="input-date"]').exists()).toBe(false)
 
@@ -35,7 +39,7 @@ describe('ExpiryPicker', () => {
   })
 
   it('émet { hours } valide quand une durée positive est saisie', async () => {
-    const w = mount(ExpiryPicker)
+    const w = mk()
     await w.find('[data-testid="input-hours"]').setValue('48')
     await w.find('[data-testid="input-hours"]').trigger('input')
     const emitted = w.emitted('update:modelValue')
@@ -44,7 +48,7 @@ describe('ExpiryPicker', () => {
   })
 
   it('émet null si la durée est 0 ou négative', async () => {
-    const w = mount(ExpiryPicker)
+    const w = mk()
     await w.find('[data-testid="input-hours"]').setValue('0')
     await w.find('[data-testid="input-hours"]').trigger('input')
     const emitted = w.emitted('update:modelValue')
@@ -52,7 +56,7 @@ describe('ExpiryPicker', () => {
   })
 
   it('émet null quand on change de mode', async () => {
-    const w = mount(ExpiryPicker)
+    const w = mk()
     await w.find('[data-testid="input-hours"]').setValue('10')
     await w.find('[data-testid="input-hours"]').trigger('input')
     await w.find('[data-testid="mode-date"]').setChecked(true)
@@ -61,14 +65,14 @@ describe('ExpiryPicker', () => {
   })
 
   it('affiche une erreur si durée < 1', async () => {
-    const w = mount(ExpiryPicker)
+    const w = mk()
     await w.find('[data-testid="input-hours"]').setValue('0')
     await w.find('[data-testid="input-hours"]').trigger('input')
     expect(w.find('.field-error').exists()).toBe(true)
   })
 
   it('n\'affiche pas d\'erreur si durée >= 1', async () => {
-    const w = mount(ExpiryPicker)
+    const w = mk()
     await w.find('[data-testid="input-hours"]').setValue('1')
     await w.find('[data-testid="input-hours"]').trigger('input')
     expect(w.find('.field-error').exists()).toBe(false)
