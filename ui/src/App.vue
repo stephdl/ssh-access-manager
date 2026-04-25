@@ -114,8 +114,10 @@ button {
   cursor: pointer;
   font-size: 0.85rem;
 }
-.btn-primary  { background: #0d6efd; color: #fff; }
-.btn-danger   { background: #dc3545; color: #fff; }
-.btn-success  { background: #198754; color: #fff; }
-.btn-warning  { background: #ffc107; color: #000; }
+.btn-primary   { background: #0d6efd; color: #fff; }
+.btn-secondary { background: #fff; color: #0d6efd; border-color: #0d6efd; }
+.btn-secondary:hover { background: #e7f0ff; }
+.btn-danger    { background: #dc3545; color: #fff; }
+.btn-success   { background: #198754; color: #fff; }
+.btn-warning   { background: #ffc107; color: #000; }
 </style>
