@@ -386,6 +386,20 @@ def add_admin():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/admins/<username>/password", methods=["PUT"])
+@require_auth
+def change_admin_password(username):
+    data = request.get_json(force=True) or {}
+    password = data.get("password", "").strip()
+    if not password:
+        return jsonify({"error": "password requis"}), 400
+    try:
+        actions.change_password(username, password)
+        return jsonify({"status": "updated"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
 @app.route("/api/admins/<username>/disable", methods=["PUT"])
 @require_auth
 def disable_admin(username):

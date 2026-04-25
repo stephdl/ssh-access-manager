@@ -36,12 +36,11 @@
                 </span>
               </td>
               <td>{{ formatDate(a.created_at) }}</td>
-              <td>
-                <button
-                  v-if="a.is_active"
-                  class="btn-danger"
-                  @click="openDisable(a.username)"
-                >Désactiver</button>
+              <td class="actions-cell">
+                <template v-if="a.is_active">
+                  <button class="btn-secondary" @click="openEditPassword(a.username)">Mot de passe</button>
+                  <button class="btn-danger" @click="openDisable(a.username)">Désactiver</button>
+                </template>
                 <span v-else class="text-muted">—</span>
               </td>
             </tr>
@@ -80,8 +79,25 @@
               placeholder="••••••••"
             />
           </div>
+          <div class="field">
+            <label for="adm-password-confirm">Confirmer le mot de passe <span class="required">*</span></label>
+            <input
+              id="adm-password-confirm"
+              v-model="newPasswordConfirm"
+              type="password"
+              placeholder="••••••••"
+              :class="{ 'input-error': newPasswordConfirm && newPassword !== newPasswordConfirm }"
+            />
+            <span v-if="newPasswordConfirm && newPassword !== newPasswordConfirm" class="field-error">
+              Les mots de passe ne correspondent pas.
+            </span>
+          </div>
           <div class="form-actions">
-            <button type="submit" class="btn-primary" :disabled="!newUsername.trim() || !newPassword.trim()">
+            <button
+              type="submit"
+              class="btn-primary"
+              :disabled="!canSubmitAdd"
+            >
               Ajouter
             </button>
           </div>
@@ -103,20 +119,75 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal changement de mot de passe -->
+    <div v-if="editPasswordTarget" class="modal-overlay" @click.self="closeEditPassword">
+      <div class="modal">
+        <h3>Changer le mot de passe — {{ editPasswordTarget }}</h3>
+        <form @submit.prevent="confirmEditPassword">
+          <div class="field" style="margin-bottom:0.75rem">
+            <label for="edit-password">Nouveau mot de passe <span class="required">*</span></label>
+            <input
+              id="edit-password"
+              v-model="editPassword"
+              type="password"
+              placeholder="••••••••"
+              autofocus
+            />
+          </div>
+          <div class="field" style="margin-bottom:1rem">
+            <label for="edit-password-confirm">Confirmer <span class="required">*</span></label>
+            <input
+              id="edit-password-confirm"
+              v-model="editPasswordConfirm"
+              type="password"
+              placeholder="••••••••"
+              :class="{ 'input-error': editPasswordConfirm && editPassword !== editPasswordConfirm }"
+            />
+            <span v-if="editPasswordConfirm && editPassword !== editPasswordConfirm" class="field-error">
+              Les mots de passe ne correspondent pas.
+            </span>
+          </div>
+          <div class="modal-actions">
+            <button
+              type="submit"
+              class="btn-primary"
+              :disabled="!canSubmitEdit"
+            >Enregistrer</button>
+            <button type="button" @click="closeEditPassword">Annuler</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
-const admins      = ref([])
-const loading     = ref(true)
-const error       = ref('')
-const message     = ref('')
-const newUsername = ref('')
-const newEmail    = ref('')
-const newPassword = ref('')
-const disableTarget = ref(null)
+const admins             = ref([])
+const loading            = ref(true)
+const error              = ref('')
+const message            = ref('')
+const newUsername        = ref('')
+const newEmail           = ref('')
+const newPassword        = ref('')
+const newPasswordConfirm = ref('')
+const disableTarget      = ref(null)
+const editPasswordTarget = ref(null)
+const editPassword       = ref('')
+const editPasswordConfirm = ref('')
+
+const canSubmitAdd = computed(() =>
+  newUsername.value.trim() &&
+  newPassword.value.trim() &&
+  newPassword.value === newPasswordConfirm.value
+)
+
+const canSubmitEdit = computed(() =>
+  editPassword.value.trim() &&
+  editPassword.value === editPasswordConfirm.value
+)
 
 async function load() {
   loading.value = true
@@ -133,7 +204,7 @@ async function load() {
 }
 
 async function submitAdd() {
-  if (!newUsername.value.trim() || !newPassword.value.trim()) return
+  if (!canSubmitAdd.value) return
   error.value = ''
   message.value = ''
   try {
@@ -151,9 +222,10 @@ async function submitAdd() {
       throw new Error(data.error || `HTTP ${res.status}`)
     }
     message.value = `Administrateur ${newUsername.value} ajouté.`
-    newUsername.value = ''
-    newEmail.value    = ''
-    newPassword.value = ''
+    newUsername.value        = ''
+    newEmail.value           = ''
+    newPassword.value        = ''
+    newPasswordConfirm.value = ''
     await load()
   } catch (e) {
     error.value = e.message
@@ -182,6 +254,40 @@ async function confirmDisable() {
   }
 }
 
+function openEditPassword(username) {
+  editPasswordTarget.value  = username
+  editPassword.value        = ''
+  editPasswordConfirm.value = ''
+}
+
+function closeEditPassword() {
+  editPasswordTarget.value  = null
+  editPassword.value        = ''
+  editPasswordConfirm.value = ''
+}
+
+async function confirmEditPassword() {
+  if (!canSubmitEdit.value) return
+  const username = editPasswordTarget.value
+  closeEditPassword()
+  error.value   = ''
+  message.value = ''
+  try {
+    const res = await fetch(`/api/admins/${username}/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: editPassword.value }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    message.value = `Mot de passe de ${username} mis à jour.`
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
 function formatDate(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('fr-FR')
@@ -205,18 +311,24 @@ h2 { font-size: 1.1rem; margin-bottom: 0.75rem; }
 .row-inactive { opacity: 0.6; }
 .text-muted   { color: #aaa; font-size: 0.85rem; }
 
+.actions-cell { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+
 .add-form { display: flex; flex-direction: column; gap: 0.75rem; max-width: 420px; }
 .field    { display: flex; flex-direction: column; gap: 0.25rem; }
 label     { font-size: 0.85rem; font-weight: 600; }
 .required { color: #dc3545; }
 
 input[type="text"],
-input[type="email"] {
+input[type="email"],
+input[type="password"] {
   padding: 0.4rem 0.6rem;
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 0.9rem;
 }
+
+input.input-error { border-color: #dc3545; }
+.field-error { color: #dc3545; font-size: 0.8rem; }
 
 .form-actions { display: flex; gap: 0.75rem; }
 
@@ -225,6 +337,17 @@ input[type="email"] {
 
 .alert-error { background: #f8d7da; color: #721c24; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
 .alert-info  { background: #d4edda; color: #155724; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+
+.btn-secondary {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #6c757d;
+  border-radius: 4px;
+  background: #fff;
+  color: #6c757d;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.btn-secondary:hover { background: #6c757d; color: #fff; }
 
 .modal-overlay {
   position: fixed; inset: 0;
@@ -236,7 +359,7 @@ input[type="email"] {
   background: #fff;
   border-radius: 8px;
   padding: 1.5rem;
-  width: 380px;
+  width: 400px;
   max-width: 90vw;
   display: flex;
   flex-direction: column;

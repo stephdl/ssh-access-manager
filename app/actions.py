@@ -465,6 +465,20 @@ def add_admin(username: str, email: str, password: str, admin_id: str | None = N
     return admin
 
 
+def change_password(username: str, new_password: str) -> None:
+    """Update password_hash for an active administrator."""
+    from werkzeug.security import generate_password_hash
+    admin = db.query_one(
+        "SELECT id FROM administrators WHERE username = %s AND is_active = true", (username,)
+    )
+    if not admin:
+        raise ValueError(f"Active admin not found: {username}")
+    db.execute(
+        "UPDATE administrators SET password_hash = %s WHERE id = %s",
+        (generate_password_hash(new_password), admin["id"]),
+    )
+
+
 def disable_admin(username: str, admin_id: str | None = None) -> None:
     """Set is_active=false and log ADMIN_DISABLED."""
     admin = db.query_one(
