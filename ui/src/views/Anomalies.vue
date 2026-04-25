@@ -150,8 +150,10 @@ async function load() {
   }
 }
 
+const efp = (fp) => encodeURIComponent(fp)
+
 async function validate(fingerprint) {
-  await apiAction(`/api/keys/${fingerprint}/validate`, {}, 'Clé validée.')
+  await apiAction(`/api/keys/${efp(fingerprint)}/validate`, {}, 'Clé validée.')
 }
 
 function openRevoke(key) {
@@ -161,7 +163,7 @@ function openRevoke(key) {
 
 async function confirmRevoke() {
   const fp = revokeTarget.value.fingerprint
-  await apiAction(`/api/keys/${fp}/revoke`, { reason: revokeReason.value }, 'Clé révoquée.')
+  await apiAction(`/api/keys/${efp(fp)}/revoke`, { reason: revokeReason.value }, 'Clé révoquée.')
   revokeTarget.value = null
 }
 
