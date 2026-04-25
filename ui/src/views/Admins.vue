@@ -62,13 +62,26 @@
           </div>
           <div class="field">
             <label for="adm-password">Mot de passe <span class="required">*</span></label>
-            <input
-              id="adm-password"
-              v-model="newPassword"
-              type="password"
-              placeholder="••••••••"
-              :class="{ 'input-error': newPassword && !pwdRules(newPassword).every(r => r.ok) }"
-            />
+            <div class="pwd-wrap">
+              <input
+                id="adm-password"
+                v-model="newPassword"
+                :type="showNewPwd ? 'text' : 'password'"
+                placeholder="••••••••"
+                :class="{ 'input-error': newPassword && !pwdRules(newPassword).every(r => r.ok) }"
+              />
+              <button type="button" class="eye-btn" @click="showNewPwd = !showNewPwd" :title="showNewPwd ? 'Masquer' : 'Afficher'">
+                <svg v-if="showNewPwd" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
             <ul v-if="newPassword" class="pwd-rules">
               <li v-for="r in pwdRules(newPassword)" :key="r.label" :class="r.ok ? 'rule-ok' : 'rule-fail'">
                 {{ r.ok ? '✓' : '✗' }} {{ r.label }}
@@ -77,13 +90,26 @@
           </div>
           <div class="field">
             <label for="adm-password-confirm">Confirmer le mot de passe <span class="required">*</span></label>
-            <input
-              id="adm-password-confirm"
-              v-model="newPasswordConfirm"
-              type="password"
-              placeholder="••••••••"
-              :class="{ 'input-error': newPasswordConfirm && newPassword !== newPasswordConfirm }"
-            />
+            <div class="pwd-wrap">
+              <input
+                id="adm-password-confirm"
+                v-model="newPasswordConfirm"
+                :type="showNewPwdConfirm ? 'text' : 'password'"
+                placeholder="••••••••"
+                :class="{ 'input-error': newPasswordConfirm && newPassword !== newPasswordConfirm }"
+              />
+              <button type="button" class="eye-btn" @click="showNewPwdConfirm = !showNewPwdConfirm" :title="showNewPwdConfirm ? 'Masquer' : 'Afficher'">
+                <svg v-if="showNewPwdConfirm" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
             <span v-if="newPasswordConfirm && newPassword !== newPasswordConfirm" class="field-error">
               Les mots de passe ne correspondent pas.
             </span>
@@ -117,14 +143,27 @@
         <form @submit.prevent="confirmEditPassword">
           <div class="field" style="margin-bottom:0.75rem">
             <label for="edit-password">Nouveau mot de passe <span class="required">*</span></label>
-            <input
-              id="edit-password"
-              v-model="editPassword"
-              type="password"
-              placeholder="Nouveau mot de passe"
-              autofocus
-              :class="{ 'input-error': editPassword && !pwdRules(editPassword).every(r => r.ok) }"
-            />
+            <div class="pwd-wrap">
+              <input
+                id="edit-password"
+                v-model="editPassword"
+                :type="showEditPwd ? 'text' : 'password'"
+                placeholder="Nouveau mot de passe"
+                autofocus
+                :class="{ 'input-error': editPassword && !pwdRules(editPassword).every(r => r.ok) }"
+              />
+              <button type="button" class="eye-btn" @click="showEditPwd = !showEditPwd" :title="showEditPwd ? 'Masquer' : 'Afficher'">
+                <svg v-if="showEditPwd" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
             <ul class="pwd-rules">
               <li v-for="r in pwdRules(editPassword)" :key="r.label" :class="r.ok ? 'rule-ok' : 'rule-fail'">
                 {{ r.ok ? '✓' : '✗' }} {{ r.label }}
@@ -133,13 +172,26 @@
           </div>
           <div class="field" style="margin-bottom:1rem">
             <label for="edit-password-confirm">Confirmer <span class="required">*</span></label>
-            <input
-              id="edit-password-confirm"
-              v-model="editPasswordConfirm"
-              type="password"
-              placeholder="Confirmer le mot de passe"
-              :class="{ 'input-error': editPasswordConfirm && editPassword !== editPasswordConfirm }"
-            />
+            <div class="pwd-wrap">
+              <input
+                id="edit-password-confirm"
+                v-model="editPasswordConfirm"
+                :type="showEditPwdConfirm ? 'text' : 'password'"
+                placeholder="Confirmer le mot de passe"
+                :class="{ 'input-error': editPasswordConfirm && editPassword !== editPasswordConfirm }"
+              />
+              <button type="button" class="eye-btn" @click="showEditPwdConfirm = !showEditPwdConfirm" :title="showEditPwdConfirm ? 'Masquer' : 'Afficher'">
+                <svg v-if="showEditPwdConfirm" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
             <span v-if="editPasswordConfirm && editPassword !== editPasswordConfirm" class="field-error">
               Les mots de passe ne correspondent pas.
             </span>
@@ -158,7 +210,7 @@
 import { ref, computed, onMounted } from 'vue'
 
 // ---------------------------------------------------------------------------
-// Validation — règles de robustesse du mot de passe
+// Validation
 // ---------------------------------------------------------------------------
 const SPECIAL = /[!@#$%^&*()\-_=+[\]{}|;:'",.<>?\\`~]/
 
@@ -172,9 +224,7 @@ function pwdRules(pwd) {
   ]
 }
 
-function pwdOk(pwd) {
-  return pwdRules(pwd).every(r => r.ok)
-}
+function pwdOk(pwd) { return pwdRules(pwd).every(r => r.ok) }
 
 // ---------------------------------------------------------------------------
 // State
@@ -187,10 +237,14 @@ const newUsername         = ref('')
 const newEmail            = ref('')
 const newPassword         = ref('')
 const newPasswordConfirm  = ref('')
+const showNewPwd          = ref(false)
+const showNewPwdConfirm   = ref(false)
 const disableTarget       = ref(null)
 const editPasswordTarget  = ref(null)
 const editPassword        = ref('')
 const editPasswordConfirm = ref('')
+const showEditPwd         = ref(false)
+const showEditPwdConfirm  = ref(false)
 
 const canSubmitAdd = computed(() =>
   newUsername.value.trim().length > 0 &&
@@ -243,6 +297,8 @@ async function submitAdd() {
     newEmail.value           = ''
     newPassword.value        = ''
     newPasswordConfirm.value = ''
+    showNewPwd.value         = false
+    showNewPwdConfirm.value  = false
     await load()
   } catch (e) {
     error.value = e.message
@@ -273,17 +329,20 @@ function openEditPassword(username) {
   editPasswordTarget.value  = username
   editPassword.value        = ''
   editPasswordConfirm.value = ''
+  showEditPwd.value         = false
+  showEditPwdConfirm.value  = false
 }
 
 function closeEditPassword() {
   editPasswordTarget.value  = null
   editPassword.value        = ''
   editPasswordConfirm.value = ''
+  showEditPwd.value         = false
+  showEditPwdConfirm.value  = false
 }
 
 async function confirmEditPassword() {
   if (!canSubmitEdit.value) return
-  // Capture before closing (closeEditPassword resets the refs)
   const username = editPasswordTarget.value
   const password = editPassword.value
   closeEditPassword()
@@ -335,6 +394,31 @@ h2 { font-size: 1.1rem; margin-bottom: 0.75rem; }
 label     { font-size: 0.85rem; font-weight: 600; }
 .required { color: #dc3545; }
 
+.pwd-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pwd-wrap input {
+  flex: 1;
+  padding-right: 2.4rem;
+}
+
+.eye-btn {
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+.eye-btn:hover { color: #343a40; }
+
 input[type="text"],
 input[type="email"],
 input[type="password"] {
@@ -342,6 +426,8 @@ input[type="password"] {
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 0.9rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 input.input-error { border-color: #dc3545; }
