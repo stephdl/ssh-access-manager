@@ -43,6 +43,11 @@
             @click="$emit('set-expiry', k)"
           >Expiry</button>
           <button
+            v-if="k.status === 'ACTIVE' && k.expires_at"
+            class="btn-secondary"
+            @click="$emit('remove-expiry', k.fingerprint)"
+          >Illimité</button>
+          <button
             v-if="!k.owner && k.status === 'ACTIVE'"
             class="btn-primary"
             @click="$emit('assign', k.fingerprint)"
@@ -55,7 +60,7 @@
 
 <script setup>
 defineProps({ keys: { type: Array, default: () => [] } })
-defineEmits(['validate', 'revoke', 'set-expiry', 'assign'])
+defineEmits(['validate', 'revoke', 'set-expiry', 'remove-expiry', 'assign'])
 
 function statusBadge(status) {
   return {
