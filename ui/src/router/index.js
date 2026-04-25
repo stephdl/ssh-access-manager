@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuth } from '../composables/useAuth.js'
 
+import Login from '../views/Login.vue'
 import Dashboard from '../views/Dashboard.vue'
 import ServerDetail from '../views/ServerDetail.vue'
 import Anomalies from '../views/Anomalies.vue'
@@ -8,6 +10,7 @@ import Audit from '../views/Audit.vue'
 import Admins from '../views/Admins.vue'
 
 const routes = [
+  { path: '/login', name: 'Login', component: Login, meta: { public: true } },
   { path: '/',              name: 'Dashboard',      component: Dashboard },
   { path: '/servers/:hostname', name: 'ServerDetail', component: ServerDetail },
   { path: '/anomalies',    name: 'Anomalies',      component: Anomalies },
@@ -16,7 +19,17 @@ const routes = [
   { path: '/admins',       name: 'Admins',         component: Admins },
 ]
 
-export default createRouter({
+const router = createRouter({
   history: createWebHistory(),
   routes,
 })
+
+router.beforeEach(async (to) => {
+  if (to.meta.public) return true
+  const { admin, fetchMe } = useAuth()
+  if (!admin.value) await fetchMe()
+  if (!admin.value) return { name: 'Login' }
+  return true
+})
+
+export default router
