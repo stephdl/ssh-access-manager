@@ -1,0 +1,30 @@
+name: Cleanup PR image
+
+on:
+  pull_request:
+    types:
+      - closed
+
+permissions:
+  packages: write
+
+jobs:
+  cleanup:
+    name: Delete ghcr image pr-${{ github.event.number }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete package version pr-${{ github.event.number }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="pr-${{ github.event.number }}"
+          VERSION_ID=$(gh api \
+            /user/packages/container/ssh-access-manager/versions \
+            --jq ".[] | select(.metadata.container.tags[] == \"$TAG\") | .id")
+          if [ -n "$VERSION_ID" ]; then
+            gh api --method DELETE \
+              /user/packages/container/ssh-access-manager/versions/$VERSION_ID
+            echo "Deleted image tag $TAG (version $VERSION_ID)"
+          else
+            echo "No image found for tag $TAG, nothing to delete"
+          fi

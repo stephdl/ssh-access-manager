@@ -1,0 +1,36 @@
+name: Publish release image
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  packages: write
+
+jobs:
+  publish:
+    name: Build & push ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push image
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          IMAGE="ghcr.io/stephdl/ssh-access-manager"
+          if [[ "$TAG" == *"-"* ]]; then
+            docker build -t "$IMAGE:$TAG" .
+            docker push "$IMAGE:$TAG"
+          else
+            docker build -t "$IMAGE:$TAG" -t "$IMAGE:latest" .
+            docker push "$IMAGE:$TAG"
+            docker push "$IMAGE:latest"
+          fi
