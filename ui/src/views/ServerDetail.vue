@@ -53,6 +53,7 @@
           @validate="validateKey"
           @revoke="openRevoke"
           @set-expiry="openExpiry"
+          @remove-expiry="removeExpiry"
           @assign="openAssign"
         />
       </section>
@@ -311,6 +312,10 @@ async function confirmExpiry() {
     'Expiration définie.',
   )
   expiryTarget.value = null
+}
+
+async function removeExpiry(fingerprint) {
+  await apiAction(`/api/keys/remove-expiry/${efp(fingerprint)}`, null, 'POST', 'Expiration retirée — clé illimitée.')
 }
 
 async function apiAction(url, body, method = 'POST', successMsg) {
