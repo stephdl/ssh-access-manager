@@ -25,7 +25,10 @@
         <td>{{ k.comment || '—' }}</td>
         <td>{{ k.owner || '—' }}</td>
         <td>{{ formatDate(k.expires_at) }}</td>
-        <td>{{ k.is_compliant ? '✅' : '⚠️' }}</td>
+        <td>
+          <span v-if="k.is_compliant" title="Compliant">✅</span>
+          <span v-else class="non-compliant" :title="complianceTooltip(k)">⚠️</span>
+        </td>
         <td class="actions">
           <button
             v-if="k.status === 'PENDING_REVIEW'"
@@ -62,6 +65,16 @@
 defineProps({ keys: { type: Array, default: () => [] } })
 defineEmits(['validate', 'revoke', 'set-expiry', 'remove-expiry', 'assign'])
 
+function complianceTooltip(k) {
+  if (k.key_type === 'ssh-rsa') {
+    const bits = k.key_size_bits
+    return bits
+      ? `Non-compliant: RSA ${bits} bits (minimum 4096 required)`
+      : 'Non-compliant: RSA key below 4096 bits'
+  }
+  return 'Non-compliant key type'
+}
+
 function statusBadge(status) {
   return {
     ACTIVE:         'badge-active',
@@ -80,6 +93,11 @@ function formatDate(iso) {
 
 <style scoped>
 .fp { font-size: 0.75rem; max-width: 260px; word-break: break-all; }
+.non-compliant {
+  cursor: help;
+  font-size: 1rem;
+}
+
 .btn-unlimited {
   background: #6f42c1;
   color: #fff;
