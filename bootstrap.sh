@@ -54,6 +54,7 @@ if [ ! -f /data/pg/PG_VERSION ]; then
         -f /data/keys/collector_key \
         -N "" \
         -C "ssh-access-manager@$(hostname)"
+    chown nobody:nobody /data/keys/collector_key
     chmod 600 /data/keys/collector_key
 
     # 4. Créer known_hosts vide
