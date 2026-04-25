@@ -96,7 +96,7 @@ def revoke_key(fingerprint: str, admin_id: str, reason: str) -> None:
         )
 
 
-def handle_disappeared_key(key_id: str, server_id: str, hostname: str) -> None:
+def handle_disappeared_key(key_id: str, server_id: str, hostname: str, ip: str | None = None) -> None:
     """
     Scenario 2 — key was ACTIVE but disappeared from server (out-of-system revocation).
     Sets REVOKED + revoked_automatically=True, logs ANOMALY_DETECTED, sends CRITICAL alert.
@@ -412,7 +412,7 @@ def add_server(
     """Insert a new server, run ssh-keyscan, and log SERVER_ADDED."""
     import servers as servers_mod
     try:
-        servers_mod.add_to_known_hosts(ip)
+        servers_mod.add_to_known_hosts(hostname, ip=ip)
     except Exception as e:
         raise ValueError(f"Impossible de joindre {hostname} ({ip}) pour le keyscan : {e}") from e
     db.execute(

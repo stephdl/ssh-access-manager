@@ -24,18 +24,30 @@ def _hostname_in_known_hosts(hostname: str, known_hosts: str = KNOWN_HOSTS) -> b
         return False
 
 
-def add_to_known_hosts(hostname: str, known_hosts: str = KNOWN_HOSTS) -> None:
-    """Run ssh-keyscan and append the result to known_hosts if not present."""
-    if _hostname_in_known_hosts(hostname, known_hosts):
-        return
-    result = subprocess.run(
-        ["ssh-keyscan", "-H", "-T", "10", hostname],
-        capture_output=True,
-        text=True,
-    )
-    if result.stdout:
-        with open(known_hosts, "a") as f:
-            f.write(result.stdout)
+def add_to_known_hosts(hostname: str, known_hosts: str = KNOWN_HOSTS, ip: str | None = None) -> None:
+    """Run ssh-keyscan on hostname (fallback to ip) and append to known_hosts if not present."""
+    target = hostname
+    if not _hostname_in_known_hosts(hostname, known_hosts):
+        result = subprocess.run(
+            ["ssh-keyscan", "-H", "-T", "10", hostname],
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout:
+            with open(known_hosts, "a") as f:
+                f.write(result.stdout)
+            return
+        if ip and ip != hostname and not _hostname_in_known_hosts(ip, known_hosts):
+            result = subprocess.run(
+                ["ssh-keyscan", "-H", "-T", "10", ip],
+                capture_output=True,
+                text=True,
+            )
+            if result.stdout:
+                with open(known_hosts, "a") as f:
+                    f.write(result.stdout)
+            else:
+                raise RuntimeError(f"ssh-keyscan failed for {hostname} and {ip}")
 
 
 def sync_servers(path: str = SERVERS_YML) -> list[dict]:
