@@ -1,12 +1,15 @@
 <template>
   <div id="app">
-    <nav class="navbar">
+    <nav v-if="admin" class="navbar">
       <span class="brand">ssh-access-manager</span>
       <router-link to="/">Dashboard</router-link>
       <router-link to="/anomalies">Anomalies</router-link>
       <router-link to="/access">Accès</router-link>
       <router-link to="/audit">Audit</router-link>
       <router-link to="/admins">Admins</router-link>
+      <span class="nav-spacer"></span>
+      <span class="nav-user">{{ admin.username }}</span>
+      <button class="btn-logout" @click="handleLogout">Déconnexion</button>
     </nav>
     <main class="content">
       <router-view />
@@ -15,6 +18,16 @@
 </template>
 
 <script setup>
+import { useRouter } from 'vue-router'
+import { useAuth } from './composables/useAuth.js'
+
+const router = useRouter()
+const { admin, logout } = useAuth()
+
+async function handleLogout() {
+  await logout()
+  router.push('/login')
+}
 </script>
 
 <style>
@@ -51,6 +64,24 @@ body {
   color: #fff;
   font-weight: bold;
 }
+
+.nav-spacer { flex: 1; }
+
+.nav-user {
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.btn-logout {
+  background: transparent;
+  border: 1px solid #555;
+  color: #ccc;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-logout:hover { border-color: #fff; color: #fff; }
 
 .content {
   padding: 1.5rem;
