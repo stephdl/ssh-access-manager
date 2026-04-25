@@ -77,20 +77,20 @@ def test_expire_warn_expiring_keys_returns_zero_when_no_keys():
 def test_expire_expire_keys_scenario4_calls_sam_revoke():
     row = {
         "key_id": KEY_ID, "server_id": SERVER_ID,
-        "fingerprint": FINGERPRINT, "hostname": HOSTNAME,
+        "fingerprint": FINGERPRINT, "hostname": HOSTNAME, "ip_address": "192.168.1.10",
     }
     with patch("expire.db") as mock_db, \
          patch("expire.ssh") as mock_ssh, \
          patch("expire.alerts"):
         mock_db.query.return_value = [row]
         expire.expire_keys()
-        mock_ssh.revoke_on_server.assert_called_once_with(HOSTNAME, FINGERPRINT)
+        mock_ssh.revoke_on_server.assert_called_once_with(HOSTNAME, FINGERPRINT, ip="192.168.1.10")
 
 
 def test_expire_expire_keys_scenario4_sets_expired_revoked_automatically():
     row = {
         "key_id": KEY_ID, "server_id": SERVER_ID,
-        "fingerprint": FINGERPRINT, "hostname": HOSTNAME,
+        "fingerprint": FINGERPRINT, "hostname": HOSTNAME, "ip_address": "192.168.1.10",
     }
     with patch("expire.db") as mock_db, \
          patch("expire.ssh") as mock_ssh, \
@@ -106,7 +106,7 @@ def test_expire_expire_keys_scenario4_sets_expired_revoked_automatically():
 def test_expire_expire_keys_scenario4_logs_key_expired():
     row = {
         "key_id": KEY_ID, "server_id": SERVER_ID,
-        "fingerprint": FINGERPRINT, "hostname": HOSTNAME,
+        "fingerprint": FINGERPRINT, "hostname": HOSTNAME, "ip_address": "192.168.1.10",
     }
     with patch("expire.db") as mock_db, \
          patch("expire.ssh") as mock_ssh, \
@@ -119,8 +119,8 @@ def test_expire_expire_keys_scenario4_logs_key_expired():
 
 def test_expire_expire_keys_scenario4_returns_count():
     rows = [
-        {"key_id": KEY_ID, "server_id": SERVER_ID, "fingerprint": FINGERPRINT, "hostname": HOSTNAME},
-        {"key_id": str(uuid.uuid4()), "server_id": SERVER_ID, "fingerprint": "SHA256:other", "hostname": HOSTNAME},
+        {"key_id": KEY_ID, "server_id": SERVER_ID, "fingerprint": FINGERPRINT, "hostname": HOSTNAME, "ip_address": "192.168.1.10"},
+        {"key_id": str(uuid.uuid4()), "server_id": SERVER_ID, "fingerprint": "SHA256:other", "hostname": HOSTNAME, "ip_address": "192.168.1.10"},
     ]
     with patch("expire.db") as mock_db, \
          patch("expire.ssh") as mock_ssh, \
@@ -133,7 +133,7 @@ def test_expire_expire_keys_scenario4_returns_count():
 def test_expire_expire_keys_scenario4_sends_critical_on_revoke_failure():
     row = {
         "key_id": KEY_ID, "server_id": SERVER_ID,
-        "fingerprint": FINGERPRINT, "hostname": HOSTNAME,
+        "fingerprint": FINGERPRINT, "hostname": HOSTNAME, "ip_address": "192.168.1.10",
     }
     with patch("expire.db") as mock_db, \
          patch("expire.ssh") as mock_ssh, \
