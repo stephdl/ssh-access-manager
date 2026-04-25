@@ -63,7 +63,7 @@ def revoke_key(fingerprint: str, admin_id: str, reason: str) -> None:
         SELECT ka.server_id, s.hostname, s.ip_address
         FROM key_authorizations ka
         JOIN servers s ON s.id = ka.server_id
-        WHERE ka.key_id = %s AND ka.status = 'ACTIVE'
+        WHERE ka.key_id = %s AND ka.status IN ('ACTIVE', 'PENDING_REVIEW')
         """,
         (key["id"],),
     )
