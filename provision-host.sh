@@ -28,8 +28,11 @@ mkdir -p "${SSH_DIR}"
 chmod 700 "${SSH_DIR}"
 chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "${SSH_DIR}"
 
-# 3. Déployer la clé publique
-echo "${COLLECTOR_PUBKEY}" > "${AUTH_KEYS}"
+# 3. Déployer la clé publique (ajout si absente, ne pas écraser les clés existantes)
+touch "${AUTH_KEYS}"
+if ! grep -qF "${COLLECTOR_PUBKEY}" "${AUTH_KEYS}" 2>/dev/null; then
+    echo "${COLLECTOR_PUBKEY}" >> "${AUTH_KEYS}"
+fi
 chmod 600 "${AUTH_KEYS}"
 chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "${AUTH_KEYS}"
 echo "[provision] Clé publique déployée dans ${AUTH_KEYS}."
