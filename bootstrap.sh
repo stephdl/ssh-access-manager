@@ -82,21 +82,32 @@ if [ ! -f /data/pg/PG_VERSION ]; then
          -f /app/sql/schema.sql"
 
     # 9. Insérer l'administrateur initial depuis ENV
-    _admin_hash=$(python3 -c "
+    # Utilise Python+psycopg2 pour éviter l'interpolation shell du hash ($...)
+    python3 << 'PYEOF'
+import os, psycopg2
 from werkzeug.security import generate_password_hash
-print(generate_password_hash('${ADMIN_PASSWORD:-changeme}'))
-")
-    su -s /bin/sh postgres -c "psql -h /tmp \
-        -U ${POSTGRES_USER:-ssh_manager} \
-        -d ${POSTGRES_DB:-ssh_manager} -c \"
-        INSERT INTO administrators (username, email, role, password_hash)
-        VALUES (
-            '${ADMIN_USERNAME:-admin}',
-            '${ADMIN_EMAIL:-admin@example.com}',
-            'sysadmin',
-            '${_admin_hash}'
-        ) ON CONFLICT (username) DO NOTHING;
-    \""
+
+conn = psycopg2.connect(
+    host="/tmp",
+    dbname=os.environ.get("POSTGRES_DB", "ssh_manager"),
+    user=os.environ.get("POSTGRES_USER", "ssh_manager"),
+    password=os.environ.get("POSTGRES_PASSWORD", "changeme"),
+)
+conn.autocommit = True
+cur = conn.cursor()
+cur.execute(
+    """INSERT INTO administrators (username, email, role, password_hash)
+       VALUES (%s, %s, 'sysadmin', %s)
+       ON CONFLICT (username) DO NOTHING""",
+    (
+        os.environ.get("ADMIN_USERNAME", "admin"),
+        os.environ.get("ADMIN_EMAIL", "admin@example.com"),
+        generate_password_hash(os.environ.get("ADMIN_PASSWORD", "changeme")),
+    ),
+)
+conn.close()
+print("[bootstrap] Administrateur initial insere.")
+PYEOF
 
     # 10. Arrêter PostgreSQL temporaire
     su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' stop -w"
