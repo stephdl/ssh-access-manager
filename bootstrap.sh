@@ -13,6 +13,18 @@ generate_nginx_conf() {
 }
 
 # ---------------------------------------------------------------------------
+# Génération /etc/crontabs/root depuis ENV (SCAN_INTERVAL_HOURS)
+# ---------------------------------------------------------------------------
+generate_crontab() {
+    INTERVAL="${SCAN_INTERVAL_HOURS:-4}"
+    cat > /etc/crontabs/root << EOF
+# ssh-access-manager — généré par bootstrap.sh
+0 */${INTERVAL} * * * python3 /app/app/collect.py >> /dev/stdout 2>&1
+0 */${INTERVAL} * * * python3 /app/app/expire.py >> /dev/stdout 2>&1
+EOF
+}
+
+# ---------------------------------------------------------------------------
 # Génération /etc/msmtprc depuis template + ENV
 # ---------------------------------------------------------------------------
 generate_msmtprc() {
@@ -90,7 +102,10 @@ if [ ! -f /data/pg/PG_VERSION ]; then
     # 12. Générer nginx.conf
     generate_nginx_conf
 
-    # 13. Afficher la clé publique du collecteur dans les logs
+    # 13. Générer crontab depuis SCAN_INTERVAL_HOURS
+    generate_crontab
+
+    # 14. Afficher la clé publique du collecteur dans les logs
     echo ""
     echo "================================================================"
     echo " CLÉ PUBLIQUE DU COLLECTEUR — à déployer sur chaque hôte distant"
@@ -106,6 +121,7 @@ else
     # Régénérer la configuration depuis ENV à chaque démarrage
     generate_nginx_conf
     generate_msmtprc
+    generate_crontab
 fi
 
 # ---------------------------------------------------------------------------
