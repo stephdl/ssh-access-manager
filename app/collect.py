@@ -6,6 +6,7 @@ import base64
 import hashlib
 import json
 import os
+import struct
 
 import actions
 import alerts
@@ -44,7 +45,15 @@ def _parse_key_line(line: str) -> dict | None:
     if key_type == "ssh-rsa":
         try:
             raw = base64.b64decode(key_b64)
-            key_size_bits = (len(raw) - 11) * 8 // 10
+            # SSH wire format: 3 length-prefixed fields (key_type, exponent, modulus)
+            # key size = bit length of the modulus (3rd field)
+            offset = 0
+            for _ in range(3):
+                length = struct.unpack(">I", raw[offset:offset + 4])[0]
+                offset += 4
+                data = raw[offset:offset + length]
+                offset += length
+            key_size_bits = int.from_bytes(data, "big").bit_length()
         except Exception:
             pass
 
