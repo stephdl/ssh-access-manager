@@ -478,5 +478,17 @@ def system_scan():
     return jsonify(results)
 
 
+@app.route("/api/system/collector-key", methods=["GET"])
+@require_auth
+def get_collector_key():
+    keys_dir = os.path.dirname(os.environ.get("COLLECTOR_KEY", "/data/keys/collector_key"))
+    pub_path = os.path.join(keys_dir, "collector_key.pub")
+    try:
+        with open(pub_path) as f:
+            return jsonify({"public_key": f.read().strip()})
+    except FileNotFoundError:
+        return jsonify({"error": "Clé collecteur introuvable"}), 404
+
+
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000)
