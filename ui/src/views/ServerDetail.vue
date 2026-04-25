@@ -21,6 +21,10 @@
       </div>
     </div>
 
+    <div v-if="!loading && !server.is_active" class="alert-disabled">
+      🔴 Ce serveur est <strong>désactivé</strong> — il n'est plus scanné automatiquement.
+    </div>
+
     <div v-if="error" class="alert-error">{{ error }}</div>
     <div v-if="message" class="alert-info">{{ message }}</div>
 
@@ -395,8 +399,9 @@ dd { margin: 0; }
 .empty { color: #888; font-size: 0.9rem; padding: 0.5rem 0; }
 .loading { text-align: center; padding: 2rem; color: #888; }
 
-.alert-error { background: #f8d7da; color: #721c24; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
-.alert-info  { background: #d4edda; color: #155724; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+.alert-error    { background: #f8d7da; color: #721c24; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+.alert-info     { background: #d4edda; color: #155724; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+.alert-disabled { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.95rem; }
 
 .modal-overlay {
   position: fixed; inset: 0;
