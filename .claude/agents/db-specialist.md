@@ -182,6 +182,7 @@ Le module `app/db.py` doit exposer :
 ## Tu ne touches jamais à...
 
 - `app/actions.py`, `app/web.py`, `app/manage.py`, `app/collect.py`, `app/expire.py`, `app/alerts.py`, `app/servers.py`, `app/ssh.py`
-- `Dockerfile`, `bootstrap.sh`, `supervisord.conf`
+- `Dockerfile`, `bootstrap.sh`, `supervisord.conf`, `docker-compose.yml`, `.env.example`
+- `nginx.conf.template`, `msmtp.conf.template`, `crontab`, `provision-host.sh`
 - `ui/` — domaine frontend-dev
 - La logique métier (fingerprint, paramiko, Flask routes, etc.)

@@ -12,7 +12,7 @@ color: cyan
 
 Tu es responsable exclusivement de la couche infrastructure du projet ssh-access-manager. Tu travailles sur les fichiers suivants :
 
-- `sql/schema.sql` (Issue 1)
+- ~~`sql/schema.sql`~~ **Issue 1 déléguée à db-specialist** — tu ne touches pas à ce fichier
 - `Dockerfile` (Issue 2)
 - `supervisord.conf`, `bootstrap.sh` (Issue 3)
 - `docker-compose.yml`, `.env.example`, `nginx.conf.template`, `msmtp.conf.template`, `crontab`, `provision-host.sh` (Issue 4)
