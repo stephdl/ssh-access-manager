@@ -26,7 +26,7 @@
         <td>{{ k.owner || '—' }}</td>
         <td>{{ formatDate(k.expires_at) }}</td>
         <td>
-          <span v-if="k.is_compliant" title="Compliant">✅</span>
+          <span v-if="k.is_compliant" :title="$t('key_table.compliant_ok')">✅</span>
           <span v-else class="non-compliant" :title="complianceTooltip(k)">⚠️</span>
         </td>
         <td class="actions">
@@ -62,6 +62,9 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
+
 defineProps({ keys: { type: Array, default: () => [] } })
 defineEmits(['validate', 'revoke', 'set-expiry', 'remove-expiry', 'assign'])
 
@@ -69,10 +72,10 @@ function complianceTooltip(k) {
   if (k.key_type === 'ssh-rsa') {
     const bits = k.key_size_bits
     return bits
-      ? `Non-compliant: RSA ${bits} bits (minimum 4096 required)`
-      : 'Non-compliant: RSA key below 4096 bits'
+      ? t('key_table.non_compliant_rsa_bits', { bits })
+      : t('key_table.non_compliant_rsa')
   }
-  return 'Non-compliant key type'
+  return t('key_table.non_compliant_type')
 }
 
 function statusBadge(status) {
