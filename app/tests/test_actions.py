@@ -56,18 +56,18 @@ def test_actions_validate_key_raises_if_no_pending(sample_key):
 # ---------------------------------------------------------------------------
 
 def test_actions_revoke_key_scenario1_calls_sam_revoke(sample_key):
-    auth = {"server_id": SERVER_ID, "hostname": "server-test-01"}
+    auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10"}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = {"id": KEY_ID}
         mock_db.query.return_value = [auth]
         actions.revoke_key(sample_key["fingerprint"], ADMIN_ID, "test reason")
         mock_ssh.revoke_on_server.assert_called_once_with(
-            "server-test-01", sample_key["fingerprint"]
+            "server-test-01", sample_key["fingerprint"], ip="192.168.1.10"
         )
 
 
 def test_actions_revoke_key_scenario1_sets_revoked_by_admin(sample_key):
-    auth = {"server_id": SERVER_ID, "hostname": "server-test-01"}
+    auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10"}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = {"id": KEY_ID}
         mock_db.query.return_value = [auth]
@@ -78,7 +78,7 @@ def test_actions_revoke_key_scenario1_sets_revoked_by_admin(sample_key):
 
 
 def test_actions_revoke_key_scenario1_logs_key_revoked(sample_key):
-    auth = {"server_id": SERVER_ID, "hostname": "server-test-01"}
+    auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10"}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = {"id": KEY_ID}
         mock_db.query.return_value = [auth]
@@ -101,7 +101,7 @@ def test_actions_revoke_key_raises_if_key_not_found(sample_key):
 def test_actions_handle_disappeared_key_scenario2_sets_revoked_automatically():
     with patch("actions.db") as mock_db, patch("actions.alerts") as mock_alerts:
         mock_db.query_one.return_value = {"fingerprint": "SHA256:abc"}
-        actions.handle_disappeared_key(KEY_ID, SERVER_ID, "server-test-01")
+        actions.handle_disappeared_key(KEY_ID, SERVER_ID, "server-test-01", ip="192.168.1.10")
         update_call = mock_db.execute.call_args_list[0]
         assert "revoked_automatically = true" in update_call[0][0]
         assert "NULL" in update_call[0][0]
@@ -110,7 +110,7 @@ def test_actions_handle_disappeared_key_scenario2_sets_revoked_automatically():
 def test_actions_handle_disappeared_key_scenario2_logs_anomaly_detected():
     with patch("actions.db") as mock_db, patch("actions.alerts") as mock_alerts:
         mock_db.query_one.return_value = {"fingerprint": "SHA256:abc"}
-        actions.handle_disappeared_key(KEY_ID, SERVER_ID, "server-test-01")
+        actions.handle_disappeared_key(KEY_ID, SERVER_ID, "server-test-01", ip="192.168.1.10")
         audit_call = mock_db.execute.call_args_list[1]
         assert "ANOMALY_DETECTED" in audit_call[0][0]
 
@@ -118,7 +118,7 @@ def test_actions_handle_disappeared_key_scenario2_logs_anomaly_detected():
 def test_actions_handle_disappeared_key_scenario2_sends_critical_alert():
     with patch("actions.db") as mock_db, patch("actions.alerts") as mock_alerts:
         mock_db.query_one.return_value = {"fingerprint": "SHA256:abc"}
-        actions.handle_disappeared_key(KEY_ID, SERVER_ID, "server-test-01")
+        actions.handle_disappeared_key(KEY_ID, SERVER_ID, "server-test-01", ip="192.168.1.10")
         mock_alerts.send_alert.assert_called_once()
         assert mock_alerts.send_alert.call_args[0][0] == "CRITICAL"
 
@@ -329,10 +329,12 @@ def test_actions_revoke_request_calls_sam_revoke():
         mock_db.query_one.side_effect = [
             req,
             {"fingerprint": "SHA256:abc"},
-            {"hostname": "server-test-01"},
+            {"hostname": "server-test-01", "ip_address": "192.168.1.10"},
         ]
         actions.revoke_request(REQUEST_ID, ADMIN_ID)
-        mock_ssh.revoke_on_server.assert_called_once_with("server-test-01", "SHA256:abc")
+        mock_ssh.revoke_on_server.assert_called_once_with(
+            "server-test-01", "SHA256:abc", ip="192.168.1.10"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -340,7 +342,7 @@ def test_actions_revoke_request_calls_sam_revoke():
 # ---------------------------------------------------------------------------
 
 def test_actions_add_server_logs_server_added(sample_server):
-    with patch("actions.db") as mock_db:
+    with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"):
         mock_db.query_one.return_value = {"id": SERVER_ID}
         actions.add_server("new-host", "10.0.0.1", "lab", "rhel", ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
@@ -369,7 +371,7 @@ def test_actions_disable_server_raises_if_not_found():
 def test_actions_add_admin_logs_admin_added():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"id": ADMIN_ID}
-        actions.add_admin("newuser", "new@example.com", ADMIN_ID)
+        actions.add_admin("newuser", "new@example.com", "Str0ng#Pass!", ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
         assert any("ADMIN_ADDED" in c for c in calls)
 
@@ -387,3 +389,58 @@ def test_actions_disable_admin_raises_if_not_found():
         mock_db.query_one.return_value = None
         with pytest.raises(ValueError, match="not found"):
             actions.disable_admin("ghost")
+
+
+# ---------------------------------------------------------------------------
+# enable_server
+# ---------------------------------------------------------------------------
+
+def test_actions_enable_server_sets_active():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": SERVER_ID}
+        actions.enable_server("server-test-01", ADMIN_ID)
+        update_call = mock_db.execute.call_args_list[0][0][0]
+        assert "is_active = true" in update_call
+
+
+def test_actions_enable_server_logs_server_added():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": SERVER_ID}
+        actions.enable_server("server-test-01", ADMIN_ID)
+        calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("SERVER_ADDED" in c for c in calls)
+
+
+def test_actions_enable_server_raises_if_not_found():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(ValueError, match="not found"):
+            actions.enable_server("ghost")
+
+
+# ---------------------------------------------------------------------------
+# delete_server
+# ---------------------------------------------------------------------------
+
+def test_actions_delete_server_removes_server_row():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": SERVER_ID}
+        actions.delete_server("server-test-01", ADMIN_ID)
+        delete_calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("DELETE FROM servers" in c for c in delete_calls)
+
+
+def test_actions_delete_server_removes_authorizations_and_requests():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": SERVER_ID}
+        actions.delete_server("server-test-01", ADMIN_ID)
+        delete_calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("key_authorizations" in c for c in delete_calls)
+        assert any("access_requests" in c for c in delete_calls)
+
+
+def test_actions_delete_server_raises_if_not_found():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(ValueError, match="not found"):
+            actions.delete_server("ghost")

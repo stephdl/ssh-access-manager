@@ -229,10 +229,11 @@ def test_manage_admin_add(runner):
         mock_db.query_one.return_value = _admin()
         mock_actions.add_admin.return_value = {"id": ADMIN_ID}
         result = runner.invoke(manage.cli, [
-            "admin", "add", "--username", "newuser", "--email", "new@example.com"
+            "admin", "add", "--username", "newuser", "--email", "new@example.com",
+            "--password", "Str0ng#Pass!",
         ])
         assert result.exit_code == 0
-        mock_actions.add_admin.assert_called_once_with("newuser", "new@example.com", ADMIN_ID)
+        mock_actions.add_admin.assert_called_once_with("newuser", "new@example.com", "Str0ng#Pass!", ADMIN_ID)
 
 
 def test_manage_admin_disable(runner):

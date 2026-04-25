@@ -1,4 +1,6 @@
+import base64
 import os
+import struct
 import sys
 import uuid
 from unittest.mock import MagicMock, patch, call
@@ -8,6 +10,20 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import collect
+
+
+def _make_rsa_b64(bits: int) -> str:
+    """Build a minimal SSH RSA wire-format base64 blob with an exact modulus bit length."""
+    key_type = b"ssh-rsa"
+    exponent = b"\x01\x00\x01"  # 65537
+    # Leading 0x00 makes it positive; 0x80 + zeros gives bit_length == bits exactly
+    modulus = b"\x00" + b"\x80" + b"\x00" * ((bits // 8) - 1)
+
+    def pf(data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + data
+
+    wire = pf(key_type) + pf(exponent) + pf(modulus)
+    return base64.b64encode(wire).decode()
 
 
 SERVER_ID = str(uuid.uuid4())
@@ -111,7 +127,7 @@ def test_collect_scan_server_scenario2_disappeared_key_calls_handle_disappeared(
         result = collect.scan_server(SAMPLE_SERVER)
 
         mock_actions.handle_disappeared_key.assert_called_once_with(
-            KEY_ID, SERVER_ID, "server-test-01"
+            KEY_ID, SERVER_ID, "server-test-01", ip="192.168.1.10"
         )
         assert result["disappeared"] == 1
 
@@ -203,3 +219,68 @@ def test_collect_run_scan_filters_by_hostname():
 
         assert mock_scan.call_count == 1
         assert mock_scan.call_args[0][0]["hostname"] == "server-test-01"
+
+
+# ---------------------------------------------------------------------------
+# Tests _parse_key_line() — RSA key size via SSH wire format
+# ---------------------------------------------------------------------------
+
+def test_collect_parse_key_line_rsa_2048_bits():
+    b64 = _make_rsa_b64(2048)
+    line = f"root\tssh-rsa {b64} user@host"
+    result = collect._parse_key_line(line)
+    assert result is not None
+    assert result["key_type"] == "ssh-rsa"
+    assert result["key_size_bits"] == 2048
+
+
+def test_collect_parse_key_line_rsa_4096_bits():
+    b64 = _make_rsa_b64(4096)
+    line = f"root\tssh-rsa {b64} user@host"
+    result = collect._parse_key_line(line)
+    assert result is not None
+    assert result["key_size_bits"] == 4096
+
+
+def test_collect_parse_key_line_rsa_malformed_base64_returns_none_bits():
+    line = "root\tssh-rsa NOT_VALID_BASE64!!! user@host"
+    result = collect._parse_key_line(line)
+    # fingerprint computation will fail → None result
+    assert result is None
+
+
+def test_collect_parse_key_line_rsa_truncated_wire_sets_bits_none():
+    # Valid base64 but too short to parse SSH wire format → key_size_bits stays None
+    short_b64 = base64.b64encode(b"\x00\x01\x02\x03").decode()
+    line = f"root\tssh-rsa {short_b64} user@host"
+    result = collect._parse_key_line(line)
+    # fingerprint succeeds but RSA size parsing fails silently
+    assert result is not None
+    assert result["key_size_bits"] is None
+
+
+# ---------------------------------------------------------------------------
+# Tests scan_server() — key_size_bits updated on rescan (existing key path)
+# ---------------------------------------------------------------------------
+
+def test_collect_scan_server_updates_key_size_bits_on_rescan():
+    rsa_b64 = _make_rsa_b64(2048)
+    rsa_line = f"root\tssh-rsa {rsa_b64} user@host"
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions") as mock_actions, \
+         patch("collect.alerts"):
+
+        mock_ssh.collect_keys.return_value = [rsa_line]
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},           # key found in DB
+            {"status": "ACTIVE"},     # authorization found
+        ]
+        mock_db.query.return_value = []  # no disappeared keys
+
+        collect.scan_server(SAMPLE_SERVER)
+
+        # First execute call must update key_size_bits
+        update_call = mock_db.execute.call_args_list[0]
+        assert "key_size_bits" in update_call[0][0]
+        assert 2048 in update_call[0][1]
