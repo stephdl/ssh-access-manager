@@ -189,7 +189,7 @@ def search_keys():
     return jsonify(rows)
 
 
-@app.route("/api/keys/<fingerprint>", methods=["GET"])
+@app.route("/api/keys/get/<path:fingerprint>", methods=["GET"])
 @require_auth
 def get_key(fingerprint):
     row = db.query_one("SELECT * FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
@@ -198,7 +198,7 @@ def get_key(fingerprint):
     return jsonify(row)
 
 
-@app.route("/api/keys/<fingerprint>/validate", methods=["POST"])
+@app.route("/api/keys/validate/<path:fingerprint>", methods=["POST"])
 @require_auth
 def validate_key(fingerprint):
     try:
@@ -208,7 +208,7 @@ def validate_key(fingerprint):
         return jsonify({"error": str(e)}), 404
 
 
-@app.route("/api/keys/<fingerprint>/revoke", methods=["POST"])
+@app.route("/api/keys/revoke/<path:fingerprint>", methods=["POST"])
 @require_auth
 def revoke_key(fingerprint):
     data = request.get_json(force=True) or {}
@@ -220,7 +220,7 @@ def revoke_key(fingerprint):
         return jsonify({"error": str(e)}), 404
 
 
-@app.route("/api/keys/<fingerprint>/assign", methods=["POST"])
+@app.route("/api/keys/assign/<path:fingerprint>", methods=["POST"])
 @require_auth
 def assign_key(fingerprint):
     data = request.get_json(force=True) or {}
@@ -231,13 +231,16 @@ def assign_key(fingerprint):
         return jsonify({"error": str(e)}), 400
 
 
-@app.route("/api/keys/<fingerprint>/set-expiry", methods=["POST"])
+@app.route("/api/keys/set-expiry/<path:fingerprint>", methods=["POST"])
 @require_auth
 def set_key_expiry(fingerprint):
+    from datetime import timedelta
     data = request.get_json(force=True) or {}
-    expires_at = _parse_datetime(data.get("expires_at"))
+    expires_at = _parse_datetime(data.get("expires_at") or data.get("date"))
+    if not expires_at and data.get("hours"):
+        expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=int(data["hours"]))
     if not expires_at:
-        return jsonify({"error": "expires_at required (ISO format)"}), 400
+        return jsonify({"error": "hours or date required"}), 400
     try:
         actions.set_key_expiry(fingerprint, expires_at)
         return jsonify({"status": "expiry set", "expires_at": expires_at.isoformat()})
@@ -245,7 +248,7 @@ def set_key_expiry(fingerprint):
         return jsonify({"error": str(e)}), 404
 
 
-@app.route("/api/keys/<fingerprint>/remove-expiry", methods=["POST"])
+@app.route("/api/keys/remove-expiry/<path:fingerprint>", methods=["POST"])
 @require_auth
 def remove_key_expiry(fingerprint):
     try:

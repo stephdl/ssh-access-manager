@@ -206,7 +206,7 @@ async function scanServer() {
 const efp = (fp) => encodeURIComponent(fp)
 
 async function validateKey(fingerprint) {
-  await apiAction(`/api/keys/${efp(fingerprint)}/validate`, {}, `Clé validée.`)
+  await apiAction(`/api/keys/validate/${efp(fingerprint)}`, {}, `Clé validée.`)
 }
 
 function openRevoke(key) {
@@ -216,7 +216,7 @@ function openRevoke(key) {
 
 async function confirmRevoke() {
   const fp = revokeTarget.value.fingerprint
-  await apiAction(`/api/keys/${efp(fp)}/revoke`, { reason: revokeReason.value }, `Clé révoquée.`)
+  await apiAction(`/api/keys/revoke/${efp(fp)}`, { reason: revokeReason.value }, `Clé révoquée.`)
   revokeTarget.value = null
 }
 
@@ -227,7 +227,7 @@ function openAssign(fingerprint) {
 
 async function confirmAssign() {
   await apiAction(
-    `/api/keys/${efp(assignTarget.value)}/assign`,
+    `/api/keys/assign/${efp(assignTarget.value)}`,
     { owner_username: assignUsername.value },
     `Clé assignée à ${assignUsername.value}.`,
   )
@@ -246,7 +246,7 @@ async function confirmExpiry() {
     ? { hours: expiryHours.value }
     : { date: expiryDate.value }
   await apiAction(
-    `/api/keys/${efp(expiryTarget.value.fingerprint)}/set-expiry`,
+    `/api/keys/set-expiry/${efp(expiryTarget.value.fingerprint)}`,
     body,
     'Expiration définie.',
   )
