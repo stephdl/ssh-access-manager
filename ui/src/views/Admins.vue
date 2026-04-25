@@ -121,11 +121,11 @@
               id="edit-password"
               v-model="editPassword"
               type="password"
-              placeholder="••••••••"
+              placeholder="Nouveau mot de passe"
               autofocus
               :class="{ 'input-error': editPassword && !pwdRules(editPassword).every(r => r.ok) }"
             />
-            <ul v-if="editPassword" class="pwd-rules">
+            <ul class="pwd-rules">
               <li v-for="r in pwdRules(editPassword)" :key="r.label" :class="r.ok ? 'rule-ok' : 'rule-fail'">
                 {{ r.ok ? '✓' : '✗' }} {{ r.label }}
               </li>
@@ -137,7 +137,7 @@
               id="edit-password-confirm"
               v-model="editPasswordConfirm"
               type="password"
-              placeholder="••••••••"
+              placeholder="Confirmer le mot de passe"
               :class="{ 'input-error': editPasswordConfirm && editPassword !== editPasswordConfirm }"
             />
             <span v-if="editPasswordConfirm && editPassword !== editPasswordConfirm" class="field-error">
