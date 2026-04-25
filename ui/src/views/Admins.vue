@@ -54,21 +54,11 @@
         <form class="add-form" @submit.prevent="submitAdd">
           <div class="field">
             <label for="adm-username">Username <span class="required">*</span></label>
-            <input
-              id="adm-username"
-              v-model="newUsername"
-              type="text"
-              placeholder="username"
-            />
+            <input id="adm-username" v-model="newUsername" type="text" placeholder="username" />
           </div>
           <div class="field">
             <label for="adm-email">Email</label>
-            <input
-              id="adm-email"
-              v-model="newEmail"
-              type="email"
-              placeholder="admin@example.com"
-            />
+            <input id="adm-email" v-model="newEmail" type="email" placeholder="admin@example.com" />
           </div>
           <div class="field">
             <label for="adm-password">Mot de passe <span class="required">*</span></label>
@@ -77,7 +67,13 @@
               v-model="newPassword"
               type="password"
               placeholder="••••••••"
+              :class="{ 'input-error': newPassword && !pwdRules(newPassword).every(r => r.ok) }"
             />
+            <ul v-if="newPassword" class="pwd-rules">
+              <li v-for="r in pwdRules(newPassword)" :key="r.label" :class="r.ok ? 'rule-ok' : 'rule-fail'">
+                {{ r.ok ? '✓' : '✗' }} {{ r.label }}
+              </li>
+            </ul>
           </div>
           <div class="field">
             <label for="adm-password-confirm">Confirmer le mot de passe <span class="required">*</span></label>
@@ -93,13 +89,7 @@
             </span>
           </div>
           <div class="form-actions">
-            <button
-              type="submit"
-              class="btn-primary"
-              :disabled="!canSubmitAdd"
-            >
-              Ajouter
-            </button>
+            <button type="submit" class="btn-primary" :disabled="!canSubmitAdd">Ajouter</button>
           </div>
         </form>
       </section>
@@ -133,7 +123,13 @@
               type="password"
               placeholder="••••••••"
               autofocus
+              :class="{ 'input-error': editPassword && !pwdRules(editPassword).every(r => r.ok) }"
             />
+            <ul v-if="editPassword" class="pwd-rules">
+              <li v-for="r in pwdRules(editPassword)" :key="r.label" :class="r.ok ? 'rule-ok' : 'rule-fail'">
+                {{ r.ok ? '✓' : '✗' }} {{ r.label }}
+              </li>
+            </ul>
           </div>
           <div class="field" style="margin-bottom:1rem">
             <label for="edit-password-confirm">Confirmer <span class="required">*</span></label>
@@ -149,11 +145,7 @@
             </span>
           </div>
           <div class="modal-actions">
-            <button
-              type="submit"
-              class="btn-primary"
-              :disabled="!canSubmitEdit"
-            >Enregistrer</button>
+            <button type="submit" class="btn-primary" :disabled="!canSubmitEdit">Enregistrer</button>
             <button type="button" @click="closeEditPassword">Annuler</button>
           </div>
         </form>
@@ -165,30 +157,55 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 
-const admins             = ref([])
-const loading            = ref(true)
-const error              = ref('')
-const message            = ref('')
-const newUsername        = ref('')
-const newEmail           = ref('')
-const newPassword        = ref('')
-const newPasswordConfirm = ref('')
-const disableTarget      = ref(null)
-const editPasswordTarget = ref(null)
-const editPassword       = ref('')
+// ---------------------------------------------------------------------------
+// Validation — règles de robustesse du mot de passe
+// ---------------------------------------------------------------------------
+const SPECIAL = /[!@#$%^&*()\-_=+[\]{}|;:'",.<>?\\`~]/
+
+function pwdRules(pwd) {
+  return [
+    { label: '8 caractères minimum',  ok: pwd.length >= 8 },
+    { label: 'Une lettre majuscule',  ok: /[A-Z]/.test(pwd) },
+    { label: 'Une lettre minuscule',  ok: /[a-z]/.test(pwd) },
+    { label: 'Un chiffre',           ok: /\d/.test(pwd) },
+    { label: 'Un caractère spécial', ok: SPECIAL.test(pwd) },
+  ]
+}
+
+function pwdOk(pwd) {
+  return pwdRules(pwd).every(r => r.ok)
+}
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+const admins              = ref([])
+const loading             = ref(true)
+const error               = ref('')
+const message             = ref('')
+const newUsername         = ref('')
+const newEmail            = ref('')
+const newPassword         = ref('')
+const newPasswordConfirm  = ref('')
+const disableTarget       = ref(null)
+const editPasswordTarget  = ref(null)
+const editPassword        = ref('')
 const editPasswordConfirm = ref('')
 
 const canSubmitAdd = computed(() =>
-  newUsername.value.trim() &&
-  newPassword.value.trim() &&
+  newUsername.value.trim().length > 0 &&
+  pwdOk(newPassword.value) &&
   newPassword.value === newPasswordConfirm.value
 )
 
 const canSubmitEdit = computed(() =>
-  editPassword.value.trim() &&
+  pwdOk(editPassword.value) &&
   editPassword.value === editPasswordConfirm.value
 )
 
+// ---------------------------------------------------------------------------
+// API calls
+// ---------------------------------------------------------------------------
 async function load() {
   loading.value = true
   error.value = ''
@@ -232,9 +249,7 @@ async function submitAdd() {
   }
 }
 
-function openDisable(username) {
-  disableTarget.value = username
-}
+function openDisable(username) { disableTarget.value = username }
 
 async function confirmDisable() {
   const username = disableTarget.value
@@ -268,7 +283,9 @@ function closeEditPassword() {
 
 async function confirmEditPassword() {
   if (!canSubmitEdit.value) return
+  // Capture before closing (closeEditPassword resets the refs)
   const username = editPasswordTarget.value
+  const password = editPassword.value
   closeEditPassword()
   error.value   = ''
   message.value = ''
@@ -276,7 +293,7 @@ async function confirmEditPassword() {
     const res = await fetch(`/api/admins/${username}/password`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: editPassword.value }),
+      body: JSON.stringify({ password }),
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
@@ -330,6 +347,18 @@ input[type="password"] {
 input.input-error { border-color: #dc3545; }
 .field-error { color: #dc3545; font-size: 0.8rem; }
 
+.pwd-rules {
+  list-style: none;
+  padding: 0.35rem 0 0 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.pwd-rules li { font-size: 0.8rem; }
+.rule-ok   { color: #198754; }
+.rule-fail { color: #dc3545; }
+
 .form-actions { display: flex; gap: 0.75rem; }
 
 .empty   { text-align: center; color: #888; padding: 1rem 0; }
@@ -337,6 +366,13 @@ input.input-error { border-color: #dc3545; }
 
 .alert-error { background: #f8d7da; color: #721c24; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
 .alert-info  { background: #d4edda; color: #155724; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+
+.btn-primary:disabled {
+  background: #6c9fd6;
+  border-color: #6c9fd6;
+  cursor: not-allowed;
+  opacity: 0.65;
+}
 
 .btn-secondary {
   padding: 0.3rem 0.7rem;
@@ -359,7 +395,7 @@ input.input-error { border-color: #dc3545; }
   background: #fff;
   border-radius: 8px;
   padding: 1.5rem;
-  width: 400px;
+  width: 420px;
   max-width: 90vw;
   display: flex;
   flex-direction: column;
