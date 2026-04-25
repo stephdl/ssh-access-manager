@@ -140,6 +140,26 @@ def disable_server(hostname):
         return jsonify({"error": str(e)}), 404
 
 
+@app.route("/api/servers/<hostname>/enable", methods=["PUT"])
+@require_auth
+def enable_server(hostname):
+    try:
+        actions.enable_server(hostname, g.admin_id)
+        return jsonify({"status": "enabled"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@app.route("/api/servers/<hostname>", methods=["DELETE"])
+@require_auth
+def delete_server(hostname):
+    try:
+        actions.delete_server(hostname, g.admin_id)
+        return jsonify({"status": "deleted"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
 @app.route("/api/servers/<hostname>/scan", methods=["POST"])
 @require_auth
 def scan_server(hostname):

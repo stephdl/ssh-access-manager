@@ -5,9 +5,20 @@
         <button class="btn-back" @click="$router.back()">← Retour</button>
         <h1>{{ hostname }}</h1>
       </div>
-      <button class="btn-primary" :disabled="scanning" @click="scanServer">
-        {{ scanning ? 'Scan en cours…' : 'Scanner' }}
-      </button>
+      <div class="header-actions">
+        <button class="btn-primary" :disabled="scanning" @click="scanServer">
+          {{ scanning ? 'Scan en cours…' : 'Scanner' }}
+        </button>
+        <button v-if="server.is_active" class="btn-warning" @click="confirmDisable">
+          Désactiver
+        </button>
+        <button v-else class="btn-success" @click="reactivate">
+          Réactiver
+        </button>
+        <button class="btn-danger" @click="showDeleteModal = true">
+          Supprimer
+        </button>
+      </div>
     </div>
 
     <div v-if="error" class="alert-error">{{ error }}</div>
@@ -68,6 +79,22 @@
         <p v-else class="empty">Aucun accès temporaire actif.</p>
       </section>
     </template>
+
+    <!-- Modal suppression -->
+    <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
+      <div class="modal">
+        <h3>Supprimer le serveur</h3>
+        <p class="warn-text">
+          ⚠️ Cette action est <strong>irréversible</strong>. Toutes les clés,
+          autorisations et logs associés à <strong>{{ hostname }}</strong> seront
+          définitivement supprimés.
+        </p>
+        <div class="modal-actions">
+          <button class="btn-danger" @click="deleteServer">Supprimer définitivement</button>
+          <button @click="showDeleteModal = false">Annuler</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal révocation -->
     <div v-if="revokeTarget" class="modal-overlay" @click.self="revokeTarget = null">
@@ -139,10 +166,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import KeyTable from '../components/KeyTable.vue'
 
 const route = useRoute()
+const router = useRouter()
 const hostname = route.params.hostname
 
 const server = ref({})
@@ -152,6 +180,8 @@ const loading = ref(true)
 const scanning = ref(false)
 const error = ref('')
 const message = ref('')
+
+const showDeleteModal = ref(false)
 
 const revokeTarget = ref(null)
 const revokeReason = ref('')
@@ -184,6 +214,30 @@ async function load() {
     error.value = e.message
   } finally {
     loading.value = false
+  }
+}
+
+async function confirmDisable() {
+  if (!confirm(`Désactiver ${hostname} ?`)) return
+  await apiAction(`/api/servers/${hostname}/disable`, null, 'PUT', 'Serveur désactivé.')
+}
+
+async function reactivate() {
+  await apiAction(`/api/servers/${hostname}/enable`, null, 'PUT', 'Serveur réactivé.')
+}
+
+async function deleteServer() {
+  showDeleteModal.value = false
+  error.value = ''
+  try {
+    const res = await fetch(`/api/servers/${hostname}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    router.push('/')
+  } catch (e) {
+    error.value = e.message
   }
 }
 
@@ -253,14 +307,15 @@ async function confirmExpiry() {
   expiryTarget.value = null
 }
 
-async function apiAction(url, body, successMsg) {
+async function apiAction(url, body, method = 'POST', successMsg) {
+  if (typeof method !== 'string') { successMsg = method; method = 'POST' }
   error.value = ''
   message.value = ''
   try {
     const res = await fetch(url, {
-      method: 'POST',
+      method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: body != null ? JSON.stringify(body) : undefined,
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
@@ -302,6 +357,8 @@ onMounted(load)
   margin-bottom: 1.25rem;
 }
 .page-header > div { display: flex; align-items: center; gap: 1rem; }
+.header-actions { display: flex; gap: 0.5rem; }
+.warn-text { font-size: 0.9rem; line-height: 1.5; }
 
 h1 { font-size: 1.5rem; }
 h2 { font-size: 1.1rem; margin-bottom: 0.75rem; }
