@@ -150,7 +150,9 @@ def handle_unknown_key(
         """
         INSERT INTO ssh_keys (fingerprint, key_type, key_size_bits, public_key, comment)
         VALUES (%s, %s, %s, %s, %s)
-        ON CONFLICT (fingerprint) DO NOTHING
+        ON CONFLICT (fingerprint) DO UPDATE SET
+            key_size_bits = EXCLUDED.key_size_bits,
+            last_seen = now()
         """,
         (fingerprint, key_type, key_size_bits, public_key, comment),
     )
