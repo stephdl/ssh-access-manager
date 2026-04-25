@@ -3,12 +3,12 @@ web.py — API REST Flask JSON.
 Toutes les routes retournent JSON. Prefixe /api/.
 Importe actions.py pour la logique metier — jamais de duplication.
 """
-import base64
 import os
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import Flask, g, jsonify, request
+from flask import Flask, g, jsonify, request, session
+from werkzeug.security import check_password_hash
 
 import actions
 import collect as collect_mod
@@ -19,23 +19,18 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "changeme")
 
 
 # ---------------------------------------------------------------------------
-# Authentification Basic — validee contre la table administrators
+# Authentification par session Flask
 # ---------------------------------------------------------------------------
 
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth = request.headers.get("Authorization", "")
-        if not auth.startswith("Basic "):
-            return jsonify({"error": "Unauthorized"}), 401
-        try:
-            decoded = base64.b64decode(auth[6:]).decode()
-            username, _ = decoded.split(":", 1)
-        except Exception:
+        admin_id = session.get("admin_id")
+        if not admin_id:
             return jsonify({"error": "Unauthorized"}), 401
         admin = db.query_one(
-            "SELECT id, username FROM administrators WHERE username = %s AND is_active = true",
-            (username,),
+            "SELECT id, username FROM administrators WHERE id = %s AND is_active = true",
+            (admin_id,),
         )
         if not admin:
             return jsonify({"error": "Unauthorized"}), 401
@@ -43,6 +38,51 @@ def require_auth(f):
         g.admin_username = admin["username"]
         return f(*args, **kwargs)
     return decorated
+
+
+# ---------------------------------------------------------------------------
+# Auth : login / logout / me
+# ---------------------------------------------------------------------------
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    data = request.get_json(force=True) or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    if not username or not password:
+        return jsonify({"error": "username et password requis"}), 400
+    admin = db.query_one(
+        "SELECT id, username, password_hash FROM administrators WHERE username = %s AND is_active = true",
+        (username,),
+    )
+    if not admin or not admin["password_hash"]:
+        return jsonify({"error": "Identifiants invalides"}), 401
+    if not check_password_hash(admin["password_hash"], password):
+        return jsonify({"error": "Identifiants invalides"}), 401
+    session.clear()
+    session["admin_id"] = str(admin["id"])
+    session["admin_username"] = admin["username"]
+    return jsonify({"username": admin["username"]}), 200
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def auth_logout():
+    session.clear()
+    return jsonify({"status": "logged out"}), 200
+
+
+@app.route("/api/auth/me", methods=["GET"])
+def auth_me():
+    admin_id = session.get("admin_id")
+    if not admin_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    admin = db.query_one(
+        "SELECT username, email, role FROM administrators WHERE id = %s AND is_active = true",
+        (admin_id,),
+    )
+    if not admin:
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify(dict(admin)), 200
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
