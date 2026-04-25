@@ -38,6 +38,11 @@
             @click="$emit('revoke', k)"
           >Révoquer</button>
           <button
+            v-if="!k.owner && k.status === 'ACTIVE'"
+            class="btn-primary"
+            @click="$emit('assign', k.fingerprint)"
+          >Assigner</button>
+          <button
             v-if="k.status === 'ACTIVE'"
             class="btn-warning"
             @click="$emit('set-expiry', k)"
@@ -47,11 +52,6 @@
             class="btn-unlimited"
             @click="$emit('remove-expiry', k.fingerprint)"
           >Illimité</button>
-          <button
-            v-if="!k.owner && k.status === 'ACTIVE'"
-            class="btn-primary"
-            @click="$emit('assign', k.fingerprint)"
-          >Assigner</button>
         </td>
       </tr>
     </tbody>
