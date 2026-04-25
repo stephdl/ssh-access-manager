@@ -398,6 +398,97 @@ WARNING (email immédiat, anti-spam 24h) :
 INFO (log uniquement) :
 - KEY_EXPIRED, KEY_REVOKED, SCAN_COMPLETED, SCRIPT_DEPLOYED
 
+## Stratégie de tests
+
+### Tests unitaires — pytest
+
+app/tests/
+    conftest.py        ← fixtures partagées (DB, SSH mock, msmtp mock)
+    test_db.py         ← helpers connexion, transactions
+    test_servers.py    ← parsing servers.yml, sync BDD
+    test_ssh.py        ← mock paramiko, RejectPolicy, ensure_scripts
+    test_actions.py    ← toutes les fonctions actions.py
+    test_collect.py    ← mock scan complet, 4 scénarios détection
+    test_expire.py     ← warn J-7/J-2, anti-spam 24h, expiration auto
+    test_alerts.py     ← mock msmtp, niveaux CRITIQUE/WARNING/INFO
+    test_web.py        ← toutes les routes Flask, codes HTTP attendus
+    test_manage.py     ← toutes les commandes CLI click
+
+Règles absolues :
+- Mock SSH obligatoire via unittest.mock — jamais de vrai serveur
+- Mock PostgreSQL via fixtures pytest — jamais de vraie BDD en test
+- Mock msmtp via unittest.mock — jamais d'email réel en test
+- Un test = un comportement précis
+- Nommage : test_<module>_<scenario>_<expected>
+  ex: test_actions_revoke_key_hors_systeme_sends_critical_alert
+- Couverture minimale actions.py : 80%
+- pytest doit passer avant tout commit
+
+### conftest.py — fixtures obligatoires
+
+@pytest.fixture
+def mock_db():
+    """Retourne un mock de connexion psycopg2"""
+
+@pytest.fixture
+def mock_ssh_client():
+    """Retourne un mock paramiko.SSHClient avec RejectPolicy"""
+
+@pytest.fixture
+def mock_smtp():
+    """Retourne un mock subprocess pour msmtp"""
+
+@pytest.fixture
+def sample_server():
+    """Retourne un serveur de test standard"""
+
+@pytest.fixture
+def sample_key():
+    """Retourne une clé SSH ED25519 de test avec fingerprint calculé"""
+
+### Scénarios critiques à couvrir obligatoirement
+
+test_actions.py :
+- revoke_key : scénario 1 (via système, revoked_by=admin_id)
+- collect : scénario 2 (hors système, revoked_automatically=TRUE)
+- collect : scénario 3 (clé inconnue → PENDING_REVIEW)
+- expire : scénario 4 (expiration programmée → sam-revoke)
+- Anti-spam EXPIRY_WARNING : second appel dans 24h ne renvoie pas d'email
+
+test_ssh.py :
+- RejectPolicy présent sur chaque connexion
+- ensure_scripts déploie si hash SHA256 différent
+- ensure_scripts ne redéploie pas si hash identique
+- revoke_on_server appelle sam-revoke avec bon fingerprint
+
+test_web.py :
+- GET /api/keys retourne 200 + liste JSON
+- POST /api/keys/<fp>/revoke retourne 200 si admin authentifié
+- POST /api/keys/<fp>/revoke retourne 401 si non authentifié
+- POST /api/access/grant retourne 201 avec expires_at calculé
+
+### Tests frontend — Vitest
+
+ui/tests/
+    KeyActions.spec.js   ← modal confirmation révocation
+    AccessForm.spec.js   ← validation durée OU date, pas les deux
+    ExpiryPicker.spec.js ← modes exclusifs heures/date
+
+### Ce qui n'est PAS testé unitairement
+
+- bootstrap.sh → testé manuellement au premier démarrage
+- Dockerfile → validé par docker build
+- nginx.conf.template → validé par nginx -t
+- provision-host.sh → testé manuellement sur VM de lab
+
+### Dépendances de test à ajouter
+
+requirements-test.txt :
+pytest>=8.0
+pytest-cov
+pytest-mock
+freezegun           ← pour mocker datetime dans expire.py
+
 ## Commandes — inventaire complet
 
 ### Serveurs
