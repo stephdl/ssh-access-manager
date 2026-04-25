@@ -157,7 +157,7 @@ def list_keys():
     status = request.args.get("status")
     server = request.args.get("server")
     sql = """
-        SELECT sk.*, ka.status AS auth_status, ka.server_id, ka.expires_at
+        SELECT sk.*, ka.status AS status, ka.server_id, ka.expires_at
         FROM ssh_keys sk
         LEFT JOIN key_authorizations ka ON ka.key_id = sk.id
         LEFT JOIN servers s ON s.id = ka.server_id
