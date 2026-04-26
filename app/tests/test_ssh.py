@@ -202,3 +202,56 @@ def test_ssh_sam_revoke_atomic_rewrite_only_when_changed():
     # The mv only happens if changed=1, otherwise the tmp is removed
     assert b"changed" in ssh.SAM_REVOKE
     assert b"rm -f" in ssh.SAM_REVOKE
+
+
+# ---------------------------------------------------------------------------
+# Sécurité déploiement — staging hors /tmp, destination exacte
+# ---------------------------------------------------------------------------
+
+def test_ssh_ensure_scripts_staging_not_in_tmp(sample_server):
+    """Le fichier staging doit être dans le home de l'utilisateur, pas /tmp."""
+    wrong_hash = "0" * 64
+    with patch("ssh._connect") as mock_connect, patch("ssh.db"):
+        client = MagicMock()
+        sftp = MagicMock()
+        mock_connect.return_value = client
+        client.open_sftp.return_value = sftp
+        stdout_wrong = MagicMock()
+        stdout_wrong.read.return_value = f"{wrong_hash}  /usr/local/bin/sam-collect\n".encode()
+        stdout_wrong.channel.recv_exit_status.return_value = 0
+        client.exec_command.return_value = (
+            MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b""))
+        )
+
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
+
+        staged_path = sftp.putfo.call_args[0][1]
+        assert not staged_path.startswith("/tmp"), "Staging ne doit pas utiliser /tmp (world-writable)"
+        assert "/home/" in staged_path
+
+
+def test_ssh_ensure_scripts_mv_uses_exact_destination(sample_server):
+    """sudo mv doit spécifier le chemin de destination exact, pas un répertoire."""
+    wrong_hash = "0" * 64
+    with patch("ssh._connect") as mock_connect, patch("ssh.db"):
+        client = MagicMock()
+        sftp = MagicMock()
+        mock_connect.return_value = client
+        client.open_sftp.return_value = sftp
+        stdout_wrong = MagicMock()
+        stdout_wrong.read.return_value = f"{wrong_hash}  /usr/local/bin/sam-collect\n".encode()
+        stdout_wrong.channel.recv_exit_status.return_value = 0
+        client.exec_command.return_value = (
+            MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b""))
+        )
+
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
+
+        commands = [c[0][0] for c in client.exec_command.call_args_list]
+        mv_cmds = [c for c in commands if "/bin/mv" in c]
+        assert mv_cmds, "Aucune commande mv trouvée"
+        for cmd in mv_cmds:
+            dest = cmd.split()[-1]
+            assert dest in ("/usr/local/bin/sam-collect", "/usr/local/bin/sam-revoke"), (
+                f"La destination mv doit être un chemin exact, pas un répertoire : {cmd}"
+            )

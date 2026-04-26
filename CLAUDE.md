@@ -856,7 +856,8 @@ Internationalisation (issue #98) :
 # /etc/sudoers.d/audit-collector (chmod 440)
 audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-collect
 audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke
-audit-collector ALL=(root) NOPASSWD: /bin/mv /tmp/sam-* /usr/local/bin/
+audit-collector ALL=(root) NOPASSWD: /bin/mv /home/audit-collector/sam-collect /usr/local/bin/sam-collect
+audit-collector ALL=(root) NOPASSWD: /bin/mv /home/audit-collector/sam-revoke /usr/local/bin/sam-revoke
 audit-collector ALL=(root) NOPASSWD: /bin/chmod 755 /usr/local/bin/sam-collect
 audit-collector ALL=(root) NOPASSWD: /bin/chmod 755 /usr/local/bin/sam-revoke
 audit-collector ALL=(root) NOPASSWD: /bin/chown root:root /usr/local/bin/sam-collect
