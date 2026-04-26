@@ -134,7 +134,10 @@
     "btn_revoke": "Widerrufen",
     "btn_assign": "Zuweisen",
     "btn_expiry": "Ablauf",
-    "btn_unlimited": "Unbegrenzt"
+    "btn_unlimited": "Unbegrenzt",
+    "filter_placeholder": "Fingerprint, Benutzer, Owner suchen…",
+    "filter_all_statuses": "Alle Status",
+    "no_results": "Keine passenden Schlüssel."
   },
   "access": {
     "title": "Temporärer Zugriff",

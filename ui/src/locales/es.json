@@ -134,7 +134,10 @@
     "btn_revoke": "Revocar",
     "btn_assign": "Asignar",
     "btn_expiry": "Expiración",
-    "btn_unlimited": "Ilimitado"
+    "btn_unlimited": "Ilimitado",
+    "filter_placeholder": "Buscar fingerprint, usuario, owner…",
+    "filter_all_statuses": "Todos los estados",
+    "no_results": "No se encontraron claves."
   },
   "access": {
     "title": "Acceso temporal",

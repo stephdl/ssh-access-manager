@@ -875,6 +875,7 @@ ui/src/components/
                           + ligne grisée + badge rouge si désactivé (issue #91)
     KeyTable.vue        ← tableau clés avec actions + tooltip non-conformité (issue #99)
                           + bouton Illimité (remove-expiry) (issue #93)
+                          + barre de filtres texte + dropdown statut (issue #189)
     KeyActions.vue      ← boutons valider/révoquer/expiry
     ExpiryPicker.vue    ← datepicker durée ou date précise
     DeployKeyForm.vue   ← formulaire déploiement clé SSH (utilisé par AccessRequests.vue)
