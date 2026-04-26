@@ -679,3 +679,50 @@ def test_actions_fingerprint_valid_format_passes_check():
     """Un fingerprint SHA256 valide ne lève pas d'exception au niveau du format."""
     import actions as act
     act._check_fingerprint("SHA256:abc123+/=ABCXYZ")
+
+
+# ---------------------------------------------------------------------------
+# lock_user / unlock_user
+# ---------------------------------------------------------------------------
+
+def test_actions_lock_user_success():
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+        result = actions.lock_user("alice", "server-test-01", ADMIN_ID)
+        mock_ssh.ensure_scripts.assert_called_once_with("server-test-01", SERVER_ID, "192.168.1.10")
+        mock_ssh.lock_user_on_server.assert_called_once_with("server-test-01", "alice", "192.168.1.10")
+        assert result["unix_user"] == "alice"
+        assert result["hostname"] == "server-test-01"
+        assert result["status"] == "locked"
+        audit_call = mock_db.execute.call_args[0]
+        assert "USER_LOCKED" in audit_call[0]
+
+
+def test_actions_lock_user_invalid_username():
+    with pytest.raises(ValueError, match="Nom d'utilisateur Unix invalide"):
+        actions.lock_user("bad user", "server-test-01", ADMIN_ID)
+
+
+def test_actions_lock_user_server_not_found():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(ValueError, match="Serveur introuvable ou inactif"):
+            actions.lock_user("alice", "unknown-server", ADMIN_ID)
+
+
+def test_actions_unlock_user_success():
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+        result = actions.unlock_user("alice", "server-test-01", ADMIN_ID)
+        mock_ssh.ensure_scripts.assert_called_once_with("server-test-01", SERVER_ID, "192.168.1.10")
+        mock_ssh.unlock_user_on_server.assert_called_once_with("server-test-01", "alice", "192.168.1.10")
+        assert result["unix_user"] == "alice"
+        assert result["hostname"] == "server-test-01"
+        assert result["status"] == "unlocked"
+        audit_call = mock_db.execute.call_args[0]
+        assert "USER_UNLOCKED" in audit_call[0]
+
+
+def test_actions_unlock_user_invalid_username():
+    with pytest.raises(ValueError, match="Nom d'utilisateur Unix invalide"):
+        actions.unlock_user("bad@user", "server-test-01", ADMIN_ID)

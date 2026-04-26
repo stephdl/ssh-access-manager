@@ -599,3 +599,64 @@ def test_web_list_admins_does_not_expose_password_hash(auth_client):
         sql = mock_db.query.call_args[0][0]
         assert "password_hash" not in sql
         assert "SELECT *" not in sql
+
+
+# ---------------------------------------------------------------------------
+# lock-user / unlock-user
+# ---------------------------------------------------------------------------
+
+def test_web_lock_user_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.lock_user.return_value = {
+            "unix_user": "alice",
+            "hostname": "server-test-01",
+            "status": "locked"
+        }
+        resp = auth_client.post("/api/access/lock-user", json={
+            "unix_user": "alice",
+            "hostname": "server-test-01"
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "locked"
+
+
+def test_web_lock_user_returns_401_unauthenticated(client):
+    resp = client.post("/api/access/lock-user", json={
+        "unix_user": "alice",
+        "hostname": "server-test-01"
+    })
+    assert resp.status_code == 401
+
+
+def test_web_lock_user_returns_400_missing_fields(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post("/api/access/lock-user", json={"unix_user": "alice"})
+        assert resp.status_code == 400
+
+
+def test_web_unlock_user_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.unlock_user.return_value = {
+            "unix_user": "alice",
+            "hostname": "server-test-01",
+            "status": "unlocked"
+        }
+        resp = auth_client.post("/api/access/unlock-user", json={
+            "unix_user": "alice",
+            "hostname": "server-test-01"
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "unlocked"
+
+
+def test_web_unlock_user_returns_401_unauthenticated(client):
+    resp = client.post("/api/access/unlock-user", json={
+        "unix_user": "alice",
+        "hostname": "server-test-01"
+    })
+    assert resp.status_code == 401

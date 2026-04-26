@@ -370,6 +370,32 @@ def access_revoke(request_id):
         raise click.ClickException(str(e))
 
 
+@access.command("lock-user")
+@click.option("--user", required=True, help="Unix username")
+@click.option("--server", required=True, help="Server hostname")
+def access_lock_user(user, server):
+    """Lock a Unix user account on a remote server."""
+    admin_id = _require_admin()
+    try:
+        result = actions.lock_user(user, server, admin_id)
+        click.echo(f"User '{result['unix_user']}' locked on {result['hostname']}")
+    except ValueError as e:
+        raise click.ClickException(str(e))
+
+
+@access.command("unlock-user")
+@click.option("--user", required=True, help="Unix username")
+@click.option("--server", required=True, help="Server hostname")
+def access_unlock_user(user, server):
+    """Unlock a Unix user account on a remote server."""
+    admin_id = _require_admin()
+    try:
+        result = actions.unlock_user(user, server, admin_id)
+        click.echo(f"User '{result['unix_user']}' unlocked on {result['hostname']}")
+    except ValueError as e:
+        raise click.ClickException(str(e))
+
+
 # ---------------------------------------------------------------------------
 # admin
 # ---------------------------------------------------------------------------

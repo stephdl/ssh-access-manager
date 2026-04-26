@@ -736,3 +736,47 @@ def delete_admin(username: str, admin_id: str | None = None) -> None:
         (admin_id, json.dumps({"username": username})),
     )
     db.execute("DELETE FROM administrators WHERE id = %s", (admin["id"],))
+
+
+# ---------------------------------------------------------------------------
+# Gestion des comptes Unix
+# ---------------------------------------------------------------------------
+
+def lock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
+    """Lock a Unix user account on a remote server."""
+    if not _UNIX_USER_RE.match(unix_user):
+        raise ValueError(f"Nom d'utilisateur Unix invalide : '{unix_user}'")
+    server = db.query_one(
+        "SELECT id, ip_address FROM servers WHERE hostname = %s AND is_active = true",
+        (hostname,)
+    )
+    if not server:
+        raise ValueError(f"Serveur introuvable ou inactif: {hostname}")
+    ssh.ensure_scripts(hostname, server["id"], server["ip_address"])
+    ssh.lock_user_on_server(hostname, unix_user, server["ip_address"])
+    db.execute(
+        """INSERT INTO audit_log (action, performed_by, target_server, details)
+           VALUES ('USER_LOCKED', %s, %s, %s::jsonb)""",
+        (admin_id, server["id"], json.dumps({"unix_user": unix_user, "hostname": hostname}))
+    )
+    return {"unix_user": unix_user, "hostname": hostname, "status": "locked"}
+
+
+def unlock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
+    """Unlock a Unix user account on a remote server."""
+    if not _UNIX_USER_RE.match(unix_user):
+        raise ValueError(f"Nom d'utilisateur Unix invalide : '{unix_user}'")
+    server = db.query_one(
+        "SELECT id, ip_address FROM servers WHERE hostname = %s AND is_active = true",
+        (hostname,)
+    )
+    if not server:
+        raise ValueError(f"Serveur introuvable ou inactif: {hostname}")
+    ssh.ensure_scripts(hostname, server["id"], server["ip_address"])
+    ssh.unlock_user_on_server(hostname, unix_user, server["ip_address"])
+    db.execute(
+        """INSERT INTO audit_log (action, performed_by, target_server, details)
+           VALUES ('USER_UNLOCKED', %s, %s, %s::jsonb)""",
+        (admin_id, server["id"], json.dumps({"unix_user": unix_user, "hostname": hostname}))
+    )
+    return {"unix_user": unix_user, "hostname": hostname, "status": "unlocked"}

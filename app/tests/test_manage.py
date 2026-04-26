@@ -322,3 +322,41 @@ def test_manage_servers_help(runner):
 def test_manage_keys_help(runner):
     result = runner.invoke(manage.cli, ["keys", "--help"])
     assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# access lock-user / unlock-user
+# ---------------------------------------------------------------------------
+
+def test_manage_access_lock_user(runner):
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin()
+        mock_actions.lock_user.return_value = {
+            "unix_user": "alice",
+            "hostname": "server-test-01",
+            "status": "locked"
+        }
+        result = runner.invoke(manage.cli, [
+            "access", "lock-user",
+            "--user", "alice",
+            "--server", "server-test-01"
+        ])
+        assert result.exit_code == 0
+        assert "locked" in result.output
+
+
+def test_manage_access_unlock_user(runner):
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin()
+        mock_actions.unlock_user.return_value = {
+            "unix_user": "alice",
+            "hostname": "server-test-01",
+            "status": "unlocked"
+        }
+        result = runner.invoke(manage.cli, [
+            "access", "unlock-user",
+            "--user", "alice",
+            "--server", "server-test-01"
+        ])
+        assert result.exit_code == 0
+        assert "unlocked" in result.output

@@ -178,6 +178,25 @@ Depuis la vue détail d'un serveur, les actions disponibles sur chaque clé ACTI
 
 ---
 
+## Workflow — Verrouiller / Déverrouiller un compte Unix
+
+Après révocation d'une clé, le compte Unix existe toujours sur le serveur. Pour bloquer **toute** connexion SSH (y compris avec une autre clé valide) :
+
+**Via l'interface web** : Accès → section **Verrouiller / Déverrouiller un compte Unix**.
+
+| Action | Commande distante | Effet |
+|---|---|---|
+| **Verrouiller** | `usermod -L -s /sbin/nologin <user>` | Bloque le mot de passe et interdit le shell — connexion SSH impossible même avec une clé valide |
+| **Déverrouiller** | `usermod -U -s /bin/bash <user>` | Rétablit le compte — connexion SSH de nouveau possible avec une clé valide |
+
+**Via la CLI** :
+```bash
+$EXEC access lock-user --user alice --server server-prod-01
+$EXEC access unlock-user --user alice --server server-prod-01
+```
+
+---
+
 ## Workflow — Déployer une clé SSH
 
 Pour donner accès à un utilisateur sur un serveur depuis l'interface :
@@ -287,6 +306,8 @@ $EXEC access grant --key SHA256:... --server HOST --hours 8 --reason "Motif"
 $EXEC access approve <id>
 $EXEC access reject <id>
 $EXEC access revoke <id>
+$EXEC access lock-user --user USER --server HOST
+$EXEC access unlock-user --user USER --server HOST
 
 # Administrateurs
 $EXEC admin list

@@ -144,7 +144,9 @@
   "access": {
     "title": "Accès temporaires",
     "info_deploy": "Le formulaire ci-dessous déploie une clé SSH sur un serveur cible. Si l'utilisateur Unix n'existe pas, il sera créé automatiquement.",
-    "info_no_sudo": "L'utilisateur est créé sans droits d'administration (pas de sudo/wheel). Pour accorder des privilèges élevés, intervenez manuellement sur le serveur."
+    "info_no_sudo": "L'utilisateur est créé sans droits d'administration (pas de sudo/wheel). Pour accorder des privilèges élevés, intervenez manuellement sur le serveur.",
+    "lock_title": "Verrouiller / Déverrouiller un compte Unix",
+    "lock_info": "Verrouille un compte Unix pour bloquer toutes les connexions SSH (même avec une clé valide). Déverrouiller pour rétablir l'accès."
   },
   "access_form": {
     "duration_label": "Durée d'accès",
@@ -280,5 +282,15 @@
     "unlimited": "Illimité",
     "errorMissingFields": "Tous les champs sont requis",
     "newDeploy": "Nouveau déploiement"
+  },
+  "userLock": {
+    "unixUser": "Utilisateur Unix",
+    "unixUserPlaceholder": "ex: alice",
+    "server": "Serveur cible",
+    "btnLock": "Verrouiller",
+    "btnUnlock": "Déverrouiller",
+    "error_unix_user": "Nom d'utilisateur Unix invalide (minuscules, chiffres, _ et - uniquement, max 32 caractères)",
+    "success_locked": "Compte '{user}' verrouillé sur {server}",
+    "success_unlocked": "Compte '{user}' déverrouillé sur {server}"
   }
 }

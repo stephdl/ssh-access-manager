@@ -109,6 +109,8 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
     local_hash_collect = ssh._sha256(ssh.SAM_COLLECT)
     local_hash_revoke = ssh._sha256(ssh.SAM_REVOKE)
     local_hash_add = ssh._sha256(ssh.SAM_ADD)
+    local_hash_lock = ssh._sha256(ssh.SAM_LOCK_USER)
+    local_hash_unlock = ssh._sha256(ssh.SAM_UNLOCK_USER)
 
     with patch("ssh._connect") as mock_connect, \
          patch("ssh.db") as mock_db:
@@ -118,11 +120,11 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
         client.open_sftp.return_value = sftp
 
         call_count = [0]
-        hashes = [local_hash_collect, local_hash_revoke, local_hash_add]
+        hashes = [local_hash_collect, local_hash_revoke, local_hash_add, local_hash_lock, local_hash_unlock]
 
         def exec_side_effect(cmd):
             stdout = MagicMock()
-            h = hashes[call_count[0] % 3]
+            h = hashes[call_count[0] % 5]
             stdout.read.return_value = f"{h}  path\n".encode()
             stdout.channel.recv_exit_status.return_value = 0
             call_count[0] += 1
@@ -255,6 +257,8 @@ def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
             "/usr/local/bin/sam-collect",
             "/usr/local/bin/sam-revoke",
             "/usr/local/bin/sam-add",
+            "/usr/local/bin/sam-lock-user",
+            "/usr/local/bin/sam-unlock-user",
         )
         for cmd in install_cmds:
             dest = cmd.split()[-1]
@@ -356,3 +360,59 @@ def test_ssh_ensure_scripts_audit_details_valid_json(sample_server):
         parsed = json.loads(details_arg)
         assert parsed["hostname"] == hostile_server["hostname"]
         assert "injected" not in parsed
+
+
+# ---------------------------------------------------------------------------
+# SAM_LOCK_USER et SAM_UNLOCK_USER — vérifications de contenu
+# ---------------------------------------------------------------------------
+
+def test_ssh_sam_lock_user_is_bytes():
+    assert isinstance(ssh.SAM_LOCK_USER, bytes)
+    assert b"#!/bin/sh" in ssh.SAM_LOCK_USER
+    assert b"usermod" in ssh.SAM_LOCK_USER
+    assert b"-L" in ssh.SAM_LOCK_USER
+    assert b"/sbin/nologin" in ssh.SAM_LOCK_USER
+
+
+def test_ssh_sam_unlock_user_is_bytes():
+    assert isinstance(ssh.SAM_UNLOCK_USER, bytes)
+    assert b"#!/bin/sh" in ssh.SAM_UNLOCK_USER
+    assert b"usermod" in ssh.SAM_UNLOCK_USER
+    assert b"-U" in ssh.SAM_UNLOCK_USER
+    assert b"/bin/bash" in ssh.SAM_UNLOCK_USER
+
+
+def test_ssh_lock_user_on_server_calls_sam_lock_user(sample_server):
+    with patch("ssh._connect") as mock_connect:
+        client = MagicMock()
+        mock_connect.return_value = client
+        stdout = MagicMock()
+        stdout.read.return_value = b""
+        stdout.channel.recv_exit_status.return_value = 0
+        stderr = MagicMock()
+        stderr.read.return_value = b""
+        client.exec_command.return_value = (MagicMock(), stdout, stderr)
+
+        ssh.lock_user_on_server(sample_server["hostname"], "alice", sample_server["ip_address"])
+
+        cmd = client.exec_command.call_args[0][0]
+        assert "sam-lock-user" in cmd
+        assert "alice" in cmd
+
+
+def test_ssh_unlock_user_on_server_calls_sam_unlock_user(sample_server):
+    with patch("ssh._connect") as mock_connect:
+        client = MagicMock()
+        mock_connect.return_value = client
+        stdout = MagicMock()
+        stdout.read.return_value = b""
+        stdout.channel.recv_exit_status.return_value = 0
+        stderr = MagicMock()
+        stderr.read.return_value = b""
+        client.exec_command.return_value = (MagicMock(), stdout, stderr)
+
+        ssh.unlock_user_on_server(sample_server["hostname"], "alice", sample_server["ip_address"])
+
+        cmd = client.exec_command.call_args[0][0]
+        assert "sam-unlock-user" in cmd
+        assert "alice" in cmd

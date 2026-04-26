@@ -9,13 +9,13 @@ Développeur : Stéphane de Labrusse.
 Stack habituelle : Python/Bash, Podman, PostgreSQL, Nginx, Alpine,
 Vue.js 3.
 
-## État du projet — toutes issues fermées (47/47)
+## État du projet — toutes issues fermées (48/48)
 
 Milestone 1 (Issues 1–4) ✅  
 Milestone 2 (Issues 5–13) ✅  
 Milestone 3 (Issues 14–21) ✅  
 Milestone 4 (Issues 22–24) ✅  
-Issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148) ✅
+Issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148, 181) ✅
 
 ## Stack vérifiée et figée
 
@@ -299,7 +299,9 @@ CREATE TABLE audit_log (
                         'ADMIN_ADDED',
                         'ADMIN_DISABLED',
                         'ADMIN_ENABLED',
-                        'ADMIN_DELETED'
+                        'ADMIN_DELETED',
+                        'USER_LOCKED',
+                        'USER_UNLOCKED'
                     )),
     performed_by    UUID REFERENCES administrators(id),
     target_key      UUID REFERENCES ssh_keys(id),
@@ -310,12 +312,16 @@ CREATE TABLE audit_log (
 
 -- ADMIN_ENABLED et ADMIN_DELETED ajoutés via migration 003
 -- (sql/migrations/003_admin_enable_delete.sql — issue #116)
+-- USER_LOCKED et USER_UNLOCKED ajoutés via migration 004
+-- (sql/migrations/004_user_lock_unlock.sql — issue #181)
 
 ## Migrations SQL
 
 sql/migrations/
     003_admin_enable_delete.sql  ← étend le CHECK de audit_log.action
                                     pour ADMIN_ENABLED et ADMIN_DELETED
+    004_user_lock_unlock.sql     ← étend le CHECK de audit_log.action
+                                    pour USER_LOCKED et USER_UNLOCKED
 
 Bootstrap applique les migrations dans l'ordre lexicographique
 après schema.sql au premier démarrage.
@@ -358,7 +364,7 @@ app/
     ├── servers.py     ← parsing servers.yml + sync BDD
     │                     + ssh-keyscan known_hosts
     ├── ssh.py         ← connexion paramiko + ensure_scripts
-    │                     + revoke_on_server
+    │                     + revoke_on_server + lock/unlock_user_on_server
     ├── actions.py     ← logique métier pure (partagée)
     ├── collect.py     ← orchestration scan complet
     ├── expire.py      ← warn J-7/J-2 + révocation auto
@@ -402,6 +408,16 @@ Crée ~/.ssh/ si absent (chmod 700, chown user:user).
 Ajoute la clé publique dans authorized_keys si absente (idempotent).
 Fixe les permissions (chmod 600, chown user:user).
 Utilisé par deploy_key() dans actions.py (issue #164).
+
+SAM_LOCK_USER — /usr/local/bin/sam-lock-user <unix_user> (root, 755)
+usermod -L -s /sbin/nologin <unix_user>
+Bloque le mot de passe ET le shell — connexion SSH impossible même avec une clé valide.
+Utilisé par lock_user() dans actions.py (issue #181).
+
+SAM_UNLOCK_USER — /usr/local/bin/sam-unlock-user <unix_user> (root, 755)
+usermod -U -s /bin/bash <unix_user>
+Rétablit le mot de passe et le shell /bin/bash.
+Utilisé par unlock_user() dans actions.py (issue #181).
 
 ## Logique métier — known_hosts
 
@@ -516,6 +532,10 @@ Validation robustesse mot de passe (issue #62) :
 - revoke_request(request_id, admin_id, db)
 - deploy_key(public_key, unix_user, hostname, expires_at, justification, admin_id)
   ↳ parse + fingerprint, INSERT ssh_keys, sam-add sur serveur, key_authorization ACTIVE (issue #164)
+- lock_user(unix_user, hostname, admin_id)
+  ↳ valide username POSIX, sam-lock-user sur serveur, audit_log USER_LOCKED (issue #181)
+- unlock_user(unix_user, hostname, admin_id)
+  ↳ valide username POSIX, sam-unlock-user sur serveur, audit_log USER_UNLOCKED (issue #181)
 
 ### Serveurs
 - add_server(hostname, ip, env, os_family, db)
@@ -541,8 +561,8 @@ app/tests/
     conftest.py        ← fixtures partagées (DB, SSH mock, msmtp mock)
     test_db.py         ← helpers connexion, transactions (7 tests)
     test_servers.py    ← parsing servers.yml, sync BDD (6 tests)
-    test_ssh.py        ← mock paramiko, RejectPolicy, ensure_scripts (11 tests)
-    test_actions.py    ← toutes les fonctions actions.py (52 tests)
+    test_ssh.py        ← mock paramiko, RejectPolicy, ensure_scripts (15 tests)
+    test_actions.py    ← toutes les fonctions actions.py (62 tests)
     test_collect.py    ← mock scan complet, 4 scénarios détection (18 tests)
     test_expire.py     ← warn J-7/J-2, anti-spam 24h, expiration auto (9 tests)
     test_alerts.py     ← mock msmtp, niveaux CRITIQUE/WARNING/INFO (12 tests)
@@ -591,6 +611,9 @@ test_actions.py :
 - Anti-spam EXPIRY_WARNING : second appel dans 24h ne renvoie pas d'email
 - enable_server, delete_server, enable_admin, delete_admin
 - _validate_password_strength : valide et invalide
+- deploy_key : username invalide (espace, majuscule) → ValueError
+- lock_user : succès, username invalide, serveur introuvable
+- unlock_user : succès, username invalide
 
 test_expire.py :
 - expire : scénario 4 (expiration programmée → sam-revoke)
@@ -602,15 +625,27 @@ test_ssh.py :
 - ensure_scripts ne redéploie pas si hash identique
 - revoke_on_server appelle sam-revoke avec bon fingerprint
 - SAM_REVOKE et SAM_COLLECT sont de type bytes
+- SAM_LOCK_USER et SAM_UNLOCK_USER sont de type bytes
+- lock_user_on_server appelle sam-lock-user avec le bon username
+- unlock_user_on_server appelle sam-unlock-user avec le bon username
 
 test_web.py :
-- GET /api/keys retourne 200 + liste JSON
+- GET /api/keys retourne 200 + liste JSON (inclut revoked_automatically, server_hostname)
 - POST /api/keys/revoke/<fp> retourne 200 si admin authentifié
 - POST /api/keys/revoke/<fp> retourne 401 si non authentifié
+- POST /api/keys/revoke/<fp> retourne 400 si fingerprint format invalide
 - POST /api/access/grant retourne 201 avec expires_at calculé
+- POST /api/access/deploy retourne 400 si hours hors plage (0, -1, 8761)
+- POST /api/access/deploy retourne 400 si hours non entier
+- POST /api/keys/set-expiry retourne 200 avec format datetime-local (sans secondes)
 - POST /api/auth/login retourne 200 + session
 - PUT /api/servers/<hostname>/enable retourne 200
 - DELETE /api/servers/<hostname> retourne 200
+- POST /api/access/lock-user retourne 200 si admin authentifié
+- POST /api/access/lock-user retourne 401 si non authentifié
+- POST /api/access/lock-user retourne 400 si champs manquants
+- POST /api/access/unlock-user retourne 200 si admin authentifié
+- POST /api/access/unlock-user retourne 401 si non authentifié
 
 ### Tests frontend — Vitest
 
@@ -622,6 +657,7 @@ ui/tests/
     Admins.spec.js        ← modals enable/delete, garde-fous (15 tests)
     Settings.spec.js      ← chargement, sauvegarde, validation, erreurs (7 tests)
     DeployKeyForm.spec.js ← formulaire déploiement clé SSH (16 tests)
+    UserLockForm.spec.js  ← verrouillage/déverrouillage compte Unix (10 tests)
 
 ### Ce qui n'est PAS testé unitairement
 
@@ -724,6 +760,8 @@ access request --key FP --server HOST --hours N --reason TEXT
 access approve <id>
 access reject <id>
 access revoke <id>
+access lock-user --user USER --server HOST
+access unlock-user --user USER --server HOST
 
 ### Administrateurs
 admin list
@@ -780,6 +818,8 @@ GET  /api/access/<id>
 POST /api/access/grant
 POST /api/access/request
 POST /api/access/deploy
+POST /api/access/lock-user
+POST /api/access/unlock-user
 POST /api/access/<id>/approve
 POST /api/access/<id>/reject
 POST /api/access/<id>/revoke
@@ -814,7 +854,7 @@ ui/src/views/
                           + boutons désactiver/réactiver/supprimer (issue #89)
                           + bandeau rouge si serveur désactivé (issue #91)
     Anomalies.vue       ← toutes anomalies actives
-    AccessRequests.vue  ← déploiement de clé SSH (formulaire DeployKeyForm uniquement)
+    AccessRequests.vue  ← déploiement de clé SSH (DeployKeyForm) + verrouillage compte Unix (UserLockForm)
     Audit.vue           ← historique filtrable
     Admins.vue          ← gestion administrateurs
                           + modals enable/delete + garde-fou self (issue #116)
@@ -831,6 +871,7 @@ ui/src/components/
     KeyActions.vue      ← boutons valider/révoquer/expiry
     ExpiryPicker.vue    ← datepicker durée ou date précise
     DeployKeyForm.vue   ← formulaire déploiement clé SSH (utilisé par AccessRequests.vue)
+    UserLockForm.vue    ← verrouillage/déverrouillage compte Unix (issue #181)
 
 ui/src/
     i18n.js             ← configuration vue-i18n v9 (issue #98)
@@ -865,16 +906,21 @@ Internationalisation (issue #98) :
 audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-collect
 audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke
 audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-add
+audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-lock-user
+audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user
 audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-collect /usr/local/bin/sam-collect
 audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-revoke /usr/local/bin/sam-revoke
 audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-add /usr/local/bin/sam-add
+audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-lock-user /usr/local/bin/sam-lock-user
+audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-unlock-user /usr/local/bin/sam-unlock-user
 
 # Note : install remplace mv+chmod+chown (3 appels) — évite le ":" dans
 # les restrictions d'arguments sudoers qui cause des erreurs visudo sur
 # certaines versions (RHEL/CentOS).
-# sam-add sans restriction d'arguments : la pubkey et le username sont variables
-# (impossible à restreindre dans sudoers). La sécurité repose sur le contenu
-# du script, déployé et vérifié par hash SHA256 par le container SAM.
+# sam-add/sam-lock-user/sam-unlock-user sans restriction d'arguments :
+# le username est variable (impossible à restreindre dans sudoers).
+# La sécurité repose sur le contenu du script, déployé et vérifié par
+# hash SHA256 par le container SAM.
 
 ## provision-host.sh
 
@@ -967,7 +1013,8 @@ ssh-access-manager/
     ├── sql/
     │   ├── schema.sql
     │   └── migrations/
-    │       └── 003_admin_enable_delete.sql
+    │       ├── 003_admin_enable_delete.sql
+    │       └── 004_user_lock_unlock.sql
     ├── app/
     │   ├── db.py
     │   ├── servers.py
@@ -1000,7 +1047,8 @@ ssh-access-manager/
         │   ├── KeyTable.spec.js
         │   ├── Admins.spec.js
         │   ├── Settings.spec.js
-        │   └── DeployKeyForm.spec.js
+        │   ├── DeployKeyForm.spec.js
+        │   └── UserLockForm.spec.js
         └── src/
             ├── App.vue
             ├── main.js
@@ -1029,4 +1077,5 @@ ssh-access-manager/
                 ├── KeyTable.vue
                 ├── KeyActions.vue
                 ├── ExpiryPicker.vue
-                └── DeployKeyForm.vue
+                ├── DeployKeyForm.vue
+                └── UserLockForm.vue
