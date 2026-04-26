@@ -130,6 +130,38 @@ def test_web_get_keys_sql_includes_revocation_and_server_fields(auth_client):
 
 
 # ---------------------------------------------------------------------------
+# POST /api/keys/validate/<fp> — 200 si authentifié, 401 sinon, scoped
+# ---------------------------------------------------------------------------
+
+def test_web_validate_key_returns_200_if_authenticated(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            f"/api/keys/validate/{FINGERPRINT}",
+            json={"unix_user": "alice", "hostname": "server-01"},
+        )
+        assert resp.status_code == 200
+        mock_actions.validate_key.assert_called_once_with(
+            FINGERPRINT, ADMIN_ID, unix_user="alice", hostname="server-01"
+        )
+
+
+def test_web_validate_key_returns_401_if_not_authenticated(client):
+    resp = client.post(f"/api/keys/validate/{FINGERPRINT}", json={})
+    assert resp.status_code == 401
+
+
+def test_web_validate_key_passes_none_when_fields_absent(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(f"/api/keys/validate/{FINGERPRINT}", json={})
+        assert resp.status_code == 200
+        mock_actions.validate_key.assert_called_once_with(
+            FINGERPRINT, ADMIN_ID, unix_user=None, hostname=None
+        )
+
+
+# ---------------------------------------------------------------------------
 # POST /api/keys/revoke/<fp> — fingerprint malformé rejeté avec 400
 # ---------------------------------------------------------------------------
 

@@ -23,20 +23,43 @@ def _check_fingerprint(fp: str) -> None:
 # Cles SSH
 # ---------------------------------------------------------------------------
 
-def validate_key(fingerprint: str, admin_id: str) -> dict:
-    """PENDING_REVIEW → ACTIVE. Logs KEY_ADDED for each authorization."""
+def validate_key(
+    fingerprint: str,
+    admin_id: str,
+    unix_user: str = None,
+    hostname: str = None,
+) -> dict:
+    """PENDING_REVIEW → ACTIVE. Logs KEY_ADDED for each authorization.
+
+    Si unix_user ET hostname sont fournis : validation ciblée — une seule
+    autorisation (key_id, server_id, unix_user). Sinon : toutes les
+    autorisations PENDING_REVIEW du fingerprint (usage CLI).
+    """
     _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
         raise ValueError(f"Key not found: {fingerprint}")
 
-    rows = db.query(
-        """
-        SELECT key_id, server_id, unix_user FROM key_authorizations
-        WHERE key_id = %s AND status = 'PENDING_REVIEW'
-        """,
-        (key["id"],),
-    )
+    if unix_user is not None and hostname is not None:
+        server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
+        if not server:
+            raise ValueError(f"Server not found: {hostname}")
+        rows = db.query(
+            """
+            SELECT key_id, server_id, unix_user FROM key_authorizations
+            WHERE key_id = %s AND server_id = %s AND unix_user = %s
+              AND status = 'PENDING_REVIEW'
+            """,
+            (key["id"], server["id"], unix_user),
+        )
+    else:
+        rows = db.query(
+            """
+            SELECT key_id, server_id, unix_user FROM key_authorizations
+            WHERE key_id = %s AND status = 'PENDING_REVIEW'
+            """,
+            (key["id"],),
+        )
     if not rows:
         raise ValueError(f"No PENDING_REVIEW authorization for key: {fingerprint}")
 

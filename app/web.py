@@ -233,8 +233,11 @@ def get_key(fingerprint):
 @app.route("/api/keys/validate/<path:fingerprint>", methods=["POST"])
 @require_auth
 def validate_key(fingerprint):
+    data = request.get_json(silent=True) or {}
+    unix_user = data.get("unix_user") or None
+    hostname = data.get("hostname") or None
     try:
-        actions.validate_key(fingerprint, g.admin_id)
+        actions.validate_key(fingerprint, g.admin_id, unix_user=unix_user, hostname=hostname)
         return jsonify({"status": "validated"})
     except ValueError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))

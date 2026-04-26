@@ -280,10 +280,10 @@ async function scanServer() {
 
 const efp = (fp) => encodeURIComponent(fp)
 
-async function validateKey(fingerprint) {
+async function validateKey(key) {
   await apiAction(
-    `/api/keys/validate/${efp(fingerprint)}`,
-    {},
+    `/api/keys/validate/${efp(key.fingerprint)}`,
+    { unix_user: key.unix_user || null, hostname },
     'POST',
     t('server_detail.key_validated')
   )

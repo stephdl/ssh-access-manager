@@ -119,11 +119,12 @@ describe('KeyTable', () => {
     expect(w.find('.non-compliant').exists()).toBe(true)
   })
 
-  it('émet validate avec le fingerprint', async () => {
-    const w = mountTable([makeKey({ status: 'PENDING_REVIEW' })])
+  it("émet validate avec l'objet clé", async () => {
+    const key = makeKey({ status: 'PENDING_REVIEW' })
+    const w = mountTable([key])
     await w.find('.btn-success').trigger('click')
     expect(w.emitted('validate')).toBeTruthy()
-    expect(w.emitted('validate')[0][0]).toBe(FP)
+    expect(w.emitted('validate')[0][0].fingerprint).toBe(FP)
   })
 
   it("émet revoke avec l'objet clé", async () => {

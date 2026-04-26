@@ -863,3 +863,31 @@ def test_actions_validate_key_includes_unix_user_in_update(sample_key):
         for call in update_calls:
             sql = call[0][0]
             assert "unix_user" in sql
+
+
+def test_actions_validate_key_scoped_only_validates_target_unix_user(sample_key):
+    """Avec unix_user+hostname, seule l'autorisation ciblée est validée."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},          # ssh_keys
+            {"id": SERVER_ID},        # servers
+        ]
+        mock_db.query.return_value = [
+            {"key_id": KEY_ID, "server_id": SERVER_ID, "unix_user": "alice"},
+        ]
+        actions.validate_key(sample_key["fingerprint"], ADMIN_ID, unix_user="alice", hostname="server-01")
+        # 1 UPDATE + 1 audit INSERT
+        assert mock_db.execute.call_count == 2
+        update_sql = mock_db.execute.call_args_list[0][0][0]
+        assert "UPDATE" in update_sql
+
+
+def test_actions_validate_key_scoped_raises_if_server_not_found(sample_key):
+    """Avec hostname inconnu, ValueError levée."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},  # ssh_keys found
+            None,            # server not found
+        ]
+        with pytest.raises(ValueError, match="Server not found"):
+            actions.validate_key(sample_key["fingerprint"], ADMIN_ID, unix_user="alice", hostname="unknown")
