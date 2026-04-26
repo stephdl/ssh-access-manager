@@ -244,6 +244,22 @@ def test_manage_admin_disable(runner):
         mock_actions.disable_admin.assert_called_once_with("someuser", ADMIN_ID)
 
 
+def test_manage_admin_enable(runner):
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin()
+        result = runner.invoke(manage.cli, ["admin", "enable", "someuser"])
+        assert result.exit_code == 0
+        mock_actions.enable_admin.assert_called_once_with("someuser", ADMIN_ID)
+
+
+def test_manage_admin_delete(runner):
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin()
+        result = runner.invoke(manage.cli, ["admin", "delete", "someuser", "--yes"])
+        assert result.exit_code == 0
+        mock_actions.delete_admin.assert_called_once_with("someuser", ADMIN_ID)
+
+
 # ---------------------------------------------------------------------------
 # audit
 # ---------------------------------------------------------------------------

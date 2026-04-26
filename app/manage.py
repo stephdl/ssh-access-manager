@@ -412,6 +412,31 @@ def admin_disable(username):
         raise click.ClickException(str(e))
 
 
+@admin.command("enable")
+@click.argument("username")
+def admin_enable(username):
+    """Reactiver un administrateur desactive."""
+    performer_id = _require_admin()
+    try:
+        actions.enable_admin(username, performer_id)
+        click.echo(f"Administrateur {username} reactive.")
+    except ValueError as e:
+        raise click.ClickException(str(e))
+
+
+@admin.command("delete")
+@click.argument("username")
+@click.confirmation_option(prompt="Supprimer definitivement cet administrateur ?")
+def admin_delete(username):
+    """Supprimer definitivement un administrateur (doit etre desactive, sans references)."""
+    performer_id = _require_admin()
+    try:
+        actions.delete_admin(username, performer_id)
+        click.echo(f"Administrateur {username} supprime.")
+    except ValueError as e:
+        raise click.ClickException(str(e))
+
+
 # ---------------------------------------------------------------------------
 # audit
 # ---------------------------------------------------------------------------

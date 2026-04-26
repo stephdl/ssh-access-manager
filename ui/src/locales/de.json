@@ -236,7 +236,19 @@
     "btn_save": "Speichern",
     "success_added": "Administrator {username} hinzugefügt.",
     "success_disabled": "Administrator {username} deaktiviert.",
-    "success_pwd": "Passwort von {username} aktualisiert."
+    "success_pwd": "Passwort von {username} aktualisiert.",
+    "btn_enable": "Aktivieren",
+    "btn_delete": "Löschen",
+    "enable_modal_title": "Administrator aktivieren",
+    "enable_modal_text": "Aktivierung von {username} bestätigen?",
+    "btn_enable_confirm": "Aktivieren",
+    "delete_modal_title": "Administrator löschen",
+    "delete_modal_text": "{username} dauerhaft löschen? Diese Aktion ist unumkehrbar und schlägt fehl, wenn das Konto referenziert wird.",
+    "btn_delete_confirm": "Löschen",
+    "success_enabled": "Administrator {username} aktiviert.",
+    "success_deleted": "Administrator {username} gelöscht.",
+    "error_self_action": "Diese Aktion kann nicht auf das eigene Konto angewendet werden.",
+    "error_has_records": "Löschen nicht möglich: Dieses Konto wird noch referenziert."
   },
   "anomalies": {
     "title": "Anomalien",

@@ -304,3 +304,70 @@ def test_web_disable_admin_returns_200(auth_client):
         resp = auth_client.put("/api/admins/someuser/disable")
         assert resp.status_code == 200
         mock_actions.disable_admin.assert_called_once_with("someuser", ADMIN_ID)
+
+
+def test_web_disable_admin_self_returns_403(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/admins/admin/disable")
+        assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# GET /api/admins/me
+# ---------------------------------------------------------------------------
+
+def test_web_get_me_returns_current_admin(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.get("/api/admins/me")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["username"] == "admin"
+        assert data["id"] == ADMIN_ID
+
+
+# ---------------------------------------------------------------------------
+# PUT /api/admins/<username>/enable
+# ---------------------------------------------------------------------------
+
+def test_web_enable_admin_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/admins/someuser/enable")
+        assert resp.status_code == 200
+        mock_actions.enable_admin.assert_called_once_with("someuser", ADMIN_ID)
+
+
+def test_web_enable_admin_self_returns_403(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/admins/admin/enable")
+        assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/admins/<username>
+# ---------------------------------------------------------------------------
+
+def test_web_delete_admin_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.delete("/api/admins/someuser")
+        assert resp.status_code == 200
+        mock_actions.delete_admin.assert_called_once_with("someuser", ADMIN_ID)
+
+
+def test_web_delete_admin_self_returns_403(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.delete("/api/admins/admin")
+        assert resp.status_code == 403
+
+
+def test_web_delete_admin_with_references_returns_400(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.delete_admin.side_effect = ValueError("existing audit records reference this account")
+        resp = auth_client.delete("/api/admins/someuser")
+        assert resp.status_code == 400

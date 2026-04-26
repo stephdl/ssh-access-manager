@@ -39,9 +39,12 @@
               <td class="actions-cell">
                 <template v-if="a.is_active">
                   <button class="btn-secondary" @click="openEditPassword(a.username)">{{ $t('admins.btn_password') }}</button>
-                  <button class="btn-danger" @click="openDisable(a.username)">{{ $t('admins.btn_disable') }}</button>
+                  <button v-if="a.username !== currentUsername" class="btn-danger" @click="openDisable(a.username)">{{ $t('admins.btn_disable') }}</button>
                 </template>
-                <span v-else class="text-muted">—</span>
+                <template v-else>
+                  <button class="btn-success" @click="openEnable(a.username)">{{ $t('admins.btn_enable') }}</button>
+                  <button class="btn-danger" @click="openDelete(a.username)">{{ $t('admins.btn_delete') }}</button>
+                </template>
               </td>
             </tr>
           </tbody>
@@ -129,6 +132,30 @@
         <div class="modal-actions">
           <button class="btn-danger" @click="confirmDisable">{{ $t('admins.btn_disable_confirm') }}</button>
           <button @click="disableTarget = null">{{ $t('common.cancel') }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Enable confirmation modal -->
+    <div v-if="enableTarget" class="modal-overlay" @click.self="enableTarget = null">
+      <div class="modal">
+        <h3>{{ $t('admins.enable_modal_title') }}</h3>
+        <p>{{ $t('admins.enable_modal_text', { username: enableTarget }) }}</p>
+        <div class="modal-actions">
+          <button class="btn-success" @click="confirmEnable">{{ $t('admins.btn_enable_confirm') }}</button>
+          <button @click="enableTarget = null">{{ $t('common.cancel') }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete confirmation modal -->
+    <div v-if="deleteTarget" class="modal-overlay" @click.self="deleteTarget = null">
+      <div class="modal">
+        <h3>{{ $t('admins.delete_modal_title') }}</h3>
+        <p>{{ $t('admins.delete_modal_text', { username: deleteTarget }) }}</p>
+        <div class="modal-actions">
+          <button class="btn-danger" @click="confirmDelete">{{ $t('admins.btn_delete_confirm') }}</button>
+          <button @click="deleteTarget = null">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
@@ -233,6 +260,7 @@ const admins              = ref([])
 const loading             = ref(true)
 const error               = ref('')
 const message             = ref('')
+const currentUsername     = ref('')
 const newUsername         = ref('')
 const newEmail            = ref('')
 const newPassword         = ref('')
@@ -240,6 +268,8 @@ const newPasswordConfirm  = ref('')
 const showNewPwd          = ref(false)
 const showNewPwdConfirm   = ref(false)
 const disableTarget       = ref(null)
+const enableTarget        = ref(null)
+const deleteTarget        = ref(null)
 const editPasswordTarget  = ref(null)
 const editPassword        = ref('')
 const editPasswordConfirm = ref('')
@@ -264,9 +294,16 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const res = await fetch('/api/admins')
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    admins.value = await res.json()
+    const [adminsRes, meRes] = await Promise.all([
+      fetch('/api/admins'),
+      fetch('/api/admins/me'),
+    ])
+    if (!adminsRes.ok) throw new Error(`HTTP ${adminsRes.status}`)
+    admins.value = await adminsRes.json()
+    if (meRes.ok) {
+      const me = await meRes.json()
+      currentUsername.value = me.username
+    }
   } catch (e) {
     error.value = t('admins.load_error', { error: e.message })
   } finally {
@@ -306,6 +343,8 @@ async function submitAdd() {
 }
 
 function openDisable(username) { disableTarget.value = username }
+function openEnable(username)  { enableTarget.value  = username }
+function openDelete(username)  { deleteTarget.value  = username }
 
 async function confirmDisable() {
   const username = disableTarget.value
@@ -319,6 +358,42 @@ async function confirmDisable() {
       throw new Error(data.error || `HTTP ${res.status}`)
     }
     message.value = t('admins.success_disabled', { username })
+    await load()
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
+async function confirmEnable() {
+  const username = enableTarget.value
+  enableTarget.value = null
+  error.value = ''
+  message.value = ''
+  try {
+    const res = await fetch(`/api/admins/${username}/enable`, { method: 'PUT' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    message.value = t('admins.success_enabled', { username })
+    await load()
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
+async function confirmDelete() {
+  const username = deleteTarget.value
+  deleteTarget.value = null
+  error.value = ''
+  message.value = ''
+  try {
+    const res = await fetch(`/api/admins/${username}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    message.value = t('admins.success_deleted', { username })
     await load()
   } catch (e) {
     error.value = e.message

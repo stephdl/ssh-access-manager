@@ -425,14 +425,46 @@ def change_admin_password(username):
         return jsonify({"error": str(e)}), 404
 
 
+@app.route("/api/admins/me", methods=["GET"])
+@require_auth
+def get_me():
+    return jsonify({"id": g.admin_id, "username": g.admin_username})
+
+
 @app.route("/api/admins/<username>/disable", methods=["PUT"])
 @require_auth
 def disable_admin(username):
+    if username == g.admin_username:
+        return jsonify({"error": "Cannot disable your own account"}), 403
     try:
         actions.disable_admin(username, g.admin_id)
         return jsonify({"status": "disabled"})
     except ValueError as e:
         return jsonify({"error": str(e)}), 404
+
+
+@app.route("/api/admins/<username>/enable", methods=["PUT"])
+@require_auth
+def enable_admin(username):
+    if username == g.admin_username:
+        return jsonify({"error": "Cannot enable your own account"}), 403
+    try:
+        actions.enable_admin(username, g.admin_id)
+        return jsonify({"status": "enabled"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+
+
+@app.route("/api/admins/<username>", methods=["DELETE"])
+@require_auth
+def delete_admin(username):
+    if username == g.admin_username:
+        return jsonify({"error": "Cannot delete your own account"}), 403
+    try:
+        actions.delete_admin(username, g.admin_id)
+        return jsonify({"status": "deleted"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
 
 # ---------------------------------------------------------------------------

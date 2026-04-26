@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import en from '../src/locales/en.json'
 import KeyActions from '../src/components/KeyActions.vue'
 
-const i18n = createI18n({ legacy: false, locale: 'en', messages: { en: {} } })
+const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
 const FP = 'SHA256:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG'
 
 const mk = (props) => mount(KeyActions, { props, global: { plugins: [i18n] } })
