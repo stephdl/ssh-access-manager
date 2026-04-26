@@ -398,6 +398,7 @@ def deploy_key(
     )
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
 
+    ssh.ensure_scripts(hostname, server["id"], server["ip_address"])
     ssh.add_key_on_server(hostname, unix_user, public_key.strip(), server["ip_address"])
 
     db.execute(
