@@ -26,7 +26,7 @@ jobs:
           docker push ghcr.io/stephdl/ssh-access-manager:pr-${{ github.event.number }}
 
       - name: Trivy — scan CVE image
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/stephdl/ssh-access-manager:pr-${{ github.event.number }}
           format: sarif
