@@ -41,7 +41,10 @@
                 </router-link>
               </td>
               <td>{{ formatDate(k.first_seen) }}</td>
-              <td>{{ k.is_compliant ? '✅' : '⚠️' }}</td>
+              <td>
+                <span v-if="k.is_compliant" :title="$t('key_table.compliant_ok')">✅</span>
+                <span v-else class="non-compliant" :title="complianceTooltip(k)">⚠️</span>
+              </td>
               <td class="actions">
                 <button class="btn-success" @click="validate(k.fingerprint)">
                   {{ $t('anomalies.btn_validate') }}
@@ -212,6 +215,14 @@ function formatDate(iso) {
   return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
+function complianceTooltip(k) {
+  if (k.key_type === 'ssh-rsa') {
+    const bits = k.key_size_bits
+    return bits ? t('key_table.non_compliant_rsa_bits', { bits }) : t('key_table.non_compliant_rsa')
+  }
+  return t('key_table.non_compliant_type')
+}
+
 onMounted(load)
 </script>
 
@@ -226,6 +237,9 @@ h2 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+.non-compliant {
+  cursor: help;
 }
 
 .card {
