@@ -38,17 +38,16 @@ chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "${AUTH_KEYS}"
 echo "[provision] Clé publique déployée dans ${AUTH_KEYS}."
 
 # 4. Créer le fichier sudoers
-cat > "${SUDOERS_FILE}" << 'EOF'
-# ssh-access-manager — droits sudo pour audit-collector (chmod 440)
-audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-collect
-audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke
-audit-collector ALL=(root) NOPASSWD: /bin/mv /home/audit-collector/sam-collect /usr/local/bin/sam-collect
-audit-collector ALL=(root) NOPASSWD: /bin/mv /home/audit-collector/sam-revoke /usr/local/bin/sam-revoke
-audit-collector ALL=(root) NOPASSWD: /bin/chmod 755 /usr/local/bin/sam-collect
-audit-collector ALL=(root) NOPASSWD: /bin/chmod 755 /usr/local/bin/sam-revoke
-audit-collector ALL=(root) NOPASSWD: /bin/chown root:root /usr/local/bin/sam-collect
-audit-collector ALL=(root) NOPASSWD: /bin/chown root:root /usr/local/bin/sam-revoke
-EOF
+# printf avec \n explicite : résistant au \r\n introduit par sudo PTY lors d'un pipe
+printf '# ssh-access-manager — droits sudo pour audit-collector\n' > "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-collect\n' >> "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke\n' >> "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /bin/mv /home/audit-collector/sam-collect /usr/local/bin/sam-collect\n' >> "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /bin/mv /home/audit-collector/sam-revoke /usr/local/bin/sam-revoke\n' >> "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /bin/chmod 755 /usr/local/bin/sam-collect\n' >> "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /bin/chmod 755 /usr/local/bin/sam-revoke\n' >> "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /bin/chown root:root /usr/local/bin/sam-collect\n' >> "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /bin/chown root:root /usr/local/bin/sam-revoke\n' >> "${SUDOERS_FILE}"
 
 chmod 440 "${SUDOERS_FILE}"
 echo "[provision] Sudoers configuré dans ${SUDOERS_FILE}."
