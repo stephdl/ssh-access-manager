@@ -595,9 +595,11 @@ Le workflow d'accès temporaire illustre la coordination entre les modules :
 
 ```
 1. Utilisateur soumet AccessForm.vue
+   → dropdown serveurs actifs chargé via GET /api/servers (filtré is_active=true)
+   → 3 modes durée : heures / date précise / illimité (pas d'expires_at)
    → POST /api/access/grant
    → actions.grant_access(key_fp, hostname, expires_at, justification, admin_id)
-   → INSERT key_authorizations (status='ACTIVE', expires_at=...)
+   → INSERT key_authorizations (status='ACTIVE', expires_at=... ou NULL si illimité)
    → INSERT audit_log('REQUEST_APPROVED')
 
 2. Cron (toutes les 4h) — expire.py
@@ -665,6 +667,20 @@ router.beforeEach(async (to) => {
 Ce guard est non-bloquant : si `fetchMe()` échoue (session expirée), la
 redirection vers Login est automatique. Aucune vue protégée n'est rendue sans
 authentification valide.
+
+### Composant AccessForm — dropdown et mode illimité
+
+`AccessForm.vue` charge dynamiquement la liste des serveurs actifs via `GET /api/servers`
+au montage du composant (`onMounted`) et filtre `is_active === true`. Le champ serveur est
+un `<select>` plutôt qu'un `<input type="text">` libre, évitant les erreurs de saisie.
+
+Trois modes de durée sont disponibles :
+- `hours` — durée en heures (payload `{ hours: N }`)
+- `date` — date/heure précise (payload `{ date: "ISO" }`)
+- `unlimited` — pas d'expiration (payload sans `hours` ni `date`)
+
+`durationValid` retourne toujours `true` en mode `unlimited`, et `submit()` n'inclut
+ni `hours` ni `date` dans le payload, laissant l'API sans contrainte de durée.
 
 ### Composant ExpiryPicker — modes exclusifs
 

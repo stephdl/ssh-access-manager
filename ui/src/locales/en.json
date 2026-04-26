@@ -178,6 +178,9 @@
     "justification_placeholder": "Reason for access request…",
     "submit": "Submit request",
     "reset": "Reset",
+    "unlimited_label": "Unlimited",
+    "server_loading": "Loading servers…",
+    "server_empty": "No server available",
     "error_unsupported_type": "Unsupported type. Accepted types: {types}",
     "error_min_hours": "Duration must be at least 1 hour.",
     "error_future_date": "Date must be in the future."
