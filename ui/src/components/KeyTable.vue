@@ -5,6 +5,7 @@
         <th>{{ $t('key_table.col_status') }}</th>
         <th>{{ $t('key_table.col_type') }}</th>
         <th>{{ $t('key_table.col_fingerprint') }}</th>
+        <th>{{ $t('key_table.col_unix_user') }}</th>
         <th>{{ $t('key_table.col_comment') }}</th>
         <th>{{ $t('key_table.col_owner') }}</th>
         <th>{{ $t('key_table.col_expires') }}</th>
@@ -14,9 +15,9 @@
     </thead>
     <tbody>
       <tr v-if="keys.length === 0">
-        <td colspan="8" class="empty">{{ $t('key_table.empty') }}</td>
+        <td colspan="9" class="empty">{{ $t('key_table.empty') }}</td>
       </tr>
-      <tr v-for="k in keys" :key="k.fingerprint">
+      <tr v-for="k in keys" :key="k.fingerprint + '|' + (k.unix_user || '')">
         <td>
           <span class="badge" :class="statusBadge(k.status)">{{ k.status }}</span>
         </td>
@@ -25,6 +26,10 @@
         </td>
         <td class="fp">
           <code>{{ k.fingerprint }}</code>
+        </td>
+        <td>
+          <code v-if="k.unix_user">{{ k.unix_user }}</code>
+          <span v-else>—</span>
         </td>
         <td>{{ k.comment || '—' }}</td>
         <td>{{ k.owner || '—' }}</td>

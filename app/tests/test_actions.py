@@ -94,6 +94,37 @@ def test_actions_revoke_key_raises_if_key_not_found(sample_key):
             actions.revoke_key(sample_key["fingerprint"], ADMIN_ID, "reason")
 
 
+def test_actions_revoke_key_scoped_calls_sam_revoke_with_unix_user(sample_key):
+    """Revocation ciblée (hostname + unix_user) appelle revoke_on_server avec unix_user."""
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+    auth = {"status": "ACTIVE"}
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, server, auth]
+        actions.revoke_key(
+            sample_key["fingerprint"], ADMIN_ID, "test",
+            hostname="server-test-01", unix_user="alice",
+        )
+        mock_ssh.revoke_on_server.assert_called_once_with(
+            "server-test-01", sample_key["fingerprint"],
+            ip="192.168.1.10", unix_user="alice",
+        )
+
+
+def test_actions_revoke_key_scoped_sets_revoked_for_unix_user_only(sample_key):
+    """Revocation ciblée — l'UPDATE inclut unix_user dans le WHERE."""
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+    auth = {"status": "ACTIVE"}
+    with patch("actions.db") as mock_db, patch("actions.ssh"):
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, server, auth]
+        actions.revoke_key(
+            sample_key["fingerprint"], ADMIN_ID, "test",
+            hostname="server-test-01", unix_user="alice",
+        )
+        update_call = mock_db.execute.call_args_list[0]
+        assert "unix_user" in update_call[0][0]
+        assert "alice" in update_call[0][1]
+
+
 # ---------------------------------------------------------------------------
 # handle_disappeared_key — scenario 2 (hors systeme, revoked_automatically=True)
 # ---------------------------------------------------------------------------

@@ -156,7 +156,22 @@ def test_web_revoke_key_returns_200_if_authenticated(auth_client):
             json={"reason": "test"},
         )
         assert resp.status_code == 200
-        mock_actions.revoke_key.assert_called_once_with(FINGERPRINT, ADMIN_ID, "test")
+        mock_actions.revoke_key.assert_called_once_with(
+            FINGERPRINT, ADMIN_ID, "test", hostname=None, unix_user=None
+        )
+
+
+def test_web_revoke_key_passes_unix_user_and_hostname(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            f"/api/keys/revoke/{FINGERPRINT}",
+            json={"reason": "test", "hostname": "server-01", "unix_user": "alice"},
+        )
+        assert resp.status_code == 200
+        mock_actions.revoke_key.assert_called_once_with(
+            FINGERPRINT, ADMIN_ID, "test", hostname="server-01", unix_user="alice"
+        )
 
 
 def test_web_revoke_key_returns_401_if_not_authenticated(client):

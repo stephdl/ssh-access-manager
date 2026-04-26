@@ -47,13 +47,16 @@ fi
 """
 
 SAM_REVOKE = b"""#!/bin/sh
-# sam-revoke <fingerprint> - revoke a key by SHA256 fingerprint
-# fingerprint format: SHA256:<base64>
+# sam-revoke <fingerprint> [unix_user]
+# If unix_user is given: revoke only from that user's authorized_keys.
+# Otherwise: revoke from all users (global).
 set -e
 
 TARGET_FP="${1}"
+TARGET_USER="${2}"
+
 if [ -z "$TARGET_FP" ]; then
-    echo "Usage: sam-revoke <SHA256:base64>" >&2
+    echo "Usage: sam-revoke <SHA256:base64> [unix_user]" >&2
     exit 1
 fi
 
@@ -86,10 +89,19 @@ revoke_from_file() {
     fi
 }
 
-getent passwd | while IFS=: read user _ _ _ _ home _; do
-    revoke_from_file "${home}/.ssh/authorized_keys"
-done
-revoke_from_file "/root/.ssh/authorized_keys"
+if [ -n "$TARGET_USER" ]; then
+    if [ "$TARGET_USER" = "root" ]; then
+        revoke_from_file "/root/.ssh/authorized_keys"
+    else
+        home=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+        [ -n "$home" ] && revoke_from_file "${home}/.ssh/authorized_keys"
+    fi
+else
+    getent passwd | while IFS=: read user _ _ _ _ home _; do
+        revoke_from_file "${home}/.ssh/authorized_keys"
+    done
+    revoke_from_file "/root/.ssh/authorized_keys"
+fi
 """
 
 SAM_ADD = b"""#!/bin/sh
@@ -228,13 +240,18 @@ def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
         client.close()
 
 
-def revoke_on_server(hostname: str, fingerprint: str, ip: str) -> None:
-    """Run sam-revoke on the remote host to remove the key with given fingerprint."""
+def revoke_on_server(hostname: str, fingerprint: str, ip: str, unix_user: str = None) -> None:
+    """Run sam-revoke on the remote host.
+    If unix_user is given, revokes only from that user's authorized_keys.
+    Otherwise revokes globally (all users on the server).
+    """
+    import shlex
     client = _connect(ip)
     try:
-        _, err, rc = _run(
-            client, f"sudo {SAM_REVOKE_PATH} '{fingerprint}'"
-        )
+        cmd = f"sudo {SAM_REVOKE_PATH} {shlex.quote(fingerprint)}"
+        if unix_user:
+            cmd += f" {shlex.quote(unix_user)}"
+        _, err, rc = _run(client, cmd)
         if rc != 0:
             raise RuntimeError(
                 f"sam-revoke failed on {hostname} (rc={rc}): {err}"
