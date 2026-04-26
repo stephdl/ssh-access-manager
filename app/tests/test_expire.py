@@ -34,40 +34,63 @@ def test_expire_warn_expiring_keys_calls_warn_for_each_key():
         {"key_id": KEY_ID, "server_id": SERVER_ID, "expires_at": _future(2)},
         {"key_id": str(uuid.uuid4()), "server_id": SERVER_ID, "expires_at": _future(5)},
     ]
-    with patch("expire.db") as mock_db, patch("expire.actions") as mock_actions:
+    info = {"fingerprint": "SHA256:abc", "hostname": "server-test-01", "expires_at": _future(2)}
+    with patch("expire.db") as mock_db, patch("expire.actions") as mock_actions, patch("expire.alerts"):
         mock_db.query.return_value = rows
-        mock_db.query_one.return_value = None  # no prior warning → send
+        mock_actions.warn_expiring_key.return_value = info
         expire.warn_expiring_keys()
         assert mock_actions.warn_expiring_key.call_count == 2
 
 
 def test_expire_warn_expiring_keys_antispam_skips_already_warned():
     rows = [{"key_id": KEY_ID, "server_id": SERVER_ID, "expires_at": _future(2)}]
-    with patch("expire.db") as mock_db, patch("expire.actions") as mock_actions:
+    with patch("expire.db") as mock_db, patch("expire.actions") as mock_actions, patch("expire.alerts"):
         mock_db.query.return_value = rows
-        mock_db.query_one.return_value = {"id": str(uuid.uuid4())}  # already warned
+        mock_actions.warn_expiring_key.return_value = None  # anti-spam → None
         count = expire.warn_expiring_keys()
-        mock_actions.warn_expiring_key.assert_not_called()
         assert count == 0
 
 
 def test_expire_warn_expiring_keys_returns_count_sent():
-    rows = [
-        {"key_id": KEY_ID, "server_id": SERVER_ID, "expires_at": _future(2)},
-    ]
-    with patch("expire.db") as mock_db, patch("expire.actions") as mock_actions:
+    rows = [{"key_id": KEY_ID, "server_id": SERVER_ID, "expires_at": _future(2)}]
+    info = {"fingerprint": "SHA256:abc", "hostname": "server-test-01", "expires_at": _future(2)}
+    with patch("expire.db") as mock_db, patch("expire.actions") as mock_actions, patch("expire.alerts"):
         mock_db.query.return_value = rows
-        mock_db.query_one.return_value = None
+        mock_actions.warn_expiring_key.return_value = info
         count = expire.warn_expiring_keys()
         assert count == 1
 
 
 def test_expire_warn_expiring_keys_returns_zero_when_no_keys():
-    with patch("expire.db") as mock_db, patch("expire.actions") as mock_actions:
+    with patch("expire.db") as mock_db, patch("expire.actions") as mock_actions, patch("expire.alerts"):
         mock_db.query.return_value = []
         count = expire.warn_expiring_keys()
         assert count == 0
         mock_actions.warn_expiring_key.assert_not_called()
+
+
+def test_expire_warn_expiring_keys_sends_one_grouped_email():
+    rows = [
+        {"key_id": KEY_ID, "server_id": SERVER_ID, "expires_at": _future(2)},
+        {"key_id": str(uuid.uuid4()), "server_id": SERVER_ID, "expires_at": _future(5)},
+    ]
+    info = {"fingerprint": "SHA256:abc", "hostname": "server-test-01", "expires_at": _future(2)}
+    with patch("expire.db") as mock_db, patch("expire.actions") as mock_actions, patch("expire.alerts") as mock_alerts:
+        mock_db.query.return_value = rows
+        mock_actions.warn_expiring_key.return_value = info
+        expire.warn_expiring_keys()
+        mock_alerts.send_alert.assert_called_once()
+        assert mock_alerts.send_alert.call_args[0][0] == "WARNING"
+        assert "2 cle" in mock_alerts.send_alert.call_args[0][1]
+
+
+def test_expire_warn_expiring_keys_no_email_when_all_antispammed():
+    rows = [{"key_id": KEY_ID, "server_id": SERVER_ID, "expires_at": _future(2)}]
+    with patch("expire.db") as mock_db, patch("expire.actions") as mock_actions, patch("expire.alerts") as mock_alerts:
+        mock_db.query.return_value = rows
+        mock_actions.warn_expiring_key.return_value = None
+        expire.warn_expiring_keys()
+        mock_alerts.send_alert.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

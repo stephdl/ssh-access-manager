@@ -115,12 +115,13 @@ def test_actions_handle_disappeared_key_scenario2_logs_anomaly_detected():
         assert "ANOMALY_DETECTED" in audit_call[0][0]
 
 
-def test_actions_handle_disappeared_key_scenario2_sends_critical_alert():
-    with patch("actions.db") as mock_db, patch("actions.alerts") as mock_alerts:
+def test_actions_handle_disappeared_key_scenario2_returns_info_dict():
+    with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"fingerprint": "SHA256:abc"}
-        actions.handle_disappeared_key(KEY_ID, SERVER_ID, "server-test-01", ip="192.168.1.10")
-        mock_alerts.send_alert.assert_called_once()
-        assert mock_alerts.send_alert.call_args[0][0] == "CRITICAL"
+        info = actions.handle_disappeared_key(KEY_ID, SERVER_ID, "server-test-01", ip="192.168.1.10")
+        assert info["type"] == "disappeared"
+        assert info["fingerprint"] == "SHA256:abc"
+        assert info["hostname"] == "server-test-01"
 
 
 # ---------------------------------------------------------------------------
@@ -151,42 +152,45 @@ def test_actions_handle_unknown_key_scenario3_logs_anomaly_detected(sample_key):
         assert "ANOMALY_DETECTED" in audit_call[0][0]
 
 
-def test_actions_handle_unknown_key_scenario3_sends_critical_alert(sample_key):
-    with patch("actions.db") as mock_db, patch("actions.alerts") as mock_alerts:
+def test_actions_handle_unknown_key_scenario3_returns_info_dict(sample_key):
+    with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"id": KEY_ID}
-        actions.handle_unknown_key(
+        info = actions.handle_unknown_key(
             "ssh-ed25519", None,
             sample_key["public_key"], sample_key["fingerprint"],
             "test@host", SERVER_ID, "server-test-01",
         )
-        mock_alerts.send_alert.assert_called_once()
-        assert mock_alerts.send_alert.call_args[0][0] == "CRITICAL"
+        assert info["type"] == "unknown"
+        assert info["fingerprint"] == sample_key["fingerprint"]
+        assert info["hostname"] == "server-test-01"
+        assert info["key_type"] == "ssh-ed25519"
 
 
 # ---------------------------------------------------------------------------
 # warn_expiring_key — anti-spam EXPIRY_WARNING 24h
 # ---------------------------------------------------------------------------
 
-def test_actions_warn_expiring_key_sends_alert_first_call():
+def test_actions_warn_expiring_key_returns_info_dict_first_call():
     expires_at = _future(hours=48)
-    with patch("actions.db") as mock_db, patch("actions.alerts") as mock_alerts:
+    with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [
             None,  # no existing warning
             {"fingerprint": "SHA256:abc"},  # key lookup
             {"hostname": "server-test-01"},  # server lookup
         ]
-        actions.warn_expiring_key(KEY_ID, SERVER_ID, expires_at)
-        mock_alerts.send_alert.assert_called_once()
-        assert mock_alerts.send_alert.call_args[0][0] == "WARNING"
+        info = actions.warn_expiring_key(KEY_ID, SERVER_ID, expires_at)
+        assert info is not None
+        assert info["fingerprint"] == "SHA256:abc"
+        assert info["hostname"] == "server-test-01"
+        assert info["expires_at"] == expires_at
 
 
-def test_actions_warn_expiring_key_antispam_blocks_second_call_within_24h():
+def test_actions_warn_expiring_key_antispam_returns_none():
     expires_at = _future(hours=48)
-    with patch("actions.db") as mock_db, patch("actions.alerts") as mock_alerts:
-        # existing warning found → anti-spam triggers
+    with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"id": str(uuid.uuid4())}
-        actions.warn_expiring_key(KEY_ID, SERVER_ID, expires_at)
-        mock_alerts.send_alert.assert_not_called()
+        info = actions.warn_expiring_key(KEY_ID, SERVER_ID, expires_at)
+        assert info is None
         mock_db.execute.assert_not_called()
 
 
