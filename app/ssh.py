@@ -148,7 +148,7 @@ if [ -z "$USER" ]; then
     echo "Usage: sam-unlock-user <username>" >&2
     exit 1
 fi
-usermod -U -s /bin/bash "$USER"
+usermod -s /bin/bash "$USER"
 """
 
 
