@@ -91,12 +91,6 @@
         <p v-else class="empty">{{ $t('access.no_pending') }}</p>
       </section>
 
-      <!-- New access request form -->
-      <section class="card">
-        <h2>{{ $t('access.section_new') }}</h2>
-        <AccessForm @submit="submitRequest" />
-      </section>
-
       <!-- Deploy SSH key section -->
       <section class="card">
         <h2>{{ $t('deployKey.title') }}</h2>
@@ -109,7 +103,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import AccessForm from '../components/AccessForm.vue'
 import DeployKeyForm from '../components/DeployKeyForm.vue'
 
 const { t } = useI18n()
@@ -148,26 +141,6 @@ async function reject(id) {
 
 async function revokeAccess(id) {
   await apiAction(`/api/access/${id}/revoke`, {}, t('access.revoked'))
-}
-
-async function submitRequest(payload) {
-  error.value = ''
-  message.value = ''
-  try {
-    const res = await fetch('/api/access/request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data.error || `HTTP ${res.status}`)
-    }
-    message.value = t('access.submitted')
-    await load()
-  } catch (e) {
-    error.value = e.message
-  }
 }
 
 async function apiAction(url, body, successMsg) {
