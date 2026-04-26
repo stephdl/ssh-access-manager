@@ -227,7 +227,7 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `POSTGRES_USER` | Utilisateur PostgreSQL | `ssh_manager` |
 | `POSTGRES_PASSWORD` | Mot de passe PostgreSQL | — |
 | `NGINX_PORT` | Port d'écoute Nginx | `8080` |
-| `FLASK_SECRET_KEY` | Clé secrète Flask (sessions) | — |
+| `FLASK_SECRET_KEY` | Clé secrète Flask (sessions) — **obligatoire**, le container refuse de démarrer si absente | — |
 | `SMTP_HOST` | Serveur SMTP | — |
 | `SMTP_PORT` | Port SMTP | `587` |
 | `SMTP_USER` | Utilisateur SMTP | — |
@@ -241,6 +241,18 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `ADMIN_EMAIL` | Email de l'administrateur initial | — |
 | `ADMIN_PASSWORD` | Mot de passe de l'administrateur initial | — |
 | `TZ` | Fuseau horaire | `Europe/Paris` |
+
+> **Secrets obligatoires avant un déploiement en production** — ne jamais laisser les valeurs d'exemple :
+> ```bash
+> # Générer FLASK_SECRET_KEY
+> python3 -c "import secrets; print(secrets.token_hex(32))"
+> ```
+> Copier la valeur générée dans `.env` :
+> ```
+> FLASK_SECRET_KEY=<valeur générée>
+> POSTGRES_PASSWORD=<mot de passe fort>
+> ADMIN_PASSWORD=<mot de passe fort>
+> ```
 
 ---
 
