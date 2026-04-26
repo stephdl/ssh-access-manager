@@ -150,6 +150,11 @@ def scan_server(server: dict) -> dict:
                     (existing_key["id"], server_id),
                 )
                 result["new"] += 1
+            elif auth["status"] in ("REVOKED", "EXPIRED"):
+                # Scenario 5 — revoked/expired key reappeared on the server
+                info = actions.handle_reappeared_key(existing_key["id"], server_id, hostname)
+                result["anomalies"].append(info)
+                result["new"] += 1
             else:
                 result["known"] += 1
 
@@ -198,6 +203,7 @@ def run_scan(hostname: str | None = None) -> list[dict]:
     if all_anomalies:
         unknowns = [a for a in all_anomalies if a["type"] == "unknown"]
         disappeared = [a for a in all_anomalies if a["type"] == "disappeared"]
+        reappeared = [a for a in all_anomalies if a["type"] == "reappeared"]
         body_lines = []
         if unknowns:
             body_lines.append(f"=== Cles inconnues ({len(unknowns)}) ===")
@@ -211,6 +217,12 @@ def run_scan(hostname: str | None = None) -> list[dict]:
             body_lines.append(f"=== Revocations hors systeme ({len(disappeared)}) ===")
             for a in disappeared:
                 body_lines.append(f"  {a['hostname']} — {a['fingerprint']} → REVOKED automatiquement")
+        if reappeared:
+            if body_lines:
+                body_lines.append("")
+            body_lines.append(f"=== Cles revoquees reapparues ({len(reappeared)}) ===")
+            for a in reappeared:
+                body_lines.append(f"  {a['hostname']} — {a['fingerprint']} → PENDING_REVIEW (etait REVOKED/EXPIRED)")
         alerts.send_alert(
             "CRITICAL",
             f"[ssh-access-manager] Scan — {len(all_anomalies)} anomalie(s) detectee(s)",

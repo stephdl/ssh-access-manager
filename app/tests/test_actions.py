@@ -167,6 +167,39 @@ def test_actions_handle_unknown_key_scenario3_returns_info_dict(sample_key):
 
 
 # ---------------------------------------------------------------------------
+# handle_reappeared_key — scenario 5 (cle revoquee/expiree reapparue)
+# ---------------------------------------------------------------------------
+
+def test_actions_handle_reappeared_key_scenario5_sets_pending_review():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"fingerprint": "SHA256:abc"}
+        actions.handle_reappeared_key(KEY_ID, SERVER_ID, "server-test-01")
+        update_call = mock_db.execute.call_args_list[0]
+        assert "PENDING_REVIEW" in update_call[0][0]
+        assert "REVOKED" in update_call[0][0]
+        assert "EXPIRED" in update_call[0][0]
+
+
+def test_actions_handle_reappeared_key_scenario5_logs_anomaly_detected():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"fingerprint": "SHA256:abc"}
+        actions.handle_reappeared_key(KEY_ID, SERVER_ID, "server-test-01")
+        audit_call = mock_db.execute.call_args_list[1]
+        assert "ANOMALY_DETECTED" in audit_call[0][0]
+        params_json = audit_call[0][1][2]
+        assert "revoked_key_reappeared" in params_json
+
+
+def test_actions_handle_reappeared_key_scenario5_returns_info_dict():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"fingerprint": "SHA256:testfp"}
+        info = actions.handle_reappeared_key(KEY_ID, SERVER_ID, "server-test-01")
+        assert info["type"] == "reappeared"
+        assert info["fingerprint"] == "SHA256:testfp"
+        assert info["hostname"] == "server-test-01"
+
+
+# ---------------------------------------------------------------------------
 # warn_expiring_key — anti-spam EXPIRY_WARNING 24h
 # ---------------------------------------------------------------------------
 

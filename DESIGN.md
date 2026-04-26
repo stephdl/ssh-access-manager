@@ -369,11 +369,11 @@ que soit la voie d'accès.
 
 ---
 
-## 8. Les 4 scénarios de révocation
+## 8. Les 5 scénarios de révocation / détection
 
-Le modèle de données distingue explicitement quatre scénarios de révocation, chacun
-traçable par les colonnes `revoked_by`, `revoked_automatically` et le type d'entrée
-dans `audit_log`.
+Le modèle de données distingue explicitement cinq scénarios de révocation et détection,
+chacun traçable par les colonnes `revoked_by`, `revoked_automatically` et le type
+d'entrée dans `audit_log`.
 
 ### Scénario 1 — Révocation manuelle via le système
 
@@ -446,6 +446,28 @@ expire.expire_keys()
 **Colonnes discriminantes** : `status = 'EXPIRED'`, `revoked_automatically = true`.
 Le niveau d'alerte est INFO car l'expiration était attendue et planifiée.
 
+### Scénario 5 — Clé révoquée/expirée réapparue
+
+**Déclencheur** : le scan détecte une clé présente sur le serveur dont le statut
+en base est `REVOKED` ou `EXPIRED` — typiquement un `ssh-copy-id` après révocation.
+
+```
+collect.scan_server()
+  → clé présente dans ssh_keys avec key_authorizations.status IN ('REVOKED','EXPIRED')
+  → actions.handle_reappeared_key(key_id, server_id, hostname)
+  → UPDATE key_authorizations SET status='PENDING_REVIEW', revoked_at=NULL, ...
+  → INSERT audit_log('ANOMALY_DETECTED', reason='revoked_key_reappeared')
+  → alerts.send_alert('CRITICAL', ...)  # inclus dans l'email groupé du scan
+```
+
+**Pourquoi PENDING_REVIEW et non ACTIVE** : l'administrateur doit décider si la
+réapparition est intentionnelle (re-déploiement légitime) ou malveillante (tentative
+de contournement d'une révocation). Le niveau CRITICAL garantit que la situation
+est traitée.
+
+**Différence avec scénario 3** : la clé est déjà connue en base (`ssh_keys` existe).
+Le scénario 3 concerne les clés totalement inconnues.
+
 ### Tableau comparatif
 
 | Scénario | `revoked_by` | `revoked_automatically` | `status` | `audit_log.action` | Alerte |
@@ -454,6 +476,7 @@ Le niveau d'alerte est INFO car l'expiration était attendue et planifiée.
 | 2 — Hors système | `NULL` | `true` | `REVOKED` | `ANOMALY_DETECTED` | CRITICAL |
 | 3 — Clé inconnue | — | — | `PENDING_REVIEW` | `ANOMALY_DETECTED` | CRITICAL |
 | 4 — Expiration | `NULL` | `true` | `EXPIRED` | `KEY_EXPIRED` | INFO |
+| 5 — Réapparue | — | — | `PENDING_REVIEW` | `ANOMALY_DETECTED` | CRITICAL |
 
 ---
 
