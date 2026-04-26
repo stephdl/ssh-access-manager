@@ -68,26 +68,23 @@ La langue est détectée automatiquement depuis le navigateur, avec fallback sur
 
 ### 1. Provisionner l'hôte distant
 
-Sur chaque serveur à auditer, exécuter `provision-host.sh` avec la clé publique du collecteur :
+Sur chaque serveur à auditer, depuis la machine hébergeant le container :
 
 ```bash
-bash provision-host.sh "ssh-ed25519 AAAA... ssh-access-manager@container"
+ssh root@<ip-du-serveur> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)'" \
+    < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 ```
+
+Ce script est **idempotent** : il crée l'utilisateur `audit-collector` (réutilise s'il existe), ajoute la clé publique dans `authorized_keys` si elle est absente, et écrase `/etc/sudoers.d/audit-collector` avec les règles courantes.
 
 Ce script est **idempotent** : il crée l'utilisateur `audit-collector` (réutilise s'il existe), ajoute la clé publique dans `authorized_keys` si elle est absente, et écrase `/etc/sudoers.d/audit-collector` avec les règles courantes.
 
 ### Mettre à jour un hôte déjà provisionné
 
-Après une mise à jour de `provision-host.sh` (ex. changement des règles sudoers), relancer le script sur chaque hôte :
+Après une mise à jour de `provision-host.sh` (ex. changement des règles sudoers), relancer la même commande sur chaque hôte :
 
 ```bash
-# Récupérer la clé publique depuis le container
-PUBKEY=$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)
-
-# Relancer provision-host.sh sur le serveur distant
-# Note : guillemets simples autour de ${PUBKEY} pour que SSH transmette
-# la clé comme argument unique (la clé contient des espaces)
-ssh root@<ip-du-serveur> "sudo bash -s '${PUBKEY}'" \
+ssh root@<ip-du-serveur> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)'" \
     < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 ```
 
