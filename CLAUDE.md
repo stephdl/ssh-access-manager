@@ -665,6 +665,7 @@ ui/tests/
     Settings.spec.js      ← chargement, sauvegarde, validation, erreurs (7 tests)
     DeployKeyForm.spec.js ← formulaire déploiement clé SSH (16 tests)
     UserLockForm.spec.js  ← verrouillage/déverrouillage compte Unix (10 tests)
+    Anomalies.spec.js     ← filtres recherche, badges compteurs, no_results (13 tests)
 
 ### Ce qui n'est PAS testé unitairement
 
@@ -860,7 +861,7 @@ ui/src/views/
     ServerDetail.vue    ← détail serveur + clés + actions
                           + boutons désactiver/réactiver/supprimer (issue #89)
                           + bandeau rouge si serveur désactivé (issue #91)
-    Anomalies.vue       ← toutes anomalies actives
+    Anomalies.vue       ← toutes anomalies actives + barre de recherche (issue #191)
     AccessRequests.vue  ← déploiement de clé SSH (DeployKeyForm) + verrouillage compte Unix (UserLockForm)
     Audit.vue           ← historique filtrable
     Admins.vue          ← gestion administrateurs

@@ -250,7 +250,9 @@
     "btn_revoke_confirm": "Révoquer",
     "load_error": "Impossible de charger les clés : {error}",
     "key_validated": "Clé validée.",
-    "key_revoked": "Clé révoquée."
+    "key_revoked": "Clé révoquée.",
+    "filter_placeholder": "Rechercher fingerprint, type, serveur…",
+    "no_results": "Aucune anomalie correspondante."
   },
   "settings": {
     "title": "Paramètres",
