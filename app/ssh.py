@@ -160,7 +160,7 @@ if [ -z "$USER" ]; then
     echo "Usage: sam-unlock-user <username>" >&2
     exit 1
 fi
-usermod -s /bin/bash "$USER"
+usermod -U -s /bin/bash "$USER"
 """
 
 
@@ -172,7 +172,14 @@ def _connect(ip: str) -> paramiko.SSHClient:
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.RejectPolicy())
     client.load_host_keys(KNOWN_HOSTS)
-    client.connect(hostname=ip, username=SSH_USER, key_filename=COLLECTOR_KEY, timeout=15)
+    client.connect(
+        hostname=ip,
+        username=SSH_USER,
+        key_filename=COLLECTOR_KEY,
+        look_for_keys=False,
+        allow_agent=False,
+        timeout=15,
+    )
     return client
 
 
@@ -185,7 +192,7 @@ def _run(client: paramiko.SSHClient, cmd: str) -> tuple[str, str, int]:
 
 
 def _remote_sha256(client: paramiko.SSHClient, remote_path: str) -> str | None:
-    out, _, rc = _run(client, f"sha256sum {remote_path} 2>/dev/null")
+    out, _, rc = _run(client, f"sha256sum '{remote_path}' 2>/dev/null")
     if rc != 0 or not out.strip():
         return None
     return out.split()[0]

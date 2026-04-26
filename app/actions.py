@@ -99,6 +99,11 @@ def revoke_key(
     tous les utilisateurs Unix (comportement historique).
     """
     _check_fingerprint(fingerprint)
+    if unix_user and not _UNIX_USER_RE.match(unix_user):
+        raise ValueError(
+            f"Nom d'utilisateur Unix invalide : '{unix_user}' "
+            "(minuscules, chiffres, _ et - uniquement, max 32 caractères)"
+        )
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
         raise ValueError(f"Key not found: {fingerprint}")
@@ -406,7 +411,7 @@ def grant_access(
         """
         INSERT INTO key_authorizations (key_id, server_id, authorized_by, status, expires_at)
         VALUES (%s, %s, %s, 'ACTIVE', %s)
-        ON CONFLICT (key_id, server_id) DO UPDATE SET
+        ON CONFLICT (key_id, server_id, unix_user) DO UPDATE SET
             status = 'ACTIVE',
             authorized_by = EXCLUDED.authorized_by,
             authorized_at = now(),
@@ -619,6 +624,18 @@ def revoke_request(request_id: str, admin_id: str) -> None:
     db.execute(
         "UPDATE access_requests SET status = 'EXPIRED' WHERE id = %s",
         (request_id,),
+    )
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, target_key, target_server, details)
+        VALUES ('KEY_REVOKED', %s, %s, %s, %s::jsonb)
+        """,
+        (
+            admin_id,
+            req["key_id"],
+            req["server_id"],
+            json.dumps({"request_id": request_id, "reason": "request_revoked"}),
+        ),
     )
 
 

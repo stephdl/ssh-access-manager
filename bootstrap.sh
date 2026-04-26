@@ -2,6 +2,31 @@
 set -e
 
 # ---------------------------------------------------------------------------
+# Validation des secrets critiques — refus de démarrage si valeurs par défaut
+# ---------------------------------------------------------------------------
+_validate_secrets() {
+    local errors=0
+    if [ "${FLASK_SECRET_KEY:-changeme}" = "changeme" ]; then
+        echo "[bootstrap] ERREUR : FLASK_SECRET_KEY non définie ou égale à 'changeme'." >&2
+        echo "[bootstrap]   Générez une valeur forte : openssl rand -hex 32" >&2
+        errors=1
+    fi
+    if [ "${POSTGRES_PASSWORD:-changeme}" = "changeme" ]; then
+        echo "[bootstrap] ERREUR : POSTGRES_PASSWORD non définie ou égale à 'changeme'." >&2
+        errors=1
+    fi
+    if [ "${ADMIN_PASSWORD:-changeme}" = "changeme" ]; then
+        echo "[bootstrap] ERREUR : ADMIN_PASSWORD non définie ou égale à 'changeme'." >&2
+        errors=1
+    fi
+    if [ "$errors" -ne 0 ]; then
+        echo "[bootstrap] Arrêt — corrigez les variables d'environnement avant de démarrer." >&2
+        exit 1
+    fi
+}
+_validate_secrets
+
+# ---------------------------------------------------------------------------
 # Génération nginx.conf depuis template + ENV
 # ---------------------------------------------------------------------------
 generate_nginx_conf() {
@@ -59,7 +84,7 @@ if [ ! -f /data/pg/PG_VERSION ]; then
     # 4. Créer known_hosts vide
     touch /data/keys/known_hosts
     chown nobody:nobody /data/keys/known_hosts
-    chmod 644 /data/keys/known_hosts
+    chmod 600 /data/keys/known_hosts
 
     # 5. Initialiser le cluster PostgreSQL
     su -s /bin/sh postgres -c "initdb -D /data/pg --encoding=UTF8 --locale=C"
@@ -67,15 +92,51 @@ if [ ! -f /data/pg/PG_VERSION ]; then
     # 6. Démarrer PostgreSQL temporairement (socket locale uniquement)
     su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' start -w"
 
-    # 7. Créer la base et l'utilisateur depuis ENV
-    # CREATE DATABASE ne peut pas s'exécuter dans une transaction : deux appels séparés
-    su -s /bin/sh postgres -c "psql -h /tmp -c \"CREATE USER ${POSTGRES_USER:-ssh_manager} WITH PASSWORD '${POSTGRES_PASSWORD:-changeme}';\""
-    su -s /bin/sh postgres -c "psql -h /tmp -c \"CREATE DATABASE ${POSTGRES_DB:-ssh_manager} OWNER ${POSTGRES_USER:-ssh_manager};\""
+    # 7. Créer la base et l'utilisateur depuis ENV via Python (évite l'injection shell)
+    # CREATE DATABASE ne peut pas s'exécuter dans une transaction : autocommit requis
+    python3 << 'PYEOF'
+import os
+import psycopg2
+from psycopg2 import sql as pgsql
 
-    # 8. Appliquer le schéma SQL
-    su -s /bin/sh postgres -c \
-        "psql -h /tmp -U ${POSTGRES_USER:-ssh_manager} -d ${POSTGRES_DB:-ssh_manager} \
-         -f /app/sql/schema.sql"
+pg_user = os.environ.get("POSTGRES_USER", "ssh_manager")
+pg_password = os.environ.get("POSTGRES_PASSWORD", "changeme")
+pg_db = os.environ.get("POSTGRES_DB", "ssh_manager")
+
+conn = psycopg2.connect(host="/tmp", user="postgres")
+conn.autocommit = True
+cur = conn.cursor()
+cur.execute(
+    pgsql.SQL("CREATE USER {} WITH PASSWORD %s").format(pgsql.Identifier(pg_user)),
+    (pg_password,),
+)
+cur.execute(
+    pgsql.SQL("CREATE DATABASE {} OWNER {}").format(
+        pgsql.Identifier(pg_db), pgsql.Identifier(pg_user)
+    )
+)
+conn.close()
+print("[bootstrap] Utilisateur et base de données créés.")
+PYEOF
+
+    # 8. Appliquer le schéma SQL via Python (évite l'injection shell des ENV vars)
+    python3 << 'PYEOF'
+import os
+import psycopg2
+
+conn = psycopg2.connect(
+    host="/tmp",
+    dbname=os.environ.get("POSTGRES_DB", "ssh_manager"),
+    user=os.environ.get("POSTGRES_USER", "ssh_manager"),
+    password=os.environ.get("POSTGRES_PASSWORD", "changeme"),
+)
+conn.autocommit = True
+cur = conn.cursor()
+with open("/app/sql/schema.sql", "r") as f:
+    cur.execute(f.read())
+conn.close()
+print("[bootstrap] Schéma SQL appliqué.")
+PYEOF
 
     # 9. Insérer l'administrateur initial depuis ENV
     # Utilise Python+psycopg2 pour éviter l'interpolation shell du hash ($...)

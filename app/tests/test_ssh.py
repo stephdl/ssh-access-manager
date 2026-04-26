@@ -74,6 +74,22 @@ def test_ssh_connect_never_uses_auto_add_policy():
             assert not isinstance(c[0][0], type), "AutoAddPolicy should never be used"
 
 
+def test_ssh_connect_disables_agent_and_key_lookup():
+    """_connect doit passer look_for_keys=False et allow_agent=False pour éviter
+    l'utilisation d'autres clés du système."""
+    with patch("ssh.paramiko.SSHClient") as mock_cls:
+        client_instance = MagicMock()
+        mock_cls.return_value = client_instance
+        client_instance.connect.side_effect = Exception("stop")
+        try:
+            ssh._connect("192.168.1.10")
+        except Exception:
+            pass
+        call_kwargs = client_instance.connect.call_args[1]
+        assert call_kwargs.get("look_for_keys") is False, "look_for_keys must be False"
+        assert call_kwargs.get("allow_agent") is False, "allow_agent must be False"
+
+
 # ---------------------------------------------------------------------------
 # ensure_scripts — déploie si hash différent
 # ---------------------------------------------------------------------------
@@ -403,6 +419,7 @@ def test_ssh_sam_unlock_user_is_bytes():
     assert b"#!/bin/sh" in ssh.SAM_UNLOCK_USER
     assert b"usermod" in ssh.SAM_UNLOCK_USER
     assert b"-s /bin/bash" in ssh.SAM_UNLOCK_USER
+    assert b"-U" in ssh.SAM_UNLOCK_USER, "sam-unlock-user doit appeler usermod -U pour déverrouiller le mot de passe"
 
 
 def test_ssh_lock_user_on_server_calls_sam_lock_user(sample_server):

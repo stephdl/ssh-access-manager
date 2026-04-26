@@ -5,7 +5,7 @@ Importe actions.py pour la logique metier — jamais de duplication.
 """
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 from flask import Flask, g, jsonify, request, session
@@ -16,12 +16,20 @@ import collect as collect_mod
 import db
 
 app = Flask(__name__)
-_flask_secret = os.environ.get("FLASK_SECRET_KEY")
-if not _flask_secret:
-    import warnings
-    warnings.warn("FLASK_SECRET_KEY not set — sessions are insecure", RuntimeWarning, stacklevel=1)
-    _flask_secret = "changeme"
+
+_flask_secret = os.environ.get("FLASK_SECRET_KEY", "")
+if not _flask_secret or _flask_secret == "changeme":
+    raise RuntimeError(
+        "FLASK_SECRET_KEY must be set to a strong random value "
+        "(e.g. openssl rand -hex 32). Refusing to start with insecure default."
+    )
 app.secret_key = _flask_secret
+
+# Session security
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +74,7 @@ def auth_login():
     if not check_password_hash(admin["password_hash"], password):
         return jsonify({"error": "Identifiants invalides"}), 401
     session.clear()
+    session.permanent = True
     session["admin_id"] = str(admin["id"])
     session["admin_username"] = admin["username"]
     return jsonify({"username": admin["username"]}), 200
@@ -559,6 +568,8 @@ def add_admin():
 @app.route("/api/admins/<username>/password", methods=["PUT"])
 @require_auth
 def change_admin_password(username):
+    if username != g.admin_username:
+        return jsonify({"error": "Vous ne pouvez changer que votre propre mot de passe"}), 403
     data = request.get_json(force=True) or {}
     password = data.get("password", "").strip()
     if not password:
@@ -721,6 +732,4 @@ def update_config():
 
 
 if __name__ == "__main__":
-    if not os.environ.get("FLASK_SECRET_KEY"):
-        raise RuntimeError("FLASK_SECRET_KEY environment variable is required")
     app.run(host="127.0.0.1", port=5000)

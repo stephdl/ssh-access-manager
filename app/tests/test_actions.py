@@ -395,6 +395,20 @@ def test_actions_revoke_request_calls_sam_revoke():
         )
 
 
+def test_actions_revoke_request_logs_audit():
+    req = {"key_id": KEY_ID, "server_id": SERVER_ID}
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            req,
+            {"fingerprint": "SHA256:abc"},
+            {"hostname": "server-test-01", "ip_address": "192.168.1.10"},
+        ]
+        actions.revoke_request(REQUEST_ID, ADMIN_ID)
+        executed_sqls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("KEY_REVOKED" in sql for sql in executed_sqls), \
+            "revoke_request must insert KEY_REVOKED into audit_log"
+
+
 # ---------------------------------------------------------------------------
 # add_server / disable_server
 # ---------------------------------------------------------------------------
@@ -688,6 +702,12 @@ def test_actions_validate_key_rejects_invalid_fingerprint_format():
 def test_actions_revoke_key_rejects_invalid_fingerprint_format():
     with pytest.raises(ValueError, match="Format de fingerprint invalide"):
         actions.revoke_key("INVALID:abc", ADMIN_ID, "test")
+
+
+def test_actions_revoke_key_rejects_invalid_unix_user():
+    """revoke_key doit valider unix_user si fourni (sécurité — évite la corruption de BDD)."""
+    with pytest.raises(ValueError, match="Nom d'utilisateur Unix invalide"):
+        actions.revoke_key("SHA256:abc123", ADMIN_ID, "test", hostname="server", unix_user="Bad User!")
 
 
 def test_actions_assign_key_rejects_invalid_fingerprint_format():

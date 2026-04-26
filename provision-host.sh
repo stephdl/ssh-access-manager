@@ -12,9 +12,9 @@ if [ -z "${COLLECTOR_PUBKEY}" ]; then
     exit 1
 fi
 
-# 1. Créer l'utilisateur système (sans shell interactif)
+# 1. Créer l'utilisateur système sans shell interactif
 if ! id "${COLLECTOR_USER}" >/dev/null 2>&1; then
-    useradd -r -m -s /bin/bash "${COLLECTOR_USER}"
+    useradd -r -m -s /usr/sbin/nologin "${COLLECTOR_USER}"
     echo "[provision] Utilisateur ${COLLECTOR_USER} créé."
 else
     echo "[provision] Utilisateur ${COLLECTOR_USER} existe déjà."
@@ -52,6 +52,12 @@ printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g 
 printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-unlock-user /usr/local/bin/sam-unlock-user\n' >> "${SUDOERS_FILE}"
 
 chmod 440 "${SUDOERS_FILE}"
+# Valider la syntaxe sudoers — supprimer le fichier en cas d'erreur
+if ! visudo -c -f "${SUDOERS_FILE}" >/dev/null 2>&1; then
+    rm -f "${SUDOERS_FILE}"
+    echo "[provision] ERREUR : fichier sudoers invalide — supprimé." >&2
+    exit 1
+fi
 echo "[provision] Sudoers configuré dans ${SUDOERS_FILE}."
 
 echo "[provision] Hôte prêt pour la collecte SSH par ${COLLECTOR_USER}."

@@ -649,6 +649,25 @@ def test_web_list_admins_does_not_expose_password_hash(auth_client):
 
 
 # ---------------------------------------------------------------------------
+# PUT /api/admins/<username>/password — restreint au self-change
+# ---------------------------------------------------------------------------
+
+def test_web_change_password_self_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/admins/admin/password", json={"password": "NewP@ss1"})
+        assert resp.status_code == 200
+
+
+def test_web_change_password_other_admin_returns_403(auth_client):
+    """Un admin ne peut pas changer le mot de passe d'un autre admin."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/admins/other_admin/password", json={"password": "NewP@ss1"})
+        assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
 # lock-user / unlock-user
 # ---------------------------------------------------------------------------
 
