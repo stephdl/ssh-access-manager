@@ -311,11 +311,12 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 def ensure_scripts(hostname, server_id, ip):
-    for script_path, content in SCRIPTS.items():
-        stdout, _ = _exec(client, f"sha256sum {script_path}")
-        remote_hash = stdout.split()[0] if stdout else ""
+    for content, remote_path in ((SAM_COLLECT, SAM_COLLECT_PATH), (SAM_REVOKE, SAM_REVOKE_PATH)):
+        remote_hash = _remote_sha256(client, remote_path)
         if remote_hash != _sha256(content):
-            _sftp_deploy(client, content, script_path)
+            tmp_path = f"/home/{SSH_USER}/{os.path.basename(remote_path)}"
+            sftp.putfo(io.BytesIO(content), tmp_path)
+            _run(client, f"sudo /usr/bin/install -m 755 -o root -g root {tmp_path} {remote_path}")
             db.execute("INSERT INTO audit_log ... 'SCRIPT_DEPLOYED' ...")
 ```
 
@@ -329,17 +330,18 @@ def ensure_scripts(hostname, server_id, ip):
 `authorized_keys` en cas d'interruption :
 
 ```sh
-TMPFILE=$(mktemp)
-grep -v "$TARGET_FP_HEX" "$FILE" > "$TMPFILE"
-if ! diff -q "$TMPFILE" "$FILE" > /dev/null 2>&1; then
-    chown $(stat -c "%U:%G" "$FILE") "$TMPFILE"
-    mv "$TMPFILE" "$FILE"
+tmp=$(mktemp /tmp/sam-XXXXXX)
+while IFS= read -r line || [ -n "$line" ]; do
+    fp=$(printf '%s\n' "$line" | ssh-keygen -l -E sha256 -f /dev/stdin 2>/dev/null | awk '{print $2}')
+    [ "$fp" = "$TARGET_FP" ] && changed=1 || printf '%s\n' "$line" >> "$tmp"
+done < "$keyfile"
+if [ "$changed" -eq 1 ]; then
+    chown "$(stat -c '%u:%g' "$(dirname "$keyfile")")" "$tmp"
+    mv "$tmp" "$keyfile"
 fi
-rm -f "$TMPFILE"
 ```
 
-Le `mktemp` + `mv` est atomique au niveau du système de fichiers. Le `chown`
-préserve le propriétaire original du fichier avant le remplacement.
+Le `mktemp` + `mv` est atomique au niveau du système de fichiers. La comparaison se fait par fingerprint SHA256 via `ssh-keygen -l -E sha256` (pas par regex sur la clé brute). Le `chown` préserve le propriétaire du répertoire parent avant le remplacement.
 
 ---
 
@@ -831,7 +833,7 @@ coûteuse en temps).
 | Module | Tests | Couverture |
 |---|---|---|
 | `actions.py` | 60+ | ≥ 80 % (imposé CI) |
-| `test_ssh.py` | 15 | RejectPolicy, ensure_scripts, revoke, SAM_REVOKE content |
+| `test_ssh.py` | 12 | RejectPolicy, ensure_scripts (install), revoke, SAM_REVOKE content, staging path |
 | `test_web.py` | 16 | Toutes les routes critiques, auth 401/200 |
 | `test_manage.py` | 25 | Toutes les commandes CLI |
 | `test_collect.py` | 15 | 4 scénarios détection, RSA parsing |

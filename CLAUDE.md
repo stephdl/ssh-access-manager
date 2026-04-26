@@ -865,13 +865,18 @@ audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /ho
 
 ## provision-host.sh
 
-Usage : bash provision-host.sh "<contenu collector_key.pub>"
+Invocation depuis la machine hébergeant le container (<user> = root ou admin avec sudo ALL) :
+ssh <user>@<ip> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)'" \
+    < <(podman exec ssh-access-manager cat /app/provision-host.sh)
+
 Actions :
 1. useradd -r -m -s /bin/bash audit-collector (réutilise si existe déjà)
 2. Créer /home/audit-collector/.ssh (chmod 700)
 3. Déployer clé publique dans authorized_keys en mode append (>>)
    chown audit-collector:audit-collector (fix issue #86 — pas root:root)
 4. Créer /etc/sudoers.d/audit-collector (chmod 440)
+   Utilise printf ligne par ligne — résistant au CRLF introduit par sudo PTY (fix issue #159)
+   Règles install au lieu de mv+chown+chmod — évite le ":" dans les args sudoers (fix issue #161)
 
 ## Nginx
 
