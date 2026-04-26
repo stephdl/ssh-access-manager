@@ -214,6 +214,31 @@ def test_web_grant_access_returns_400_without_expiry(auth_client):
 
 
 # ---------------------------------------------------------------------------
+# POST /api/keys/set-expiry — datetime-local format (sans secondes)
+# ---------------------------------------------------------------------------
+
+def test_web_set_expiry_accepts_datetime_local_format(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            f"/api/keys/set-expiry/{FINGERPRINT}",
+            json={"date": "2099-12-31T23:59"},
+        )
+        assert resp.status_code == 200
+        mock_actions.set_key_expiry.assert_called_once()
+
+
+def test_web_set_expiry_rejects_no_date_or_hours(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            f"/api/keys/set-expiry/{FINGERPRINT}",
+            json={},
+        )
+        assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
 # GET /api/servers
 # ---------------------------------------------------------------------------
 
