@@ -381,7 +381,7 @@ Pour RSA, key_size_bits est calculé en parsant le format wire SSH
 
 ## Logique métier — scripts distants
 
-Deux scripts maintenus sur chaque hôte distant.
+Trois scripts maintenus sur chaque hôte distant.
 Versionnés comme constantes Python (bytes) dans ssh.py.
 Déployés via SFTP si absents ou si hash SHA256 différent.
 Tracés dans audit_log avec action SCRIPT_DEPLOYED.
@@ -395,6 +395,13 @@ Révoque une clé par fingerprint SHA256 hex.
 Réécriture atomique via mktemp + mv.
 Préserve l'ownership du fichier authorized_keys après le mv
 (issue #104 — le tmp créé par root changeait le owner).
+
+SAM_ADD — /usr/local/bin/sam-add <unix_user> <pubkey> (root, 755)
+Crée l'utilisateur Unix s'il n'existe pas (useradd -m -s /bin/bash).
+Crée ~/.ssh/ si absent (chmod 700, chown user:user).
+Ajoute la clé publique dans authorized_keys si absente (idempotent).
+Fixe les permissions (chmod 600, chown user:user).
+Utilisé par deploy_key() dans actions.py (issue #164).
 
 ## Logique métier — known_hosts
 
@@ -507,6 +514,8 @@ Validation robustesse mot de passe (issue #62) :
 - approve_request(request_id, admin_id, db)
 - reject_request(request_id, admin_id, db)
 - revoke_request(request_id, admin_id, db)
+- deploy_key(public_key, unix_user, hostname, expires_at, justification, admin_id)
+  ↳ parse + fingerprint, INSERT ssh_keys, sam-add sur serveur, key_authorization ACTIVE (issue #164)
 
 ### Serveurs
 - add_server(hostname, ip, env, os_family, db)
@@ -770,6 +779,7 @@ GET  /api/access
 GET  /api/access/<id>
 POST /api/access/grant
 POST /api/access/request
+POST /api/access/deploy
 POST /api/access/<id>/approve
 POST /api/access/<id>/reject
 POST /api/access/<id>/revoke
@@ -856,12 +866,17 @@ Internationalisation (issue #98) :
 # /etc/sudoers.d/audit-collector (chmod 440)
 audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-collect
 audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke
+audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-add
 audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-collect /usr/local/bin/sam-collect
 audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-revoke /usr/local/bin/sam-revoke
+audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-add /usr/local/bin/sam-add
 
 # Note : install remplace mv+chmod+chown (3 appels) — évite le ":" dans
 # les restrictions d'arguments sudoers qui cause des erreurs visudo sur
 # certaines versions (RHEL/CentOS).
+# sam-add sans restriction d'arguments : la pubkey et le username sont variables
+# (impossible à restreindre dans sudoers). La sécurité repose sur le contenu
+# du script, déployé et vérifié par hash SHA256 par le container SAM.
 
 ## provision-host.sh
 

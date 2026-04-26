@@ -287,5 +287,24 @@
     "save": "Salva",
     "saved": "Impostazioni salvate.",
     "scan_interval_hint": "Tra 1 e 24 ore. Il cron si attiva ogni 5 minuti ma salta l'esecuzione se l'intervallo non è trascorso."
+  },
+  "deployKey": {
+    "title": "Distribuire chiave SSH",
+    "unixUser": "Utente Unix",
+    "unixUserPlaceholder": "es: alice",
+    "publicKey": "Chiave pubblica",
+    "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
+    "server": "Server di destinazione",
+    "justification": "Giustificazione",
+    "justificationPlaceholder": "Motivo di accesso",
+    "submit": "Distribuire la chiave",
+    "submitting": "Distribuzione...",
+    "successTitle": "Chiave distribuita con successo",
+    "successFingerprint": "Impronta",
+    "successUser": "Utente Unix",
+    "successExpiry": "Scade il",
+    "unlimited": "Illimitato",
+    "errorMissingFields": "Tutti i campi sono obbligatori",
+    "newDeploy": "Nuovo deploy"
   }
 }

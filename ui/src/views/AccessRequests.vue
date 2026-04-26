@@ -96,6 +96,12 @@
         <h2>{{ $t('access.section_new') }}</h2>
         <AccessForm @submit="submitRequest" />
       </section>
+
+      <!-- Deploy SSH key section -->
+      <section class="card">
+        <h2>{{ $t('deployKey.title') }}</h2>
+        <DeployKeyForm />
+      </section>
     </template>
   </div>
 </template>
@@ -104,6 +110,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AccessForm from '../components/AccessForm.vue'
+import DeployKeyForm from '../components/DeployKeyForm.vue'
 
 const { t } = useI18n()
 

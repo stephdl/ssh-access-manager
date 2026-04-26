@@ -287,5 +287,24 @@
     "save": "Speichern",
     "saved": "Einstellungen gespeichert.",
     "scan_interval_hint": "Zwischen 1 und 24 Stunden. Der Cron wird alle 5 Minuten ausgelöst, überspringt aber die Ausführung, wenn das Intervall nicht abgelaufen ist."
+  },
+  "deployKey": {
+    "title": "SSH-Schlüssel bereitstellen",
+    "unixUser": "Unix-Benutzer",
+    "unixUserPlaceholder": "z.B. alice",
+    "publicKey": "Öffentlicher Schlüssel",
+    "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
+    "server": "Zielserver",
+    "justification": "Begründung",
+    "justificationPlaceholder": "Zugriffsgrund",
+    "submit": "Schlüssel bereitstellen",
+    "submitting": "Wird bereitgestellt...",
+    "successTitle": "Schlüssel erfolgreich bereitgestellt",
+    "successFingerprint": "Fingerabdruck",
+    "successUser": "Unix-Benutzer",
+    "successExpiry": "Läuft ab am",
+    "unlimited": "Unbegrenzt",
+    "errorMissingFields": "Alle Felder sind erforderlich",
+    "newDeploy": "Neue Bereitstellung"
   }
 }

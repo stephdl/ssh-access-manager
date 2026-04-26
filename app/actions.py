@@ -325,6 +325,101 @@ def grant_access(
     return {"key_id": key["id"], "server_id": server["id"], "expires_at": expires_at}
 
 
+def deploy_key(
+    public_key: str,
+    unix_user: str,
+    hostname: str,
+    expires_at,
+    justification: str,
+    admin_id: str,
+) -> dict:
+    """
+    Register public key in ssh_keys (if not exists), deploy via sam-add,
+    create key_authorization ACTIVE with optional expiry.
+    """
+    parts = public_key.strip().split()
+    if len(parts) < 2:
+        raise ValueError("Format de clé invalide")
+    key_type = parts[0]
+    key_b64 = parts[1]
+    comment = parts[2] if len(parts) > 2 else unix_user
+
+    valid_types = ("ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256")
+    if key_type not in valid_types:
+        raise ValueError(f"Type de clé non supporté: {key_type}")
+
+    import base64, hashlib
+    raw = base64.b64decode(key_b64)
+    digest = hashlib.sha256(raw).digest()
+    fingerprint = "SHA256:" + base64.b64encode(digest).decode().rstrip("=")
+
+    key_size_bits = None
+    if key_type == "ssh-rsa":
+        # parse wire format to get exact modulus bit length
+        import struct
+        data = base64.b64decode(key_b64)
+        pos = 0
+        while pos < len(data):
+            (length,) = struct.unpack(">I", data[pos:pos+4])
+            pos += 4
+            field = data[pos:pos+length]
+            pos += length
+        key_size_bits = int.from_bytes(field, "big").bit_length()
+
+    server = db.query_one(
+        "SELECT id, ip_address FROM servers WHERE hostname = %s AND is_active = true",
+        (hostname,),
+    )
+    if not server:
+        raise ValueError(f"Serveur introuvable ou inactif: {hostname}")
+
+    db.execute(
+        """
+        INSERT INTO ssh_keys (fingerprint, key_type, key_size_bits, public_key, comment, owner)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (fingerprint) DO UPDATE SET
+            last_seen = now(),
+            owner = COALESCE(ssh_keys.owner, EXCLUDED.owner)
+        """,
+        (fingerprint, key_type, key_size_bits, public_key.strip(), comment, unix_user),
+    )
+    key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
+
+    ssh.add_key_on_server(hostname, unix_user, public_key.strip(), server["ip_address"])
+
+    db.execute(
+        """
+        INSERT INTO key_authorizations (key_id, server_id, authorized_by, status, expires_at)
+        VALUES (%s, %s, %s, 'ACTIVE', %s)
+        ON CONFLICT (key_id, server_id) DO UPDATE SET
+            status = 'ACTIVE',
+            authorized_by = EXCLUDED.authorized_by,
+            authorized_at = now(),
+            expires_at = EXCLUDED.expires_at
+        """,
+        (key["id"], server["id"], admin_id, expires_at),
+    )
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, target_key, target_server, details)
+        VALUES ('KEY_ADDED', %s, %s, %s, %s::jsonb)
+        """,
+        (
+            admin_id,
+            key["id"],
+            server["id"],
+            json.dumps({"unix_user": unix_user, "fingerprint": fingerprint, "hostname": hostname}),
+        ),
+    )
+    return {
+        "fingerprint": fingerprint,
+        "key_type": key_type,
+        "unix_user": unix_user,
+        "hostname": hostname,
+        "expires_at": expires_at.isoformat() if expires_at else None,
+    }
+
+
 def approve_request(request_id: str, admin_id: str) -> None:
     """PENDING → APPROVED. Creates/updates the key_authorization."""
     req = db.query_one(

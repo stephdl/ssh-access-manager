@@ -406,3 +406,54 @@ def test_web_put_config_rejects_missing_field(auth_client):
         mock_db.query_one.return_value = {"id": "admin-id", "username": "admin"}
         resp = auth_client.put("/api/system/config", json={})
         assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# POST /api/access/deploy — deploy_key
+# ---------------------------------------------------------------------------
+
+def test_web_deploy_key_returns_201(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions.deploy_key") as mock_deploy:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin"}
+        mock_deploy.return_value = {
+            "fingerprint": "SHA256:test",
+            "key_type": "ssh-ed25519",
+            "unix_user": "alice",
+            "hostname": "server-01",
+            "expires_at": None,
+        }
+        resp = auth_client.post(
+            "/api/access/deploy",
+            json={
+                "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI test",
+                "unix_user": "alice",
+                "hostname": "server-01",
+                "justification": "Accès maintenance",
+            },
+        )
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["fingerprint"] == "SHA256:test"
+
+
+def test_web_deploy_key_returns_401_unauthenticated(client):
+    resp = client.post(
+        "/api/access/deploy",
+        json={
+            "public_key": "ssh-ed25519 AAAA test",
+            "unix_user": "alice",
+            "hostname": "server-01",
+            "justification": "Test",
+        },
+    )
+    assert resp.status_code == 401
+
+
+def test_web_deploy_key_returns_400_missing_fields(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin"}
+        resp = auth_client.post(
+            "/api/access/deploy",
+            json={"public_key": "ssh-ed25519 AAAA test"},
+        )
+        assert resp.status_code == 400

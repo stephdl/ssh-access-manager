@@ -532,3 +532,73 @@ def test_actions_delete_admin_raises_if_has_references():
         mock_db.query_one.side_effect = [{"id": ADMIN_ID}, {"1": 1}]
         with pytest.raises(ValueError, match="existing audit records"):
             actions.delete_admin("someuser")
+
+
+# ---------------------------------------------------------------------------
+# deploy_key
+# ---------------------------------------------------------------------------
+
+def test_actions_deploy_key_success(sample_server, sample_key):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"]},
+            {"id": sample_key["id"]},
+        ]
+        mock_db.execute.return_value = None
+
+        result = actions.deploy_key(
+            public_key=sample_key["public_key"],
+            unix_user="alice",
+            hostname=sample_server["hostname"],
+            expires_at=None,
+            justification="Test deploy",
+            admin_id=ADMIN_ID,
+        )
+
+        assert result["fingerprint"] == sample_key["fingerprint"]
+        assert result["unix_user"] == "alice"
+        assert result["hostname"] == sample_server["hostname"]
+        assert result["expires_at"] is None
+        mock_ssh.add_key_on_server.assert_called_once()
+
+
+def test_actions_deploy_key_invalid_key_type(sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {
+            "id": sample_server["id"], "ip_address": sample_server["ip_address"]
+        }
+        with pytest.raises(ValueError, match="Type de clé non supporté"):
+            actions.deploy_key(
+                public_key="ssh-dss AAAA test",
+                unix_user="alice",
+                hostname=sample_server["hostname"],
+                expires_at=None,
+                justification="Test",
+                admin_id=ADMIN_ID,
+            )
+
+
+def test_actions_deploy_key_server_not_found(sample_key):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(ValueError, match="Serveur introuvable"):
+            actions.deploy_key(
+                public_key=sample_key["public_key"],
+                unix_user="alice",
+                hostname="unknown-server",
+                expires_at=None,
+                justification="Test",
+                admin_id=ADMIN_ID,
+            )
+
+
+def test_actions_deploy_key_invalid_format():
+    with pytest.raises(ValueError, match="Format de clé invalide"):
+        actions.deploy_key(
+            public_key="notakey",
+            unix_user="alice",
+            hostname="server",
+            expires_at=None,
+            justification="Test",
+            admin_id=ADMIN_ID,
+        )

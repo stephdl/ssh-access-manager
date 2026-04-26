@@ -287,5 +287,24 @@
     "save": "Sauvegarder",
     "saved": "Paramètres sauvegardés.",
     "scan_interval_hint": "Entre 1 et 24 heures. Le cron se déclenche toutes les 5 minutes mais ignore l'exécution si l'intervalle n'est pas écoulé."
+  },
+  "deployKey": {
+    "title": "Déployer une clé SSH",
+    "unixUser": "Utilisateur Unix",
+    "unixUserPlaceholder": "ex: alice",
+    "publicKey": "Clé publique",
+    "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
+    "server": "Serveur cible",
+    "justification": "Justification",
+    "justificationPlaceholder": "Motif d'accès",
+    "submit": "Déployer la clé",
+    "submitting": "Déploiement...",
+    "successTitle": "Clé déployée avec succès",
+    "successFingerprint": "Empreinte",
+    "successUser": "Utilisateur Unix",
+    "successExpiry": "Expire le",
+    "unlimited": "Illimité",
+    "errorMissingFields": "Tous les champs sont requis",
+    "newDeploy": "Nouveau déploiement"
   }
 }
