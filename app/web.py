@@ -187,7 +187,7 @@ def list_keys():
     status = request.args.get("status")
     server = request.args.get("server")
     sql = """
-        SELECT sk.*, ka.status AS status, ka.server_id, ka.expires_at,
+        SELECT sk.*, ka.status AS status, ka.unix_user, ka.server_id, ka.expires_at,
                ka.revoked_automatically, ka.revoked_by, ka.revoked_at,
                ka.revocation_justification, s.hostname AS server_hostname
         FROM ssh_keys sk
@@ -246,10 +246,12 @@ def validate_key(fingerprint):
 def revoke_key(fingerprint):
     data = request.get_json(force=True) or {}
     reason = data.get("reason", "Manual revocation via API")
+    hostname = (data.get("hostname") or "").strip() or None
+    unix_user = (data.get("unix_user") or "").strip() or None
     if not actions._FP_RE.match(fingerprint):
         return jsonify({"error": f"Format de fingerprint invalide : {fingerprint}"}), 400
     try:
-        actions.revoke_key(fingerprint, g.admin_id, reason)
+        actions.revoke_key(fingerprint, g.admin_id, reason, hostname=hostname, unix_user=unix_user)
         return jsonify({"status": "revoked"})
     except ValueError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
@@ -435,23 +437,22 @@ def api_unlock_user():
 def list_deployed_users():
     rows = db.query(
         """
-        SELECT DISTINCT ON (sk.owner, s.hostname)
-               sk.owner AS unix_user, s.hostname, s.ip_address,
+        SELECT ka.unix_user, s.hostname, s.ip_address,
                ka.expires_at, sk.fingerprint,
                (
                    SELECT al.action
                    FROM audit_log al
-                   WHERE al.details->>'unix_user' = sk.owner
+                   WHERE al.details->>'unix_user' = ka.unix_user
                      AND al.target_server = s.id
                      AND al.action IN ('USER_LOCKED', 'USER_UNLOCKED')
                    ORDER BY al.performed_at DESC
                    LIMIT 1
                ) AS lock_status
-        FROM ssh_keys sk
-        JOIN key_authorizations ka ON ka.key_id = sk.id
+        FROM key_authorizations ka
+        JOIN ssh_keys sk ON sk.id = ka.key_id
         JOIN servers s ON ka.server_id = s.id
-        WHERE sk.owner IS NOT NULL AND ka.status = 'ACTIVE'
-        ORDER BY sk.owner, s.hostname
+        WHERE ka.unix_user != '' AND ka.status = 'ACTIVE'
+        ORDER BY ka.unix_user, s.hostname
         """
     )
     results = []

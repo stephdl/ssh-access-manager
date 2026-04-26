@@ -123,6 +123,10 @@
         <p class="fp-display">
           <code>{{ revokeTarget.fingerprint }}</code>
         </p>
+        <p v-if="revokeTarget.unix_user" class="revoke-user-info">
+          {{ $t('server_detail.revoke_user_label') }}
+          <strong>{{ revokeTarget.unix_user }}</strong>
+        </p>
         <label
           >{{ $t('server_detail.revoke_reason_label') }}
           <span class="required">{{ $t('common.required') }}</span></label
@@ -325,9 +329,10 @@ function openRevoke(key) {
 
 async function confirmRevoke() {
   const fp = revokeTarget.value.fingerprint
+  const unix_user = revokeTarget.value.unix_user || null
   await apiAction(
     `/api/keys/revoke/${efp(fp)}`,
-    { reason: revokeReason.value },
+    { reason: revokeReason.value, hostname, unix_user },
     'POST',
     t('server_detail.key_revoked')
   )
@@ -489,7 +494,12 @@ dd {
   word-break: break-all;
 }
 .fp-display {
-  margin: 0.5rem 0 1rem;
+  margin: 0.5rem 0 0.5rem;
+}
+.revoke-user-info {
+  font-size: 0.85rem;
+  color: #555;
+  margin: 0 0 0.75rem;
 }
 
 .empty {

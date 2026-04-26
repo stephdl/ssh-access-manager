@@ -124,15 +124,17 @@ COMMENT ON COLUMN ssh_keys.last_seen IS 'Dernier horodatage de détection lors d
 
 -- ---------------------------------------------------------------------------
 -- TABLE : key_authorizations
--- Association clé SSH ↔ serveur avec statut du cycle de vie.
--- Clé primaire composite (key_id, server_id) : une clé ne peut être
--- autorisée qu'une seule fois par serveur.
+-- Association clé SSH ↔ serveur ↔ utilisateur Unix avec statut du cycle de vie.
+-- Clé primaire composite (key_id, server_id, unix_user) : la même clé peut
+-- être déployée pour plusieurs utilisateurs Unix sur le même serveur.
 -- ---------------------------------------------------------------------------
 CREATE TABLE key_authorizations (
     -- Référence vers la clé SSH concernée
     key_id                   UUID NOT NULL REFERENCES ssh_keys(id),
     -- Référence vers le serveur concerné
     server_id                UUID NOT NULL REFERENCES servers(id),
+    -- Utilisateur Unix propriétaire de la clé sur ce serveur
+    unix_user                VARCHAR(100) NOT NULL DEFAULT '',
     -- Administrateur ayant validé l'autorisation (NULL si détection automatique)
     authorized_by            UUID REFERENCES administrators(id),
     -- Date de première autorisation ou détection
@@ -156,13 +158,14 @@ CREATE TABLE key_authorizations (
     revoked_automatically    BOOLEAN DEFAULT false,
     -- Justification de révocation ou d'anomalie
     revocation_justification TEXT,
-    -- Clé primaire composite : une clé par serveur
-    PRIMARY KEY (key_id, server_id)
+    -- Clé primaire composite : une clé par utilisateur Unix par serveur
+    PRIMARY KEY (key_id, server_id, unix_user)
 );
 
-COMMENT ON TABLE key_authorizations IS 'Association clé SSH↔serveur avec statut du cycle de vie';
+COMMENT ON TABLE key_authorizations IS 'Association clé SSH↔serveur↔unix_user avec statut du cycle de vie';
 COMMENT ON COLUMN key_authorizations.key_id IS 'FK vers ssh_keys — partie de la PK composite';
 COMMENT ON COLUMN key_authorizations.server_id IS 'FK vers servers — partie de la PK composite';
+COMMENT ON COLUMN key_authorizations.unix_user IS 'Utilisateur Unix sur le serveur — partie de la PK composite';
 COMMENT ON COLUMN key_authorizations.authorized_by IS 'FK vers administrators, NULL si détection automatique';
 COMMENT ON COLUMN key_authorizations.authorized_at IS 'Date de première autorisation ou détection';
 COMMENT ON COLUMN key_authorizations.expires_at IS 'Expiration programmée, NULL si permanente';
@@ -249,7 +252,9 @@ CREATE TABLE audit_log (
                       'ADMIN_ADDED',        -- nouvel administrateur créé
                       'ADMIN_DISABLED',     -- administrateur désactivé
                       'ADMIN_ENABLED',      -- administrateur réactivé
-                      'ADMIN_DELETED'       -- administrateur supprimé définitivement
+                      'ADMIN_DELETED',      -- administrateur supprimé définitivement
+                      'USER_LOCKED',        -- compte Unix verrouillé (SSH bloqué)
+                      'USER_UNLOCKED'       -- compte Unix déverrouillé
                   )),
     -- Administrateur ayant déclenché l'action (NULL si automatique)
     performed_by  UUID REFERENCES administrators(id),
@@ -265,7 +270,7 @@ CREATE TABLE audit_log (
 
 COMMENT ON TABLE audit_log IS 'Journal immuable de toutes les actions — jamais modifié ni supprimé';
 COMMENT ON COLUMN audit_log.id IS 'UUID généré automatiquement';
-COMMENT ON COLUMN audit_log.action IS 'Type d''action parmi 14 valeurs contrôlées';
+COMMENT ON COLUMN audit_log.action IS 'Type d''action parmi 18 valeurs contrôlées';
 COMMENT ON COLUMN audit_log.performed_by IS 'FK administrateur, NULL si action automatique (cron, expiration)';
 COMMENT ON COLUMN audit_log.target_key IS 'FK ssh_keys, NULL si action non liée à une clé';
 COMMENT ON COLUMN audit_log.target_server IS 'FK servers, NULL si action non liée à un serveur';

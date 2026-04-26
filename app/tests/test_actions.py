@@ -28,7 +28,7 @@ def _future(hours=24):
 def test_actions_validate_key_sets_active(sample_key, sample_server):
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"id": KEY_ID}
-        mock_db.query.return_value = [{"key_id": KEY_ID, "server_id": SERVER_ID}]
+        mock_db.query.return_value = [{"key_id": KEY_ID, "server_id": SERVER_ID, "unix_user": "alice"}]
         actions.validate_key(sample_key["fingerprint"], ADMIN_ID)
         update_call = mock_db.execute.call_args_list[0]
         assert "ACTIVE" in update_call[0][0]
@@ -92,6 +92,37 @@ def test_actions_revoke_key_raises_if_key_not_found(sample_key):
         mock_db.query_one.return_value = None
         with pytest.raises(ValueError, match="not found"):
             actions.revoke_key(sample_key["fingerprint"], ADMIN_ID, "reason")
+
+
+def test_actions_revoke_key_scoped_calls_sam_revoke_with_unix_user(sample_key):
+    """Revocation ciblée (hostname + unix_user) appelle revoke_on_server avec unix_user."""
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+    auth = {"status": "ACTIVE"}
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, server, auth]
+        actions.revoke_key(
+            sample_key["fingerprint"], ADMIN_ID, "test",
+            hostname="server-test-01", unix_user="alice",
+        )
+        mock_ssh.revoke_on_server.assert_called_once_with(
+            "server-test-01", sample_key["fingerprint"],
+            ip="192.168.1.10", unix_user="alice",
+        )
+
+
+def test_actions_revoke_key_scoped_sets_revoked_for_unix_user_only(sample_key):
+    """Revocation ciblée — l'UPDATE inclut unix_user dans le WHERE."""
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+    auth = {"status": "ACTIVE"}
+    with patch("actions.db") as mock_db, patch("actions.ssh"):
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, server, auth]
+        actions.revoke_key(
+            sample_key["fingerprint"], ADMIN_ID, "test",
+            hostname="server-test-01", unix_user="alice",
+        )
+        update_call = mock_db.execute.call_args_list[0]
+        assert "unix_user" in update_call[0][0]
+        assert "alice" in update_call[0][1]
 
 
 # ---------------------------------------------------------------------------
@@ -726,3 +757,109 @@ def test_actions_unlock_user_success():
 def test_actions_unlock_user_invalid_username():
     with pytest.raises(ValueError, match="Nom d'utilisateur Unix invalide"):
         actions.unlock_user("bad@user", "server-test-01", ADMIN_ID)
+
+
+# ---------------------------------------------------------------------------
+# unix_user dans key_authorizations
+# ---------------------------------------------------------------------------
+
+def test_actions_deploy_key_includes_unix_user_in_key_authorization(sample_server, sample_key):
+    """deploy_key insère unix_user dans key_authorizations."""
+    with patch("actions.db") as mock_db, patch("actions.ssh"):
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"]},
+            {"id": sample_key["id"]},
+        ]
+        actions.deploy_key(
+            public_key=sample_key["public_key"],
+            unix_user="charlie",
+            hostname=sample_server["hostname"],
+            expires_at=None,
+            justification="Test",
+            admin_id=ADMIN_ID,
+        )
+        insert_call = mock_db.execute.call_args_list[1]
+        sql = insert_call[0][0]
+        params = insert_call[0][1]
+        assert "unix_user" in sql
+        assert "charlie" in params
+
+
+def test_actions_deploy_key_on_conflict_uses_three_column_pk(sample_server, sample_key):
+    """Le ON CONFLICT doit référencer (key_id, server_id, unix_user)."""
+    with patch("actions.db") as mock_db, patch("actions.ssh"):
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"]},
+            {"id": sample_key["id"]},
+        ]
+        actions.deploy_key(
+            public_key=sample_key["public_key"],
+            unix_user="alice",
+            hostname=sample_server["hostname"],
+            expires_at=None,
+            justification="Test",
+            admin_id=ADMIN_ID,
+        )
+        insert_call = mock_db.execute.call_args_list[1]
+        sql = insert_call[0][0]
+        assert "unix_user" in sql
+        assert "ON CONFLICT" in sql
+
+
+def test_actions_handle_unknown_key_includes_unix_user(sample_key):
+    """handle_unknown_key passe unix_user dans l'INSERT key_authorizations."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": KEY_ID}
+        actions.handle_unknown_key(
+            "ssh-ed25519", None,
+            sample_key["public_key"], sample_key["fingerprint"],
+            "test@host", SERVER_ID, "server-test-01",
+            unix_user="dave",
+        )
+        insert_auth_call = mock_db.execute.call_args_list[1]
+        sql = insert_auth_call[0][0]
+        params = insert_auth_call[0][1]
+        assert "unix_user" in sql
+        assert "dave" in params
+
+
+def test_actions_handle_disappeared_key_includes_unix_user_in_where():
+    """handle_disappeared_key filtre par unix_user dans le WHERE."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"fingerprint": "SHA256:abc"}
+        actions.handle_disappeared_key(KEY_ID, SERVER_ID, "server-test-01", ip="192.168.1.10", unix_user="eve")
+        update_call = mock_db.execute.call_args_list[0]
+        sql = update_call[0][0]
+        params = update_call[0][1]
+        assert "unix_user" in sql
+        assert "eve" in params
+
+
+def test_actions_handle_reappeared_key_includes_unix_user_in_where():
+    """handle_reappeared_key filtre par unix_user dans le WHERE."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"fingerprint": "SHA256:abc"}
+        actions.handle_reappeared_key(KEY_ID, SERVER_ID, "server-test-01", unix_user="frank")
+        update_call = mock_db.execute.call_args_list[0]
+        sql = update_call[0][0]
+        params = update_call[0][1]
+        assert "unix_user" in sql
+        assert "frank" in params
+
+
+def test_actions_validate_key_includes_unix_user_in_update(sample_key):
+    """validate_key met à jour chaque ligne par (key_id, server_id, unix_user)."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": KEY_ID}
+        mock_db.query.return_value = [
+            {"key_id": KEY_ID, "server_id": SERVER_ID, "unix_user": "alice"},
+            {"key_id": KEY_ID, "server_id": SERVER_ID, "unix_user": "root"},
+        ]
+        actions.validate_key(sample_key["fingerprint"], ADMIN_ID)
+        # alternating: UPDATE, audit INSERT, UPDATE, audit INSERT
+        assert mock_db.execute.call_count == 4
+        update_calls = [c for c in mock_db.execute.call_args_list if "UPDATE" in c[0][0]]
+        assert len(update_calls) == 2
+        for call in update_calls:
+            sql = call[0][0]
+            assert "unix_user" in sql

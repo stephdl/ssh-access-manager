@@ -5,6 +5,7 @@
         <th>{{ $t('key_table.col_status') }}</th>
         <th>{{ $t('key_table.col_type') }}</th>
         <th>{{ $t('key_table.col_fingerprint') }}</th>
+        <th>{{ $t('key_table.col_unix_user') }}</th>
         <th>{{ $t('key_table.col_comment') }}</th>
         <th>{{ $t('key_table.col_owner') }}</th>
         <th>{{ $t('key_table.col_expires') }}</th>
@@ -14,9 +15,9 @@
     </thead>
     <tbody>
       <tr v-if="keys.length === 0">
-        <td colspan="8" class="empty">{{ $t('key_table.empty') }}</td>
+        <td colspan="9" class="empty">{{ $t('key_table.empty') }}</td>
       </tr>
-      <tr v-for="k in keys" :key="k.fingerprint">
+      <tr v-for="k in keys" :key="k.fingerprint + '|' + (k.unix_user || '')">
         <td>
           <span class="badge" :class="statusBadge(k.status)">{{ k.status }}</span>
         </td>
@@ -26,6 +27,10 @@
         <td class="fp">
           <code>{{ k.fingerprint }}</code>
         </td>
+        <td>
+          <code v-if="k.unix_user">{{ k.unix_user }}</code>
+          <span v-else>—</span>
+        </td>
         <td>{{ k.comment || '—' }}</td>
         <td>{{ k.owner || '—' }}</td>
         <td>{{ formatDate(k.expires_at) }}</td>
@@ -33,38 +38,44 @@
           <span v-if="k.is_compliant" :title="$t('key_table.compliant_ok')">✅</span>
           <span v-else class="non-compliant" :title="complianceTooltip(k)">⚠️</span>
         </td>
-        <td class="actions">
-          <button
-            v-if="k.status === 'PENDING_REVIEW'"
-            class="btn-success"
-            @click="$emit('validate', k.fingerprint)"
-          >
-            {{ $t('key_table.btn_validate') }}
-          </button>
-          <button
-            v-if="k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW'"
-            class="btn-danger"
-            @click="$emit('revoke', k)"
-          >
-            {{ $t('key_table.btn_revoke') }}
-          </button>
-          <button
-            v-if="!k.owner && k.status === 'ACTIVE'"
-            class="btn-primary"
-            @click="$emit('assign', k.fingerprint)"
-          >
-            {{ $t('key_table.btn_assign') }}
-          </button>
-          <button v-if="k.status === 'ACTIVE'" class="btn-warning" @click="$emit('set-expiry', k)">
-            {{ $t('key_table.btn_expiry') }}
-          </button>
-          <button
-            v-if="k.status === 'ACTIVE' && k.expires_at"
-            class="btn-unlimited"
-            @click="$emit('remove-expiry', k.fingerprint)"
-          >
-            {{ $t('key_table.btn_unlimited') }}
-          </button>
+        <td>
+          <div class="actions">
+            <button
+              v-if="k.status === 'PENDING_REVIEW'"
+              class="btn-success"
+              @click="$emit('validate', k.fingerprint)"
+            >
+              {{ $t('key_table.btn_validate') }}
+            </button>
+            <button
+              v-if="k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW'"
+              class="btn-danger"
+              @click="$emit('revoke', k)"
+            >
+              {{ $t('key_table.btn_revoke') }}
+            </button>
+            <button
+              v-if="!k.owner && k.status === 'ACTIVE'"
+              class="btn-primary"
+              @click="$emit('assign', k.fingerprint)"
+            >
+              {{ $t('key_table.btn_assign') }}
+            </button>
+            <button
+              v-if="k.status === 'ACTIVE'"
+              class="btn-warning"
+              @click="$emit('set-expiry', k)"
+            >
+              {{ $t('key_table.btn_expiry') }}
+            </button>
+            <button
+              v-if="k.status === 'ACTIVE' && k.expires_at"
+              class="btn-unlimited"
+              @click="$emit('remove-expiry', k.fingerprint)"
+            >
+              {{ $t('key_table.btn_unlimited') }}
+            </button>
+          </div>
         </td>
       </tr>
     </tbody>
@@ -133,16 +144,18 @@ function formatDate(iso) {
   padding: 1rem 0;
 }
 .actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.35rem;
-  min-width: 160px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  white-space: nowrap;
 }
 .actions button {
-  width: 100%;
-  text-align: center;
-  padding: 0.25rem 0;
-  font-size: 0.8rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+td {
+  vertical-align: top;
 }
 code {
   font-size: 0.8rem;

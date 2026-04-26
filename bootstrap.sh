@@ -77,6 +77,14 @@ if [ ! -f /data/pg/PG_VERSION ]; then
         "psql -h /tmp -U ${POSTGRES_USER:-ssh_manager} -d ${POSTGRES_DB:-ssh_manager} \
          -f /app/sql/schema.sql"
 
+    # 8b. Appliquer les migrations dans l'ordre lexicographique
+    for migration in $(ls /app/sql/migrations/*.sql 2>/dev/null | sort); do
+        echo "[bootstrap] Migration : $migration"
+        su -s /bin/sh postgres -c \
+            "psql -h /tmp -U ${POSTGRES_USER:-ssh_manager} -d ${POSTGRES_DB:-ssh_manager} \
+             -f $migration"
+    done
+
     # 9. Insérer l'administrateur initial depuis ENV
     # Utilise Python+psycopg2 pour éviter l'interpolation shell du hash ($...)
     python3 << 'PYEOF'

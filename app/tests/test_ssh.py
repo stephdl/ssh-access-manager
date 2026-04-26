@@ -161,6 +161,25 @@ def test_ssh_revoke_on_server_calls_sam_revoke_with_fingerprint(sample_key):
         assert sample_key["fingerprint"] in cmd
 
 
+def test_ssh_revoke_on_server_with_unix_user_passes_second_arg(sample_key):
+    with patch("ssh._connect") as mock_connect:
+        client = MagicMock()
+        mock_connect.return_value = client
+        stdout = MagicMock()
+        stdout.read.return_value = b""
+        stdout.channel.recv_exit_status.return_value = 0
+        stderr = MagicMock()
+        stderr.read.return_value = b""
+        client.exec_command.return_value = (MagicMock(), stdout, stderr)
+
+        ssh.revoke_on_server("server-test-01", sample_key["fingerprint"], ip="192.168.1.10", unix_user="alice")
+
+        cmd = client.exec_command.call_args[0][0]
+        assert "sam-revoke" in cmd
+        assert sample_key["fingerprint"] in cmd
+        assert "alice" in cmd
+
+
 def test_ssh_revoke_on_server_raises_on_nonzero_exit(sample_key):
     with patch("ssh._connect") as mock_connect:
         client = MagicMock()
@@ -192,6 +211,11 @@ def test_ssh_sam_revoke_is_bytes():
     assert b"TARGET_FP" in ssh.SAM_REVOKE
     assert b"mktemp" in ssh.SAM_REVOKE
     assert b"mv" in ssh.SAM_REVOKE
+
+
+def test_ssh_sam_revoke_supports_optional_unix_user():
+    assert b"TARGET_USER" in ssh.SAM_REVOKE
+    assert b"getent passwd" in ssh.SAM_REVOKE
 
 
 def test_ssh_sam_revoke_preserves_file_ownership():
