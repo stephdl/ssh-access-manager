@@ -138,16 +138,17 @@ function formatDate(iso) {
   padding: 1rem 0;
 }
 .actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.35rem;
-  min-width: 160px;
+  min-width: 140px;
 }
 .actions button {
-  width: 100%;
-  text-align: center;
-  padding: 0.25rem 0;
+  padding: 0.25rem 0.5rem;
   font-size: 0.8rem;
+}
+td {
+  vertical-align: top;
 }
 code {
   font-size: 0.8rem;
