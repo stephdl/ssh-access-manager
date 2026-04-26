@@ -137,9 +137,6 @@ SMTP_TO=admin@example.com
 
 # Collector
 SSH_USER=audit-collector
-SCAN_INTERVAL_HOURS=4
-# Valeur initiale insérée dans settings.scan_interval_hours au bootstrap.
-# Modifiable ensuite sans redémarrage via GET/PUT /api/system/config.
 EXPIRE_WARN_DAYS=7
 EXPIRE_WARN_DAYS_2=2
 ADMIN_USERNAME=admin
@@ -332,8 +329,7 @@ CREATE TABLE settings (
 
 INSERT INTO settings (key, value) VALUES ('scan_interval_hours', '4');
 
--- Initialisée au bootstrap depuis SCAN_INTERVAL_HOURS.
--- Modifiable via GET/PUT /api/system/config sans redémarrage.
+-- Défaut 4h hardcodé. Modifiable via GET/PUT /api/system/config sans redémarrage.
 
 ## Index
 
