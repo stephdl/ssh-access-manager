@@ -842,50 +842,91 @@ coûteuse en temps).
 
 ## 13. CI/CD — GitHub Actions
 
-### 5 workflows et leur rôle
+### 6 workflows et leur rôle
 
 ```
 .github/workflows/
-  ci.yml             ← Tests sur chaque PR (pytest + vitest)
-  build-pr.yml       ← Image Docker pr-{N} sur GHCR
-  build-main.yml     ← Image Docker :main à chaque merge
-  publish-release.yml← Image semver stable/beta
-  cleanup-pr.yml     ← Suppression de pr-{N} à la fermeture
+  ci.yml              ← 4 jobs qualité sur chaque PR
+  pr-title.yml        ← Validation titre PR (Conventional Commits)
+  build-pr.yml        ← Image Docker pr-{N} sur GHCR
+  build-main.yml      ← Image Docker :main à chaque merge
+  publish-release.yml ← Image semver stable/beta sur tag git
+  cleanup-pr.yml      ← Suppression image pr-{N} à fermeture PR
 ```
 
-**`ci.yml`** — qualité porte d'entrée :
-- `tests-python` : pytest avec `--cov=actions --cov-fail-under=80` ; échec si
-  couverture < 80 %
-- `tests-vue` : `npx vitest run` ; les deux jobs sont parallèles
+### `ci.yml` — porte d'entrée qualité
 
-**Stratégie de tags Docker** :
+Quatre jobs parallèles déclenchés sur chaque PR :
 
-| Événement | Tag GHCR |
+| Job | Outil | Condition d'échec |
+|---|---|---|
+| `tests-python` | pytest `--cov=actions --cov-fail-under=80` | couverture < 80 % ou test rouge |
+| `tests-vue` | `npx vitest run` | tout test échoue |
+| `prettier` | `npm run format:check` | fichier Vue/JS/JSON non formaté |
+| `commitlint` | `wagoid/commitlint-github-action@v6` | commit ne respecte pas Conventional Commits |
+
+### `pr-title.yml` — titre de PR
+
+Script shell `grep -P` sans dépendance externe. Valide que le titre respecte
+`type: description` (types : feat, fix, docs, style, refactor, test, ci, chore,
+perf, build, revert). La valeur est passée via `env: PR_TITLE` pour éviter
+toute injection shell.
+
+### Convention Conventional Commits
+
+Deux niveaux de validation distincts et complémentaires :
+
+- **Commits** : `commitlint` vérifie chaque message de la branche PR
+- **Titre PR** : `pr-title.yml` vérifie le titre au moment du merge
+
+Le titre de la PR devient le message du merge commit sur `main` — les deux
+checks garantissent que l'historique de `main` est lisible et outillable
+(changelog automatique, semver automatique).
+
+### Stratégie de tags Docker (GHCR)
+
+| Événement | Tag publié |
 |---|---|
-| Push sur PR | `pr-{N}` |
+| PR ouverte | `pr-{N}` |
 | Merge sur `main` | `main` |
 | Tag git `1.0.0-dev.1` (avec `-`) | `1.0.0-dev.1` uniquement |
 | Tag git `1.0.0` (sans `-`) | `1.0.0` **+** `latest` |
 
-La détection stable/beta repose sur la présence d'un tiret dans le tag :
+La détection stable/pre-release repose sur la présence d'un tiret dans le tag :
 
 ```bash
 if [[ "$TAG" == *"-"* ]]; then
-    # pre-release : tag seul
-    docker build -t "$IMAGE:$TAG" .
+    docker build -t "$IMAGE:$TAG" . && docker push "$IMAGE:$TAG"
 else
-    # stable : tag + latest
     docker build -t "$IMAGE:$TAG" -t "$IMAGE:latest" .
+    docker push "$IMAGE:$TAG" && docker push "$IMAGE:latest"
 fi
 ```
 
-**Nettoyage GHCR** (`cleanup-pr.yml`) : à la fermeture d'une PR, l'image `pr-{N}`
-est supprimée via l'API GitHub Packages pour ne pas accumuler d'images orphelines.
+Les tags pre-release (`1.0.0-dev.1`, `1.0.0-rc.1`) ne mettent jamais à jour
+`:latest`, qui ne pointe que vers la dernière version stable.
+
+### Nettoyage GHCR (`cleanup-pr.yml`)
+
+À la fermeture d'une PR (merge ou abandon), l'image `pr-{N}` est supprimée via
+l'API GitHub Packages (`gh api --method DELETE`). Cela évite l'accumulation
+d'images orphelines dans le registre. Si l'image n'existe pas (PR sans push),
+le workflow se termine silencieusement.
+
+### Protection de `main`
+
+Configurée via l'API GitHub Branch Protection Rules :
+
+- Push direct interdit — toute modification passe par une PR
+- Les 5 checks suivants sont obligatoires : Tests Python, Tests Vue.js,
+  Prettier, Commit messages, Validate PR title
+- Force push bloqué
+- Règle appliquée aux administrateurs du dépôt (`enforce_admins: true`)
 
 ### Cache pip avec requirements-test.txt
 
 ```yaml
-- uses: actions/setup-python@v5
+- uses: actions/setup-python@v6
   with:
     python-version: '3.12'
     cache: 'pip'
