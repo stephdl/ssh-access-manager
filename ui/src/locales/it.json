@@ -134,7 +134,10 @@
     "btn_revoke": "Revoca",
     "btn_assign": "Assegna",
     "btn_expiry": "Scadenza",
-    "btn_unlimited": "Illimitato"
+    "btn_unlimited": "Illimitato",
+    "filter_placeholder": "Cerca fingerprint, utente, owner…",
+    "filter_all_statuses": "Tutti gli stati",
+    "no_results": "Nessuna chiave corrispondente."
   },
   "access": {
     "title": "Accesso temporaneo",

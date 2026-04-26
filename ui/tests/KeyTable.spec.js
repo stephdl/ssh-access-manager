@@ -15,6 +15,7 @@ function makeKey(overrides = {}) {
     key_size_bits: null,
     comment: 'user@host',
     owner: null,
+    unix_user: null,
     expires_at: null,
     status: 'ACTIVE',
     is_compliant: true,
@@ -33,13 +34,13 @@ describe('KeyTable', () => {
   it('affiche une ligne par clé', () => {
     const keys = [makeKey(), makeKey({ fingerprint: 'SHA256:other', status: 'REVOKED' })]
     const w = mountTable(keys)
-    const rows = w.findAll('tbody tr').filter(r => !r.classes('empty'))
+    const rows = w.findAll('tbody tr').filter((r) => !r.classes('empty'))
     expect(rows.length).toBe(2)
   })
 
   it('affiche le message vide quand aucune clé', () => {
     const w = mountTable([])
-    expect(w.find('.empty').exists()).toBe(true)
+    expect(w.find('[data-testid="keytable-empty"]').exists()).toBe(true)
   })
 
   it('PENDING_REVIEW affiche le bouton Valider (btn-success)', () => {
@@ -47,7 +48,7 @@ describe('KeyTable', () => {
     expect(w.find('.btn-success').exists()).toBe(true)
   })
 
-  it('ACTIVE n\'affiche pas le bouton Valider', () => {
+  it("ACTIVE n'affiche pas le bouton Valider", () => {
     const w = mountTable([makeKey({ status: 'ACTIVE' })])
     expect(w.find('.btn-success').exists()).toBe(false)
   })
@@ -62,7 +63,7 @@ describe('KeyTable', () => {
     expect(w.find('.btn-danger').exists()).toBe(true)
   })
 
-  it('REVOKED n\'affiche pas le bouton Révoquer', () => {
+  it("REVOKED n'affiche pas le bouton Révoquer", () => {
     const w = mountTable([makeKey({ status: 'REVOKED' })])
     expect(w.find('.btn-danger').exists()).toBe(false)
   })
@@ -72,7 +73,7 @@ describe('KeyTable', () => {
     expect(w.find('.btn-warning').exists()).toBe(true)
   })
 
-  it('PENDING_REVIEW n\'affiche pas le bouton Expiration', () => {
+  it("PENDING_REVIEW n'affiche pas le bouton Expiration", () => {
     const w = mountTable([makeKey({ status: 'PENDING_REVIEW' })])
     expect(w.find('.btn-warning').exists()).toBe(false)
   })
@@ -82,7 +83,7 @@ describe('KeyTable', () => {
     expect(w.find('.btn-unlimited').exists()).toBe(true)
   })
 
-  it('ACTIVE sans expires_at n\'affiche pas le bouton Illimité', () => {
+  it("ACTIVE sans expires_at n'affiche pas le bouton Illimité", () => {
     const w = mountTable([makeKey({ status: 'ACTIVE', expires_at: null })])
     expect(w.find('.btn-unlimited').exists()).toBe(false)
   })
@@ -92,7 +93,7 @@ describe('KeyTable', () => {
     expect(w.find('.btn-primary').exists()).toBe(true)
   })
 
-  it('ACTIVE avec owner n\'affiche pas le bouton Assigner', () => {
+  it("ACTIVE avec owner n'affiche pas le bouton Assigner", () => {
     const w = mountTable([makeKey({ status: 'ACTIVE', owner: 'alice' })])
     expect(w.find('.btn-primary').exists()).toBe(false)
   })
@@ -125,7 +126,7 @@ describe('KeyTable', () => {
     expect(w.emitted('validate')[0][0]).toBe(FP)
   })
 
-  it('émet revoke avec l\'objet clé', async () => {
+  it("émet revoke avec l'objet clé", async () => {
     const key = makeKey({ status: 'ACTIVE' })
     const w = mountTable([key])
     await w.find('.btn-danger').trigger('click')
@@ -133,7 +134,7 @@ describe('KeyTable', () => {
     expect(w.emitted('revoke')[0][0].fingerprint).toBe(FP)
   })
 
-  it('émet set-expiry avec l\'objet clé', async () => {
+  it("émet set-expiry avec l'objet clé", async () => {
     const w = mountTable([makeKey({ status: 'ACTIVE' })])
     await w.find('.btn-warning').trigger('click')
     expect(w.emitted('set-expiry')).toBeTruthy()
@@ -151,5 +152,82 @@ describe('KeyTable', () => {
     await w.find('.btn-primary').trigger('click')
     expect(w.emitted('assign')).toBeTruthy()
     expect(w.emitted('assign')[0][0]).toBe(FP)
+  })
+
+  // --- Filtres ---
+
+  it('affiche la barre de filtres quand il y a des clés', () => {
+    const w = mountTable([makeKey()])
+    expect(w.find('[data-testid="keytable-filters"]').exists()).toBe(true)
+  })
+
+  it("n'affiche pas la barre de filtres quand la liste est vide", () => {
+    const w = mountTable([])
+    expect(w.find('[data-testid="keytable-filters"]').exists()).toBe(false)
+  })
+
+  it('filtre par texte sur le fingerprint', async () => {
+    const keys = [
+      makeKey({ fingerprint: 'SHA256:aaaaa' }),
+      makeKey({ fingerprint: 'SHA256:bbbbb' }),
+    ]
+    const w = mountTable(keys)
+    await w.find('[data-testid="keytable-filter-text"]').setValue('aaaaa')
+    const rows = w.findAll('tbody tr').filter((r) => r.find('code').exists())
+    expect(rows.length).toBe(1)
+    expect(rows[0].text()).toContain('SHA256:aaaaa')
+  })
+
+  it('filtre par texte sur unix_user', async () => {
+    const keys = [
+      makeKey({ fingerprint: 'SHA256:aaaaa', unix_user: 'alice' }),
+      makeKey({ fingerprint: 'SHA256:bbbbb', unix_user: 'bob' }),
+    ]
+    const w = mountTable(keys)
+    await w.find('[data-testid="keytable-filter-text"]').setValue('alice')
+    const rows = w.findAll('tbody tr').filter((r) => r.find('code').exists())
+    expect(rows.length).toBe(1)
+  })
+
+  it('filtre par texte sur owner', async () => {
+    const keys = [
+      makeKey({ fingerprint: 'SHA256:aaaaa', owner: 'alice@example.com' }),
+      makeKey({ fingerprint: 'SHA256:bbbbb', owner: 'bob@example.com' }),
+    ]
+    const w = mountTable(keys)
+    await w.find('[data-testid="keytable-filter-text"]').setValue('alice')
+    const rows = w.findAll('tbody tr').filter((r) => r.find('code').exists())
+    expect(rows.length).toBe(1)
+  })
+
+  it('filtre par statut', async () => {
+    const keys = [
+      makeKey({ fingerprint: 'SHA256:aaaaa', status: 'ACTIVE' }),
+      makeKey({ fingerprint: 'SHA256:bbbbb', status: 'REVOKED' }),
+    ]
+    const w = mountTable(keys)
+    await w.find('[data-testid="keytable-filter-status"]').setValue('ACTIVE')
+    const rows = w.findAll('tbody tr').filter((r) => r.find('code').exists())
+    expect(rows.length).toBe(1)
+    expect(rows[0].text()).toContain('SHA256:aaaaa')
+  })
+
+  it('affiche le message no_results quand le filtre ne correspond à rien', async () => {
+    const w = mountTable([makeKey()])
+    await w.find('[data-testid="keytable-filter-text"]').setValue('zzz_inexistant')
+    expect(w.find('[data-testid="keytable-no-results"]').exists()).toBe(true)
+  })
+
+  it('réinitialiser le filtre texte affiche toutes les clés', async () => {
+    const keys = [
+      makeKey({ fingerprint: 'SHA256:aaaaa' }),
+      makeKey({ fingerprint: 'SHA256:bbbbb' }),
+    ]
+    const w = mountTable(keys)
+    const input = w.find('[data-testid="keytable-filter-text"]')
+    await input.setValue('aaaaa')
+    await input.setValue('')
+    const rows = w.findAll('tbody tr').filter((r) => r.find('code').exists())
+    expect(rows.length).toBe(2)
   })
 })

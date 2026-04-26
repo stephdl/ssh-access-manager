@@ -134,7 +134,10 @@
     "btn_revoke": "Revoke",
     "btn_assign": "Assign",
     "btn_expiry": "Expiry",
-    "btn_unlimited": "Unlimited"
+    "btn_unlimited": "Unlimited",
+    "filter_placeholder": "Search fingerprint, user, owner…",
+    "filter_all_statuses": "All statuses",
+    "no_results": "No matching keys."
   },
   "access": {
     "title": "Temporary Access",
