@@ -3,6 +3,7 @@ web.py — API REST Flask JSON.
 Toutes les routes retournent JSON. Prefixe /api/.
 Importe actions.py pour la logique metier — jamais de duplication.
 """
+import logging
 import os
 from datetime import datetime, timezone
 from functools import wraps
@@ -361,7 +362,8 @@ def api_deploy_key():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.exception("deploy_key failed")
+        return jsonify({"error": "internal server error"}), 500
 
 
 @app.route("/api/access/request", methods=["POST"])
