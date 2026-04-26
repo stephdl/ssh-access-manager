@@ -239,6 +239,7 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `EXPIRE_WARN_DAYS_2` | Alerte J-N avant expiration (second avertissement) | `2` |
 | `ADMIN_USERNAME` | Username de l'administrateur initial | `admin` |
 | `ADMIN_EMAIL` | Email de l'administrateur initial | — |
+| `ADMIN_PASSWORD` | Mot de passe de l'administrateur initial | — |
 | `TZ` | Fuseau horaire | `Europe/Paris` |
 
 ---
@@ -254,10 +255,13 @@ $EXEC servers add --hostname HOST --ip IP --env production --os rhel
 $EXEC servers scan
 $EXEC servers scan --server HOST
 $EXEC servers disable HOST
+$EXEC servers enable HOST
 $EXEC servers show HOST
 
 # Clés
 $EXEC keys list --status PENDING_REVIEW
+$EXEC keys show SHA256:...
+$EXEC keys search QUERY
 $EXEC keys validate SHA256:...
 $EXEC keys revoke SHA256:... --reason "Motif"
 $EXEC keys assign SHA256:... --owner "Alice Martin"
@@ -274,8 +278,10 @@ $EXEC access revoke <id>
 
 # Administrateurs
 $EXEC admin list
-$EXEC admin add --username USER --email EMAIL
+$EXEC admin add --username USER --email EMAIL --password PASSWORD
 $EXEC admin disable USERNAME
+$EXEC admin enable USERNAME
+$EXEC admin delete USERNAME
 
 # Audit
 $EXEC audit list --action ANOMALY_DETECTED --since 2025-01-01

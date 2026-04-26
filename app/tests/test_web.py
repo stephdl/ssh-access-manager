@@ -130,6 +130,21 @@ def test_web_get_keys_sql_includes_revocation_and_server_fields(auth_client):
 
 
 # ---------------------------------------------------------------------------
+# POST /api/keys/revoke/<fp> — fingerprint malformé rejeté avec 400
+# ---------------------------------------------------------------------------
+
+def test_web_revoke_key_rejects_invalid_fingerprint_format(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        for bad_fp in ["not-a-fingerprint", "SHA256:has_invalid_chars!", "MD5:abcdef"]:
+            resp = auth_client.post(
+                f"/api/keys/revoke/{bad_fp}",
+                json={"reason": "test"},
+            )
+            assert resp.status_code == 400, f"Expected 400 for fp={bad_fp}"
+
+
+# ---------------------------------------------------------------------------
 # POST /api/keys/revoke/<fp> — 200 si authentifie, 401 si non authentifie
 # ---------------------------------------------------------------------------
 
@@ -468,6 +483,39 @@ def test_web_deploy_key_returns_400_missing_fields(auth_client):
         resp = auth_client.post(
             "/api/access/deploy",
             json={"public_key": "ssh-ed25519 AAAA test"},
+        )
+        assert resp.status_code == 400
+
+
+def test_web_deploy_key_hours_out_of_range_returns_400(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin"}
+        for bad_hours in [0, -1, 8761, 99999]:
+            resp = auth_client.post(
+                "/api/access/deploy",
+                json={
+                    "public_key": "ssh-ed25519 AAAA test",
+                    "unix_user": "alice",
+                    "hostname": "server-01",
+                    "justification": "Test",
+                    "hours": bad_hours,
+                },
+            )
+            assert resp.status_code == 400, f"Expected 400 for hours={bad_hours}"
+
+
+def test_web_deploy_key_hours_not_integer_returns_400(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin"}
+        resp = auth_client.post(
+            "/api/access/deploy",
+            json={
+                "public_key": "ssh-ed25519 AAAA test",
+                "unix_user": "alice",
+                "hostname": "server-01",
+                "justification": "Test",
+                "hours": "abc",
+            },
         )
         assert resp.status_code == 400
 
