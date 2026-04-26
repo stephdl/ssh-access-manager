@@ -704,6 +704,42 @@ Chaque action est tracée dans `audit_log` avec action `USER_LOCKED` ou
 Le workflow demande/approbation (`access request` / `access approve`) reste
 disponible via la CLI et l'API REST, mais n'est plus exposé dans l'interface web.
 
+### Vue Anomalies — filtres et colonne unix_user
+
+La vue `Anomalies.vue` affiche deux sections : clés en attente de validation
+(`PENDING_REVIEW`) et révocations hors système (30 derniers jours). Elle expose
+une barre de filtres combinés :
+
+- **Texte libre** : recherche sur fingerprint, type, serveur, unix_user
+- **Dropdown type** : filtre par algorithme de clé (ssh-ed25519, ssh-rsa, …)
+- **Dropdown serveur** : filtre par hostname de serveur
+- **Dropdown conformité** : filtre Conforme / Non conforme
+
+La colonne **Unix user** est affichée dans les deux tables. Les badges de compteur
+(`count-badge`) reflètent le total réel avant filtrage, pas le nombre de lignes
+visibles — ce qui permet à l'administrateur de savoir combien d'anomalies existent
+même si un filtre est actif.
+
+La fonction `validate()` transmet `unix_user` et `server_hostname` au corps de la
+requête POST `/api/keys/validate/<fp>`, garantissant que seule la ligne
+`(key_id, server_id, unix_user)` ciblée passe en `ACTIVE` (fix issue #193).
+
+### Validation scopée — validate_key (issue #193)
+
+La clé composite `(key_id, server_id, unix_user)` dans `key_authorizations` implique
+qu'une même clé SSH peut être autorisée pour plusieurs utilisateurs Unix sur un même
+serveur. La fonction `validate_key()` accepte des paramètres optionnels :
+
+```python
+def validate_key(fingerprint, admin_id, unix_user=None, hostname=None):
+    # sans params : valide toutes les lignes PENDING_REVIEW du fingerprint
+    # avec params  : valide uniquement la ligne (fingerprint, server, unix_user)
+```
+
+L'UI transmet toujours `unix_user` et `hostname` dans le corps JSON de la requête,
+garantissant que valider une clé pour `alice` ne valide pas automatiquement la même
+clé pour `bob` sur le même serveur.
+
 ### Composant ExpiryPicker — modes exclusifs
 
 `ExpiryPicker.vue` illustre la gestion de modes mutuellement exclusifs :
@@ -858,7 +894,7 @@ coûteuse en temps).
 | `test_manage.py` | 42+ | Toutes les commandes CLI, lock/unlock |
 | `test_collect.py` | 15 | 4 scénarios détection, RSA parsing |
 | `test_expire.py` | 12 | Anti-spam 24h, expiration auto |
-| Vue.js specs | 99 | KeyActions, ExpiryPicker, KeyTable, ServerTable, UserLockForm |
+| Vue.js specs | 137 | KeyActions, ExpiryPicker, KeyTable, ServerTable, UserLockForm, Anomalies, DeployedUsersTable |
 
 ---
 

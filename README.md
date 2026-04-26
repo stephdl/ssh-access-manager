@@ -52,7 +52,7 @@ podman logs ssh-access-manager | grep -A1 "collector_key.pub"
 
 La clé publique est également visible directement dans l'interface web : **Dashboard > Clé publique collecteur**.
 
-L'interface est accessible sur `http://localhost:8080` (authentification Basic Auth : `NGINX_USER` / `NGINX_PASSWORD`).
+L'interface est accessible sur `http://localhost:8080`. Authentification par session Flask : utilisez les identifiants définis via `ADMIN_USERNAME` / `ADMIN_PASSWORD` au démarrage.
 
 ---
 
