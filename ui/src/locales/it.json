@@ -265,6 +265,7 @@
     "title": "Distribuire chiave SSH",
     "unixUser": "Utente Unix",
     "unixUserPlaceholder": "es: alice",
+    "error_unix_user": "Nome utente Unix non valido (solo minuscole, cifre, _ e -, max 32 caratteri)",
     "publicKey": "Chiave pubblica",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Server di destinazione",

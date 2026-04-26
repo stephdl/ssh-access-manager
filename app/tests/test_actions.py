@@ -604,6 +604,47 @@ def test_actions_deploy_key_invalid_format():
         )
 
 
+def test_actions_deploy_key_invalid_unix_user_with_space():
+    with pytest.raises(ValueError, match="Nom d'utilisateur Unix invalide"):
+        actions.deploy_key(
+            public_key="ssh-ed25519 AAAA test",
+            unix_user="zoor dupont",
+            hostname="server",
+            expires_at=None,
+            justification="Test",
+            admin_id=ADMIN_ID,
+        )
+
+
+def test_actions_deploy_key_invalid_unix_user_uppercase():
+    with pytest.raises(ValueError, match="Nom d'utilisateur Unix invalide"):
+        actions.deploy_key(
+            public_key="ssh-ed25519 AAAA test",
+            unix_user="Alice",
+            hostname="server",
+            expires_at=None,
+            justification="Test",
+            admin_id=ADMIN_ID,
+        )
+
+
+def test_actions_deploy_key_valid_unix_user_passes_check(sample_server, sample_key):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [sample_server, {"id": KEY_ID}]
+        mock_db.execute.return_value = None
+        mock_ssh.ensure_scripts.return_value = None
+        mock_ssh.add_key_on_server.return_value = None
+        result = actions.deploy_key(
+            public_key=sample_key["public_key"],
+            unix_user="alice_01",
+            hostname="server-prod-01",
+            expires_at=None,
+            justification="Test",
+            admin_id=ADMIN_ID,
+        )
+        assert result["unix_user"] == "alice_01"
+
+
 # ---------------------------------------------------------------------------
 # Validation format fingerprint SHA256
 # ---------------------------------------------------------------------------

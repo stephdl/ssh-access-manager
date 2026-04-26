@@ -11,6 +11,7 @@ import db
 import ssh
 
 _FP_RE = re.compile(r"^SHA256:[A-Za-z0-9+/=]+$")
+_UNIX_USER_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 
 
 def _check_fingerprint(fp: str) -> None:
@@ -350,6 +351,11 @@ def deploy_key(
     Register public key in ssh_keys (if not exists), deploy via sam-add,
     create key_authorization ACTIVE with optional expiry.
     """
+    if not _UNIX_USER_RE.match(unix_user):
+        raise ValueError(
+            f"Nom d'utilisateur Unix invalide : '{unix_user}' "
+            "(minuscules, chiffres, _ et - uniquement, max 32 caractères)"
+        )
     parts = public_key.strip().split()
     if len(parts) < 2:
         raise ValueError("Format de clé invalide")

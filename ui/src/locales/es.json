@@ -265,6 +265,7 @@
     "title": "Desplegar clave SSH",
     "unixUser": "Usuario Unix",
     "unixUserPlaceholder": "ej: alice",
+    "error_unix_user": "Nombre de usuario Unix inválido (minúsculas, dígitos, _ y - únicamente, máx. 32 caracteres)",
     "publicKey": "Clave pública",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Servidor destino",
