@@ -1,5 +1,6 @@
 import hashlib
 import io
+import json
 import os
 
 import paramiko
@@ -193,7 +194,7 @@ def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
                 (
                     "SCRIPT_DEPLOYED",
                     server_id,
-                    f'{{"script": "{name}", "hostname": "{hostname}"}}',
+                    json.dumps({"script": name, "hostname": hostname}),
                 ),
             )
         sftp.close()

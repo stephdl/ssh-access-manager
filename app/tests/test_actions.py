@@ -602,3 +602,39 @@ def test_actions_deploy_key_invalid_format():
             justification="Test",
             admin_id=ADMIN_ID,
         )
+
+
+# ---------------------------------------------------------------------------
+# Validation format fingerprint SHA256
+# ---------------------------------------------------------------------------
+
+def test_actions_validate_key_rejects_invalid_fingerprint_format():
+    with pytest.raises(ValueError, match="Format de fingerprint invalide"):
+        actions.validate_key("not-a-fingerprint", ADMIN_ID)
+
+
+def test_actions_revoke_key_rejects_invalid_fingerprint_format():
+    with pytest.raises(ValueError, match="Format de fingerprint invalide"):
+        actions.revoke_key("INVALID:abc", ADMIN_ID, "test")
+
+
+def test_actions_assign_key_rejects_invalid_fingerprint_format():
+    with pytest.raises(ValueError, match="Format de fingerprint invalide"):
+        actions.assign_key("sha256:lowercase", "alice")
+
+
+def test_actions_set_expiry_rejects_invalid_fingerprint_format():
+    from datetime import datetime, timezone
+    with pytest.raises(ValueError, match="Format de fingerprint invalide"):
+        actions.set_key_expiry("bad\nfingerprint", datetime.now(tz=timezone.utc))
+
+
+def test_actions_remove_expiry_rejects_invalid_fingerprint_format():
+    with pytest.raises(ValueError, match="Format de fingerprint invalide"):
+        actions.remove_key_expiry("SHA256:bad/char!")
+
+
+def test_actions_fingerprint_valid_format_passes_check():
+    """Un fingerprint SHA256 valide ne lève pas d'exception au niveau du format."""
+    import actions as act
+    act._check_fingerprint("SHA256:abc123+/=ABCXYZ")
