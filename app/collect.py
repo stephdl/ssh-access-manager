@@ -96,8 +96,8 @@ def scan_server(server: dict) -> dict:
         )
         alerts.send_alert(
             "CRITICAL",
-            f"[ssh-access-manager] Scan echoue sur {hostname}",
-            f"Serveur: {hostname}\nErreur: {exc}",
+            f"[ssh-access-manager] Scan failed on {hostname}",
+            f"Server: {hostname}\nError: {exc}",
         )
         return result
 
@@ -206,7 +206,7 @@ def run_scan(hostname: str | None = None) -> list[dict]:
         reappeared = [a for a in all_anomalies if a["type"] == "reappeared"]
         body_lines = []
         if unknowns:
-            body_lines.append(f"=== Cles inconnues ({len(unknowns)}) ===")
+            body_lines.append(f"=== Unknown keys ({len(unknowns)}) ===")
             for a in unknowns:
                 body_lines.append(
                     f"  {a['hostname']} — {a['fingerprint']} ({a['key_type']}, {a['comment'] or '—'}) → PENDING_REVIEW"
@@ -214,18 +214,19 @@ def run_scan(hostname: str | None = None) -> list[dict]:
         if disappeared:
             if body_lines:
                 body_lines.append("")
-            body_lines.append(f"=== Revocations hors systeme ({len(disappeared)}) ===")
+            body_lines.append(f"=== Out-of-system revocations ({len(disappeared)}) ===")
             for a in disappeared:
-                body_lines.append(f"  {a['hostname']} — {a['fingerprint']} → REVOKED automatiquement")
+                body_lines.append(f"  {a['hostname']} — {a['fingerprint']} → REVOKED automatically")
         if reappeared:
             if body_lines:
                 body_lines.append("")
-            body_lines.append(f"=== Cles revoquees reapparues ({len(reappeared)}) ===")
+            body_lines.append(f"=== Revoked/expired keys reappeared ({len(reappeared)}) ===")
             for a in reappeared:
-                body_lines.append(f"  {a['hostname']} — {a['fingerprint']} → PENDING_REVIEW (etait REVOKED/EXPIRED)")
+                body_lines.append(f"  {a['hostname']} — {a['fingerprint']} → PENDING_REVIEW (was REVOKED/EXPIRED)")
+        n = len(all_anomalies)
         alerts.send_alert(
             "CRITICAL",
-            f"[ssh-access-manager] Scan — {len(all_anomalies)} anomalie(s) detectee(s)",
+            f"[ssh-access-manager] Scan — {n} {'anomaly' if n == 1 else 'anomalies'} detected",
             "\n".join(body_lines),
         )
     return results

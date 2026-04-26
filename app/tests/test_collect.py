@@ -245,7 +245,7 @@ def test_collect_run_scan_includes_reappeared_in_grouped_critical_email():
         mock_alerts.send_alert.assert_called_once()
         assert mock_alerts.send_alert.call_args[0][0] == "CRITICAL"
         body = mock_alerts.send_alert.call_args[0][2]
-        assert "reapparues" in body
+        assert "reappeared" in body
         assert "SHA256:abc" in body
 
 
@@ -353,7 +353,7 @@ def test_collect_run_scan_sends_one_grouped_critical_when_anomalies():
 
         mock_alerts.send_alert.assert_called_once()
         assert mock_alerts.send_alert.call_args[0][0] == "CRITICAL"
-        assert "1 anomalie" in mock_alerts.send_alert.call_args[0][1]
+        assert "1 anomaly" in mock_alerts.send_alert.call_args[0][1]
 
 
 def test_collect_run_scan_no_email_when_no_anomalies():
@@ -385,7 +385,7 @@ def test_collect_run_scan_groups_anomalies_from_multiple_servers():
         collect.run_scan()
 
         mock_alerts.send_alert.assert_called_once()
-        assert "2 anomalie" in mock_alerts.send_alert.call_args[0][1]
+        assert "2 anomalies" in mock_alerts.send_alert.call_args[0][1]
 
 
 # ---------------------------------------------------------------------------

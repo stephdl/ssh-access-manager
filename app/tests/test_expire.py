@@ -81,7 +81,7 @@ def test_expire_warn_expiring_keys_sends_one_grouped_email():
         expire.warn_expiring_keys()
         mock_alerts.send_alert.assert_called_once()
         assert mock_alerts.send_alert.call_args[0][0] == "WARNING"
-        assert "2 cle" in mock_alerts.send_alert.call_args[0][1]
+        assert "2 keys" in mock_alerts.send_alert.call_args[0][1]
 
 
 def test_expire_warn_expiring_keys_no_email_when_all_antispammed():

@@ -40,14 +40,15 @@ def warn_expiring_keys() -> int:
         if info:
             warnings.append(info)
     if warnings:
-        body_lines = ["=== Cles expirant bientot ==="]
+        body_lines = ["=== Keys expiring soon ==="]
         for w in warnings:
             expires_at = w["expires_at"]
             expires_str = expires_at.strftime("%Y-%m-%d %H:%M UTC") if hasattr(expires_at, "strftime") else str(expires_at)
-            body_lines.append(f"  {w['fingerprint']} — {w['hostname']} — expire le {expires_str}")
+            body_lines.append(f"  {w['fingerprint']} — {w['hostname']} — expires {expires_str}")
+        n = len(warnings)
         alerts.send_alert(
             "WARNING",
-            f"[ssh-access-manager] {len(warnings)} cle(s) expirant bientot",
+            f"[ssh-access-manager] {n} {'key' if n == 1 else 'keys'} expiring soon",
             "\n".join(body_lines),
         )
     return len(warnings)
@@ -78,8 +79,8 @@ def expire_keys() -> int:
         except Exception as exc:
             alerts.send_alert(
                 "CRITICAL",
-                f"[ssh-access-manager] Echec revocation expiree sur {row['hostname']}",
-                f"Fingerprint: {row['fingerprint']}\nErreur: {exc}",
+                f"[ssh-access-manager] Expired key revocation failed on {row['hostname']}",
+                f"Fingerprint: {row['fingerprint']}\nError: {exc}",
             )
             continue
 
