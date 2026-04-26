@@ -618,7 +618,6 @@ ui/tests/
     KeyActions.spec.js    ← modal confirmation révocation (17 tests)
     ExpiryPicker.spec.js  ← modes exclusifs heures/date (11 tests)
     ServerTable.spec.js   ← filtres hostname/IP/env, badges statut (15 tests)
-    AccessForm.spec.js    ← dropdown serveurs, modes heures/date/illimité, soumission (18 tests)
     KeyTable.spec.js      ← boutons par statut, owner, expires_at (18+ tests)
     Admins.spec.js        ← modals enable/delete, garde-fous (15 tests)
     Settings.spec.js      ← chargement, sauvegarde, validation, erreurs (7 tests)
@@ -814,7 +813,7 @@ ui/src/views/
                           + boutons désactiver/réactiver/supprimer (issue #89)
                           + bandeau rouge si serveur désactivé (issue #91)
     Anomalies.vue       ← toutes anomalies actives
-    AccessRequests.vue  ← accès temporaires + formulaire
+    AccessRequests.vue  ← déploiement de clé SSH (formulaire DeployKeyForm uniquement)
     Audit.vue           ← historique filtrable
     Admins.vue          ← gestion administrateurs
                           + modals enable/delete + garde-fou self (issue #116)
@@ -829,9 +828,6 @@ ui/src/components/
     KeyTable.vue        ← tableau clés avec actions + tooltip non-conformité (issue #99)
                           + bouton Illimité (remove-expiry) (issue #93)
     KeyActions.vue      ← boutons valider/révoquer/expiry
-    AccessForm.vue      ← formulaire accès temporaire
-                          + dropdown serveurs actifs (GET /api/servers, filtré is_active)
-                          + mode durée illimitée (pas d'expires_at) (issue #137)
     ExpiryPicker.vue    ← datepicker durée ou date précise
 
 ui/src/
@@ -999,7 +995,6 @@ ssh-access-manager/
         │   ├── KeyActions.spec.js
         │   ├── ExpiryPicker.spec.js
         │   ├── ServerTable.spec.js
-        │   ├── AccessForm.spec.js
         │   ├── KeyTable.spec.js
         │   ├── Admins.spec.js
         │   └── Settings.spec.js
@@ -1030,5 +1025,4 @@ ssh-access-manager/
                 ├── ServerTable.vue
                 ├── KeyTable.vue
                 ├── KeyActions.vue
-                ├── AccessForm.vue
                 └── ExpiryPicker.vue

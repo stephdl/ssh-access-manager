@@ -593,14 +593,15 @@ toutes les 4 heures.
 
 ## 10. Cycle de vie complet d'un accès temporaire
 
-Le workflow d'accès temporaire illustre la coordination entre les modules :
+Le workflow d'accès temporaire illustre la coordination entre les modules.
+Le déploiement de clé SSH est disponible via l'UI (vue Accès → DeployKeyForm) ;
+le workflow demande/approbation (`access request` / `access approve`) est accessible
+uniquement via la CLI et l'API REST.
 
 ```
-1. Utilisateur soumet AccessForm.vue
-   → dropdown serveurs actifs chargé via GET /api/servers (filtré is_active=true)
-   → 3 modes durée : heures / date précise / illimité (pas d'expires_at)
-   → POST /api/access/grant
-   → actions.grant_access(key_fp, hostname, expires_at, justification, admin_id)
+1. Déploiement via UI (DeployKeyForm) ou CLI (access grant)
+   → POST /api/access/deploy  (UI)  ou  POST /api/access/grant  (CLI/API)
+   → actions.deploy_key() ou actions.grant_access()
    → INSERT key_authorizations (status='ACTIVE', expires_at=... ou NULL si illimité)
    → INSERT audit_log('REQUEST_APPROVED')
 
@@ -670,19 +671,20 @@ Ce guard est non-bloquant : si `fetchMe()` échoue (session expirée), la
 redirection vers Login est automatique. Aucune vue protégée n'est rendue sans
 authentification valide.
 
-### Composant AccessForm — dropdown et mode illimité
+### Vue AccessRequests — formulaire DeployKeyForm
 
-`AccessForm.vue` charge dynamiquement la liste des serveurs actifs via `GET /api/servers`
-au montage du composant (`onMounted`) et filtre `is_active === true`. Le champ serveur est
-un `<select>` plutôt qu'un `<input type="text">` libre, évitant les erreurs de saisie.
+La vue `AccessRequests.vue` expose uniquement le formulaire `DeployKeyForm` pour
+déployer une clé SSH sur un serveur distant depuis l'interface web.
+Le formulaire collecte : utilisateur Unix, clé publique, serveur cible (dropdown
+des serveurs actifs via `GET /api/servers`, filtré `is_active === true`), durée
+(heures / date précise / illimité) et justification.
 
-Trois modes de durée sont disponibles :
-- `hours` — durée en heures (payload `{ hours: N }`)
-- `date` — date/heure précise (payload `{ date: "ISO" }`)
-- `unlimited` — pas d'expiration (payload sans `hours` ni `date`)
+À la soumission, `POST /api/access/deploy` appelle `actions.deploy_key()` :
+exécution de `sam-add` sur le serveur distant, enregistrement de la clé avec
+statut `ACTIVE` et expiration choisie.
 
-`durationValid` retourne toujours `true` en mode `unlimited`, et `submit()` n'inclut
-ni `hours` ni `date` dans le payload, laissant l'API sans contrainte de durée.
+Le workflow demande/approbation (`access request` / `access approve`) reste
+disponible via la CLI et l'API REST, mais n'est plus exposé dans l'interface web.
 
 ### Composant ExpiryPicker — modes exclusifs
 
@@ -838,7 +840,7 @@ coûteuse en temps).
 | `test_manage.py` | 25 | Toutes les commandes CLI |
 | `test_collect.py` | 15 | 4 scénarios détection, RSA parsing |
 | `test_expire.py` | 12 | Anti-spam 24h, expiration auto |
-| Vue.js specs | 70 | KeyActions, ExpiryPicker, AccessForm, KeyTable, ServerTable |
+| Vue.js specs | 52 | KeyActions, ExpiryPicker, KeyTable, ServerTable |
 
 ---
 
