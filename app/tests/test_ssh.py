@@ -230,8 +230,8 @@ def test_ssh_ensure_scripts_staging_not_in_tmp(sample_server):
         assert "/home/" in staged_path
 
 
-def test_ssh_ensure_scripts_mv_uses_exact_destination(sample_server):
-    """sudo mv doit spécifier le chemin de destination exact, pas un répertoire."""
+def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
+    """sudo install doit spécifier le chemin de destination exact, pas un répertoire."""
     wrong_hash = "0" * 64
     with patch("ssh._connect") as mock_connect, patch("ssh.db"):
         client = MagicMock()
@@ -248,10 +248,10 @@ def test_ssh_ensure_scripts_mv_uses_exact_destination(sample_server):
         ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
 
         commands = [c[0][0] for c in client.exec_command.call_args_list]
-        mv_cmds = [c for c in commands if "/bin/mv" in c]
-        assert mv_cmds, "Aucune commande mv trouvée"
-        for cmd in mv_cmds:
+        install_cmds = [c for c in commands if "/usr/bin/install" in c]
+        assert install_cmds, "Aucune commande install trouvée"
+        for cmd in install_cmds:
             dest = cmd.split()[-1]
             assert dest in ("/usr/local/bin/sam-collect", "/usr/local/bin/sam-revoke"), (
-                f"La destination mv doit être un chemin exact, pas un répertoire : {cmd}"
+                f"La destination install doit être un chemin exact, pas un répertoire : {cmd}"
             )
