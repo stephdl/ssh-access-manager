@@ -1,2 +1,9 @@
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 .env
+__pycache__/
+*.pyc
+.coverage
+app/.coverage
+app/__pycache__/
+app/tests/__pycache__/

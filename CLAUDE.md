@@ -165,8 +165,7 @@ Si premier démarrage :
 8. Créer base et utilisateur depuis ENV (deux psql séparés — CREATE
    DATABASE ne peut pas tourner dans une transaction)
 9. Appliquer /app/sql/schema.sql
-10. Appliquer migrations (sql/migrations/*.sql dans l'ordre)
-11. Insérer administrateur initial depuis ENV avec password_hash
+10. Insérer administrateur initial depuis ENV avec password_hash
     (werkzeug generate_password_hash)
 12. Arrêter PostgreSQL temporaire
 13. Générer /etc/msmtprc depuis msmtp.conf.template + ENV
@@ -313,22 +312,6 @@ CREATE TABLE audit_log (
     performed_at    TIMESTAMPTZ DEFAULT now(),
     details         JSONB
 );
-
--- ADMIN_ENABLED et ADMIN_DELETED ajoutés via migration 003
--- (sql/migrations/003_admin_enable_delete.sql — issue #116)
--- USER_LOCKED et USER_UNLOCKED ajoutés via migration 004
--- (sql/migrations/004_user_lock_unlock.sql — issue #181)
-
-## Migrations SQL
-
-sql/migrations/
-    003_admin_enable_delete.sql  ← étend le CHECK de audit_log.action
-                                    pour ADMIN_ENABLED et ADMIN_DELETED
-    004_user_lock_unlock.sql     ← étend le CHECK de audit_log.action
-                                    pour USER_LOCKED et USER_UNLOCKED
-
-Bootstrap applique les migrations dans l'ordre lexicographique
-après schema.sql au premier démarrage.
 
 ## Table settings (issue #133)
 
@@ -1025,10 +1008,7 @@ ssh-access-manager/
     ├── docs/
     │   └── erd.md              ← diagramme ERD Mermaid 6 tables
     ├── sql/
-    │   ├── schema.sql
-    │   └── migrations/
-    │       ├── 003_admin_enable_delete.sql
-    │       └── 004_user_lock_unlock.sql
+    │   └── schema.sql
     ├── app/
     │   ├── db.py
     │   ├── servers.py
