@@ -142,7 +142,9 @@
     "btn_unlimited": "Unbegrenzt"
   },
   "access": {
-    "title": "Temporärer Zugriff"
+    "title": "Temporärer Zugriff",
+    "info_deploy": "Das folgende Formular stellt einen SSH-Schlüssel auf einem Zielserver bereit. Falls der Unix-Benutzer nicht existiert, wird er automatisch erstellt.",
+    "info_no_sudo": "Der Benutzer wird ohne Administratorrechte erstellt (kein sudo/wheel). Um erhöhte Rechte zu erteilen, greifen Sie manuell auf den Server zu."
   },
   "access_form": {
     "duration_label": "Zugriffsdauer",

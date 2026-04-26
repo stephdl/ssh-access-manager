@@ -142,7 +142,9 @@
     "btn_unlimited": "Illimité"
   },
   "access": {
-    "title": "Accès temporaires"
+    "title": "Accès temporaires",
+    "info_deploy": "Le formulaire ci-dessous déploie une clé SSH sur un serveur cible. Si l'utilisateur Unix n'existe pas, il sera créé automatiquement.",
+    "info_no_sudo": "L'utilisateur est créé sans droits d'administration (pas de sudo/wheel). Pour accorder des privilèges élevés, intervenez manuellement sur le serveur."
   },
   "access_form": {
     "duration_label": "Durée d'accès",
