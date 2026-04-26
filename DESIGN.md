@@ -90,7 +90,7 @@ montée en charge, l'extraction de PostgreSQL dans un service dédié reste triv
 
 ```dockerfile
 # Stage 1 : build Vue.js
-FROM node:22-alpine AS ui-builder
+FROM node:24-alpine AS ui-builder
 RUN npm ci && npm run build   # produit /ui/dist/
 
 # Stage 2 : image finale

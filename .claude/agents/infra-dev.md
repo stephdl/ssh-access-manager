@@ -46,12 +46,12 @@ Paquets pip obligatoires :
 
 ### Stage build UI
 ```
-FROM node:22-alpine AS ui-builder
+FROM node:24-alpine AS ui-builder
 ```
 
 ## Règles absolues
 
-1. **Multi-stage obligatoire** — Stage 1 `ui-builder` (node:22-alpine), Stage 2 image finale (alpine:3.23.4). Le dist Vue.js est copié depuis le stage 1.
+1. **Multi-stage obligatoire** — Stage 1 `ui-builder` (node:24-alpine), Stage 2 image finale (alpine:3.23.4). Le dist Vue.js est copié depuis le stage 1.
 2. **Volume unique `/data`** — Jamais d'autre volume. Structure :
    ```
    /data/
