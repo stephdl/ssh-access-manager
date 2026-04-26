@@ -416,6 +416,7 @@ code {
 
 .actions {
   display: flex;
+  align-items: center;
   gap: 0.4rem;
 }
 .empty {
