@@ -342,6 +342,7 @@ cd ui && npx vitest run
 | `build-main.yml` | Merge sur `main` | Build + push image `:main` sur GHCR |
 | `publish-release.yml` | Push d'un tag git | Build + push image `:vX.Y.Z` (+ `:latest` si stable) |
 | `cleanup-pr.yml` | Fermeture de PR | Suppression de l'image `pr-{N}` sur GHCR |
+| `codeql.yml` | PR + push main + hebdo | Analyse statique sécurité Python (SAST) |
 
 ### Stratégie de tags Docker (GHCR)
 

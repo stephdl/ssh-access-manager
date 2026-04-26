@@ -842,7 +842,7 @@ coûteuse en temps).
 
 ## 13. CI/CD — GitHub Actions
 
-### 6 workflows et leur rôle
+### 7 workflows et leur rôle
 
 ```
 .github/workflows/
@@ -852,6 +852,7 @@ coûteuse en temps).
   build-main.yml      ← Image Docker :main à chaque merge
   publish-release.yml ← Image semver stable/beta sur tag git
   cleanup-pr.yml      ← Suppression image pr-{N} à fermeture PR
+  codeql.yml          ← Analyse statique sécurité Python (SAST)
 ```
 
 ### `ci.yml` — porte d'entrée qualité
@@ -922,6 +923,25 @@ Configurée via l'API GitHub Branch Protection Rules :
   Prettier, Commit messages, Validate PR title
 - Force push bloqué
 - Règle appliquée aux administrateurs du dépôt (`enforce_admins: true`)
+
+### CodeQL — analyse statique de sécurité (`codeql.yml`)
+
+CodeQL est l'outil SAST (Static Application Security Testing) natif de GitHub.
+Il analyse le code Python à la recherche de vulnérabilités connues :
+
+- Injection de commandes (appels `subprocess`, exécution paramiko)
+- Injection SQL (requêtes psycopg2 mal paramétrées)
+- Path traversal (lecture/écriture de fichiers depuis des entrées utilisateur)
+- Utilisation de fonctions ou patterns dangereux
+
+Le workflow se déclenche sur trois événements :
+- Chaque PR (détection avant merge)
+- Push sur `main` (double filet)
+- Tous les lundis à 6h (détection de nouvelles CVE sur du code non modifié)
+
+Les résultats sont visibles dans l'onglet **Security → Code scanning** du dépôt
+GitHub. La query suite `security-extended` couvre un périmètre plus large que
+la suite par défaut.
 
 ### Cache pip avec requirements-test.txt
 

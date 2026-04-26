@@ -644,6 +644,7 @@ freezegun           ← pour mocker datetime dans expire.py
     build-main.yml      ← merge main : build + push image :main sur GHCR
     publish-release.yml ← tag git : build + push :vX.Y.Z (+ :latest si stable)
     cleanup-pr.yml      ← fermeture PR : suppression image pr-{N} sur GHCR
+    codeql.yml          ← PR + main + hebdo lundi : analyse statique sécurité Python (issue #146)
 
 Protection branche main :
     PR obligatoire, 5 checks requis, force push bloqué, enforce_admins=true
