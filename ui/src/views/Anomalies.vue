@@ -81,13 +81,15 @@
                 <span v-if="k.is_compliant" :title="$t('key_table.compliant_ok')">✅</span>
                 <span v-else class="non-compliant" :title="complianceTooltip(k)">⚠️</span>
               </td>
-              <td class="actions">
-                <button class="btn-success" @click="validate(k)">
-                  {{ $t('anomalies.btn_validate') }}
-                </button>
-                <button class="btn-danger" @click="openRevoke(k)">
-                  {{ $t('anomalies.btn_revoke') }}
-                </button>
+              <td>
+                <div class="actions">
+                  <button class="btn-success" @click="validate(k)">
+                    {{ $t('anomalies.btn_validate') }}
+                  </button>
+                  <button class="btn-danger" @click="openRevoke(k)">
+                    {{ $t('anomalies.btn_revoke') }}
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
