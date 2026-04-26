@@ -13,16 +13,12 @@ jobs:
     name: Build & push main
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ghcr.io/stephdl/ssh-access-manager:main
+      - name: Build and push
+        run: |
+          docker build -t ghcr.io/stephdl/ssh-access-manager:main .
+          docker push ghcr.io/stephdl/ssh-access-manager:main
