@@ -145,11 +145,13 @@ describe('DeployedUsersTable', () => {
     let capturedUrl = null
     let capturedPayload = null
 
+    const lockedUsers = [{ ...MOCK_USERS[1], lock_status: 'USER_LOCKED' }]
+
     vi.stubGlobal('fetch', (url, opts) => {
       if (url === '/api/access/deployed-users') {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve(MOCK_USERS),
+          json: () => Promise.resolve(lockedUsers),
         })
       }
       if (url === '/api/access/unlock-user') {
@@ -214,11 +216,13 @@ describe('DeployedUsersTable', () => {
   })
 
   it('affiche succès unlock inline sur la ligne', async () => {
+    const lockedUsers = [{ ...MOCK_USERS[1], lock_status: 'USER_LOCKED' }]
+
     vi.stubGlobal('fetch', (url, opts) => {
       if (url === '/api/access/deployed-users') {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve(MOCK_USERS),
+          json: () => Promise.resolve(lockedUsers),
         })
       }
       if (url === '/api/access/unlock-user') {

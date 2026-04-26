@@ -41,6 +41,7 @@
           </td>
           <td class="actions">
             <button
+              v-if="lockStates[`${user.unix_user}-${user.hostname}`] !== 'USER_LOCKED'"
               type="button"
               class="btn-danger btn-sm"
               :data-testid="`btn-lock-${user.unix_user}-${user.hostname}`"
@@ -50,6 +51,7 @@
               {{ $t('userLock.btnLock') }}
             </button>
             <button
+              v-else
               type="button"
               class="btn-success btn-sm"
               :data-testid="`btn-unlock-${user.unix_user}-${user.hostname}`"
