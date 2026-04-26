@@ -180,6 +180,17 @@ Depuis la vue détail d'un serveur, les actions disponibles sur chaque clé ACTI
 
 ### Demande d'accès
 
+**Via l'interface web (recommandé)** : Accès → section **Nouvelle demande d'accès**.
+
+Le formulaire propose :
+- Un **dropdown des serveurs connus** (serveurs actifs uniquement) — plus besoin de connaître le hostname exact.
+- Trois modes de durée :
+  - **Durée (heures)** — expiration automatique après N heures
+  - **Date précise** — expiration à une date/heure précise
+  - **Illimité** — pas d'expiration (à utiliser avec discernement)
+
+**Via la CLI** :
+
 ```bash
 podman exec ssh-access-manager python3 /app/app/manage.py access request \
   --key SHA256:... \

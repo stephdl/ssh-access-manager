@@ -178,6 +178,9 @@
     "justification_placeholder": "Grund der Zugriffsanfrage…",
     "submit": "Anfrage senden",
     "reset": "Zurücksetzen",
+    "unlimited_label": "Unbegrenzt",
+    "server_loading": "Server werden geladen…",
+    "server_empty": "Kein Server verfügbar",
     "error_unsupported_type": "Nicht unterstützter Typ. Akzeptierte Typen: {types}",
     "error_min_hours": "Die Dauer muss mindestens 1 Stunde betragen.",
     "error_future_date": "Das Datum muss in der Zukunft liegen."

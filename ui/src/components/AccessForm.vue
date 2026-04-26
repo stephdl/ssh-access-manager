@@ -14,13 +14,16 @@
 
     <div class="field">
       <label for="af-server">{{ $t('access_form.server_label') }} <span class="required">{{ $t('common.required') }}</span></label>
-      <input
-        id="af-server"
-        v-model="server"
-        type="text"
-        :placeholder="$t('access_form.server_placeholder')"
-        data-testid="input-server"
-      />
+      <select id="af-server" v-model="server" data-testid="select-server">
+        <option value="" disabled>
+          {{ serversLoading
+            ? $t('access_form.server_loading')
+            : servers.length === 0
+              ? $t('access_form.server_empty')
+              : $t('access_form.server_placeholder') }}
+        </option>
+        <option v-for="s in servers" :key="s.hostname" :value="s.hostname">{{ s.hostname }}</option>
+      </select>
     </div>
 
     <div class="field">
@@ -34,6 +37,10 @@
           <input v-model="mode" type="radio" value="date" data-testid="mode-date" />
           {{ $t('access_form.date_label') }}
         </label>
+        <label>
+          <input v-model="mode" type="radio" value="unlimited" data-testid="mode-unlimited" />
+          {{ $t('access_form.unlimited_label') }}
+        </label>
       </div>
       <input
         v-if="mode === 'hours'"
@@ -44,7 +51,7 @@
         data-testid="input-hours"
       />
       <input
-        v-else
+        v-else-if="mode === 'date'"
         v-model="date"
         type="datetime-local"
         :min="minDate"
@@ -74,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -86,6 +93,22 @@ const mode         = ref('hours')
 const hours        = ref('')
 const date         = ref('')
 const justification = ref('')
+
+const servers        = ref([])
+const serversLoading = ref(false)
+
+onMounted(async () => {
+  serversLoading.value = true
+  try {
+    const res = await fetch('/api/servers')
+    if (res.ok) {
+      const data = await res.json()
+      servers.value = data.filter(s => s.is_active)
+    }
+  } finally {
+    serversLoading.value = false
+  }
+})
 
 const minDate = computed(() => {
   const d = new Date()
@@ -105,6 +128,7 @@ const pubkeyError = computed(() => {
 })
 
 const durationError = computed(() => {
+  if (mode.value === 'unlimited') return ''
   if (mode.value === 'hours') {
     if (hours.value !== '' && hours.value < 1) return t('access_form.error_min_hours')
     return ''
@@ -116,6 +140,7 @@ const durationError = computed(() => {
 })
 
 const durationValid = computed(() => {
+  if (mode.value === 'unlimited') return true
   if (mode.value === 'hours') return hours.value > 0
   return !!date.value && new Date(date.value) > new Date()
 })
@@ -142,7 +167,7 @@ function submit() {
   }
   if (mode.value === 'hours') {
     payload.hours = hours.value
-  } else {
+  } else if (mode.value === 'date') {
     payload.date = date.value
   }
   emit('submit', payload)
@@ -169,7 +194,8 @@ label { font-size: 0.85rem; font-weight: 600; }
 textarea,
 input[type="text"],
 input[type="number"],
-input[type="datetime-local"] {
+input[type="datetime-local"],
+select {
   padding: 0.4rem 0.6rem;
   border: 1px solid #ccc;
   border-radius: 4px;

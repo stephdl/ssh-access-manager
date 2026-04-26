@@ -178,6 +178,9 @@
     "justification_placeholder": "Razón de la solicitud de acceso…",
     "submit": "Enviar solicitud",
     "reset": "Restablecer",
+    "unlimited_label": "Ilimitado",
+    "server_loading": "Cargando servidores…",
+    "server_empty": "Ningún servidor disponible",
     "error_unsupported_type": "Tipo no soportado. Tipos aceptados: {types}",
     "error_min_hours": "La duración debe ser de al menos 1 hora.",
     "error_future_date": "La fecha debe ser en el futuro."

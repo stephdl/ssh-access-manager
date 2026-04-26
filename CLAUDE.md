@@ -9,13 +9,13 @@ Développeur : Stéphane de Labrusse.
 Stack habituelle : Python/Bash, Podman, PostgreSQL, Nginx, Alpine,
 Vue.js 3.
 
-## État du projet — toutes issues fermées (46/46)
+## État du projet — toutes issues fermées (47/47)
 
 Milestone 1 (Issues 1–4) ✅  
 Milestone 2 (Issues 5–13) ✅  
 Milestone 3 (Issues 14–21) ✅  
 Milestone 4 (Issues 22–24) ✅  
-Issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119) ✅
+Issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137) ✅
 
 ## Stack vérifiée et figée
 
@@ -609,7 +609,7 @@ ui/tests/
     KeyActions.spec.js    ← modal confirmation révocation (17 tests)
     ExpiryPicker.spec.js  ← modes exclusifs heures/date (11 tests)
     ServerTable.spec.js   ← filtres hostname/IP/env, badges statut (15 tests)
-    AccessForm.spec.js    ← validation durée OU date, soumission (16 tests)
+    AccessForm.spec.js    ← dropdown serveurs, modes heures/date/illimité, soumission (18 tests)
     KeyTable.spec.js      ← boutons par statut, owner, expires_at (18+ tests)
     Admins.spec.js        ← modals enable/delete, garde-fous (15 tests)
     Settings.spec.js      ← chargement, sauvegarde, validation, erreurs (7 tests)
@@ -778,6 +778,8 @@ ui/src/components/
                           + bouton Illimité (remove-expiry) (issue #93)
     KeyActions.vue      ← boutons valider/révoquer/expiry
     AccessForm.vue      ← formulaire accès temporaire
+                          + dropdown serveurs actifs (GET /api/servers, filtré is_active)
+                          + mode durée illimitée (pas d'expires_at) (issue #137)
     ExpiryPicker.vue    ← datepicker durée ou date précise
 
 ui/src/

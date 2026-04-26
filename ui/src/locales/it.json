@@ -178,6 +178,9 @@
     "justification_placeholder": "Motivo della richiesta di accesso…",
     "submit": "Invia richiesta",
     "reset": "Reimposta",
+    "unlimited_label": "Illimitato",
+    "server_loading": "Caricamento server…",
+    "server_empty": "Nessun server disponibile",
     "error_unsupported_type": "Tipo non supportato. Tipi accettati: {types}",
     "error_min_hours": "La durata deve essere di almeno 1 ora.",
     "error_future_date": "La data deve essere nel futuro."
