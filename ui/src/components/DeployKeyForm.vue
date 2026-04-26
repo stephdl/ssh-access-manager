@@ -100,6 +100,7 @@
           v-else-if="mode === 'date'"
           v-model="date"
           type="datetime-local"
+          :lang="locale"
           :min="minDate"
           data-testid="input-date"
         />
@@ -140,7 +141,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const emit = defineEmits(['deployed'])
 
 const unixUser = ref('')

@@ -39,6 +39,7 @@
         id="expiry-date"
         v-model="date"
         type="datetime-local"
+        :lang="locale"
         :min="minDate"
         data-testid="input-date"
         @input="emitValue"
@@ -52,6 +53,9 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { locale } = useI18n()
 
 const emit = defineEmits(['update:modelValue'])
 

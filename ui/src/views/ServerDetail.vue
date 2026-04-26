@@ -164,7 +164,7 @@
           min="1"
           :placeholder="$t('server_detail.expiry_hours_placeholder')"
         />
-        <input v-else v-model="expiryDate" type="datetime-local" />
+        <input v-else v-model="expiryDate" type="datetime-local" :lang="locale" />
         <div class="modal-actions">
           <button class="btn-primary" :disabled="!expiryValid" @click="confirmExpiry">
             {{ $t('server_detail.expiry_confirm') }}
@@ -182,7 +182,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import KeyTable from '../components/KeyTable.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const hostname = route.params.hostname
