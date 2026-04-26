@@ -31,13 +31,17 @@
             <tr v-for="a in active" :key="a.id" :class="{ 'row-expiring': isExpiringSoon(a) }">
               <td>{{ a.requested_by_username || a.requested_by }}</td>
               <td>{{ a.server_hostname || '—' }}</td>
-              <td class="fp"><code>{{ a.fingerprint || '—' }}</code></td>
+              <td class="fp">
+                <code>{{ a.fingerprint || '—' }}</code>
+              </td>
               <td>{{ a.justification }}</td>
               <td>
                 <span :class="countdownClass(a)">{{ countdown(a.expires_at) }}</span>
               </td>
               <td>
-                <button class="btn-danger" @click="revokeAccess(a.id)">{{ $t('access.btn_revoke') }}</button>
+                <button class="btn-danger" @click="revokeAccess(a.id)">
+                  {{ $t('access.btn_revoke') }}
+                </button>
               </td>
             </tr>
           </tbody>
@@ -68,12 +72,18 @@
             <tr v-for="a in pending" :key="a.id">
               <td>{{ a.requested_by_username || a.requested_by }}</td>
               <td>{{ a.server_hostname || '—' }}</td>
-              <td class="fp"><code>{{ a.fingerprint || '—' }}</code></td>
+              <td class="fp">
+                <code>{{ a.fingerprint || '—' }}</code>
+              </td>
               <td>{{ a.justification }}</td>
               <td>{{ formatDate(a.requested_at) }}</td>
               <td class="actions">
-                <button class="btn-success" @click="approve(a.id)">{{ $t('access.btn_approve') }}</button>
-                <button class="btn-danger" @click="reject(a.id)">{{ $t('access.btn_reject') }}</button>
+                <button class="btn-success" @click="approve(a.id)">
+                  {{ $t('access.btn_approve') }}
+                </button>
+                <button class="btn-danger" @click="reject(a.id)">
+                  {{ $t('access.btn_reject') }}
+                </button>
               </td>
             </tr>
           </tbody>
@@ -98,18 +108,14 @@ import AccessForm from '../components/AccessForm.vue'
 const { t } = useI18n()
 
 const requests = ref([])
-const loading  = ref(true)
-const error    = ref('')
-const message  = ref('')
-let ticker     = null
+const loading = ref(true)
+const error = ref('')
+const message = ref('')
+let ticker = null
 
-const active = computed(() =>
-  requests.value.filter(r => r.status === 'APPROVED'),
-)
+const active = computed(() => requests.value.filter((r) => r.status === 'APPROVED'))
 
-const pending = computed(() =>
-  requests.value.filter(r => r.status === 'PENDING'),
-)
+const pending = computed(() => requests.value.filter((r) => r.status === 'PENDING'))
 
 async function load() {
   loading.value = true
@@ -195,8 +201,8 @@ function isExpiringSoon(a) {
 function countdownClass(a) {
   if (!a.expires_at) return ''
   const diff = new Date(a.expires_at) - Date.now()
-  if (diff < 3600000)  return 'expiry-critical'
-  if (diff < 7200000)  return 'expiry-warn'
+  if (diff < 3600000) return 'expiry-critical'
+  if (diff < 7200000) return 'expiry-warn'
   return ''
 }
 
@@ -207,14 +213,19 @@ function formatDate(iso) {
 
 onMounted(() => {
   load()
-  ticker = setInterval(() => { requests.value = [...requests.value] }, 60000)
+  ticker = setInterval(() => {
+    requests.value = [...requests.value]
+  }, 60000)
 })
 
 onUnmounted(() => clearInterval(ticker))
 </script>
 
 <style scoped>
-h1 { font-size: 1.5rem; margin-bottom: 1.25rem; }
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: 1.25rem;
+}
 h2 {
   font-size: 1.1rem;
   margin-bottom: 0.75rem;
@@ -242,22 +253,71 @@ h2 {
   font-size: 0.8rem;
   font-weight: bold;
 }
-.count-ok     { background: #d4edda; color: #155724; }
-.count-warn   { background: #fff3cd; color: #856404; }
-.count-active { background: #cfe2ff; color: #084298; }
+.count-ok {
+  background: #d4edda;
+  color: #155724;
+}
+.count-warn {
+  background: #fff3cd;
+  color: #856404;
+}
+.count-active {
+  background: #cfe2ff;
+  color: #084298;
+}
 
-.fp { font-size: 0.75rem; word-break: break-all; max-width: 200px; }
-code { background: #f4f4f4; padding: 0 3px; border-radius: 3px; font-size: 0.8rem; }
+.fp {
+  font-size: 0.75rem;
+  word-break: break-all;
+  max-width: 200px;
+}
+code {
+  background: #f4f4f4;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: 0.8rem;
+}
 
-.row-expiring { background: #fffbf0; }
+.row-expiring {
+  background: #fffbf0;
+}
 
-.expiry-critical { color: #dc3545; font-weight: bold; }
-.expiry-warn     { color: #856404; font-weight: bold; }
+.expiry-critical {
+  color: #dc3545;
+  font-weight: bold;
+}
+.expiry-warn {
+  color: #856404;
+  font-weight: bold;
+}
 
-.actions { display: flex; gap: 0.4rem; }
-.empty { color: #888; font-size: 0.9rem; padding: 0.5rem 0; }
-.loading { text-align: center; padding: 2rem; color: #888; }
+.actions {
+  display: flex;
+  gap: 0.4rem;
+}
+.empty {
+  color: #888;
+  font-size: 0.9rem;
+  padding: 0.5rem 0;
+}
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #888;
+}
 
-.alert-error { background: #f8d7da; color: #721c24; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
-.alert-info  { background: #d4edda; color: #155724; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+.alert-error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+.alert-info {
+  background: #d4edda;
+  color: #155724;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
 </style>

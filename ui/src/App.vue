@@ -46,7 +46,11 @@ function changeLang(lang) {
 </script>
 
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 body {
   font-family: system-ui, sans-serif;
@@ -80,7 +84,9 @@ body {
   font-weight: bold;
 }
 
-.nav-spacer { flex: 1; }
+.nav-spacer {
+  flex: 1;
+}
 
 .nav-user {
   font-size: 0.85rem;
@@ -96,18 +102,24 @@ body {
   border-radius: 4px;
   cursor: pointer;
 }
-.btn-logout:hover { border-color: #fff; color: #fff; }
+.btn-logout:hover {
+  border-color: #fff;
+  color: #fff;
+}
 
 .lang-select {
   background: transparent;
-  border: 1px solid rgba(255,255,255,0.4);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   color: #fff;
   border-radius: 4px;
   padding: 0.2rem 0.4rem;
   font-size: 0.85rem;
   cursor: pointer;
 }
-.lang-select option { color: #000; background: #fff; }
+.lang-select option {
+  color: #000;
+  background: #fff;
+}
 
 .content {
   padding: 1.5rem;
@@ -115,10 +127,25 @@ body {
   margin: 0 auto;
 }
 
-table { width: 100%; border-collapse: collapse; background: #fff; }
-th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #e0e0e0; }
-th { background: #f0f0f0; font-size: 0.8rem; text-transform: uppercase; }
-tr:hover { background: #fafafa; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+th,
+td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+}
+th {
+  background: #f0f0f0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+tr:hover {
+  background: #fafafa;
+}
 
 .badge {
   display: inline-block;
@@ -127,11 +154,26 @@ tr:hover { background: #fafafa; }
   font-size: 0.75rem;
   font-weight: bold;
 }
-.badge-active    { background: #d4edda; color: #155724; }
-.badge-pending   { background: #fff3cd; color: #856404; }
-.badge-revoked   { background: #f8d7da; color: #721c24; }
-.badge-expired   { background: #e2e3e5; color: #383d41; }
-.badge-critical  { background: #f8d7da; color: #721c24; }
+.badge-active {
+  background: #d4edda;
+  color: #155724;
+}
+.badge-pending {
+  background: #fff3cd;
+  color: #856404;
+}
+.badge-revoked {
+  background: #f8d7da;
+  color: #721c24;
+}
+.badge-expired {
+  background: #e2e3e5;
+  color: #383d41;
+}
+.badge-critical {
+  background: #f8d7da;
+  color: #721c24;
+}
 
 button {
   padding: 0.3rem 0.75rem;
@@ -139,7 +181,9 @@ button {
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.85rem;
-  transition: opacity 0.15s, filter 0.15s;
+  transition:
+    opacity 0.15s,
+    filter 0.15s;
 }
 button:disabled {
   opacity: 0.45;
@@ -147,14 +191,40 @@ button:disabled {
   filter: grayscale(30%);
   pointer-events: none;
 }
-.btn-primary   { background: #0d6efd; color: #fff; }
-.btn-primary:hover:not(:disabled)   { background: #0b5ed7; }
-.btn-secondary { background: #fff; color: #0d6efd; border-color: #0d6efd; }
-.btn-secondary:hover:not(:disabled) { background: #e7f0ff; }
-.btn-danger    { background: #dc3545; color: #fff; }
-.btn-danger:hover:not(:disabled)    { background: #bb2d3b; }
-.btn-success   { background: #198754; color: #fff; }
-.btn-success:hover:not(:disabled)   { background: #146c43; }
-.btn-warning   { background: #ffc107; color: #000; }
-.btn-warning:hover:not(:disabled)   { background: #e0a800; }
+.btn-primary {
+  background: #0d6efd;
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #0b5ed7;
+}
+.btn-secondary {
+  background: #fff;
+  color: #0d6efd;
+  border-color: #0d6efd;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #e7f0ff;
+}
+.btn-danger {
+  background: #dc3545;
+  color: #fff;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #bb2d3b;
+}
+.btn-success {
+  background: #198754;
+  color: #fff;
+}
+.btn-success:hover:not(:disabled) {
+  background: #146c43;
+}
+.btn-warning {
+  background: #ffc107;
+  color: #000;
+}
+.btn-warning:hover:not(:disabled) {
+  background: #e0a800;
+}
 </style>

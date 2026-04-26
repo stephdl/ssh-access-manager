@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "format:check": "prettier --check \"src/**/*.{vue,js,json,css}\"",
+    "format:write": "prettier --write \"src/**/*.{vue,js,json,css}\""
   },
   "dependencies": {
     "vue": "^3.4.0",
@@ -17,6 +19,7 @@
     "@vitejs/plugin-vue": "^5.0.0",
     "@vue/test-utils": "^2.4.0",
     "jsdom": "^24.0.0",
+    "prettier": "^3.5.0",
     "vite": "^5.0.0",
     "vitest": "^1.0.0"
   }

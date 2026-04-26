@@ -49,8 +49,8 @@ const { login } = useAuth()
 
 const username = ref('')
 const password = ref('')
-const error    = ref('')
-const loading  = ref(false)
+const error = ref('')
+const loading = ref(false)
 
 const canSubmit = computed(() => username.value.trim() && password.value)
 
@@ -103,10 +103,21 @@ h1 {
   margin-top: -0.75rem;
 }
 
-form { display: flex; flex-direction: column; gap: 1rem; }
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
 
-.field { display: flex; flex-direction: column; gap: 0.3rem; }
-label { font-size: 0.85rem; font-weight: 600; }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
 
 input {
   padding: 0.5rem 0.75rem;
@@ -115,9 +126,16 @@ input {
   font-size: 0.95rem;
   width: 100%;
 }
-input:focus { outline: 2px solid #0d6efd; border-color: #0d6efd; }
+input:focus {
+  outline: 2px solid #0d6efd;
+  border-color: #0d6efd;
+}
 
-.btn-full { width: 100%; padding: 0.6rem; font-size: 1rem; }
+.btn-full {
+  width: 100%;
+  padding: 0.6rem;
+  font-size: 1rem;
+}
 
 .alert-error {
   background: #f8d7da;

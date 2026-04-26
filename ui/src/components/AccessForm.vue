@@ -1,7 +1,10 @@
 <template>
   <form class="access-form" @submit.prevent="submit">
     <div class="field">
-      <label for="af-pubkey">{{ $t('access_form.public_key_label') }} <span class="required">{{ $t('common.required') }}</span></label>
+      <label for="af-pubkey"
+        >{{ $t('access_form.public_key_label') }}
+        <span class="required">{{ $t('common.required') }}</span></label
+      >
       <textarea
         id="af-pubkey"
         v-model="publicKey"
@@ -9,25 +12,35 @@
         :placeholder="$t('access_form.public_key_placeholder')"
         data-testid="input-pubkey"
       ></textarea>
-      <span v-if="pubkeyError" class="field-error" data-testid="error-pubkey">{{ pubkeyError }}</span>
+      <span v-if="pubkeyError" class="field-error" data-testid="error-pubkey">{{
+        pubkeyError
+      }}</span>
     </div>
 
     <div class="field">
-      <label for="af-server">{{ $t('access_form.server_label') }} <span class="required">{{ $t('common.required') }}</span></label>
+      <label for="af-server"
+        >{{ $t('access_form.server_label') }}
+        <span class="required">{{ $t('common.required') }}</span></label
+      >
       <select id="af-server" v-model="server" data-testid="select-server">
         <option value="" disabled>
-          {{ serversLoading
-            ? $t('access_form.server_loading')
-            : servers.length === 0
-              ? $t('access_form.server_empty')
-              : $t('access_form.server_placeholder') }}
+          {{
+            serversLoading
+              ? $t('access_form.server_loading')
+              : servers.length === 0
+                ? $t('access_form.server_empty')
+                : $t('access_form.server_placeholder')
+          }}
         </option>
         <option v-for="s in servers" :key="s.hostname" :value="s.hostname">{{ s.hostname }}</option>
       </select>
     </div>
 
     <div class="field">
-      <label>{{ $t('access_form.duration_label') }} <span class="required">{{ $t('common.required') }}</span></label>
+      <label
+        >{{ $t('access_form.duration_label') }}
+        <span class="required">{{ $t('common.required') }}</span></label
+      >
       <div class="mode-toggle">
         <label>
           <input v-model="mode" type="radio" value="hours" data-testid="mode-hours" />
@@ -57,11 +70,16 @@
         :min="minDate"
         data-testid="input-date"
       />
-      <span v-if="durationError" class="field-error" data-testid="error-duration">{{ durationError }}</span>
+      <span v-if="durationError" class="field-error" data-testid="error-duration">{{
+        durationError
+      }}</span>
     </div>
 
     <div class="field">
-      <label for="af-justification">{{ $t('access_form.justification_label') }} <span class="required">{{ $t('common.required') }}</span></label>
+      <label for="af-justification"
+        >{{ $t('access_form.justification_label') }}
+        <span class="required">{{ $t('common.required') }}</span></label
+      >
       <textarea
         id="af-justification"
         v-model="justification"
@@ -87,14 +105,14 @@ import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 const emit = defineEmits(['submit'])
 
-const publicKey    = ref('')
-const server       = ref('')
-const mode         = ref('hours')
-const hours        = ref('')
-const date         = ref('')
+const publicKey = ref('')
+const server = ref('')
+const mode = ref('hours')
+const hours = ref('')
+const date = ref('')
 const justification = ref('')
 
-const servers        = ref([])
+const servers = ref([])
 const serversLoading = ref(false)
 
 onMounted(async () => {
@@ -103,7 +121,7 @@ onMounted(async () => {
     const res = await fetch('/api/servers')
     if (res.ok) {
       const data = await res.json()
-      servers.value = data.filter(s => s.is_active)
+      servers.value = data.filter((s) => s.is_active)
     }
   } finally {
     serversLoading.value = false
@@ -145,24 +163,25 @@ const durationValid = computed(() => {
   return !!date.value && new Date(date.value) > new Date()
 })
 
-const isValid = computed(() =>
-  publicKey.value.trim() !== '' &&
-  !pubkeyError.value &&
-  server.value.trim() !== '' &&
-  durationValid.value &&
-  justification.value.trim() !== '',
+const isValid = computed(
+  () =>
+    publicKey.value.trim() !== '' &&
+    !pubkeyError.value &&
+    server.value.trim() !== '' &&
+    durationValid.value &&
+    justification.value.trim() !== ''
 )
 
 watch(mode, () => {
   hours.value = ''
-  date.value  = ''
+  date.value = ''
 })
 
 function submit() {
   if (!isValid.value) return
   const payload = {
-    public_key:    publicKey.value.trim(),
-    server:        server.value.trim(),
+    public_key: publicKey.value.trim(),
+    server: server.value.trim(),
     justification: justification.value.trim(),
   }
   if (mode.value === 'hours') {
@@ -174,27 +193,40 @@ function submit() {
 }
 
 function reset() {
-  publicKey.value    = ''
-  server.value       = ''
-  mode.value         = 'hours'
-  hours.value        = ''
-  date.value         = ''
+  publicKey.value = ''
+  server.value = ''
+  mode.value = 'hours'
+  hours.value = ''
+  date.value = ''
   justification.value = ''
 }
 </script>
 
 <style scoped>
-.access-form { display: flex; flex-direction: column; gap: 1rem; }
+.access-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
 
-.field { display: flex; flex-direction: column; gap: 0.3rem; }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
 
-label { font-size: 0.85rem; font-weight: 600; }
-.required { color: #dc3545; }
+label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.required {
+  color: #dc3545;
+}
 
 textarea,
-input[type="text"],
-input[type="number"],
-input[type="datetime-local"],
+input[type='text'],
+input[type='number'],
+input[type='datetime-local'],
 select {
   padding: 0.4rem 0.6rem;
   border: 1px solid #ccc;
@@ -203,9 +235,20 @@ select {
   width: 100%;
 }
 
-.mode-toggle { display: flex; gap: 1.5rem; font-size: 0.9rem; margin-bottom: 0.3rem; }
+.mode-toggle {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+}
 
-.field-error { font-size: 0.8rem; color: #dc3545; }
+.field-error {
+  font-size: 0.8rem;
+  color: #dc3545;
+}
 
-.form-actions { display: flex; gap: 0.75rem; }
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+}
 </style>

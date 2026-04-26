@@ -28,10 +28,16 @@
         <tr v-for="s in filtered" :key="s.id" :class="rowClass(s)">
           <td>{{ statusIcon(s) }}</td>
           <td>
-            <router-link :to="`/servers/${s.hostname}`" class="server-link" :class="{ 'link-disabled': !s.is_active }">
+            <router-link
+              :to="`/servers/${s.hostname}`"
+              class="server-link"
+              :class="{ 'link-disabled': !s.is_active }"
+            >
               {{ s.hostname }}
             </router-link>
-            <span v-if="!s.is_active" class="badge badge-disabled">{{ $t('server_table.disabled_badge') }}</span>
+            <span v-if="!s.is_active" class="badge badge-disabled">{{
+              $t('server_table.disabled_badge')
+            }}</span>
           </td>
           <td>{{ s.ip_address }}</td>
           <td>
@@ -66,11 +72,11 @@ const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
   if (!q) return props.servers
   return props.servers.filter(
-    s =>
+    (s) =>
       s.hostname.toLowerCase().includes(q) ||
       s.ip_address.toLowerCase().includes(q) ||
       (s.environment || '').toLowerCase().includes(q) ||
-      (s.os_family || '').toLowerCase().includes(q),
+      (s.os_family || '').toLowerCase().includes(q)
   )
 })
 
@@ -87,11 +93,13 @@ function rowClass(s) {
 }
 
 function envBadge(env) {
-  return {
-    production: 'badge-critical',
-    staging: 'badge-pending',
-    lab: 'badge-active',
-  }[env] || 'badge-expired'
+  return (
+    {
+      production: 'badge-critical',
+      staging: 'badge-pending',
+      lab: 'badge-active',
+    }[env] || 'badge-expired'
+  )
 }
 
 function formatDate(iso) {
@@ -121,21 +129,56 @@ function formatDate(iso) {
   font-weight: 500;
 }
 
-.server-link:hover { text-decoration: underline; }
+.server-link:hover {
+  text-decoration: underline;
+}
 
-.empty { text-align: center; color: #888; padding: 1rem 0; }
+.empty {
+  text-align: center;
+  color: #888;
+  padding: 1rem 0;
+}
 
-.row-danger { background: #fde8e8; opacity: 0.8; }
-.row-danger td { color: #6c6c6c; }
-.row-warning { background: #fffbf0; }
+.row-danger {
+  background: #fde8e8;
+  opacity: 0.8;
+}
+.row-danger td {
+  color: #6c6c6c;
+}
+.row-warning {
+  background: #fffbf0;
+}
 
-.link-disabled { color: #999; }
-.link-disabled:hover { color: #777; }
+.link-disabled {
+  color: #999;
+}
+.link-disabled:hover {
+  color: #777;
+}
 
-.badge-disabled { background: #dc3545; color: #fff; margin-left: 0.5rem; font-size: 0.7rem; padding: 0.1rem 0.4rem; }
+.badge-disabled {
+  background: #dc3545;
+  color: #fff;
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+}
 
-.badge-critical { background: #f8d7da; color: #721c24; }
-.badge-pending  { background: #fff3cd; color: #856404; }
-.badge-active   { background: #d4edda; color: #155724; }
-.badge-expired  { background: #e2e3e5; color: #383d41; }
+.badge-critical {
+  background: #f8d7da;
+  color: #721c24;
+}
+.badge-pending {
+  background: #fff3cd;
+  color: #856404;
+}
+.badge-active {
+  background: #d4edda;
+  color: #155724;
+}
+.badge-expired {
+  background: #e2e3e5;
+  color: #383d41;
+}
 </style>
