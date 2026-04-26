@@ -15,7 +15,7 @@ Milestone 1 (Issues 1–4) ✅
 Milestone 2 (Issues 5–13) ✅  
 Milestone 3 (Issues 14–21) ✅  
 Milestone 4 (Issues 22–24) ✅  
-Issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148, 181) ✅
+Issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148, 181, 183, 185) ✅
 
 ## Stack vérifiée et figée
 
@@ -242,6 +242,7 @@ CREATE TABLE ssh_keys (
 CREATE TABLE key_authorizations (
     key_id                   UUID REFERENCES ssh_keys(id),
     server_id                UUID REFERENCES servers(id),
+    unix_user                VARCHAR(100) NOT NULL DEFAULT '',
     authorized_by            UUID REFERENCES administrators(id),
     authorized_at            TIMESTAMPTZ DEFAULT now(),
     expires_at               TIMESTAMPTZ,
@@ -257,8 +258,11 @@ CREATE TABLE key_authorizations (
     revoked_by               UUID REFERENCES administrators(id),
     revoked_automatically    BOOLEAN DEFAULT false,
     revocation_justification TEXT,
-    PRIMARY KEY (key_id, server_id)
+    PRIMARY KEY (key_id, server_id, unix_user)
 );
+
+-- unix_user ajouté via issue #185 — même clé déployable pour plusieurs
+-- utilisateurs Unix sur le même serveur. PK étendue à 3 colonnes.
 
 CREATE TABLE access_requests (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -394,7 +398,9 @@ Tracés dans audit_log avec action SCRIPT_DEPLOYED.
 
 SAM_COLLECT — /usr/local/bin/sam-collect (root, 755)
 Lit toutes les authorized_keys (homes + root) et les affiche.
-Format de sortie : user\tkey_type key_b64 [comment]
+Format de sortie : unix_user\tkey_type key_b64 [comment]
+Le unix_user est extrait par _parse_key_line() dans collect.py et stocké
+dans key_authorizations.unix_user (issue #185).
 
 SAM_REVOKE — /usr/local/bin/sam-revoke <fingerprint_hex> (root, 755)
 Révoque une clé par fingerprint SHA256 hex.
@@ -531,7 +537,8 @@ Validation robustesse mot de passe (issue #62) :
 - reject_request(request_id, admin_id, db)
 - revoke_request(request_id, admin_id, db)
 - deploy_key(public_key, unix_user, hostname, expires_at, justification, admin_id)
-  ↳ parse + fingerprint, INSERT ssh_keys, sam-add sur serveur, key_authorization ACTIVE (issue #164)
+  ↳ parse + fingerprint, INSERT ssh_keys, sam-add sur serveur,
+    key_authorization ACTIVE avec unix_user dans la PK (issue #164, #185)
 - lock_user(unix_user, hostname, admin_id)
   ↳ valide username POSIX, sam-lock-user sur serveur, audit_log USER_LOCKED (issue #181)
 - unlock_user(unix_user, hostname, admin_id)
@@ -562,8 +569,8 @@ app/tests/
     test_db.py         ← helpers connexion, transactions (7 tests)
     test_servers.py    ← parsing servers.yml, sync BDD (6 tests)
     test_ssh.py        ← mock paramiko, RejectPolicy, ensure_scripts (15 tests)
-    test_actions.py    ← toutes les fonctions actions.py (62 tests)
-    test_collect.py    ← mock scan complet, 4 scénarios détection (18 tests)
+    test_actions.py    ← toutes les fonctions actions.py (74 tests)
+    test_collect.py    ← mock scan complet, 4 scénarios détection (34 tests)
     test_expire.py     ← warn J-7/J-2, anti-spam 24h, expiration auto (9 tests)
     test_alerts.py     ← mock msmtp, niveaux CRITIQUE/WARNING/INFO (12 tests)
     test_web.py        ← toutes les routes Flask, codes HTTP attendus (42+ tests)

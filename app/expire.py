@@ -62,7 +62,7 @@ def expire_keys() -> int:
     """
     rows = db.query(
         """
-        SELECT ka.key_id, ka.server_id, sk.fingerprint, s.hostname, s.ip_address
+        SELECT DISTINCT ka.key_id, ka.server_id, sk.fingerprint, s.hostname, s.ip_address
         FROM key_authorizations ka
         JOIN ssh_keys sk ON sk.id = ka.key_id
         JOIN servers s ON s.id = ka.server_id
@@ -92,7 +92,7 @@ def expire_keys() -> int:
                 revoked_by = NULL,
                 revoked_automatically = true,
                 revocation_justification = 'Scheduled expiration reached'
-            WHERE key_id = %s AND server_id = %s
+            WHERE key_id = %s AND server_id = %s AND status = 'ACTIVE'
             """,
             (row["key_id"], row["server_id"]),
         )

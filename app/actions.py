@@ -32,7 +32,7 @@ def validate_key(fingerprint: str, admin_id: str) -> dict:
 
     rows = db.query(
         """
-        SELECT key_id, server_id FROM key_authorizations
+        SELECT key_id, server_id, unix_user FROM key_authorizations
         WHERE key_id = %s AND status = 'PENDING_REVIEW'
         """,
         (key["id"],),
@@ -45,9 +45,9 @@ def validate_key(fingerprint: str, admin_id: str) -> dict:
             """
             UPDATE key_authorizations
             SET status = 'ACTIVE', authorized_by = %s, authorized_at = now()
-            WHERE key_id = %s AND server_id = %s
+            WHERE key_id = %s AND server_id = %s AND unix_user = %s
             """,
-            (admin_id, row["key_id"], row["server_id"]),
+            (admin_id, row["key_id"], row["server_id"], row["unix_user"]),
         )
         db.execute(
             """
@@ -71,7 +71,7 @@ def revoke_key(fingerprint: str, admin_id: str, reason: str) -> None:
 
     active_auths = db.query(
         """
-        SELECT ka.server_id, s.hostname, s.ip_address
+        SELECT DISTINCT ka.server_id, s.hostname, s.ip_address
         FROM key_authorizations ka
         JOIN servers s ON s.id = ka.server_id
         WHERE ka.key_id = %s AND ka.status IN ('ACTIVE', 'PENDING_REVIEW')
@@ -90,6 +90,7 @@ def revoke_key(fingerprint: str, admin_id: str, reason: str) -> None:
                 revoked_automatically = false,
                 revocation_justification = %s
             WHERE key_id = %s AND server_id = %s
+              AND status IN ('ACTIVE', 'PENDING_REVIEW')
             """,
             (admin_id, reason, key["id"], auth["server_id"]),
         )
@@ -107,7 +108,9 @@ def revoke_key(fingerprint: str, admin_id: str, reason: str) -> None:
         )
 
 
-def handle_disappeared_key(key_id: str, server_id: str, hostname: str, ip: str) -> dict:
+def handle_disappeared_key(
+    key_id: str, server_id: str, hostname: str, ip: str, unix_user: str = ""
+) -> dict:
     """
     Scenario 2 — key was ACTIVE but disappeared from server (out-of-system revocation).
     Sets REVOKED + revoked_automatically=True, logs ANOMALY_DETECTED.
@@ -121,9 +124,9 @@ def handle_disappeared_key(key_id: str, server_id: str, hostname: str, ip: str) 
             revoked_by = NULL,
             revoked_automatically = true,
             revocation_justification = 'Key disappeared from server — out-of-system revocation'
-        WHERE key_id = %s AND server_id = %s AND status = 'ACTIVE'
+        WHERE key_id = %s AND server_id = %s AND unix_user = %s AND status = 'ACTIVE'
         """,
-        (key_id, server_id),
+        (key_id, server_id, unix_user),
     )
     db.execute(
         """
@@ -133,12 +136,12 @@ def handle_disappeared_key(key_id: str, server_id: str, hostname: str, ip: str) 
         (
             key_id,
             server_id,
-            json.dumps({"reason": "out_of_system_revocation", "hostname": hostname}),
+            json.dumps({"reason": "out_of_system_revocation", "hostname": hostname, "unix_user": unix_user}),
         ),
     )
     key = db.query_one("SELECT fingerprint FROM ssh_keys WHERE id = %s", (key_id,))
     fp = key["fingerprint"] if key else "unknown"
-    return {"type": "disappeared", "fingerprint": fp, "hostname": hostname}
+    return {"type": "disappeared", "fingerprint": fp, "hostname": hostname, "unix_user": unix_user}
 
 
 def handle_unknown_key(
@@ -149,6 +152,7 @@ def handle_unknown_key(
     comment: str | None,
     server_id: str,
     hostname: str,
+    unix_user: str = "",
 ) -> dict:
     """
     Scenario 3 — key present on server but absent from DB.
@@ -168,11 +172,11 @@ def handle_unknown_key(
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     db.execute(
         """
-        INSERT INTO key_authorizations (key_id, server_id, status)
-        VALUES (%s, %s, 'PENDING_REVIEW')
-        ON CONFLICT (key_id, server_id) DO NOTHING
+        INSERT INTO key_authorizations (key_id, server_id, unix_user, status)
+        VALUES (%s, %s, %s, 'PENDING_REVIEW')
+        ON CONFLICT (key_id, server_id, unix_user) DO NOTHING
         """,
-        (key["id"], server_id),
+        (key["id"], server_id, unix_user),
     )
     db.execute(
         """
@@ -182,13 +186,15 @@ def handle_unknown_key(
         (
             key["id"],
             server_id,
-            json.dumps({"reason": "unknown_key", "fingerprint": fingerprint, "hostname": hostname}),
+            json.dumps({"reason": "unknown_key", "fingerprint": fingerprint, "hostname": hostname, "unix_user": unix_user}),
         ),
     )
-    return {"type": "unknown", "fingerprint": fingerprint, "hostname": hostname, "key_type": key_type, "comment": comment}
+    return {"type": "unknown", "fingerprint": fingerprint, "hostname": hostname, "key_type": key_type, "comment": comment, "unix_user": unix_user}
 
 
-def handle_reappeared_key(key_id: str, server_id: str, hostname: str) -> dict:
+def handle_reappeared_key(
+    key_id: str, server_id: str, hostname: str, unix_user: str = ""
+) -> dict:
     """
     Scenario 5 — key was REVOKED or EXPIRED but reappeared on the server.
     Sets PENDING_REVIEW, logs ANOMALY_DETECTED.
@@ -202,9 +208,9 @@ def handle_reappeared_key(key_id: str, server_id: str, hostname: str) -> dict:
             revoked_by = NULL,
             revoked_automatically = false,
             revocation_justification = NULL
-        WHERE key_id = %s AND server_id = %s AND status IN ('REVOKED', 'EXPIRED')
+        WHERE key_id = %s AND server_id = %s AND unix_user = %s AND status IN ('REVOKED', 'EXPIRED')
         """,
-        (key_id, server_id),
+        (key_id, server_id, unix_user),
     )
     db.execute(
         """
@@ -409,15 +415,15 @@ def deploy_key(
 
     db.execute(
         """
-        INSERT INTO key_authorizations (key_id, server_id, authorized_by, status, expires_at)
-        VALUES (%s, %s, %s, 'ACTIVE', %s)
-        ON CONFLICT (key_id, server_id) DO UPDATE SET
+        INSERT INTO key_authorizations (key_id, server_id, unix_user, authorized_by, status, expires_at)
+        VALUES (%s, %s, %s, %s, 'ACTIVE', %s)
+        ON CONFLICT (key_id, server_id, unix_user) DO UPDATE SET
             status = 'ACTIVE',
             authorized_by = EXCLUDED.authorized_by,
             authorized_at = now(),
             expires_at = EXCLUDED.expires_at
         """,
-        (key["id"], server["id"], admin_id, expires_at),
+        (key["id"], server["id"], unix_user, admin_id, expires_at),
     )
     db.execute(
         """

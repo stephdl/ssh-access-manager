@@ -28,11 +28,12 @@ def _compute_fingerprint(key_b64: str) -> str:
 def _parse_key_line(line: str) -> dict | None:
     """
     Parse a sam-collect line: 'username\\tkey_type key_b64 [comment]'
-    Returns a dict or None if the line is malformed.
+    Returns a dict with unix_user or None if the line is malformed.
     """
     parts = line.split("\t", 1)
     if len(parts) != 2:
         return None
+    unix_user = parts[0].strip()
     key_parts = parts[1].strip().split()
     if len(key_parts) < 2:
         return None
@@ -64,6 +65,7 @@ def _parse_key_line(line: str) -> dict | None:
         return None
 
     return {
+        "unix_user": unix_user,
         "key_type": key_type,
         "key_b64": key_b64,
         "public_key": public_key,
@@ -102,7 +104,8 @@ def scan_server(server: dict) -> dict:
         )
         return result
 
-    collected_fps: set[str] = set()
+    # Track (fingerprint, unix_user) pairs seen on the server
+    collected_pairs: set[tuple[str, str]] = set()
 
     for line in raw_lines:
         parsed = _parse_key_line(line)
@@ -110,7 +113,8 @@ def scan_server(server: dict) -> dict:
             continue
 
         fp = parsed["fingerprint"]
-        collected_fps.add(fp)
+        unix_user = parsed["unix_user"]
+        collected_pairs.add((fp, unix_user))
 
         existing_key = db.query_one(
             "SELECT id FROM ssh_keys WHERE fingerprint = %s", (fp,)
@@ -126,6 +130,7 @@ def scan_server(server: dict) -> dict:
                 parsed["comment"],
                 server_id,
                 hostname,
+                unix_user=unix_user,
             )
             result["anomalies"].append(info)
             result["new"] += 1
@@ -137,32 +142,34 @@ def scan_server(server: dict) -> dict:
             auth = db.query_one(
                 """
                 SELECT status FROM key_authorizations
-                WHERE key_id = %s AND server_id = %s
+                WHERE key_id = %s AND server_id = %s AND unix_user = %s
                 """,
-                (existing_key["id"], server_id),
+                (existing_key["id"], server_id, unix_user),
             )
             if not auth:
                 db.execute(
                     """
-                    INSERT INTO key_authorizations (key_id, server_id, status)
-                    VALUES (%s, %s, 'PENDING_REVIEW')
-                    ON CONFLICT (key_id, server_id) DO NOTHING
+                    INSERT INTO key_authorizations (key_id, server_id, unix_user, status)
+                    VALUES (%s, %s, %s, 'PENDING_REVIEW')
+                    ON CONFLICT (key_id, server_id, unix_user) DO NOTHING
                     """,
-                    (existing_key["id"], server_id),
+                    (existing_key["id"], server_id, unix_user),
                 )
                 result["new"] += 1
             elif auth["status"] in ("REVOKED", "EXPIRED"):
                 # Scenario 5 — revoked/expired key reappeared on the server
-                info = actions.handle_reappeared_key(existing_key["id"], server_id, hostname)
+                info = actions.handle_reappeared_key(
+                    existing_key["id"], server_id, hostname, unix_user=unix_user
+                )
                 result["anomalies"].append(info)
                 result["new"] += 1
             else:
                 result["known"] += 1
 
-    # Scenario 2 — detect ACTIVE keys that disappeared from server
+    # Scenario 2 — detect ACTIVE (fp, unix_user) pairs that disappeared from server
     active_on_server = db.query(
         """
-        SELECT ka.key_id, sk.fingerprint
+        SELECT ka.key_id, ka.unix_user, sk.fingerprint
         FROM key_authorizations ka
         JOIN ssh_keys sk ON sk.id = ka.key_id
         WHERE ka.server_id = %s AND ka.status = 'ACTIVE'
@@ -170,8 +177,10 @@ def scan_server(server: dict) -> dict:
         (server_id,),
     )
     for row in active_on_server:
-        if row["fingerprint"] not in collected_fps:
-            info = actions.handle_disappeared_key(row["key_id"], server_id, hostname, ip=ip)
+        if (row["fingerprint"], row["unix_user"]) not in collected_pairs:
+            info = actions.handle_disappeared_key(
+                row["key_id"], server_id, hostname, ip=ip, unix_user=row["unix_user"]
+            )
             result["anomalies"].append(info)
             result["disappeared"] += 1
 

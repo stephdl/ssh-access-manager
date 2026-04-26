@@ -47,6 +47,7 @@ SAMPLE_LINE = f"testuser\tssh-ed25519 {ED25519_B64} testuser@host"
 def test_collect_parse_key_line_valid_ed25519():
     result = collect._parse_key_line(SAMPLE_LINE)
     assert result is not None
+    assert result["unix_user"] == "testuser"
     assert result["key_type"] == "ssh-ed25519"
     assert result["fingerprint"].startswith("SHA256:")
     assert result["comment"] == "testuser@host"
@@ -65,7 +66,98 @@ def test_collect_parse_key_line_no_comment():
     line = f"root\tssh-ed25519 {ED25519_B64}"
     result = collect._parse_key_line(line)
     assert result is not None
+    assert result["unix_user"] == "root"
     assert result["comment"] is None
+
+
+def test_collect_parse_key_line_root_user():
+    line = f"root\tssh-ed25519 {ED25519_B64} root@server"
+    result = collect._parse_key_line(line)
+    assert result is not None
+    assert result["unix_user"] == "root"
+
+
+# ---------------------------------------------------------------------------
+# Tests unix_user — même clé pour plusieurs utilisateurs
+# ---------------------------------------------------------------------------
+
+def test_collect_scan_server_same_key_two_users_creates_two_auth_rows():
+    """La même clé déployée pour alice et bob → deux lignes key_authorizations."""
+    alice_line = f"alice\tssh-ed25519 {ED25519_B64} alice@host"
+    bob_line = f"bob\tssh-ed25519 {ED25519_B64} bob@host"
+
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions") as mock_actions, \
+         patch("collect.alerts"):
+
+        mock_ssh.collect_keys.return_value = [alice_line, bob_line]
+        # same key_id for both (same fingerprint)
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},       # key found for alice
+            None,                  # no auth for alice → PENDING_REVIEW
+            {"id": KEY_ID},       # key found for bob
+            None,                  # no auth for bob → PENDING_REVIEW
+        ]
+        mock_db.query.return_value = []  # no disappeared keys
+
+        result = collect.scan_server(SAMPLE_SERVER)
+
+        insert_calls = [
+            c[0][0] for c in mock_db.execute.call_args_list
+            if "PENDING_REVIEW" in c[0][0]
+        ]
+        assert len(insert_calls) == 2, "Should insert two PENDING_REVIEW rows (alice + bob)"
+        assert result["new"] == 2
+
+
+def test_collect_scan_server_unix_user_passed_to_handle_unknown_key():
+    """unix_user est passé à handle_unknown_key pour les clés inconnues."""
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions") as mock_actions, \
+         patch("collect.alerts"):
+
+        mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
+        mock_db.query_one.return_value = None   # unknown key
+        mock_db.query.return_value = []
+
+        collect.scan_server(SAMPLE_SERVER)
+
+        call_kwargs = mock_actions.handle_unknown_key.call_args[1]
+        assert call_kwargs.get("unix_user") == "testuser"
+
+
+def test_collect_scan_server_only_disappeared_unix_user_row_triggers_scenario2():
+    """
+    Si alice disparaît mais bob est encore présent, seul alice est détecté comme disparu.
+    """
+    fp = collect._compute_fingerprint(ED25519_B64)
+    bob_line = f"bob\tssh-ed25519 {ED25519_B64} bob@host"
+
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions") as mock_actions, \
+         patch("collect.alerts"):
+
+        mock_ssh.collect_keys.return_value = [bob_line]  # only bob remains
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},        # key found for bob
+            {"status": "ACTIVE"},  # bob's auth found
+        ]
+        # active_on_server: both alice and bob were ACTIVE
+        mock_db.query.return_value = [
+            {"key_id": KEY_ID, "fingerprint": fp, "unix_user": "alice"},
+            {"key_id": KEY_ID, "fingerprint": fp, "unix_user": "bob"},
+        ]
+
+        result = collect.scan_server(SAMPLE_SERVER)
+
+        # only alice triggered disappearance
+        assert result["disappeared"] == 1
+        mock_actions.handle_disappeared_key.assert_called_once_with(
+            KEY_ID, SERVER_ID, "server-test-01", ip="192.168.1.10", unix_user="alice"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -121,13 +213,13 @@ def test_collect_scan_server_scenario2_disappeared_key_calls_handle_disappeared(
         mock_ssh.collect_keys.return_value = []  # empty scan — key disappeared
         mock_db.query_one.return_value = None
         mock_db.query.return_value = [
-            {"key_id": KEY_ID, "fingerprint": fp}  # was ACTIVE
+            {"key_id": KEY_ID, "fingerprint": fp, "unix_user": "alice"}  # was ACTIVE
         ]
 
         result = collect.scan_server(SAMPLE_SERVER)
 
         mock_actions.handle_disappeared_key.assert_called_once_with(
-            KEY_ID, SERVER_ID, "server-test-01", ip="192.168.1.10"
+            KEY_ID, SERVER_ID, "server-test-01", ip="192.168.1.10", unix_user="alice"
         )
         assert result["disappeared"] == 1
 
@@ -155,7 +247,7 @@ def test_collect_scan_server_scenario5_revoked_key_reappeared_calls_handle_reapp
         result = collect.scan_server(SAMPLE_SERVER)
 
         mock_actions.handle_reappeared_key.assert_called_once_with(
-            KEY_ID, SERVER_ID, "server-test-01"
+            KEY_ID, SERVER_ID, "server-test-01", unix_user="testuser"
         )
         assert result["new"] == 1
         assert len(result["anomalies"]) == 1

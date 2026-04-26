@@ -167,10 +167,10 @@ ssh_keys ────────┼──── key_authorizations (PK composit
 - Chaque table a une PK `UUID DEFAULT gen_random_uuid()`.
 
 **2NF** — Dépendance complète à la clé primaire :
-- `key_authorizations` utilise une clé composite `(key_id, server_id)`. Chaque
-  attribut (`status`, `expires_at`, `revoked_at`, `authorized_by`) dépend du
-  *couple* clé+serveur, pas d'un seul de ses membres. Une clé peut être ACTIVE sur
-  `server-prod-01` et REVOKED sur `server-prod-02` simultanément.
+- `key_authorizations` utilise une clé composite `(key_id, server_id, unix_user)`.
+  Chaque attribut (`status`, `expires_at`, `revoked_at`, `authorized_by`) dépend du
+  *triplet* clé+serveur+utilisateur, pas d'un seul de ses membres. La même clé peut
+  être ACTIVE pour `alice` et REVOKED pour `root` sur le même serveur (issue #185).
 
 **3NF** — Absence de dépendances transitives :
 - `is_compliant` dépend fonctionnellement de `key_type` et `key_size_bits`, qui
@@ -427,9 +427,10 @@ base de données.
 collect.scan_server()
   → clé absente de ssh_keys
   → actions.handle_unknown_key(key_type, key_size_bits, public_key,
-                                fingerprint, comment, server_id, hostname)
+                                fingerprint, comment, server_id, hostname,
+                                unix_user=unix_user)
   → INSERT ssh_keys (fingerprint, key_type, ...)
-  → INSERT key_authorizations (status='PENDING_REVIEW')
+  → INSERT key_authorizations (unix_user, status='PENDING_REVIEW')
   → INSERT audit_log('ANOMALY_DETECTED')
   → alerts.send_alert('CRITICAL', ...)  # email immédiat
 ```

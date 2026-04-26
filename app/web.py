@@ -435,23 +435,22 @@ def api_unlock_user():
 def list_deployed_users():
     rows = db.query(
         """
-        SELECT DISTINCT ON (sk.owner, s.hostname)
-               sk.owner AS unix_user, s.hostname, s.ip_address,
+        SELECT ka.unix_user, s.hostname, s.ip_address,
                ka.expires_at, sk.fingerprint,
                (
                    SELECT al.action
                    FROM audit_log al
-                   WHERE al.details->>'unix_user' = sk.owner
+                   WHERE al.details->>'unix_user' = ka.unix_user
                      AND al.target_server = s.id
                      AND al.action IN ('USER_LOCKED', 'USER_UNLOCKED')
                    ORDER BY al.performed_at DESC
                    LIMIT 1
                ) AS lock_status
-        FROM ssh_keys sk
-        JOIN key_authorizations ka ON ka.key_id = sk.id
+        FROM key_authorizations ka
+        JOIN ssh_keys sk ON sk.id = ka.key_id
         JOIN servers s ON ka.server_id = s.id
-        WHERE sk.owner IS NOT NULL AND ka.status = 'ACTIVE'
-        ORDER BY sk.owner, s.hostname
+        WHERE ka.unix_user != '' AND ka.status = 'ACTIVE'
+        ORDER BY ka.unix_user, s.hostname
         """
     )
     results = []
