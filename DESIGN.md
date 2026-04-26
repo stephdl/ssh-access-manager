@@ -848,7 +848,7 @@ coûteuse en temps).
 .github/workflows/
   ci.yml              ← 4 jobs qualité sur chaque PR
   pr-title.yml        ← Validation titre PR (Conventional Commits)
-  build-pr.yml        ← Image Docker pr-{N} sur GHCR
+  build-pr.yml        ← Image Docker pr-{N} sur GHCR + scan Trivy CVE
   build-main.yml      ← Image Docker :main à chaque merge
   publish-release.yml ← Image semver stable/beta sur tag git
   cleanup-pr.yml      ← Suppression image pr-{N} à fermeture PR
@@ -913,6 +913,22 @@ Les tags pre-release (`1.0.0-dev.1`, `1.0.0-rc.1`) ne mettent jamais à jour
 l'API GitHub Packages (`gh api --method DELETE`). Cela évite l'accumulation
 d'images orphelines dans le registre. Si l'image n'existe pas (PR sans push),
 le workflow se termine silencieusement.
+
+### Trivy — scan CVE image Docker (`build-pr.yml`)
+
+Trivy (Aqua Security) scanne l'image buildée sur chaque PR après le push sur
+GHCR. Il analyse trois couches :
+
+- **Packages Alpine** (`apk`) : openssl, musl, libssl, nginx…
+- **Packages Python** (`pip`) : paramiko, psycopg2, flask, werkzeug…
+- **Packages npm** du stage build node:24-alpine
+
+Seuil de blocage : `CRITICAL` et `HIGH` uniquement — les vulnérabilités `MEDIUM`
+et `LOW` sont rapportées sans bloquer la PR. Les résultats sont uploadés en
+format SARIF dans **Security → Code scanning** du repo pour traçabilité.
+
+Le step `upload-sarif` est conditionné par `if: always()` pour que les résultats
+soient visibles même quand Trivy fait échouer la CI.
 
 ### Protection de `main`
 

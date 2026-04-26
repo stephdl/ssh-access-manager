@@ -338,7 +338,7 @@ cd ui && npx vitest run
 |---|---|---|
 | `ci.yml` | Chaque PR | Tests Python (pytest ≥ 80%), Tests Vue.js (vitest), Prettier, Commitlint |
 | `pr-title.yml` | Ouverture / édition de PR | Validation du titre (Conventional Commits) |
-| `build-pr.yml` | Chaque PR | Build + push image `pr-{N}` sur GHCR |
+| `build-pr.yml` | Chaque PR | Build + push image `pr-{N}` + scan Trivy CVE (CRITICAL/HIGH) |
 | `build-main.yml` | Merge sur `main` | Build + push image `:main` sur GHCR |
 | `publish-release.yml` | Push d'un tag git | Build + push image `:vX.Y.Z` (+ `:latest` si stable) |
 | `cleanup-pr.yml` | Fermeture de PR | Suppression de l'image `pr-{N}` sur GHCR |
