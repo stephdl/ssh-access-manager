@@ -5,6 +5,7 @@
     "access": "Accès",
     "audit": "Audit",
     "admins": "Admins",
+    "settings": "Paramètres",
     "logout": "Déconnexion"
   },
   "common": {
@@ -274,5 +275,14 @@
     "load_error": "Impossible de charger les clés : {error}",
     "key_validated": "Clé validée.",
     "key_revoked": "Clé révoquée."
+  },
+  "settings": {
+    "title": "Paramètres",
+    "scan_section": "Intervalle de scan",
+    "scan_interval_label": "Lancer un scan toutes les",
+    "hours": "heures",
+    "save": "Sauvegarder",
+    "saved": "Paramètres sauvegardés.",
+    "scan_interval_hint": "Entre 1 et 24 heures. Le cron se déclenche toutes les 5 minutes mais ignore l'exécution si l'intervalle n'est pas écoulé."
   }
 }

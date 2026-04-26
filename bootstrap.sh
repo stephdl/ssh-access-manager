@@ -14,11 +14,10 @@ generate_nginx_conf() {
 # Génération /etc/crontabs/root depuis ENV (SCAN_INTERVAL_HOURS)
 # ---------------------------------------------------------------------------
 generate_crontab() {
-    INTERVAL="${SCAN_INTERVAL_HOURS:-4}"
-    cat > /etc/crontabs/root << EOF
+    cat > /etc/crontabs/root << 'EOF'
 # ssh-access-manager — généré par bootstrap.sh
-0 */${INTERVAL} * * * python3 /app/app/collect.py >> /dev/stdout 2>&1
-0 */${INTERVAL} * * * python3 /app/app/expire.py >> /dev/stdout 2>&1
+*/5 * * * * python3 /app/app/collect.py >> /dev/stdout 2>&1
+*/5 * * * * python3 /app/app/expire.py >> /dev/stdout 2>&1
 EOF
 }
 
@@ -105,6 +104,11 @@ cur.execute(
 conn.close()
 print("[bootstrap] Administrateur initial insere.")
 PYEOF
+
+    # 9b. Initialiser scan_interval_hours depuis ENV
+    su -s /bin/sh postgres -c \
+        "psql -h /tmp -U ${POSTGRES_USER:-ssh_manager} -d ${POSTGRES_DB:-ssh_manager} \
+         -c \"UPDATE settings SET value = '${SCAN_INTERVAL_HOURS:-4}' WHERE key = 'scan_interval_hours'\""
 
     # 10. Arrêter PostgreSQL temporaire
     su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' stop -w"

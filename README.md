@@ -200,7 +200,7 @@ podman exec ssh-access-manager python3 /app/app/manage.py access approve <id>
 
 Ou via **Accès** dans l'interface web : bouton **Approuver** sur la demande en attente.
 
-À expiration, la clé est automatiquement révoquée par `expire.py` (cron toutes les `SCAN_INTERVAL_HOURS` heures).
+À expiration, la clé est automatiquement révoquée par `expire.py` (cron toutes les 5 minutes, l'intervalle effectif est configurable via l'UI dans **Paramètres**).
 
 ---
 
@@ -235,7 +235,7 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `SMTP_FROM` | Adresse expéditeur | — |
 | `SMTP_TO` | Adresse destinataire des alertes | — |
 | `SSH_USER` | Utilisateur SSH collecteur | `audit-collector` |
-| `SCAN_INTERVAL_HOURS` | Intervalle des scans automatiques (heures) | `4` |
+| `SCAN_INTERVAL_HOURS` | Intervalle de scan initial (heures) — modifiable via l'UI sans redémarrage | `4` |
 | `EXPIRE_WARN_DAYS` | Alerte J-N avant expiration (premier avertissement) | `7` |
 | `EXPIRE_WARN_DAYS_2` | Alerte J-N avant expiration (second avertissement) | `2` |
 | `ADMIN_USERNAME` | Username de l'administrateur initial | `admin` |

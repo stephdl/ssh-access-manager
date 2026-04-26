@@ -542,5 +542,32 @@ def get_collector_key():
         return jsonify({"error": "Clé collecteur introuvable"}), 404
 
 
+@app.route("/api/system/config", methods=["GET"])
+@require_auth
+def get_config():
+    rows = db.query("SELECT key, value FROM settings")
+    return jsonify({r["key"]: r["value"] for r in rows})
+
+
+@app.route("/api/system/config", methods=["PUT"])
+@require_auth
+def update_config():
+    data = request.get_json(force=True) or {}
+    hours = data.get("scan_interval_hours")
+    if hours is None:
+        return jsonify({"error": "scan_interval_hours required"}), 400
+    try:
+        hours = int(hours)
+        if not (1 <= hours <= 24):
+            raise ValueError
+    except (ValueError, TypeError):
+        return jsonify({"error": "scan_interval_hours must be between 1 and 24"}), 400
+    db.execute(
+        "UPDATE settings SET value = %s WHERE key = 'scan_interval_hours'",
+        (str(hours),)
+    )
+    return jsonify({"scan_interval_hours": hours})
+
+
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000)

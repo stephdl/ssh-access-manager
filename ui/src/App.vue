@@ -7,6 +7,7 @@
       <router-link to="/access">{{ $t('nav.access') }}</router-link>
       <router-link to="/audit">{{ $t('nav.audit') }}</router-link>
       <router-link to="/admins">{{ $t('nav.admins') }}</router-link>
+      <router-link to="/settings">{{ $t('nav.settings') }}</router-link>
       <span class="nav-spacer"></span>
       <select class="lang-select" :value="locale" @change="changeLang($event.target.value)">
         <option value="en">EN</option>

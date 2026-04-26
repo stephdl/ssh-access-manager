@@ -371,3 +371,38 @@ def test_web_delete_admin_with_references_returns_400(auth_client):
         mock_actions.delete_admin.side_effect = ValueError("existing audit records reference this account")
         resp = auth_client.delete("/api/admins/someuser")
         assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# GET/PUT /api/system/config
+# ---------------------------------------------------------------------------
+
+def test_web_get_config_returns_settings(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin"}
+        mock_db.query.return_value = [{"key": "scan_interval_hours", "value": "4"}]
+        resp = auth_client.get("/api/system/config")
+        assert resp.status_code == 200
+        assert resp.get_json()["scan_interval_hours"] == "4"
+
+
+def test_web_put_config_updates_interval(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin"}
+        resp = auth_client.put("/api/system/config", json={"scan_interval_hours": 6})
+        assert resp.status_code == 200
+        assert resp.get_json()["scan_interval_hours"] == 6
+
+
+def test_web_put_config_rejects_out_of_range(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin"}
+        resp = auth_client.put("/api/system/config", json={"scan_interval_hours": 99})
+        assert resp.status_code == 400
+
+
+def test_web_put_config_rejects_missing_field(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin"}
+        resp = auth_client.put("/api/system/config", json={})
+        assert resp.status_code == 400

@@ -2,7 +2,7 @@
 # Format : min heure jour mois dow commande
 
 # Scan SSH + collecte (toutes les SCAN_INTERVAL_HOURS heures)
-0 */4 * * * python3 /app/app/collect.py >> /dev/stdout 2>&1
+*/5 * * * * python3 /app/app/collect.py >> /dev/stdout 2>&1
 
 # Vérification expirations + alertes J-7/J-2
-0 */4 * * * python3 /app/app/expire.py >> /dev/stdout 2>&1
+*/5 * * * * python3 /app/app/expire.py >> /dev/stdout 2>&1

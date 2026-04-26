@@ -5,6 +5,7 @@
     "access": "Zugriff",
     "audit": "Audit",
     "admins": "Admins",
+    "settings": "Einstellungen",
     "logout": "Abmelden"
   },
   "common": {
@@ -274,5 +275,14 @@
     "load_error": "Schlüssel können nicht geladen werden: {error}",
     "key_validated": "Schlüssel validiert.",
     "key_revoked": "Schlüssel widerrufen."
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "scan_section": "Scan-Intervall",
+    "scan_interval_label": "Einen Scan ausführen alle",
+    "hours": "Stunden",
+    "save": "Speichern",
+    "saved": "Einstellungen gespeichert.",
+    "scan_interval_hint": "Zwischen 1 und 24 Stunden. Der Cron wird alle 5 Minuten ausgelöst, überspringt aber die Ausführung, wenn das Intervall nicht abgelaufen ist."
   }
 }
