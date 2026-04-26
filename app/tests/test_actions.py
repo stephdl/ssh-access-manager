@@ -496,7 +496,7 @@ def test_actions_delete_admin_logs_admin_deleted():
 def test_actions_delete_admin_raises_if_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(ValueError, match="Admin not found"):
             actions.delete_admin("ghost")
 
 

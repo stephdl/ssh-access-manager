@@ -39,7 +39,8 @@
               <td class="actions-cell">
                 <template v-if="a.is_active">
                   <button class="btn-secondary" @click="openEditPassword(a.username)">{{ $t('admins.btn_password') }}</button>
-                  <button v-if="a.username !== currentUsername" class="btn-danger" @click="openDisable(a.username)">{{ $t('admins.btn_disable') }}</button>
+                  <button v-if="a.username !== currentUsername" class="btn-warning" @click="openDisable(a.username)">{{ $t('admins.btn_disable') }}</button>
+                  <button v-if="a.username !== currentUsername" class="btn-danger" @click="openDelete(a.username)">{{ $t('admins.btn_delete') }}</button>
                 </template>
                 <template v-else>
                   <button class="btn-success" @click="openEnable(a.username)">{{ $t('admins.btn_enable') }}</button>

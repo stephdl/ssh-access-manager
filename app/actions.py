@@ -570,12 +570,12 @@ def enable_admin(username: str, admin_id: str | None = None) -> None:
 
 
 def delete_admin(username: str, admin_id: str | None = None) -> None:
-    """Permanently delete an inactive admin if no FK references exist. Log ADMIN_DELETED."""
+    """Permanently delete an admin if no FK references exist. Log ADMIN_DELETED."""
     admin = db.query_one(
-        "SELECT id FROM administrators WHERE username = %s AND is_active = false", (username,)
+        "SELECT id FROM administrators WHERE username = %s", (username,)
     )
     if not admin:
-        raise ValueError(f"Inactive admin not found: {username}")
+        raise ValueError(f"Admin not found: {username}")
     ref = db.query_one(
         """
         SELECT 1 FROM (
