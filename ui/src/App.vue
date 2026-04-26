@@ -42,6 +42,7 @@ async function handleLogout() {
 function changeLang(lang) {
   locale.value = lang
   localStorage.setItem('lang', lang)
+  document.documentElement.lang = lang
 }
 </script>
 

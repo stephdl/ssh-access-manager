@@ -17,6 +17,8 @@ const locale = supported.includes(savedLang)
     ? browserLang
     : 'en'
 
+document.documentElement.lang = locale
+
 export default createI18n({
   legacy: false,
   locale,
