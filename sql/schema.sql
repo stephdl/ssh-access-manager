@@ -252,7 +252,9 @@ CREATE TABLE audit_log (
                       'ADMIN_ADDED',        -- nouvel administrateur créé
                       'ADMIN_DISABLED',     -- administrateur désactivé
                       'ADMIN_ENABLED',      -- administrateur réactivé
-                      'ADMIN_DELETED'       -- administrateur supprimé définitivement
+                      'ADMIN_DELETED',      -- administrateur supprimé définitivement
+                      'USER_LOCKED',        -- compte Unix verrouillé (SSH bloqué)
+                      'USER_UNLOCKED'       -- compte Unix déverrouillé
                   )),
     -- Administrateur ayant déclenché l'action (NULL si automatique)
     performed_by  UUID REFERENCES administrators(id),
@@ -268,7 +270,7 @@ CREATE TABLE audit_log (
 
 COMMENT ON TABLE audit_log IS 'Journal immuable de toutes les actions — jamais modifié ni supprimé';
 COMMENT ON COLUMN audit_log.id IS 'UUID généré automatiquement';
-COMMENT ON COLUMN audit_log.action IS 'Type d''action parmi 14 valeurs contrôlées';
+COMMENT ON COLUMN audit_log.action IS 'Type d''action parmi 18 valeurs contrôlées';
 COMMENT ON COLUMN audit_log.performed_by IS 'FK administrateur, NULL si action automatique (cron, expiration)';
 COMMENT ON COLUMN audit_log.target_key IS 'FK ssh_keys, NULL si action non liée à une clé';
 COMMENT ON COLUMN audit_log.target_server IS 'FK servers, NULL si action non liée à un serveur';
