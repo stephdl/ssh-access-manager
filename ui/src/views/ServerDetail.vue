@@ -70,36 +70,6 @@
           @assign="openAssign"
         />
       </section>
-
-      <!-- Active temporary access -->
-      <section class="card">
-        <h2>{{ $t('server_detail.section_access') }}</h2>
-        <table v-if="accessList.length">
-          <thead>
-            <tr>
-              <th>{{ $t('server_detail.col_requester') }}</th>
-              <th>{{ $t('server_detail.col_fingerprint') }}</th>
-              <th>{{ $t('server_detail.col_justification') }}</th>
-              <th>{{ $t('server_detail.col_expires') }}</th>
-              <th>{{ $t('server_detail.col_status') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="a in accessList" :key="a.id">
-              <td>{{ a.requested_by_username || a.requested_by }}</td>
-              <td class="fp">
-                <code>{{ a.fingerprint || '—' }}</code>
-              </td>
-              <td>{{ a.justification }}</td>
-              <td>{{ formatDate(a.expires_at) }}</td>
-              <td>
-                <span class="badge" :class="accessBadge(a.status)">{{ a.status }}</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-else class="empty">{{ $t('server_detail.no_access') }}</p>
-      </section>
     </template>
 
     <!-- Delete modal -->
@@ -219,7 +189,6 @@ const hostname = route.params.hostname
 
 const server = ref({})
 const keys = ref([])
-const accessList = ref([])
 const loading = ref(true)
 const scanning = ref(false)
 const error = ref('')
@@ -245,15 +214,13 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [sRes, kRes, aRes] = await Promise.all([
+    const [sRes, kRes] = await Promise.all([
       fetch(`/api/servers/${hostname}`),
       fetch(`/api/keys?server=${hostname}`),
-      fetch(`/api/access?server=${hostname}`),
     ])
     if (!sRes.ok) throw new Error(t('server_detail.load_error', { status: sRes.status }))
     server.value = await sRes.json()
     keys.value = kRes.ok ? await kRes.json() : []
-    accessList.value = aRes.ok ? await aRes.json() : []
   } catch (e) {
     error.value = e.message
   } finally {
@@ -406,17 +373,6 @@ function envBadge(env) {
   return (
     { production: 'badge-critical', staging: 'badge-pending', lab: 'badge-active' }[env] ||
     'badge-expired'
-  )
-}
-
-function accessBadge(status) {
-  return (
-    {
-      APPROVED: 'badge-active',
-      PENDING: 'badge-pending',
-      REJECTED: 'badge-revoked',
-      EXPIRED: 'badge-expired',
-    }[status] || 'badge-expired'
   )
 }
 
