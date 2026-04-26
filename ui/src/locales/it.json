@@ -236,7 +236,19 @@
     "btn_save": "Salva",
     "success_added": "Amministratore {username} aggiunto.",
     "success_disabled": "Amministratore {username} disabilitato.",
-    "success_pwd": "Password di {username} aggiornata."
+    "success_pwd": "Password di {username} aggiornata.",
+    "btn_enable": "Riattiva",
+    "btn_delete": "Elimina",
+    "enable_modal_title": "Riattiva amministratore",
+    "enable_modal_text": "Confermare la riattivazione di {username}?",
+    "btn_enable_confirm": "Riattiva",
+    "delete_modal_title": "Elimina amministratore",
+    "delete_modal_text": "Eliminare definitivamente {username}? Azione irreversibile. Fallisce se l'account ha record associati.",
+    "btn_delete_confirm": "Elimina",
+    "success_enabled": "Amministratore {username} riattivato.",
+    "success_deleted": "Amministratore {username} eliminato.",
+    "error_self_action": "Non è possibile eseguire questa azione sul proprio account.",
+    "error_has_records": "Impossibile eliminare: esistono record che fanno riferimento a questo account."
   },
   "anomalies": {
     "title": "Anomalie",

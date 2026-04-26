@@ -236,7 +236,19 @@
     "btn_save": "Guardar",
     "success_added": "Administrador {username} añadido.",
     "success_disabled": "Administrador {username} desactivado.",
-    "success_pwd": "Contraseña de {username} actualizada."
+    "success_pwd": "Contraseña de {username} actualizada.",
+    "btn_enable": "Activar",
+    "btn_delete": "Eliminar",
+    "enable_modal_title": "Activar administrador",
+    "enable_modal_text": "¿Confirmar la activación de {username}?",
+    "btn_enable_confirm": "Activar",
+    "delete_modal_title": "Eliminar administrador",
+    "delete_modal_text": "¿Eliminar definitivamente a {username}? Esta acción es irreversible y fallará si existen registros asociados.",
+    "btn_delete_confirm": "Eliminar",
+    "success_enabled": "Administrador {username} activado.",
+    "success_deleted": "Administrador {username} eliminado.",
+    "error_self_action": "No puede realizar esta acción sobre su propia cuenta.",
+    "error_has_records": "No se puede eliminar: existen registros que hacen referencia a esta cuenta."
   },
   "anomalies": {
     "title": "Anomalías",

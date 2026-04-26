@@ -550,3 +550,56 @@ def disable_admin(username: str, admin_id: str | None = None) -> None:
         """,
         (admin_id, json.dumps({"username": username})),
     )
+
+
+def enable_admin(username: str, admin_id: str | None = None) -> None:
+    """Set is_active=true and log ADMIN_ENABLED."""
+    admin = db.query_one(
+        "SELECT id FROM administrators WHERE username = %s AND is_active = false", (username,)
+    )
+    if not admin:
+        raise ValueError(f"Inactive admin not found: {username}")
+    db.execute("UPDATE administrators SET is_active = true WHERE id = %s", (admin["id"],))
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, details)
+        VALUES ('ADMIN_ENABLED', %s, %s::jsonb)
+        """,
+        (admin_id, json.dumps({"username": username})),
+    )
+
+
+def delete_admin(username: str, admin_id: str | None = None) -> None:
+    """Permanently delete an inactive admin if no FK references exist. Log ADMIN_DELETED."""
+    admin = db.query_one(
+        "SELECT id FROM administrators WHERE username = %s AND is_active = false", (username,)
+    )
+    if not admin:
+        raise ValueError(f"Inactive admin not found: {username}")
+    ref = db.query_one(
+        """
+        SELECT 1 FROM (
+            SELECT performed_by AS ref_id FROM audit_log WHERE performed_by = %s
+            UNION ALL
+            SELECT authorized_by FROM key_authorizations WHERE authorized_by = %s
+            UNION ALL
+            SELECT revoked_by    FROM key_authorizations WHERE revoked_by    = %s
+            UNION ALL
+            SELECT requested_by  FROM access_requests    WHERE requested_by  = %s
+            UNION ALL
+            SELECT approved_by   FROM access_requests    WHERE approved_by   = %s
+        ) refs
+        LIMIT 1
+        """,
+        (admin["id"],) * 5,
+    )
+    if ref:
+        raise ValueError(f"Cannot delete admin '{username}': existing audit records reference this account")
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, details)
+        VALUES ('ADMIN_DELETED', %s, %s::jsonb)
+        """,
+        (admin_id, json.dumps({"username": username})),
+    )
+    db.execute("DELETE FROM administrators WHERE id = %s", (admin["id"],))

@@ -247,7 +247,9 @@ CREATE TABLE audit_log (
                       'SERVER_ADDED',       -- nouveau serveur enregistré
                       'SERVER_DISABLED',    -- serveur désactivé du périmètre
                       'ADMIN_ADDED',        -- nouvel administrateur créé
-                      'ADMIN_DISABLED'      -- administrateur désactivé
+                      'ADMIN_DISABLED',     -- administrateur désactivé
+                      'ADMIN_ENABLED',      -- administrateur réactivé
+                      'ADMIN_DELETED'       -- administrateur supprimé définitivement
                   )),
     -- Administrateur ayant déclenché l'action (NULL si automatique)
     performed_by  UUID REFERENCES administrators(id),
