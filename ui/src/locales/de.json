@@ -250,7 +250,9 @@
     "btn_revoke_confirm": "Widerrufen",
     "load_error": "Schlüssel können nicht geladen werden: {error}",
     "key_validated": "Schlüssel validiert.",
-    "key_revoked": "Schlüssel widerrufen."
+    "key_revoked": "Schlüssel widerrufen.",
+    "filter_placeholder": "Fingerprint, Typ, Server suchen…",
+    "no_results": "Keine passenden Anomalien."
   },
   "settings": {
     "title": "Einstellungen",

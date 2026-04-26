@@ -1,0 +1,153 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
+import { createRouter, createMemoryHistory } from 'vue-router'
+import en from '../src/locales/en.json'
+import Anomalies from '../src/views/Anomalies.vue'
+
+const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
+const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div/>' } }] })
+
+function makePending(overrides = {}) {
+  return {
+    fingerprint: 'SHA256:aaaa',
+    key_type: 'ssh-ed25519',
+    server_hostname: 'srv-prod',
+    first_seen: '2026-01-01T00:00:00Z',
+    is_compliant: true,
+    status: 'PENDING_REVIEW',
+    revoked_at: null,
+    revoked_automatically: false,
+    revoked_by: null,
+    revocation_justification: null,
+    ...overrides,
+  }
+}
+
+function makeRevoked(overrides = {}) {
+  return {
+    fingerprint: 'SHA256:bbbb',
+    key_type: 'ssh-rsa',
+    server_hostname: 'srv-staging',
+    first_seen: '2026-01-01T00:00:00Z',
+    is_compliant: false,
+    status: 'REVOKED',
+    revoked_at: new Date().toISOString(),
+    revoked_automatically: true,
+    revoked_by: null,
+    revocation_justification: 'auto',
+    ...overrides,
+  }
+}
+
+async function mountView(keys) {
+  global.fetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => keys,
+  })
+  const w = mount(Anomalies, { global: { plugins: [i18n, router] } })
+  await flushPromises()
+  return w
+}
+
+describe('Anomalies', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('affiche une ligne dans la section pending', async () => {
+    const w = await mountView([makePending()])
+    expect(w.find('[data-testid="pending-row-SHA256:aaaa"]').exists()).toBe(true)
+  })
+
+  it('affiche une ligne dans la section revoked hors système', async () => {
+    const w = await mountView([makeRevoked()])
+    expect(w.find('[data-testid="revoked-row-SHA256:bbbb"]').exists()).toBe(true)
+  })
+
+  it('affiche le message vide pending quand aucune clé PENDING_REVIEW', async () => {
+    const w = await mountView([])
+    expect(w.find('[data-testid="pending-empty"]').exists()).toBe(true)
+  })
+
+  it('affiche le message vide revoked quand aucune révocation hors système', async () => {
+    const w = await mountView([])
+    expect(w.find('[data-testid="revoked-empty"]').exists()).toBe(true)
+  })
+
+  it('affiche la barre de filtres quand il y a des clés', async () => {
+    const w = await mountView([makePending()])
+    expect(w.find('[data-testid="anomalies-filters"]').exists()).toBe(true)
+  })
+
+  it("n'affiche pas la barre de filtres quand la liste est vide", async () => {
+    const w = await mountView([])
+    expect(w.find('[data-testid="anomalies-filters"]').exists()).toBe(false)
+  })
+
+  it('filtre la section pending par fingerprint', async () => {
+    const keys = [
+      makePending({ fingerprint: 'SHA256:aaaa', server_hostname: 'srv-a' }),
+      makePending({ fingerprint: 'SHA256:zzzz', server_hostname: 'srv-b' }),
+    ]
+    const w = await mountView(keys)
+    await w.find('[data-testid="anomalies-filter-text"]').setValue('aaaa')
+    expect(w.find('[data-testid="pending-row-SHA256:aaaa"]').exists()).toBe(true)
+    expect(w.find('[data-testid="pending-row-SHA256:zzzz"]').exists()).toBe(false)
+  })
+
+  it('filtre la section pending par serveur', async () => {
+    const keys = [
+      makePending({ fingerprint: 'SHA256:aaaa', server_hostname: 'srv-prod' }),
+      makePending({ fingerprint: 'SHA256:bbbb', server_hostname: 'srv-staging' }),
+    ]
+    const w = await mountView(keys)
+    await w.find('[data-testid="anomalies-filter-text"]').setValue('prod')
+    expect(w.find('[data-testid="pending-row-SHA256:aaaa"]').exists()).toBe(true)
+    expect(w.find('[data-testid="pending-row-SHA256:bbbb"]').exists()).toBe(false)
+  })
+
+  it('filtre la section revoked par fingerprint', async () => {
+    const keys = [
+      makeRevoked({ fingerprint: 'SHA256:bbbb', server_hostname: 'srv-a' }),
+      makeRevoked({ fingerprint: 'SHA256:cccc', server_hostname: 'srv-b' }),
+    ]
+    const w = await mountView(keys)
+    await w.find('[data-testid="anomalies-filter-text"]').setValue('bbbb')
+    expect(w.find('[data-testid="revoked-row-SHA256:bbbb"]').exists()).toBe(true)
+    expect(w.find('[data-testid="revoked-row-SHA256:cccc"]').exists()).toBe(false)
+  })
+
+  it('affiche no_results dans pending quand filtre masque tout', async () => {
+    const w = await mountView([makePending()])
+    await w.find('[data-testid="anomalies-filter-text"]').setValue('zzz_inexistant')
+    expect(w.find('[data-testid="pending-no-results"]').exists()).toBe(true)
+  })
+
+  it('affiche no_results dans revoked quand filtre masque tout', async () => {
+    const w = await mountView([makeRevoked()])
+    await w.find('[data-testid="anomalies-filter-text"]').setValue('zzz_inexistant')
+    expect(w.find('[data-testid="revoked-no-results"]').exists()).toBe(true)
+  })
+
+  it('le badge de compteur affiche le total réel (pas le filtré)', async () => {
+    const keys = [
+      makePending({ fingerprint: 'SHA256:aaaa' }),
+      makePending({ fingerprint: 'SHA256:bbbb' }),
+    ]
+    const w = await mountView(keys)
+    await w.find('[data-testid="anomalies-filter-text"]').setValue('aaaa')
+    expect(w.find('.count-badge').text()).toBe('2')
+  })
+
+  it('vider le filtre réaffiche toutes les clés', async () => {
+    const keys = [
+      makePending({ fingerprint: 'SHA256:aaaa' }),
+      makePending({ fingerprint: 'SHA256:bbbb' }),
+    ]
+    const w = await mountView(keys)
+    const input = w.find('[data-testid="anomalies-filter-text"]')
+    await input.setValue('aaaa')
+    await input.setValue('')
+    expect(w.find('[data-testid="pending-row-SHA256:aaaa"]').exists()).toBe(true)
+    expect(w.find('[data-testid="pending-row-SHA256:bbbb"]').exists()).toBe(true)
+  })
+})

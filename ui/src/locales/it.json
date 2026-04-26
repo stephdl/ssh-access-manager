@@ -250,7 +250,9 @@
     "btn_revoke_confirm": "Revoca",
     "load_error": "Impossibile caricare le chiavi: {error}",
     "key_validated": "Chiave validata.",
-    "key_revoked": "Chiave revocata."
+    "key_revoked": "Chiave revocata.",
+    "filter_placeholder": "Cerca fingerprint, tipo, server…",
+    "no_results": "Nessuna anomalia corrispondente."
   },
   "settings": {
     "title": "Impostazioni",

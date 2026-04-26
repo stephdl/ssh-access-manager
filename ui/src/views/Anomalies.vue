@@ -8,15 +8,25 @@
     <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
 
     <template v-else>
+      <div v-if="allKeys.length > 0" class="filters" data-testid="anomalies-filters">
+        <input
+          v-model="filterText"
+          type="text"
+          :placeholder="$t('anomalies.filter_placeholder')"
+          class="filter-input"
+          data-testid="anomalies-filter-text"
+        />
+      </div>
+
       <!-- PENDING_REVIEW keys -->
       <section class="card">
         <h2>
           {{ $t('anomalies.section_pending') }}
-          <span class="count-badge" :class="pending.length ? 'count-warn' : 'count-ok'">
-            {{ pending.length }}
+          <span class="count-badge" :class="pendingAll.length ? 'count-warn' : 'count-ok'">
+            {{ pendingAll.length }}
           </span>
         </h2>
-        <table v-if="pending.length">
+        <table v-if="pendingFiltered.length">
           <thead>
             <tr>
               <th>{{ $t('anomalies.col_fingerprint') }}</th>
@@ -28,7 +38,11 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="k in pending" :key="k.fingerprint + k.server_hostname">
+            <tr
+              v-for="k in pendingFiltered"
+              :key="k.fingerprint + k.server_hostname"
+              :data-testid="`pending-row-${k.fingerprint}`"
+            >
               <td class="fp">
                 <code>{{ k.fingerprint }}</code>
               </td>
@@ -56,19 +70,24 @@
             </tr>
           </tbody>
         </table>
-        <p v-else class="empty">{{ $t('anomalies.no_pending') }}</p>
+        <p v-else-if="pendingAll.length === 0" class="empty" data-testid="pending-empty">
+          {{ $t('anomalies.no_pending') }}
+        </p>
+        <p v-else class="empty" data-testid="pending-no-results">
+          {{ $t('anomalies.no_results') }}
+        </p>
       </section>
 
       <!-- Out-of-system revocations (last 30 days) -->
       <section class="card">
         <h2>
           {{ $t('anomalies.section_revoked') }}
-          <span class="count-badge" :class="outOfSystem.length ? 'count-danger' : 'count-ok'">
-            {{ outOfSystem.length }}
+          <span class="count-badge" :class="outOfSystemAll.length ? 'count-danger' : 'count-ok'">
+            {{ outOfSystemAll.length }}
           </span>
           <span class="subtitle">{{ $t('anomalies.subtitle_revoked') }}</span>
         </h2>
-        <table v-if="outOfSystem.length">
+        <table v-if="outOfSystemFiltered.length">
           <thead>
             <tr>
               <th>{{ $t('anomalies.col_fingerprint') }}</th>
@@ -79,7 +98,11 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="k in outOfSystem" :key="k.fingerprint + k.server_hostname">
+            <tr
+              v-for="k in outOfSystemFiltered"
+              :key="k.fingerprint + k.server_hostname"
+              :data-testid="`revoked-row-${k.fingerprint}`"
+            >
               <td class="fp">
                 <code>{{ k.fingerprint }}</code>
               </td>
@@ -96,7 +119,12 @@
             </tr>
           </tbody>
         </table>
-        <p v-else class="empty">{{ $t('anomalies.no_revoked') }}</p>
+        <p v-else-if="outOfSystemAll.length === 0" class="empty" data-testid="revoked-empty">
+          {{ $t('anomalies.no_revoked') }}
+        </p>
+        <p v-else class="empty" data-testid="revoked-no-results">
+          {{ $t('anomalies.no_results') }}
+        </p>
       </section>
     </template>
 
@@ -140,10 +168,22 @@ const error = ref('')
 const message = ref('')
 const revokeTarget = ref(null)
 const revokeReason = ref('')
+const filterText = ref('')
 
-const pending = computed(() => allKeys.value.filter((k) => k.status === 'PENDING_REVIEW'))
+function matchesFilter(k) {
+  const text = filterText.value.trim().toLowerCase()
+  if (!text) return true
+  return (
+    k.fingerprint.toLowerCase().includes(text) ||
+    k.key_type.toLowerCase().includes(text) ||
+    (k.server_hostname || '').toLowerCase().includes(text)
+  )
+}
 
-const outOfSystem = computed(() => {
+const pendingAll = computed(() => allKeys.value.filter((k) => k.status === 'PENDING_REVIEW'))
+const pendingFiltered = computed(() => pendingAll.value.filter(matchesFilter))
+
+const outOfSystemAll = computed(() => {
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - 30)
   return allKeys.value.filter(
@@ -154,6 +194,7 @@ const outOfSystem = computed(() => {
       new Date(k.revoked_at) >= cutoff
   )
 })
+const outOfSystemFiltered = computed(() => outOfSystemAll.value.filter(matchesFilter))
 
 async function load() {
   loading.value = true
@@ -240,6 +281,21 @@ h2 {
 }
 .non-compliant {
   cursor: help;
+}
+
+.filters {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.filter-input {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  flex: 1;
+  max-width: 400px;
 }
 
 .card {

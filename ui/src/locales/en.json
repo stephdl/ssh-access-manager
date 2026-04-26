@@ -250,7 +250,9 @@
     "btn_revoke_confirm": "Revoke",
     "load_error": "Unable to load keys: {error}",
     "key_validated": "Key validated.",
-    "key_revoked": "Key revoked."
+    "key_revoked": "Key revoked.",
+    "filter_placeholder": "Search fingerprint, type, server…",
+    "no_results": "No matching anomalies."
   },
   "settings": {
     "title": "Settings",
