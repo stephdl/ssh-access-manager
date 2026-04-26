@@ -15,7 +15,7 @@ Milestone 1 (Issues 1–4) ✅
 Milestone 2 (Issues 5–13) ✅  
 Milestone 3 (Issues 14–21) ✅  
 Milestone 4 (Issues 22–24) ✅  
-Issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137) ✅
+Issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148) ✅
 
 ## Stack vérifiée et figée
 
@@ -649,6 +649,23 @@ freezegun           ← pour mocker datetime dans expire.py
 Protection branche main :
     PR obligatoire, 5 checks requis, force push bloqué, enforce_admins=true
 
+## Renovate (issue #148)
+
+renovate.json à la racine du projet.
+Renovate GitHub App activé sur le compte.
+
+Périmètre :
+- npm (ui/package.json)
+- pip (requirements-test.txt)
+- Dockerfile (FROM lines)
+
+Comportement :
+- Planning : lundi avant 9h, TZ Europe/Paris
+- Label automatique : dependencies
+- npm patch : automerge si CI vert
+- npm minor/major : PR manuelle
+- pip + Docker : PR groupées, merge manuel
+
 ## Formatage — Prettier (issue #139)
 
 Configuration : `.prettierrc` à la racine du projet.
@@ -910,6 +927,7 @@ ssh-access-manager/
     ├── docker-compose.yml
     ├── .env.example
     ├── requirements-test.txt
+    ├── renovate.json           ← config Renovate (npm + pip + Docker)
     ├── supervisord.conf
     ├── bootstrap.sh
     ├── crontab
@@ -918,8 +936,13 @@ ssh-access-manager/
     ├── provision-host.sh
     ├── .github/
     │   └── workflows/
-    │       ├── ci.yml          ← pytest + vitest + coverage ≥ 80%
-    │       └── build-pr.yml    ← build + push image Docker GHCR
+    │       ├── ci.yml              ← pytest + vitest + prettier + commitlint
+    │       ├── pr-title.yml        ← validation titre PR (shell grep -P)
+    │       ├── build-pr.yml        ← build + push image Docker GHCR + Trivy
+    │       ├── build-main.yml      ← build + push :main sur GHCR
+    │       ├── publish-release.yml ← build + push :vX.Y.Z (+ :latest)
+    │       ├── cleanup-pr.yml      ← suppression image pr-{N}
+    │       └── codeql.yml          ← analyse statique sécurité Python
     ├── docs/
     │   └── erd.md              ← diagramme ERD Mermaid 6 tables
     ├── sql/
