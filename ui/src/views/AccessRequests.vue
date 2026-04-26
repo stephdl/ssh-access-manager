@@ -11,7 +11,6 @@
       <h2>{{ $t('deployedUsers.title') }}</h2>
       <DeployedUsersTable />
     </section>
-
   </div>
 </template>
 

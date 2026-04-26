@@ -52,12 +52,14 @@
                 v-if="lockStates[`${user.unix_user}-${user.hostname}`] === 'USER_LOCKED'"
                 class="badge badge-locked"
                 :data-testid="`status-${user.unix_user}-${user.hostname}`"
-              >{{ $t('deployedUsers.status_locked') }}</span>
+                >{{ $t('deployedUsers.status_locked') }}</span
+              >
               <span
                 v-else
                 class="badge badge-active"
                 :data-testid="`status-${user.unix_user}-${user.hostname}`"
-              >{{ $t('deployedUsers.status_active') }}</span>
+                >{{ $t('deployedUsers.status_active') }}</span
+              >
             </td>
             <td class="actions">
               <button

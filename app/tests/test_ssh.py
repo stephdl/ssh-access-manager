@@ -378,8 +378,7 @@ def test_ssh_sam_unlock_user_is_bytes():
     assert isinstance(ssh.SAM_UNLOCK_USER, bytes)
     assert b"#!/bin/sh" in ssh.SAM_UNLOCK_USER
     assert b"usermod" in ssh.SAM_UNLOCK_USER
-    assert b"-U" in ssh.SAM_UNLOCK_USER
-    assert b"/bin/bash" in ssh.SAM_UNLOCK_USER
+    assert b"-s /bin/bash" in ssh.SAM_UNLOCK_USER
 
 
 def test_ssh_lock_user_on_server_calls_sam_lock_user(sample_server):
