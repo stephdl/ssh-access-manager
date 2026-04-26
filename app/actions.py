@@ -248,20 +248,14 @@ def warn_expiring_key(key_id: str, server_id: str, expires_at: datetime) -> dict
     return {"fingerprint": fp, "hostname": hostname, "expires_at": expires_at}
 
 
-def assign_key(fingerprint: str, owner_username: str) -> None:
-    """Set the owner of a key by admin username."""
-    admin = db.query_one(
-        "SELECT id FROM administrators WHERE username = %s AND is_active = true",
-        (owner_username,),
-    )
-    if not admin:
-        raise ValueError(f"Admin not found: {owner_username}")
+def assign_key(fingerprint: str, owner_name: str) -> None:
+    """Set the free-text owner of a key."""
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
         raise ValueError(f"Key not found: {fingerprint}")
     db.execute(
-        "UPDATE ssh_keys SET owner_id = %s WHERE id = %s",
-        (admin["id"], key["id"]),
+        "UPDATE ssh_keys SET owner = %s WHERE id = %s",
+        (owner_name, key["id"]),
     )
 
 

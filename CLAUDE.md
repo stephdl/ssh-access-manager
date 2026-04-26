@@ -230,7 +230,7 @@ CREATE TABLE ssh_keys (
     key_size_bits   SMALLINT,
     public_key      TEXT NOT NULL,
     comment         VARCHAR(255),
-    owner_id        UUID REFERENCES administrators(id),
+    owner           VARCHAR(255),
     is_compliant    BOOLEAN GENERATED ALWAYS AS (
                         key_type = 'ssh-ed25519' OR
                         (key_type = 'ssh-rsa'
@@ -488,7 +488,7 @@ Validation robustesse mot de passe (issue #62) :
 - handle_unknown_key(key_type, key_b64, comment, server_id, db)  ← scénario 3
 - handle_reappeared_key(key_id, server_id, hostname)             ← scénario 5 (issue #123)
 - warn_expiring_key(key_id, server_id, expires_at, db)
-- assign_key(fingerprint, owner_username, db)
+- assign_key(fingerprint, owner_name, db)
 - set_key_expiry(fingerprint, expires_at, db)
 - remove_key_expiry(fingerprint, db)
 
