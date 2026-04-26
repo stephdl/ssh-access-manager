@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import en from '../src/locales/en.json'
 import Admins from '../src/views/Admins.vue'
 
-const i18n = createI18n({ legacy: false, locale: 'en', messages: { en: {} } })
+const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
 
 const ACTIVE_ADMIN  = { id: '1', username: 'admin',    email: 'a@b.c', role: 'sysadmin', is_active: true,  created_at: null }
 const OTHER_ACTIVE  = { id: '2', username: 'alice',    email: 'alice@b.c', role: 'sysadmin', is_active: true,  created_at: null }
