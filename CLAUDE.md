@@ -9,6 +9,14 @@ Développeur : Stéphane de Labrusse.
 Stack habituelle : Python/Bash, Podman, PostgreSQL, Nginx, Alpine,
 Vue.js 3.
 
+## État du projet — toutes issues fermées (46/46)
+
+Milestone 1 (Issues 1–4) ✅  
+Milestone 2 (Issues 5–13) ✅  
+Milestone 3 (Issues 14–21) ✅  
+Milestone 4 (Issues 22–24) ✅  
+Issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119) ✅
+
 ## Stack vérifiée et figée
 
 ### Image finale — alpine:3.23.4
@@ -26,10 +34,13 @@ Vue.js 3.
 - paramiko (pip)
 - psycopg2-binary (pip)
 - pyyaml (pip)
+- werkzeug (pip — pour password_hash)
 
 ### Stage build UI — node:22-alpine
 - Node.js 22 LTS
-- Vue.js 3
+- Vue.js 3 (^3.4)
+- vue-router (^4.3)
+- vue-i18n (^9.14 — 5 langues : EN/FR/ES/IT/DE)
 - Vite (bundler)
 - Produit /ui/dist/ copié dans /app/static/
 
@@ -64,7 +75,8 @@ RUN apk update && apk add --no-cache \
         click \
         paramiko \
         psycopg2-binary \
-        pyyaml
+        pyyaml \
+        werkzeug
 
 COPY --from=ui-builder /ui/dist /app/static
 COPY app/ /app/app/
@@ -84,20 +96,23 @@ ENTRYPOINT ["/app/bootstrap.sh"]
 
 Supervisord orchestre :
 - PostgreSQL 18 — stockage persistant
-- Nginx — sert /app/static/ + proxy /api/ → Flask
-- Flask — API REST JSON sur 127.0.0.1:5000
+- Nginx — sert /app/static/ + proxy /api/ → Flask (sans Basic Auth)
+- Flask — API REST JSON sur 127.0.0.1:5000 (auth par session)
 - busybox crond — scan + expiration toutes les X heures
 
 ## Volume unique /data
 
 /data/
     ├── keys/
-    │   ├── collector_key        ← clé privée ED25519 (chmod 600)
+    │   ├── collector_key        ← clé privée ED25519 (chmod 600, chown nobody)
     │   ├── collector_key.pub    ← clé publique à déployer
-    │   └── known_hosts          ← créé vide au bootstrap (chmod 600)
+    │   └── known_hosts          ← créé vide au bootstrap (chmod 644, chown nobody)
     ├── pg/                      ← PGDATA (chown postgres:postgres 700)
     └── config/
         └── servers.yml          ← liste déclarative des serveurs
+
+Note : collector_key et known_hosts sont chown nobody pour que Flask
+(user=nobody) puisse les lire/écrire sans élévation.
 
 ## Variables d'environnement
 
@@ -108,8 +123,6 @@ POSTGRES_PASSWORD=changeme
 
 # Nginx
 NGINX_PORT=8080
-NGINX_USER=admin
-NGINX_PASSWORD=changeme
 
 # Flask
 FLASK_SECRET_KEY=changeme
@@ -129,7 +142,13 @@ EXPIRE_WARN_DAYS=7
 EXPIRE_WARN_DAYS_2=2
 ADMIN_USERNAME=admin
 ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=changeme
 TZ=Europe/Paris
+
+Note : NGINX_USER/NGINX_PASSWORD supprimés (Basic Auth Nginx remplacé
+par authentification Flask session — issue #54).
+ADMIN_PASSWORD ajouté pour définir le mot de passe du premier admin
+au bootstrap (issue #51).
 
 ## bootstrap.sh — ordre strict obligatoire
 
@@ -140,16 +159,20 @@ Si premier démarrage :
 2. chown postgres:postgres /data/pg && chmod 700 /data/pg
 3. ssh-keygen -t ed25519 -f /data/keys/collector_key \
    -N "" -C "ssh-access-manager@$(hostname)"
-4. touch /data/keys/known_hosts && chmod 600 /data/keys/known_hosts
+4. touch /data/keys/known_hosts && chmod 644 /data/keys/known_hosts
 5. chmod 600 /data/keys/collector_key
-6. Démarrer PostgreSQL temporairement (socket local uniquement)
-7. Créer base et utilisateur depuis ENV
-8. Appliquer /app/sql/schema.sql
-9. Insérer administrateur initial depuis ENV
-10. Arrêter PostgreSQL temporaire
-11. Générer /etc/msmtprc depuis msmtp.conf.template + ENV
-12. Générer /etc/nginx/nginx.conf depuis nginx.conf.template + ENV
-13. Afficher collector_key.pub dans les logs
+6. chown nobody /data/keys/collector_key /data/keys/known_hosts
+7. Démarrer PostgreSQL temporairement (socket local uniquement)
+8. Créer base et utilisateur depuis ENV (deux psql séparés — CREATE
+   DATABASE ne peut pas tourner dans une transaction)
+9. Appliquer /app/sql/schema.sql
+10. Appliquer migrations (sql/migrations/*.sql dans l'ordre)
+11. Insérer administrateur initial depuis ENV avec password_hash
+    (werkzeug generate_password_hash)
+12. Arrêter PostgreSQL temporaire
+13. Générer /etc/msmtprc depuis msmtp.conf.template + ENV
+14. Générer /etc/nginx/nginx.conf depuis nginx.conf.template + ENV
+15. Afficher collector_key.pub dans les logs
 
 Si non premier démarrage :
 - Régénérer /etc/nginx/nginx.conf depuis ENV
@@ -185,13 +208,16 @@ CREATE TABLE servers (
 );
 
 CREATE TABLE administrators (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    username    VARCHAR(100) NOT NULL UNIQUE,
-    email       VARCHAR(255),
-    role        VARCHAR(50) DEFAULT 'sysadmin',
-    is_active   BOOLEAN DEFAULT true,
-    created_at  TIMESTAMPTZ DEFAULT now()
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username      VARCHAR(100) NOT NULL UNIQUE,
+    email         VARCHAR(255),
+    role          VARCHAR(50) DEFAULT 'sysadmin',
+    password_hash VARCHAR(255),
+    is_active     BOOLEAN DEFAULT true,
+    created_at    TIMESTAMPTZ DEFAULT now()
 );
+
+-- password_hash ajouté via issue #51
 
 CREATE TABLE ssh_keys (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -272,7 +298,9 @@ CREATE TABLE audit_log (
                         'SERVER_ADDED',
                         'SERVER_DISABLED',
                         'ADMIN_ADDED',
-                        'ADMIN_DISABLED'
+                        'ADMIN_DISABLED',
+                        'ADMIN_ENABLED',
+                        'ADMIN_DELETED'
                     )),
     performed_by    UUID REFERENCES administrators(id),
     target_key      UUID REFERENCES ssh_keys(id),
@@ -280,6 +308,18 @@ CREATE TABLE audit_log (
     performed_at    TIMESTAMPTZ DEFAULT now(),
     details         JSONB
 );
+
+-- ADMIN_ENABLED et ADMIN_DELETED ajoutés via migration 003
+-- (sql/migrations/003_admin_enable_delete.sql — issue #116)
+
+## Migrations SQL
+
+sql/migrations/
+    003_admin_enable_delete.sql  ← étend le CHECK de audit_log.action
+                                    pour ADMIN_ENABLED et ADMIN_DELETED
+
+Bootstrap applique les migrations dans l'ordre lexicographique
+après schema.sql au premier démarrage.
 
 ## Index
 
@@ -326,40 +366,56 @@ def compute_fingerprint(key_b64):
     b64 = base64.b64encode(digest).decode().rstrip('=')
     return f"SHA256:{b64}"
 
+Pour RSA, key_size_bits est calculé en parsant le format wire SSH
+(pas une formule approximative) pour que is_compliant soit exact.
+
 ## Logique métier — scripts distants
 
 Deux scripts maintenus sur chaque hôte distant.
-Versionnés comme constantes Python dans ssh.py.
+Versionnés comme constantes Python (bytes) dans ssh.py.
 Déployés via SFTP si absents ou si hash SHA256 différent.
 Tracés dans audit_log avec action SCRIPT_DEPLOYED.
 
 SAM_COLLECT — /usr/local/bin/sam-collect (root, 755)
 Lit toutes les authorized_keys (homes + root) et les affiche.
+Format de sortie : user\tkey_type key_b64 [comment]
 
 SAM_REVOKE — /usr/local/bin/sam-revoke <fingerprint_hex> (root, 755)
 Révoque une clé par fingerprint SHA256 hex.
 Réécriture atomique via mktemp + mv.
+Préserve l'ownership du fichier authorized_keys après le mv
+(issue #104 — le tmp créé par root changeait le owner).
 
 ## Logique métier — known_hosts
 
 paramiko.RejectPolicy() — sécurisé, jamais AutoAddPolicy.
 servers.py appelle ssh-keyscan si hôte absent de known_hosts :
 
-subprocess.run(['ssh-keyscan', '-H', '-T', '10', hostname])
+subprocess.run(['ssh-keyscan', '-H', '-T', '10', ip_address])
 → append dans /data/keys/known_hosts
+
+## Logique métier — connexions SSH
+
+Les connexions SSH utilisent l'ip_address directement (pas le hostname).
+Depuis le container, le hostname du serveur distant peut ne pas être
+résolvable DNS — l'IP est toujours joignable (issues #80, #84).
+
+known_hosts est indexé par IP (ssh-keyscan -H <ip>).
 
 ## Logique métier — expiration
 
 expire.py appelé par cron à chaque cycle :
 
 warn_expiring_keys() :
-→ clés ACTIVE avec expires_at dans EXPIRE_WARN_DAYS jours
+→ clés ACTIVE avec expires_at dans max(EXPIRE_WARN_DAYS, EXPIRE_WARN_DAYS_2)
 → anti-spam NOT EXISTS audit_log EXPIRY_WARNING sur 24h
-→ email WARNING + audit_log EXPIRY_WARNING
+→ 1 seul email WARNING groupé par cycle (issue #119)
+→ audit_log EXPIRY_WARNING par clé
 
 expire_keys() :
 → clés ACTIVE avec expires_at < NOW()
-→ sam-revoke sur serveur distant
+→ requête SQL doit sélectionner s.ip_address (issue #114)
+→ sam-revoke sur serveur distant via IP
 → status=EXPIRED, revoked_automatically=TRUE
 → audit_log KEY_EXPIRED, email INFO
 
@@ -368,16 +424,17 @@ expire_keys() :
 1. Via système (actions.py revoke_key)
    → sam-revoke, revoked_by=admin_id
    → status=REVOKED, audit_log KEY_REVOKED, email INFO
+   → fonctionne aussi si status=PENDING_REVIEW (issue #85)
 
 2. Hors système (scan détecte clé ACTIVE disparue)
    → revoked_by=NULL, revoked_automatically=TRUE
    → status=REVOKED, audit_log ANOMALY_DETECTED
-   → EMAIL CRITIQUE immédiat
+   → 1 seul email CRITICAL par scan regroupant toutes les anomalies
 
 3. Clé inconnue (présente serveur, absente BDD)
    → INSERT status=PENDING_REVIEW
    → audit_log ANOMALY_DETECTED
-   → EMAIL CRITIQUE immédiat
+   → 1 seul email CRITICAL par scan regroupant toutes les anomalies
 
 4. Expiration programmée (expires_at < NOW())
    → sam-revoke automatique
@@ -386,17 +443,69 @@ expire_keys() :
 
 ## Alertes email — niveaux
 
-CRITIQUE (email immédiat) :
+CRITIQUE (1 seul email par scan — issue #119) :
 - Clé inconnue détectée
 - Révocation hors système
 - Scan échoué (serveur injoignable)
 
-WARNING (email immédiat, anti-spam 24h) :
+WARNING (1 seul email par cycle expire — issue #119, anti-spam 24h) :
 - Clé expire dans EXPIRE_WARN_DAYS jours
 - Clé expire dans EXPIRE_WARN_DAYS_2 jours
 
 INFO (log uniquement) :
 - KEY_EXPIRED, KEY_REVOKED, SCAN_COMPLETED, SCRIPT_DEPLOYED
+
+## Authentification Flask — sessions (issue #51–54)
+
+Plus de Basic Auth Nginx (supprimé — issue #54).
+Authentification gérée par Flask sessions.
+
+POST /api/auth/login — vérifie password_hash (werkzeug check_password_hash)
+                       → session[admin_id], session[username]
+POST /api/auth/logout — clear session
+GET  /api/auth/me    — retourne l'admin courant
+
+Décorateur require_auth sur toutes les routes protégées.
+Retourne 401 JSON si session manquante.
+
+Validation robustesse mot de passe (issue #62) :
+- 8+ caractères, 1+ majuscule, 1+ minuscule, 1+ chiffre, 1+ spécial
+- Appliquée dans add_admin() et change_password()
+
+## Logique métier — actions.py (fonctions complètes)
+
+### Clés SSH
+- validate_key(fingerprint, admin_id, db)
+- revoke_key(fingerprint, admin_id, reason, db)
+  ↳ fonctionne sur ACTIVE et PENDING_REVIEW (issue #85)
+- handle_disappeared_key(key_id, server_id, db)    ← scénario 2
+- handle_unknown_key(key_type, key_b64, comment, server_id, db)  ← scénario 3
+- warn_expiring_key(key_id, server_id, expires_at, db)
+- assign_key(fingerprint, owner_username, db)
+- set_key_expiry(fingerprint, expires_at, db)
+- remove_key_expiry(fingerprint, db)
+
+### Accès temporaires
+- grant_access(key_fp, hostname, expires_at, justification, admin_id, db)
+- approve_request(request_id, admin_id, db)
+- reject_request(request_id, admin_id, db)
+- revoke_request(request_id, admin_id, db)
+
+### Serveurs
+- add_server(hostname, ip, env, os_family, db)
+  ↳ appelle add_to_known_hosts(ip) avant INSERT (issue #70)
+- disable_server(hostname, db)
+- enable_server(hostname, db)    ← issue #88
+- delete_server(hostname, db)    ← issue #88 — suppression hard + cascade
+
+### Administrateurs
+- add_admin(username, email, password, db)
+  ↳ valide robustesse mot de passe, hash avec werkzeug
+- change_password(username, new_password, db)   ← issue #61
+- disable_admin(username, db)
+- enable_admin(username, db)     ← issue #116
+- delete_admin(username, db)     ← issue #116 — vérifie FK avant DELETE
+- _validate_password_strength(password)         ← issue #62
 
 ## Stratégie de tests
 
@@ -404,15 +513,15 @@ INFO (log uniquement) :
 
 app/tests/
     conftest.py        ← fixtures partagées (DB, SSH mock, msmtp mock)
-    test_db.py         ← helpers connexion, transactions
-    test_servers.py    ← parsing servers.yml, sync BDD
-    test_ssh.py        ← mock paramiko, RejectPolicy, ensure_scripts
-    test_actions.py    ← toutes les fonctions actions.py
-    test_collect.py    ← mock scan complet, 4 scénarios détection
-    test_expire.py     ← warn J-7/J-2, anti-spam 24h, expiration auto
-    test_alerts.py     ← mock msmtp, niveaux CRITIQUE/WARNING/INFO
-    test_web.py        ← toutes les routes Flask, codes HTTP attendus
-    test_manage.py     ← toutes les commandes CLI click
+    test_db.py         ← helpers connexion, transactions (7 tests)
+    test_servers.py    ← parsing servers.yml, sync BDD (6 tests)
+    test_ssh.py        ← mock paramiko, RejectPolicy, ensure_scripts (11 tests)
+    test_actions.py    ← toutes les fonctions actions.py (52 tests)
+    test_collect.py    ← mock scan complet, 4 scénarios détection (18 tests)
+    test_expire.py     ← warn J-7/J-2, anti-spam 24h, expiration auto (9 tests)
+    test_alerts.py     ← mock msmtp, niveaux CRITIQUE/WARNING/INFO (12 tests)
+    test_web.py        ← toutes les routes Flask, codes HTTP attendus (42+ tests)
+    test_manage.py     ← toutes les commandes CLI click (40+ tests)
 
 Règles absolues :
 - Mock SSH obligatoire via unittest.mock — jamais de vrai serveur
@@ -446,37 +555,46 @@ def sample_server():
 def sample_key():
     """Retourne une clé SSH ED25519 de test avec fingerprint calculé"""
 
-### Scénarios critiques à couvrir obligatoirement
+### Scénarios critiques couverts
 
 test_actions.py :
 - revoke_key : scénario 1 (via système, revoked_by=admin_id)
+- revoke_key : fonctionne sur PENDING_REVIEW (issue #85)
 - collect : scénario 2 (hors système, revoked_automatically=TRUE)
 - collect : scénario 3 (clé inconnue → PENDING_REVIEW)
 - Anti-spam EXPIRY_WARNING : second appel dans 24h ne renvoie pas d'email
+- enable_server, delete_server, enable_admin, delete_admin
+- _validate_password_strength : valide et invalide
 
 test_expire.py :
 - expire : scénario 4 (expiration programmée → sam-revoke)
-  Justification : expire.py orchestre le workflow complet,
-  actions.py couvre uniquement les scénarios 1, 2, 3.
+- expire_keys requiert ip_address dans la requête SQL (issue #114)
 
 test_ssh.py :
 - RejectPolicy présent sur chaque connexion
 - ensure_scripts déploie si hash SHA256 différent
 - ensure_scripts ne redéploie pas si hash identique
 - revoke_on_server appelle sam-revoke avec bon fingerprint
+- SAM_REVOKE et SAM_COLLECT sont de type bytes
 
 test_web.py :
 - GET /api/keys retourne 200 + liste JSON
-- POST /api/keys/<fp>/revoke retourne 200 si admin authentifié
-- POST /api/keys/<fp>/revoke retourne 401 si non authentifié
+- POST /api/keys/revoke/<fp> retourne 200 si admin authentifié
+- POST /api/keys/revoke/<fp> retourne 401 si non authentifié
 - POST /api/access/grant retourne 201 avec expires_at calculé
+- POST /api/auth/login retourne 200 + session
+- PUT /api/servers/<hostname>/enable retourne 200
+- DELETE /api/servers/<hostname> retourne 200
 
 ### Tests frontend — Vitest
 
 ui/tests/
-    KeyActions.spec.js   ← modal confirmation révocation
-    AccessForm.spec.js   ← validation durée OU date, pas les deux
-    ExpiryPicker.spec.js ← modes exclusifs heures/date
+    KeyActions.spec.js    ← modal confirmation révocation (17 tests)
+    ExpiryPicker.spec.js  ← modes exclusifs heures/date (11 tests)
+    ServerTable.spec.js   ← filtres hostname/IP/env, badges statut (15 tests)
+    AccessForm.spec.js    ← validation durée OU date, soumission (16 tests)
+    KeyTable.spec.js      ← boutons par statut, owner, expires_at (18+ tests)
+    Admins.spec.js        ← modals enable/delete, garde-fous (15 tests)
 
 ### Ce qui n'est PAS testé unitairement
 
@@ -485,13 +603,27 @@ ui/tests/
 - nginx.conf.template → validé par nginx -t
 - provision-host.sh → testé manuellement sur VM de lab
 
-### Dépendances de test à ajouter
+### Dépendances de test
 
 requirements-test.txt :
+flask
+click
+paramiko
+psycopg2-binary
+pyyaml
+werkzeug
 pytest>=8.0
 pytest-cov
 pytest-mock
 freezegun           ← pour mocker datetime dans expire.py
+
+## CI/CD — GitHub Actions (issue #110)
+
+.github/workflows/
+    ci.yml          ← déclenchement : push/PR sur main
+                       job python-tests : pytest + coverage ≥ 80%
+                       job vue-tests : vitest
+    build-pr.yml    ← publication image Docker sur GHCR à chaque PR
 
 ## Commandes — inventaire complet
 
@@ -499,6 +631,7 @@ freezegun           ← pour mocker datetime dans expire.py
 servers list
 servers add --hostname HOST --ip IP --env ENV --os OS
 servers disable <hostname>
+servers enable <hostname>
 servers show <hostname>
 servers scan [--server HOSTNAME]
 
@@ -525,8 +658,11 @@ access revoke <id>
 
 ### Administrateurs
 admin list
-admin add --username USER --email EMAIL
+admin add --username USER --email EMAIL --password PASSWORD
 admin disable <username>
+admin enable <username>
+admin delete <username>
+admin change-password <username>
 
 ### Audit
 audit list [--server HOST] [--action ACTION] [--since DATE]
@@ -540,21 +676,36 @@ system report
 Toutes les routes retournent JSON.
 Préfixe /api/ pour toutes les routes.
 
-GET  /api/servers
-GET  /api/servers/<hostname>
-POST /api/servers
-PUT  /api/servers/<hostname>/disable
-POST /api/servers/<hostname>/scan
+Note : les fingerprints SHA256 contiennent "/" (ex: SHA256:abc/def).
+Flask <string:fp> rejette les slashes. Les routes clés ont été
+restructurées en /api/keys/<action>/<fingerprint> pour éviter
+les 404 (issues #68, #69).
 
+### Authentification
+POST /api/auth/login
+POST /api/auth/logout
+GET  /api/auth/me
+
+### Serveurs
+GET    /api/servers
+GET    /api/servers/<hostname>
+POST   /api/servers
+PUT    /api/servers/<hostname>/disable
+PUT    /api/servers/<hostname>/enable
+DELETE /api/servers/<hostname>
+POST   /api/servers/<hostname>/scan
+
+### Clés SSH
 GET  /api/keys
-GET  /api/keys/<fingerprint>
-POST /api/keys/<fingerprint>/validate
-POST /api/keys/<fingerprint>/revoke
-POST /api/keys/<fingerprint>/assign
-POST /api/keys/<fingerprint>/set-expiry
-POST /api/keys/<fingerprint>/remove-expiry
+GET  /api/keys/get/<fingerprint>
 GET  /api/keys/search?q=<query>
+POST /api/keys/validate/<fingerprint>
+POST /api/keys/revoke/<fingerprint>
+POST /api/keys/assign/<fingerprint>
+POST /api/keys/set-expiry/<fingerprint>
+POST /api/keys/remove-expiry/<fingerprint>
 
+### Accès temporaires
 GET  /api/access
 GET  /api/access/<id>
 POST /api/access/grant
@@ -563,32 +714,76 @@ POST /api/access/<id>/approve
 POST /api/access/<id>/reject
 POST /api/access/<id>/revoke
 
-GET  /api/admins
-POST /api/admins
-PUT  /api/admins/<username>/disable
+### Administrateurs
+GET    /api/admins
+GET    /api/admins/me
+POST   /api/admins
+PUT    /api/admins/<username>/disable
+PUT    /api/admins/<username>/enable
+DELETE /api/admins/<username>
+PUT    /api/admins/<username>/password
 
-GET  /api/audit?server=&action=&since=
+### Audit
+GET /api/audit?server=&action=&since=
 
+### Système
 GET  /api/system/status
 POST /api/system/scan
+GET  /api/system/collector-key
 
 ## Interface Vue.js 3 — vues
 
 ui/src/views/
+    Login.vue           ← page de connexion (issue #53)
     Dashboard.vue       ← tableau serveurs + recherche + compteurs
+                          + modal ajout serveur (issue #71)
+                          + affichage clé collecteur (issue #74)
     ServerDetail.vue    ← détail serveur + clés + actions
+                          + boutons désactiver/réactiver/supprimer (issue #89)
+                          + bandeau rouge si serveur désactivé (issue #91)
     Anomalies.vue       ← toutes anomalies actives
     AccessRequests.vue  ← accès temporaires + formulaire
     Audit.vue           ← historique filtrable
     Admins.vue          ← gestion administrateurs
+                          + modals enable/delete + garde-fou self (issue #116)
+                          + modal changement mot de passe (issue #61)
+                          + confirmation mot de passe + bouton œil (issues #60, #66)
 
 ui/src/components/
     ServerTable.vue     ← tableau serveurs avec recherche
-    KeyTable.vue        ← tableau clés avec actions
+                          + ligne grisée + badge rouge si désactivé (issue #91)
+    KeyTable.vue        ← tableau clés avec actions + tooltip non-conformité (issue #99)
+                          + bouton Illimité (remove-expiry) (issue #93)
     KeyActions.vue      ← boutons valider/révoquer/expiry
     AccessForm.vue      ← formulaire accès temporaire
     ExpiryPicker.vue    ← datepicker durée ou date précise
-    StatusBadge.vue     ← badge coloré statut
+
+ui/src/
+    i18n.js             ← configuration vue-i18n v9 (issue #98)
+    composables/
+        useAuth.js      ← composable authentification session
+    locales/
+        en.json         ← traductions anglais
+        fr.json         ← traductions français
+        es.json         ← traductions espagnol
+        it.json         ← traductions italien
+        de.json         ← traductions allemand
+
+Toute nouvelle feature UI doit avoir ses clés dans les 5 fichiers JSON.
+Détection automatique de la langue du navigateur.
+
+## Règles UI transversales
+
+Boutons désactivés (issue #107) :
+- Règle CSS globale button:disabled → opacity 45%, cursor not-allowed, grayscale
+
+Indicateurs visuels serveurs désactivés (issue #91) :
+- ServerTable : ligne grisée + badge rouge "Désactivé"
+- ServerDetail : bandeau rouge en haut de page si is_active = false
+
+Internationalisation (issue #98) :
+- Toute clé de traduction ajoutée dans les 5 fichiers locales/
+- Détection automatique de la langue du navigateur au démarrage
 
 ## sudoers sur chaque hôte distant
 
@@ -605,16 +800,18 @@ audit-collector ALL=(root) NOPASSWD: /bin/chown root:root /usr/local/bin/sam-rev
 
 Usage : bash provision-host.sh "<contenu collector_key.pub>"
 Actions :
-1. useradd -r -m -s /bin/bash audit-collector
+1. useradd -r -m -s /bin/bash audit-collector (réutilise si existe déjà)
 2. Créer /home/audit-collector/.ssh (chmod 700)
-3. Déployer clé publique dans authorized_keys (chmod 600)
+3. Déployer clé publique dans authorized_keys en mode append (>>)
+   chown audit-collector:audit-collector (fix issue #86 — pas root:root)
 4. Créer /etc/sudoers.d/audit-collector (chmod 440)
 
 ## Nginx
 
 location /api/ → proxy_pass http://127.0.0.1:5000
 location /     → root /app/static, try_files $uri /index.html
-Basic auth sur toutes les routes.
+Pas de Basic Auth (supprimé — issue #54).
+L'authentification est entièrement gérée par Flask sessions.
 
 ## supervisord.conf
 
@@ -658,17 +855,28 @@ priority=4
 
 ssh-access-manager/
     ├── CLAUDE.md
+    ├── DESIGN.md               ← document VAE C.1.6 (931 lignes)
+    ├── README.md               ← guide installation et workflows
     ├── Dockerfile
     ├── docker-compose.yml
     ├── .env.example
+    ├── requirements-test.txt
     ├── supervisord.conf
     ├── bootstrap.sh
     ├── crontab
     ├── nginx.conf.template
     ├── msmtp.conf.template
     ├── provision-host.sh
+    ├── .github/
+    │   └── workflows/
+    │       ├── ci.yml          ← pytest + vitest + coverage ≥ 80%
+    │       └── build-pr.yml    ← build + push image Docker GHCR
+    ├── docs/
+    │   └── erd.md              ← diagramme ERD Mermaid 6 tables
     ├── sql/
-    │   └── schema.sql
+    │   ├── schema.sql
+    │   └── migrations/
+    │       └── 003_admin_enable_delete.sql
     ├── app/
     │   ├── db.py
     │   ├── servers.py
@@ -678,17 +886,45 @@ ssh-access-manager/
     │   ├── expire.py
     │   ├── alerts.py
     │   ├── web.py
-    │   └── manage.py
+    │   ├── manage.py
+    │   └── tests/
+    │       ├── conftest.py
+    │       ├── test_db.py
+    │       ├── test_servers.py
+    │       ├── test_ssh.py
+    │       ├── test_actions.py
+    │       ├── test_collect.py
+    │       ├── test_expire.py
+    │       ├── test_alerts.py
+    │       ├── test_web.py
+    │       └── test_manage.py
     └── ui/
         ├── package.json
         ├── vite.config.js
         ├── index.html
+        ├── tests/
+        │   ├── KeyActions.spec.js
+        │   ├── ExpiryPicker.spec.js
+        │   ├── ServerTable.spec.js
+        │   ├── AccessForm.spec.js
+        │   ├── KeyTable.spec.js
+        │   └── Admins.spec.js
         └── src/
             ├── App.vue
             ├── main.js
+            ├── i18n.js
             ├── router/
             │   └── index.js
+            ├── composables/
+            │   └── useAuth.js
+            ├── locales/
+            │   ├── en.json
+            │   ├── fr.json
+            │   ├── es.json
+            │   ├── it.json
+            │   └── de.json
             ├── views/
+            │   ├── Login.vue
             │   ├── Dashboard.vue
             │   ├── ServerDetail.vue
             │   ├── Anomalies.vue
@@ -700,233 +936,4 @@ ssh-access-manager/
                 ├── KeyTable.vue
                 ├── KeyActions.vue
                 ├── AccessForm.vue
-                ├── ExpiryPicker.vue
-                └── StatusBadge.vue
-
-## Tâches — GitHub Issues à créer
-
-### MILESTONE 1 — Infrastructure
-
-ISSUE 1 — [INFRA] Schema PostgreSQL
-Fichier : sql/schema.sql
-- 6 tables avec contraintes et CHECK
-- Colonnes GENERATED (is_compliant)
-- Index complets
-- Commentaires SQL sur chaque table et colonne
-Labels : infrastructure, database
-
-ISSUE 2 — [INFRA] Dockerfile multi-stage
-Fichier : Dockerfile
-- Stage 1 : node:22-alpine → build Vue.js
-- Stage 2 : alpine:3.23.4 → image finale
-- Copie dist/ depuis stage 1
-Labels : infrastructure, docker
-
-ISSUE 3 — [INFRA] supervisord + bootstrap
-Fichiers : supervisord.conf, bootstrap.sh
-- Ordre strict bootstrap (chown postgres en premier)
-- Détection premier démarrage via PG_VERSION
-- Génération nginx.conf et msmtprc depuis ENV
-- Affichage clé publique dans logs
-Labels : infrastructure, docker
-
-ISSUE 4 — [INFRA] docker-compose + configuration
-Fichiers : docker-compose.yml, .env.example,
-           nginx.conf.template, msmtp.conf.template,
-           crontab, provision-host.sh
-Labels : infrastructure, docker
-
-### MILESTONE 2 — Backend Python
-
-ISSUE 5 — [BACKEND] db.py — connexion PostgreSQL
-Fichier : app/db.py
-- Pool de connexions
-- Helpers execute / query / query_one
-- Gestion des transactions
-Labels : backend, database
-
-ISSUE 6 — [BACKEND] servers.py — gestion serveurs
-Fichier : app/servers.py
-- Parsing servers.yml avec pyyaml
-- Sync BDD (INSERT ON CONFLICT DO UPDATE)
-- ssh-keyscan → known_hosts si hôte absent
-Labels : backend
-
-ISSUE 7 — [BACKEND] ssh.py — opérations SSH
-Fichier : app/ssh.py
-- Connexion paramiko avec RejectPolicy
-- ensure_scripts() : SFTP + hash SHA256 + deploy
-- revoke_on_server() : sam-revoke via SSH
-- Constantes SAM_COLLECT et SAM_REVOKE
-Labels : backend, ssh
-
-ISSUE 8 — [BACKEND] actions.py — logique métier
-Fichier : app/actions.py
-Toutes les fonctions partagées entre CLI et API :
-- validate_key(fingerprint, admin_id, db)
-- revoke_key(fingerprint, admin_id, reason, db)
-- assign_key(fingerprint, owner_username, db)
-- set_key_expiry(fingerprint, expires_at, db)
-- remove_key_expiry(fingerprint, db)
-- grant_access(key_fp, hostname, expires_at,
-               justification, admin_id, db)
-- approve_request(request_id, admin_id, db)
-- reject_request(request_id, admin_id, db)
-- revoke_request(request_id, admin_id, db)
-- add_server(hostname, ip, env, os_family, db)
-- disable_server(hostname, db)
-- add_admin(username, email, db)
-- disable_admin(username, db)
-Labels : backend, core
-
-ISSUE 9 — [BACKEND] collect.py — scan SSH
-Fichier : app/collect.py
-- Itère sur serveurs actifs depuis servers.yml
-- ensure_scripts() sur chaque serveur
-- Collecte via sam-collect
-- Parse chaque ligne authorized_keys
-- Détecte clés nouvelles → PENDING_REVIEW + alerte
-- Détecte clés disparues → REVOKED + alerte si hors système
-- audit_log SCAN_COMPLETED ou SCAN_FAILED
-Labels : backend, ssh
-
-ISSUE 10 — [BACKEND] expire.py — expiration
-Fichier : app/expire.py
-- warn_expiring_keys() avec anti-spam 24h
-- expire_keys() avec sam-revoke automatique
-- Emails WARNING et INFO
-Labels : backend
-
-ISSUE 11 — [BACKEND] alerts.py — emails
-Fichier : app/alerts.py
-- Envoi via msmtp
-- Templates CRITIQUE / WARNING / INFO
-- Fonction send_alert(level, subject, body)
-Labels : backend
-
-ISSUE 12 — [BACKEND] web.py — API Flask
-Fichier : app/web.py
-- Toutes les routes GET et POST listées dans CLAUDE.md
-- Retourne JSON uniquement
-- Importe actions.py pour la logique métier
-- Authentification basique via session Flask
-Labels : backend, api
-
-ISSUE 13 — [BACKEND] manage.py — CLI click
-Fichier : app/manage.py
-- Toutes les commandes listées dans CLAUDE.md
-- Importe actions.py pour la logique métier
-- --help automatique sur chaque commande
-- Output formaté en tableau terminal
-Labels : backend, cli
-
-### MILESTONE 3 — Frontend Vue.js
-
-ISSUE 14 — [FRONTEND] Setup Vue.js 3 + Vite
-Fichiers : ui/package.json, ui/vite.config.js,
-           ui/index.html, ui/src/main.js,
-           ui/src/router/index.js, ui/src/App.vue
-- Vue Router pour navigation entre vues
-- Proxy Vite → Flask en développement
-- Configuration build pour /app/static/
-Labels : frontend
-
-ISSUE 15 — [FRONTEND] Dashboard.vue
-Fichier : ui/src/views/Dashboard.vue
-- Compteurs globaux (serveurs OK / alerte / injoignables)
-- Tableau serveurs avec recherche temps réel
-- Statut coloré par ligne (🔴 🟡 ✅)
-- Lien vers détail serveur
-- Bouton scanner maintenant
-Labels : frontend
-
-ISSUE 16 — [FRONTEND] ServerDetail.vue
-Fichier : ui/src/views/ServerDetail.vue
-- Informations serveur (hostname, IP, env, os)
-- Tableau des clés avec actions inline
-- Boutons : Valider / Révoquer / Assigner / Expiry
-- Section accès temporaires actifs
-Labels : frontend
-
-ISSUE 17 — [FRONTEND] KeyActions.vue + ExpiryPicker.vue
-Fichiers : ui/src/components/KeyActions.vue,
-           ui/src/components/ExpiryPicker.vue
-- Modal confirmation pour révocation
-- Formulaire expiration : durée (heures) OU date précise
-- Validation côté client avant envoi API
-Labels : frontend, components
-
-ISSUE 18 — [FRONTEND] Anomalies.vue
-Fichier : ui/src/views/Anomalies.vue
-- Toutes les clés PENDING_REVIEW
-- Toutes les révocations hors système (30 derniers jours)
-- Actions rapides inline : Valider / Révoquer
-Labels : frontend
-
-ISSUE 19 — [FRONTEND] AccessRequests.vue + AccessForm.vue
-Fichiers : ui/src/views/AccessRequests.vue,
-           ui/src/components/AccessForm.vue
-- Liste accès temporaires actifs avec countdown
-- Demandes en attente avec Approuver / Rejeter
-- Formulaire : coller clé publique + serveur
-              + durée OU date + justification
-Labels : frontend
-
-ISSUE 20 — [FRONTEND] Audit.vue
-Fichier : ui/src/views/Audit.vue
-- Historique complet audit_log
-- Filtres : serveur / action / depuis date
-- Couleur par niveau (CRITIQUE / WARNING / INFO)
-Labels : frontend
-
-ISSUE 21 — [FRONTEND] Admins.vue
-Fichier : ui/src/views/Admins.vue
-- Liste des administrateurs
-- Formulaire ajout administrateur
-- Bouton désactiver
-Labels : frontend
-
-### MILESTONE 4 — Documentation
-
-ISSUE 22 — [DOC] ERD Mermaid
-Fichier : docs/erd.md
-- Diagramme ERD complet en Mermaid
-- Rendu automatique sur GitHub
-Labels : documentation, vae
-
-ISSUE 23 — [DOC] DESIGN.md — document VAE C.1.6
-Fichier : DESIGN.md
-- Justification des choix technologiques
-- Normalisation 3NF expliquée
-- Alternatives évaluées (Zabbix, scripts distants, etc.)
-- Politique sécurité ANSSI
-- Architecture multi-stage expliquée
-Labels : documentation, vae
-
-ISSUE 24 — [DOC] README.md — mode d'emploi
-Fichier : README.md
-- Installation et premier démarrage
-- Workflow ajout serveur distant
-- Workflow premier scan
-- Workflow traitement PENDING_REVIEW
-- Workflow accès temporaire
-- Workflow révocation hors système
-Labels : documentation
-
-## Ordre de travail Claude Code
-
-Milestone 1 (Issues 1→4) avant tout le reste.
-Milestone 2 dans l'ordre Issues 5→13.
-Milestone 3 dans l'ordre Issues 14→21.
-Milestone 4 Issues 22→24 en parallèle de Milestone 3.
-
-Validation obligatoire après chaque issue avant de continuer.
-Ne jamais travailler sur plusieurs issues simultanément.
-
-## Instruction de démarrage pour Claude Code
-
-Lis ce CLAUDE.md entièrement.
-Crée les GitHub Issues dans l'ordre des milestones.
-Chaque issue doit avoir : titre, description détaillée,
-critères d'acceptation, labels, milestone.
-Attends validation avant de commencer le code.
+                └── ExpiryPicker.vue
