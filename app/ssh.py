@@ -124,9 +124,7 @@ def _deploy_script(
     tmp_path: str,
 ) -> None:
     sftp.putfo(io.BytesIO(content), tmp_path)
-    name = os.path.basename(remote_path)
-    # sudoers rule uses directory as destination: /bin/mv /tmp/sam-* /usr/local/bin/
-    _run(client, f"sudo /bin/mv {tmp_path} /usr/local/bin/")
+    _run(client, f"sudo /bin/mv {tmp_path} {remote_path}")
     _run(client, f"sudo /bin/chown root:root {remote_path}")
     _run(client, f"sudo /bin/chmod 755 {remote_path}")
 
@@ -148,7 +146,7 @@ def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
             if remote_hash == local_hash:
                 continue
             name = os.path.basename(remote_path)
-            tmp_path = f"/tmp/{name}"
+            tmp_path = f"/home/{SSH_USER}/{name}"
             _deploy_script(client, sftp, content, remote_path, tmp_path)
             db.execute(
                 """
