@@ -265,6 +265,7 @@
     "title": "SSH-Schlüssel bereitstellen",
     "unixUser": "Unix-Benutzer",
     "unixUserPlaceholder": "z.B. alice",
+    "error_unix_user": "Ungültiger Unix-Benutzername (nur Kleinbuchstaben, Ziffern, _ und -, max. 32 Zeichen)",
     "publicKey": "Öffentlicher Schlüssel",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Zielserver",

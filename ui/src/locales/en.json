@@ -265,6 +265,7 @@
     "title": "Deploy SSH Key",
     "unixUser": "Unix Username",
     "unixUserPlaceholder": "e.g. alice",
+    "error_unix_user": "Invalid Unix username (lowercase, digits, _ and - only, max 32 chars)",
     "publicKey": "Public Key",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Target Server",

@@ -32,6 +32,9 @@
           :placeholder="$t('deployKey.unixUserPlaceholder')"
           data-testid="input-unix-user"
         />
+        <span v-if="unixUser && !unixUserValid" class="field-error" data-testid="error-unix-user">
+          {{ $t('deployKey.error_unix_user') }}
+        </span>
       </div>
 
       <div class="field">
@@ -173,6 +176,8 @@ const minDate = computed(() => {
   return d.toISOString().slice(0, 16)
 })
 
+const unixUserValid = computed(() => /^[a-z_][a-z0-9_-]{0,31}$/.test(unixUser.value))
+
 const durationError = computed(() => {
   if (mode.value === 'unlimited') return ''
   if (mode.value === 'hours') {
@@ -193,7 +198,7 @@ const durationValid = computed(() => {
 
 const isValid = computed(
   () =>
-    unixUser.value.trim() !== '' &&
+    unixUserValid.value &&
     publicKey.value.trim() !== '' &&
     server.value.trim() !== '' &&
     durationValid.value &&
