@@ -283,7 +283,7 @@ function openAssign(fingerprint) {
 async function confirmAssign() {
   await apiAction(
     `/api/keys/assign/${efp(assignTarget.value)}`,
-    { owner_username: assignUsername.value },
+    { owner_name: assignUsername.value },
     'POST',
     t('server_detail.key_assigned', { username: assignUsername.value }),
   )

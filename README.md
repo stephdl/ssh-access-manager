@@ -261,7 +261,7 @@ $EXEC servers show HOST
 $EXEC keys list --status PENDING_REVIEW
 $EXEC keys validate SHA256:...
 $EXEC keys revoke SHA256:... --reason "Motif"
-$EXEC keys assign SHA256:... --owner USERNAME
+$EXEC keys assign SHA256:... --owner "Alice Martin"
 $EXEC keys set-expiry SHA256:... --hours 24
 $EXEC keys set-expiry SHA256:... --date "2026-12-31 23:59"
 $EXEC keys remove-expiry SHA256:...

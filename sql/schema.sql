@@ -96,8 +96,8 @@ CREATE TABLE ssh_keys (
     public_key      TEXT NOT NULL,
     -- Commentaire extrait de la clé publique (champ libre)
     comment         VARCHAR(255),
-    -- Administrateur propriétaire de la clé (nullable si inconnu)
-    owner_id        UUID REFERENCES administrators(id),
+    -- Propriétaire libre de la clé (nom complet ou identifiant quelconque, nullable)
+    owner           VARCHAR(255),
     -- Conformité calculée : ED25519 toujours conforme, RSA conforme si >= 4096 bits
     -- GENERATED ALWAYS AS STORED : jamais à écrire manuellement
     is_compliant    BOOLEAN GENERATED ALWAYS AS (
@@ -117,7 +117,7 @@ COMMENT ON COLUMN ssh_keys.key_type IS 'Type de clé : ssh-ed25519, ssh-rsa ou e
 COMMENT ON COLUMN ssh_keys.key_size_bits IS 'Taille en bits, NULL pour ED25519, obligatoire pour RSA';
 COMMENT ON COLUMN ssh_keys.public_key IS 'Clé publique complète au format authorized_keys';
 COMMENT ON COLUMN ssh_keys.comment IS 'Commentaire extrait de la clé (souvent user@host)';
-COMMENT ON COLUMN ssh_keys.owner_id IS 'FK vers administrators, NULL si propriétaire inconnu';
+COMMENT ON COLUMN ssh_keys.owner IS 'Nom libre du propriétaire (peut être un non-admin), NULL si inconnu';
 COMMENT ON COLUMN ssh_keys.is_compliant IS 'GENERATED: ED25519=true, RSA>=4096=true, sinon false';
 COMMENT ON COLUMN ssh_keys.first_seen IS 'Premier horodatage de détection de la clé';
 COMMENT ON COLUMN ssh_keys.last_seen IS 'Dernier horodatage de détection lors d''un scan';

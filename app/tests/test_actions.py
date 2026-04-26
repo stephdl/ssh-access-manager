@@ -231,29 +231,19 @@ def test_actions_warn_expiring_key_antispam_returns_none():
 # assign_key
 # ---------------------------------------------------------------------------
 
-def test_actions_assign_key_updates_owner_id(sample_key):
+def test_actions_assign_key_updates_owner(sample_key):
     with patch("actions.db") as mock_db:
-        mock_db.query_one.side_effect = [
-            {"id": ADMIN_ID},
-            {"id": KEY_ID},
-        ]
-        actions.assign_key(sample_key["fingerprint"], "admin")
+        mock_db.query_one.return_value = {"id": KEY_ID}
+        actions.assign_key(sample_key["fingerprint"], "Alice Martin")
         mock_db.execute.assert_called_once()
-        assert ADMIN_ID in mock_db.execute.call_args[0][1]
-
-
-def test_actions_assign_key_raises_if_admin_not_found(sample_key):
-    with patch("actions.db") as mock_db:
-        mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="Admin not found"):
-            actions.assign_key(sample_key["fingerprint"], "ghost")
+        assert "Alice Martin" in mock_db.execute.call_args[0][1]
 
 
 def test_actions_assign_key_raises_if_key_not_found():
     with patch("actions.db") as mock_db:
-        mock_db.query_one.side_effect = [{"id": ADMIN_ID}, None]
+        mock_db.query_one.return_value = None
         with pytest.raises(ValueError, match="Key not found"):
-            actions.assign_key("SHA256:xxx", "admin")
+            actions.assign_key("SHA256:xxx", "Alice Martin")
 
 
 # ---------------------------------------------------------------------------

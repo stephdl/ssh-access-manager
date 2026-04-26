@@ -177,12 +177,10 @@ def list_keys():
     status = request.args.get("status")
     server = request.args.get("server")
     sql = """
-        SELECT sk.*, ka.status AS status, ka.server_id, ka.expires_at,
-               a.username AS owner
+        SELECT sk.*, ka.status AS status, ka.server_id, ka.expires_at
         FROM ssh_keys sk
         LEFT JOIN key_authorizations ka ON ka.key_id = sk.id
         LEFT JOIN servers s ON s.id = ka.server_id
-        LEFT JOIN administrators a ON a.id = sk.owner_id
         WHERE 1=1
     """
     params = []
@@ -247,7 +245,7 @@ def revoke_key(fingerprint):
 def assign_key(fingerprint):
     data = request.get_json(force=True) or {}
     try:
-        actions.assign_key(fingerprint, data["owner_username"])
+        actions.assign_key(fingerprint, data["owner_name"])
         return jsonify({"status": "assigned"})
     except (KeyError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
