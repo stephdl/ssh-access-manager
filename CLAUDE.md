@@ -642,6 +642,8 @@ freezegun           ← pour mocker datetime dans expire.py
                        job python-tests : pytest + coverage ≥ 80%
                        job vue-tests : vitest
                        job prettier : npm run format:check (issue #139)
+                       job commitlint : messages de commit Conventional Commits (issue #140)
+    pr-title.yml    ← validation titre de PR (Conventional Commits) (issue #140)
     build-pr.yml    ← publication image Docker sur GHCR à chaque PR
 
 ## Formatage — Prettier (issue #139)
@@ -653,6 +655,20 @@ Ignorés : ui/dist/, ui/node_modules/, *.lock
 Commandes UI :
     npm run format:check   ← vérifie sans modifier (CI)
     npm run format:write   ← formate en place (dev local)
+
+## Convention commits (issue #140)
+
+Format obligatoire : `type: description courte`
+Types valides : feat, fix, docs, style, refactor, test, ci, chore
+Exemples :
+    feat: dropdown serveurs connus (#137)
+    fix: correction calcul expiration
+    ci: ajout job prettier
+    docs: mise à jour README
+
+Deux checks CI :
+- `commitlint` (ci.yml) — vérifie chaque message de commit de la PR
+- `pr-title.yml` — vérifie le titre de la PR au même format
 
 ## Commandes — inventaire complet
 

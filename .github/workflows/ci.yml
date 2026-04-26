@@ -65,3 +65,13 @@ jobs:
       - name: Check formatting
         run: npm run format:check
         working-directory: ui
+
+  commitlint:
+    name: Commit messages (Conventional Commits)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: wagoid/commitlint-github-action@v6
