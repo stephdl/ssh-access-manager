@@ -94,7 +94,7 @@ def auth_me():
 def _parse_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
-    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
         try:
             return datetime.strptime(value, fmt).replace(tzinfo=timezone.utc)
         except ValueError:
