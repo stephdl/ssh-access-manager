@@ -20,8 +20,8 @@ EXPIRE_WARN_DAYS_2 = int(os.environ.get("EXPIRE_WARN_DAYS_2", "2"))
 def warn_expiring_keys() -> int:
     """
     Find ACTIVE keys expiring within EXPIRE_WARN_DAYS or EXPIRE_WARN_DAYS_2 days.
-    Delegates to actions.warn_expiring_key() which enforces the 24h anti-spam.
-    Returns the number of warnings actually sent.
+    Sends one grouped WARNING email for all keys needing a warning (24h anti-spam via actions).
+    Returns the number of warnings logged.
     """
     rows = db.query(
         """
@@ -34,23 +34,23 @@ def warn_expiring_keys() -> int:
         """,
         (max(EXPIRE_WARN_DAYS, EXPIRE_WARN_DAYS_2),),
     )
-    sent = 0
+    warnings = []
     for row in rows:
-        before = db.query_one(
-            """
-            SELECT id FROM audit_log
-            WHERE action = 'EXPIRY_WARNING'
-              AND target_key = %s
-              AND target_server = %s
-              AND performed_at > now() - INTERVAL '24 hours'
-            """,
-            (row["key_id"], row["server_id"]),
+        info = actions.warn_expiring_key(row["key_id"], row["server_id"], row["expires_at"])
+        if info:
+            warnings.append(info)
+    if warnings:
+        body_lines = ["=== Cles expirant bientot ==="]
+        for w in warnings:
+            expires_at = w["expires_at"]
+            expires_str = expires_at.strftime("%Y-%m-%d %H:%M UTC") if hasattr(expires_at, "strftime") else str(expires_at)
+            body_lines.append(f"  {w['fingerprint']} — {w['hostname']} — expire le {expires_str}")
+        alerts.send_alert(
+            "WARNING",
+            f"[ssh-access-manager] {len(warnings)} cle(s) expirant bientot",
+            "\n".join(body_lines),
         )
-        if before:
-            continue
-        actions.warn_expiring_key(row["key_id"], row["server_id"], row["expires_at"])
-        sent += 1
-    return sent
+    return len(warnings)
 
 
 def expire_keys() -> int:

@@ -96,10 +96,11 @@ def revoke_key(fingerprint: str, admin_id: str, reason: str) -> None:
         )
 
 
-def handle_disappeared_key(key_id: str, server_id: str, hostname: str, ip: str) -> None:
+def handle_disappeared_key(key_id: str, server_id: str, hostname: str, ip: str) -> dict:
     """
     Scenario 2 — key was ACTIVE but disappeared from server (out-of-system revocation).
-    Sets REVOKED + revoked_automatically=True, logs ANOMALY_DETECTED, sends CRITICAL alert.
+    Sets REVOKED + revoked_automatically=True, logs ANOMALY_DETECTED.
+    Returns info dict for grouped alert in caller.
     """
     db.execute(
         """
@@ -126,11 +127,7 @@ def handle_disappeared_key(key_id: str, server_id: str, hostname: str, ip: str) 
     )
     key = db.query_one("SELECT fingerprint FROM ssh_keys WHERE id = %s", (key_id,))
     fp = key["fingerprint"] if key else "unknown"
-    alerts.send_alert(
-        "CRITICAL",
-        f"[ssh-access-manager] Cle revoquee hors systeme sur {hostname}",
-        f"Fingerprint: {fp}\nServeur: {hostname}\nStatut: ANOMALY_DETECTED",
-    )
+    return {"type": "disappeared", "fingerprint": fp, "hostname": hostname}
 
 
 def handle_unknown_key(
@@ -141,10 +138,11 @@ def handle_unknown_key(
     comment: str | None,
     server_id: str,
     hostname: str,
-) -> None:
+) -> dict:
     """
     Scenario 3 — key present on server but absent from DB.
-    Inserts with PENDING_REVIEW, logs ANOMALY_DETECTED, sends CRITICAL alert.
+    Inserts with PENDING_REVIEW, logs ANOMALY_DETECTED.
+    Returns info dict for grouped alert in caller.
     """
     db.execute(
         """
@@ -176,17 +174,13 @@ def handle_unknown_key(
             json.dumps({"reason": "unknown_key", "fingerprint": fingerprint, "hostname": hostname}),
         ),
     )
-    alerts.send_alert(
-        "CRITICAL",
-        f"[ssh-access-manager] Cle inconnue detectee sur {hostname}",
-        f"Fingerprint: {fingerprint}\nServeur: {hostname}\nType: {key_type}\nStatut: PENDING_REVIEW",
-    )
+    return {"type": "unknown", "fingerprint": fingerprint, "hostname": hostname, "key_type": key_type, "comment": comment}
 
 
-def warn_expiring_key(key_id: str, server_id: str, expires_at: datetime) -> None:
+def warn_expiring_key(key_id: str, server_id: str, expires_at: datetime) -> dict | None:
     """
-    Send EXPIRY_WARNING with 24h anti-spam.
-    Called by expire.py for each key approaching expiration.
+    Log EXPIRY_WARNING with 24h anti-spam.
+    Returns info dict for grouped alert in caller, or None if already warned.
     """
     already_warned = db.query_one(
         """
@@ -199,7 +193,7 @@ def warn_expiring_key(key_id: str, server_id: str, expires_at: datetime) -> None
         (key_id, server_id),
     )
     if already_warned:
-        return
+        return None
 
     key = db.query_one("SELECT fingerprint FROM ssh_keys WHERE id = %s", (key_id,))
     server = db.query_one("SELECT hostname FROM servers WHERE id = %s", (server_id,))
@@ -217,11 +211,7 @@ def warn_expiring_key(key_id: str, server_id: str, expires_at: datetime) -> None
             json.dumps({"fingerprint": fp, "hostname": hostname, "expires_at": str(expires_at)}),
         ),
     )
-    alerts.send_alert(
-        "WARNING",
-        f"[ssh-access-manager] Cle expirant bientot sur {hostname}",
-        f"Fingerprint: {fp}\nServeur: {hostname}\nExpiration: {expires_at}",
-    )
+    return {"fingerprint": fp, "hostname": hostname, "expires_at": expires_at}
 
 
 def assign_key(fingerprint: str, owner_username: str) -> None:

@@ -80,7 +80,7 @@ def scan_server(server: dict) -> dict:
     hostname = server["hostname"]
     ip = server["ip_address"]
     server_id = server["id"]
-    result = {"hostname": hostname, "new": 0, "disappeared": 0, "known": 0, "error": None}
+    result = {"hostname": hostname, "new": 0, "disappeared": 0, "known": 0, "error": None, "anomalies": []}
 
     try:
         ssh.ensure_scripts(hostname, server_id, ip=ip)
@@ -117,7 +117,7 @@ def scan_server(server: dict) -> dict:
 
         if not existing_key:
             # Scenario 3 — unknown key present on server but absent from DB
-            actions.handle_unknown_key(
+            info = actions.handle_unknown_key(
                 parsed["key_type"],
                 parsed["key_size_bits"],
                 parsed["public_key"],
@@ -126,6 +126,7 @@ def scan_server(server: dict) -> dict:
                 server_id,
                 hostname,
             )
+            result["anomalies"].append(info)
             result["new"] += 1
         else:
             db.execute(
@@ -164,7 +165,8 @@ def scan_server(server: dict) -> dict:
     )
     for row in active_on_server:
         if row["fingerprint"] not in collected_fps:
-            actions.handle_disappeared_key(row["key_id"], server_id, hostname, ip=ip)
+            info = actions.handle_disappeared_key(row["key_id"], server_id, hostname, ip=ip)
+            result["anomalies"].append(info)
             result["disappeared"] += 1
 
     db.execute(
@@ -186,11 +188,35 @@ def scan_server(server: dict) -> dict:
 
 
 def run_scan(hostname: str | None = None) -> list[dict]:
-    """Scan all active servers, or a specific one if hostname is provided."""
+    """Scan all active servers (or one). Sends one grouped CRITICAL email if any anomalies."""
     active_servers = servers_mod.get_active_servers()
     if hostname:
         active_servers = [s for s in active_servers if s["hostname"] == hostname]
-    return [scan_server(s) for s in active_servers]
+    results = [scan_server(s) for s in active_servers]
+
+    all_anomalies = [a for r in results for a in r.get("anomalies", [])]
+    if all_anomalies:
+        unknowns = [a for a in all_anomalies if a["type"] == "unknown"]
+        disappeared = [a for a in all_anomalies if a["type"] == "disappeared"]
+        body_lines = []
+        if unknowns:
+            body_lines.append(f"=== Cles inconnues ({len(unknowns)}) ===")
+            for a in unknowns:
+                body_lines.append(
+                    f"  {a['hostname']} — {a['fingerprint']} ({a['key_type']}, {a['comment'] or '—'}) → PENDING_REVIEW"
+                )
+        if disappeared:
+            if body_lines:
+                body_lines.append("")
+            body_lines.append(f"=== Revocations hors systeme ({len(disappeared)}) ===")
+            for a in disappeared:
+                body_lines.append(f"  {a['hostname']} — {a['fingerprint']} → REVOKED automatiquement")
+        alerts.send_alert(
+            "CRITICAL",
+            f"[ssh-access-manager] Scan — {len(all_anomalies)} anomalie(s) detectee(s)",
+            "\n".join(body_lines),
+        )
+    return results
 
 
 if __name__ == "__main__":

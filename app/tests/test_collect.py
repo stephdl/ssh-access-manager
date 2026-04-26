@@ -197,10 +197,11 @@ def test_collect_scan_server_scan_failed_sends_critical_alert():
 def test_collect_run_scan_iterates_all_active_servers():
     servers = [SAMPLE_SERVER, {**SAMPLE_SERVER, "hostname": "server-02", "id": str(uuid.uuid4())}]
     with patch("collect.servers_mod") as mock_srv, \
-         patch("collect.scan_server") as mock_scan:
+         patch("collect.scan_server") as mock_scan, \
+         patch("collect.alerts"):
 
         mock_srv.get_active_servers.return_value = servers
-        mock_scan.return_value = {"hostname": "x", "new": 0, "disappeared": 0, "known": 0, "error": None}
+        mock_scan.return_value = {"hostname": "x", "new": 0, "disappeared": 0, "known": 0, "error": None, "anomalies": []}
 
         collect.run_scan()
 
@@ -210,15 +211,64 @@ def test_collect_run_scan_iterates_all_active_servers():
 def test_collect_run_scan_filters_by_hostname():
     servers = [SAMPLE_SERVER, {**SAMPLE_SERVER, "hostname": "server-02", "id": str(uuid.uuid4())}]
     with patch("collect.servers_mod") as mock_srv, \
-         patch("collect.scan_server") as mock_scan:
+         patch("collect.scan_server") as mock_scan, \
+         patch("collect.alerts"):
 
         mock_srv.get_active_servers.return_value = servers
-        mock_scan.return_value = {"hostname": "server-test-01", "new": 0, "disappeared": 0, "known": 0, "error": None}
+        mock_scan.return_value = {"hostname": "server-test-01", "new": 0, "disappeared": 0, "known": 0, "error": None, "anomalies": []}
 
         collect.run_scan(hostname="server-test-01")
 
         assert mock_scan.call_count == 1
         assert mock_scan.call_args[0][0]["hostname"] == "server-test-01"
+
+
+def test_collect_run_scan_sends_one_grouped_critical_when_anomalies():
+    anomaly = {"type": "unknown", "fingerprint": "SHA256:abc", "hostname": "server-test-01", "key_type": "ssh-ed25519", "comment": None}
+    with patch("collect.servers_mod") as mock_srv, \
+         patch("collect.scan_server") as mock_scan, \
+         patch("collect.alerts") as mock_alerts:
+
+        mock_srv.get_active_servers.return_value = [SAMPLE_SERVER]
+        mock_scan.return_value = {"hostname": "server-test-01", "new": 1, "disappeared": 0, "known": 0, "error": None, "anomalies": [anomaly]}
+
+        collect.run_scan()
+
+        mock_alerts.send_alert.assert_called_once()
+        assert mock_alerts.send_alert.call_args[0][0] == "CRITICAL"
+        assert "1 anomalie" in mock_alerts.send_alert.call_args[0][1]
+
+
+def test_collect_run_scan_no_email_when_no_anomalies():
+    with patch("collect.servers_mod") as mock_srv, \
+         patch("collect.scan_server") as mock_scan, \
+         patch("collect.alerts") as mock_alerts:
+
+        mock_srv.get_active_servers.return_value = [SAMPLE_SERVER]
+        mock_scan.return_value = {"hostname": "server-test-01", "new": 0, "disappeared": 0, "known": 3, "error": None, "anomalies": []}
+
+        collect.run_scan()
+
+        mock_alerts.send_alert.assert_not_called()
+
+
+def test_collect_run_scan_groups_anomalies_from_multiple_servers():
+    a1 = {"type": "unknown", "fingerprint": "SHA256:aaa", "hostname": "server-01", "key_type": "ssh-ed25519", "comment": None}
+    a2 = {"type": "disappeared", "fingerprint": "SHA256:bbb", "hostname": "server-02"}
+    with patch("collect.servers_mod") as mock_srv, \
+         patch("collect.scan_server") as mock_scan, \
+         patch("collect.alerts") as mock_alerts:
+
+        mock_srv.get_active_servers.return_value = [SAMPLE_SERVER, {**SAMPLE_SERVER, "hostname": "server-02"}]
+        mock_scan.side_effect = [
+            {"hostname": "server-01", "new": 1, "disappeared": 0, "known": 0, "error": None, "anomalies": [a1]},
+            {"hostname": "server-02", "new": 0, "disappeared": 1, "known": 0, "error": None, "anomalies": [a2]},
+        ]
+
+        collect.run_scan()
+
+        mock_alerts.send_alert.assert_called_once()
+        assert "2 anomalie" in mock_alerts.send_alert.call_args[0][1]
 
 
 # ---------------------------------------------------------------------------
