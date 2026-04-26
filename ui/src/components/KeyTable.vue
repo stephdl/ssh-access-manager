@@ -38,38 +38,44 @@
           <span v-if="k.is_compliant" :title="$t('key_table.compliant_ok')">✅</span>
           <span v-else class="non-compliant" :title="complianceTooltip(k)">⚠️</span>
         </td>
-        <td class="actions">
-          <button
-            v-if="k.status === 'PENDING_REVIEW'"
-            class="btn-success"
-            @click="$emit('validate', k.fingerprint)"
-          >
-            {{ $t('key_table.btn_validate') }}
-          </button>
-          <button
-            v-if="k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW'"
-            class="btn-danger"
-            @click="$emit('revoke', k)"
-          >
-            {{ $t('key_table.btn_revoke') }}
-          </button>
-          <button
-            v-if="!k.owner && k.status === 'ACTIVE'"
-            class="btn-primary"
-            @click="$emit('assign', k.fingerprint)"
-          >
-            {{ $t('key_table.btn_assign') }}
-          </button>
-          <button v-if="k.status === 'ACTIVE'" class="btn-warning" @click="$emit('set-expiry', k)">
-            {{ $t('key_table.btn_expiry') }}
-          </button>
-          <button
-            v-if="k.status === 'ACTIVE' && k.expires_at"
-            class="btn-unlimited"
-            @click="$emit('remove-expiry', k.fingerprint)"
-          >
-            {{ $t('key_table.btn_unlimited') }}
-          </button>
+        <td>
+          <div class="actions">
+            <button
+              v-if="k.status === 'PENDING_REVIEW'"
+              class="btn-success"
+              @click="$emit('validate', k.fingerprint)"
+            >
+              {{ $t('key_table.btn_validate') }}
+            </button>
+            <button
+              v-if="k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW'"
+              class="btn-danger"
+              @click="$emit('revoke', k)"
+            >
+              {{ $t('key_table.btn_revoke') }}
+            </button>
+            <button
+              v-if="!k.owner && k.status === 'ACTIVE'"
+              class="btn-primary"
+              @click="$emit('assign', k.fingerprint)"
+            >
+              {{ $t('key_table.btn_assign') }}
+            </button>
+            <button
+              v-if="k.status === 'ACTIVE'"
+              class="btn-warning"
+              @click="$emit('set-expiry', k)"
+            >
+              {{ $t('key_table.btn_expiry') }}
+            </button>
+            <button
+              v-if="k.status === 'ACTIVE' && k.expires_at"
+              class="btn-unlimited"
+              @click="$emit('remove-expiry', k.fingerprint)"
+            >
+              {{ $t('key_table.btn_unlimited') }}
+            </button>
+          </div>
         </td>
       </tr>
     </tbody>
