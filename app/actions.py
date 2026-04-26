@@ -3,11 +3,19 @@ actions.py — logique metier partagee entre web.py (API) et manage.py (CLI).
 Jamais de duplication entre les deux consommateurs.
 """
 import json
+import re
 from datetime import datetime, timedelta, timezone
 
 import alerts
 import db
 import ssh
+
+_FP_RE = re.compile(r"^SHA256:[A-Za-z0-9+/=]+$")
+
+
+def _check_fingerprint(fp: str) -> None:
+    if not _FP_RE.match(fp):
+        raise ValueError(f"Format de fingerprint invalide : {fp}")
 
 
 # ---------------------------------------------------------------------------
@@ -16,6 +24,7 @@ import ssh
 
 def validate_key(fingerprint: str, admin_id: str) -> dict:
     """PENDING_REVIEW → ACTIVE. Logs KEY_ADDED for each authorization."""
+    _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
         raise ValueError(f"Key not found: {fingerprint}")
@@ -54,6 +63,7 @@ def revoke_key(fingerprint: str, admin_id: str, reason: str) -> None:
     Scenario 1 — revocation via le systeme.
     Calls sam-revoke on each active server, sets REVOKED, logs KEY_REVOKED.
     """
+    _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
         raise ValueError(f"Key not found: {fingerprint}")
@@ -250,6 +260,7 @@ def warn_expiring_key(key_id: str, server_id: str, expires_at: datetime) -> dict
 
 def assign_key(fingerprint: str, owner_name: str) -> None:
     """Set the free-text owner of a key."""
+    _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
         raise ValueError(f"Key not found: {fingerprint}")
@@ -261,6 +272,7 @@ def assign_key(fingerprint: str, owner_name: str) -> None:
 
 def set_key_expiry(fingerprint: str, expires_at: datetime) -> None:
     """Set expiration on all ACTIVE authorizations for a key."""
+    _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
         raise ValueError(f"Key not found: {fingerprint}")
@@ -272,6 +284,7 @@ def set_key_expiry(fingerprint: str, expires_at: datetime) -> None:
 
 def remove_key_expiry(fingerprint: str) -> None:
     """Remove expiration from all ACTIVE authorizations for a key."""
+    _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
         raise ValueError(f"Key not found: {fingerprint}")
