@@ -138,6 +138,8 @@ SMTP_TO=admin@example.com
 # Collector
 SSH_USER=audit-collector
 SCAN_INTERVAL_HOURS=4
+# Valeur initiale insérée dans settings.scan_interval_hours au bootstrap.
+# Modifiable ensuite sans redémarrage via GET/PUT /api/system/config.
 EXPIRE_WARN_DAYS=7
 EXPIRE_WARN_DAYS_2=2
 ADMIN_USERNAME=admin
@@ -320,6 +322,18 @@ sql/migrations/
 
 Bootstrap applique les migrations dans l'ordre lexicographique
 après schema.sql au premier démarrage.
+
+## Table settings (issue #133)
+
+CREATE TABLE settings (
+    key   VARCHAR(100) PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+INSERT INTO settings (key, value) VALUES ('scan_interval_hours', '4');
+
+-- Initialisée au bootstrap depuis SCAN_INTERVAL_HOURS.
+-- Modifiable via GET/PUT /api/system/config sans redémarrage.
 
 ## Index
 
@@ -602,6 +616,7 @@ ui/tests/
     AccessForm.spec.js    ← validation durée OU date, soumission (16 tests)
     KeyTable.spec.js      ← boutons par statut, owner, expires_at (18+ tests)
     Admins.spec.js        ← modals enable/delete, garde-fous (15 tests)
+    Settings.spec.js      ← chargement, sauvegarde, validation, erreurs (7 tests)
 
 ### Ce qui n'est PAS testé unitairement
 
@@ -737,6 +752,8 @@ GET /api/audit?server=&action=&since=
 GET  /api/system/status
 POST /api/system/scan
 GET  /api/system/collector-key
+GET  /api/system/config
+PUT  /api/system/config
 
 ## Interface Vue.js 3 — vues
 
@@ -755,6 +772,8 @@ ui/src/views/
                           + modals enable/delete + garde-fou self (issue #116)
                           + modal changement mot de passe (issue #61)
                           + confirmation mot de passe + bouton œil (issues #60, #66)
+    Settings.vue        ← configuration système (intervalle de scan)
+                          + GET/PUT /api/system/config (issue #133)
 
 ui/src/components/
     ServerTable.vue     ← tableau serveurs avec recherche
@@ -915,7 +934,8 @@ ssh-access-manager/
         │   ├── ServerTable.spec.js
         │   ├── AccessForm.spec.js
         │   ├── KeyTable.spec.js
-        │   └── Admins.spec.js
+        │   ├── Admins.spec.js
+        │   └── Settings.spec.js
         └── src/
             ├── App.vue
             ├── main.js
@@ -937,7 +957,8 @@ ssh-access-manager/
             │   ├── Anomalies.vue
             │   ├── AccessRequests.vue
             │   ├── Audit.vue
-            │   └── Admins.vue
+            │   ├── Admins.vue
+    │   └── Settings.vue
             └── components/
                 ├── ServerTable.vue
                 ├── KeyTable.vue

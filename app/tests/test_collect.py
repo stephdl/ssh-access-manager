@@ -230,7 +230,8 @@ def test_collect_scan_server_scenario5_pending_review_not_treated_as_reappeared(
 
 def test_collect_run_scan_includes_reappeared_in_grouped_critical_email():
     anomaly = {"type": "reappeared", "fingerprint": "SHA256:abc", "hostname": "server-test-01"}
-    with patch("collect.servers_mod") as mock_srv, \
+    with patch("collect._should_run", return_value=True), \
+         patch("collect.servers_mod") as mock_srv, \
          patch("collect.scan_server") as mock_scan, \
          patch("collect.alerts") as mock_alerts:
 
@@ -313,7 +314,8 @@ def test_collect_scan_server_scan_failed_sends_critical_alert():
 
 def test_collect_run_scan_iterates_all_active_servers():
     servers = [SAMPLE_SERVER, {**SAMPLE_SERVER, "hostname": "server-02", "id": str(uuid.uuid4())}]
-    with patch("collect.servers_mod") as mock_srv, \
+    with patch("collect._should_run", return_value=True), \
+         patch("collect.servers_mod") as mock_srv, \
          patch("collect.scan_server") as mock_scan, \
          patch("collect.alerts"):
 
@@ -342,7 +344,8 @@ def test_collect_run_scan_filters_by_hostname():
 
 def test_collect_run_scan_sends_one_grouped_critical_when_anomalies():
     anomaly = {"type": "unknown", "fingerprint": "SHA256:abc", "hostname": "server-test-01", "key_type": "ssh-ed25519", "comment": None}
-    with patch("collect.servers_mod") as mock_srv, \
+    with patch("collect._should_run", return_value=True), \
+         patch("collect.servers_mod") as mock_srv, \
          patch("collect.scan_server") as mock_scan, \
          patch("collect.alerts") as mock_alerts:
 
@@ -357,7 +360,8 @@ def test_collect_run_scan_sends_one_grouped_critical_when_anomalies():
 
 
 def test_collect_run_scan_no_email_when_no_anomalies():
-    with patch("collect.servers_mod") as mock_srv, \
+    with patch("collect._should_run", return_value=True), \
+         patch("collect.servers_mod") as mock_srv, \
          patch("collect.scan_server") as mock_scan, \
          patch("collect.alerts") as mock_alerts:
 
@@ -372,7 +376,8 @@ def test_collect_run_scan_no_email_when_no_anomalies():
 def test_collect_run_scan_groups_anomalies_from_multiple_servers():
     a1 = {"type": "unknown", "fingerprint": "SHA256:aaa", "hostname": "server-01", "key_type": "ssh-ed25519", "comment": None}
     a2 = {"type": "disappeared", "fingerprint": "SHA256:bbb", "hostname": "server-02"}
-    with patch("collect.servers_mod") as mock_srv, \
+    with patch("collect._should_run", return_value=True), \
+         patch("collect.servers_mod") as mock_srv, \
          patch("collect.scan_server") as mock_scan, \
          patch("collect.alerts") as mock_alerts:
 
@@ -451,3 +456,56 @@ def test_collect_scan_server_updates_key_size_bits_on_rescan():
         update_call = mock_db.execute.call_args_list[0]
         assert "key_size_bits" in update_call[0][0]
         assert 2048 in update_call[0][1]
+
+
+# ---------------------------------------------------------------------------
+# Tests _should_run() — skip si dernier scan trop récent
+# ---------------------------------------------------------------------------
+
+def test_collect_should_run_true_when_no_scan_completed():
+    with patch("collect.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "4"},   # settings
+            {"t": None},      # audit_log
+        ]
+        assert collect._should_run() is True
+
+
+def test_collect_should_run_false_when_scan_too_recent():
+    from datetime import datetime, timezone, timedelta
+    recent = datetime.now(tz=timezone.utc) - timedelta(hours=1)
+    with patch("collect.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "4"},
+            {"t": recent},
+        ]
+        assert collect._should_run() is False
+
+
+def test_collect_should_run_true_when_interval_elapsed():
+    from datetime import datetime, timezone, timedelta
+    old = datetime.now(tz=timezone.utc) - timedelta(hours=5)
+    with patch("collect.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "4"},
+            {"t": old},
+        ]
+        assert collect._should_run() is True
+
+
+def test_collect_run_scan_skips_when_should_not_run():
+    with patch("collect._should_run", return_value=False), \
+         patch("collect.servers_mod") as mock_srv:
+        result = collect.run_scan()
+        assert result == []
+        mock_srv.get_active_servers.assert_not_called()
+
+
+def test_collect_run_scan_does_not_skip_for_manual_hostname():
+    with patch("collect._should_run") as mock_check, \
+         patch("collect.servers_mod") as mock_srv, \
+         patch("collect.scan_server") as mock_scan:
+        mock_srv.get_active_servers.return_value = [SAMPLE_SERVER]
+        mock_scan.return_value = {"hostname": "server-test-01", "new": 0, "disappeared": 0, "known": 0, "error": None, "anomalies": []}
+        collect.run_scan(hostname="server-test-01")
+        mock_check.assert_not_called()

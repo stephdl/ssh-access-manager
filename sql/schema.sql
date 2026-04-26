@@ -272,6 +272,21 @@ COMMENT ON COLUMN audit_log.target_server IS 'FK servers, NULL si action non li�
 COMMENT ON COLUMN audit_log.performed_at IS 'Horodatage précis de l''action (TIMESTAMPTZ)';
 COMMENT ON COLUMN audit_log.details IS 'Contexte JSON libre : fingerprint, hostname, raison, etc.';
 
+-- ---------------------------------------------------------------------------
+-- TABLE : settings
+-- Configuration dynamique modifiable via l'API sans redémarrer le container.
+-- ---------------------------------------------------------------------------
+CREATE TABLE settings (
+    key   VARCHAR(100) PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+COMMENT ON TABLE settings IS 'Configuration dynamique du système — clé/valeur';
+COMMENT ON COLUMN settings.key IS 'Clé de configuration (ex: scan_interval_hours)';
+COMMENT ON COLUMN settings.value IS 'Valeur texte';
+
+INSERT INTO settings (key, value) VALUES ('scan_interval_hours', '4');
+
 -- =============================================================================
 -- INDEX
 -- Optimisent les requêtes fréquentes : filtres sur statut, expiration,

@@ -5,6 +5,7 @@
     "access": "Access",
     "audit": "Audit",
     "admins": "Admins",
+    "settings": "Settings",
     "logout": "Logout"
   },
   "common": {
@@ -274,5 +275,14 @@
     "load_error": "Unable to load keys: {error}",
     "key_validated": "Key validated.",
     "key_revoked": "Key revoked."
+  },
+  "settings": {
+    "title": "Settings",
+    "scan_section": "Scan interval",
+    "scan_interval_label": "Run a scan every",
+    "hours": "hours",
+    "save": "Save",
+    "saved": "Settings saved.",
+    "scan_interval_hint": "Between 1 and 24 hours. The cron triggers every 5 minutes but skips if the interval has not elapsed."
   }
 }

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import struct
+from datetime import datetime, timezone
 
 import actions
 import alerts
@@ -192,8 +193,22 @@ def scan_server(server: dict) -> dict:
     return result
 
 
+def _should_run() -> bool:
+    row = db.query_one("SELECT value FROM settings WHERE key = 'scan_interval_hours'")
+    interval_hours = int(row["value"]) if row else 4
+    last = db.query_one(
+        "SELECT MAX(performed_at) AS t FROM audit_log WHERE action = 'SCAN_COMPLETED'"
+    )
+    if not last or not last["t"]:
+        return True
+    elapsed = (datetime.now(tz=timezone.utc) - last["t"]).total_seconds()
+    return elapsed >= interval_hours * 3600
+
+
 def run_scan(hostname: str | None = None) -> list[dict]:
     """Scan all active servers (or one). Sends one grouped CRITICAL email if any anomalies."""
+    if hostname is None and not _should_run():
+        return []
     active_servers = servers_mod.get_active_servers()
     if hostname:
         active_servers = [s for s in active_servers if s["hostname"] == hostname]
