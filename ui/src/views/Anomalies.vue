@@ -60,7 +60,7 @@
                 <span v-else class="non-compliant" :title="complianceTooltip(k)">⚠️</span>
               </td>
               <td class="actions">
-                <button class="btn-success" @click="validate(k.fingerprint)">
+                <button class="btn-success" @click="validate(k)">
                   {{ $t('anomalies.btn_validate') }}
                 </button>
                 <button class="btn-danger" @click="openRevoke(k)">
@@ -212,8 +212,12 @@ async function load() {
 
 const efp = (fp) => encodeURIComponent(fp)
 
-async function validate(fingerprint) {
-  await apiAction(`/api/keys/validate/${efp(fingerprint)}`, {}, t('anomalies.key_validated'))
+async function validate(key) {
+  await apiAction(
+    `/api/keys/validate/${efp(key.fingerprint)}`,
+    { unix_user: key.unix_user || null, hostname: key.server_hostname || null },
+    t('anomalies.key_validated')
+  )
 }
 
 function openRevoke(key) {

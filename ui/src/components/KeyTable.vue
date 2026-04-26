@@ -69,7 +69,7 @@
               <button
                 v-if="k.status === 'PENDING_REVIEW'"
                 class="btn-success"
-                @click="$emit('validate', k.fingerprint)"
+                @click="$emit('validate', k)"
               >
                 {{ $t('key_table.btn_validate') }}
               </button>
