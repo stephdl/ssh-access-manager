@@ -139,13 +139,14 @@ function formatDate(iso) {
 }
 .actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  min-width: 140px;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  white-space: nowrap;
 }
 .actions button {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.8rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 td {
   vertical-align: top;
