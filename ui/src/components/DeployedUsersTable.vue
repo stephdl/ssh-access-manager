@@ -114,7 +114,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, defineExpose } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -149,6 +149,8 @@ const filteredUsers = computed(() => {
 onMounted(async () => {
   await loadUsers()
 })
+
+defineExpose({ refresh: loadUsers })
 
 async function loadUsers() {
   loading.value = true

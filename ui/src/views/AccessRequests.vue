@@ -5,18 +5,21 @@
       <p>{{ $t('access.info_deploy') }}</p>
       <p>{{ $t('access.info_no_sudo') }}</p>
     </div>
-    <DeployKeyForm />
+    <DeployKeyForm @deployed="deployedUsersTable?.refresh()" />
 
     <section class="card">
       <h2>{{ $t('deployedUsers.title') }}</h2>
-      <DeployedUsersTable />
+      <DeployedUsersTable ref="deployedUsersTable" />
     </section>
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import DeployKeyForm from '../components/DeployKeyForm.vue'
 import DeployedUsersTable from '../components/DeployedUsersTable.vue'
+
+const deployedUsersTable = ref(null)
 </script>
 
 <style scoped>

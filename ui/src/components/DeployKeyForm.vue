@@ -141,6 +141,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
+const emit = defineEmits(['deployed'])
 
 const unixUser = ref('')
 const publicKey = ref('')
@@ -243,6 +244,7 @@ async function submit() {
 
     result.value = await res.json()
     success.value = true
+    emit('deployed')
   } catch (e) {
     error.value = e.message
   } finally {
