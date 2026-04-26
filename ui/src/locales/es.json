@@ -251,7 +251,13 @@
     "load_error": "No se pueden cargar las claves: {error}",
     "key_validated": "Clave validada.",
     "key_revoked": "Clave revocada.",
-    "filter_placeholder": "Buscar fingerprint, tipo, servidor…",
+    "col_unix_user": "Usuario Unix",
+    "filter_placeholder": "Buscar fingerprint, tipo, servidor, usuario…",
+    "filter_all_types": "Todos los tipos",
+    "filter_all_servers": "Todos los servidores",
+    "filter_all_compliant": "Conformidad",
+    "filter_compliant": "Conforme",
+    "filter_non_compliant": "No conforme",
     "no_results": "No se encontraron anomalías."
   },
   "settings": {

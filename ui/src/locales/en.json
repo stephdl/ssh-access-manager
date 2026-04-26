@@ -251,7 +251,13 @@
     "load_error": "Unable to load keys: {error}",
     "key_validated": "Key validated.",
     "key_revoked": "Key revoked.",
-    "filter_placeholder": "Search fingerprint, type, server…",
+    "col_unix_user": "Unix user",
+    "filter_placeholder": "Search fingerprint, type, server, user…",
+    "filter_all_types": "All types",
+    "filter_all_servers": "All servers",
+    "filter_all_compliant": "Compliance",
+    "filter_compliant": "Compliant",
+    "filter_non_compliant": "Non-compliant",
     "no_results": "No matching anomalies."
   },
   "settings": {
