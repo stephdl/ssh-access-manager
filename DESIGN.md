@@ -842,7 +842,7 @@ coûteuse en temps).
 
 ## 13. CI/CD — GitHub Actions
 
-### 7 workflows et leur rôle
+### 8 workflows et leur rôle
 
 ```
 .github/workflows/
@@ -958,6 +958,21 @@ Le workflow se déclenche sur trois événements :
 Les résultats sont visibles dans l'onglet **Security → Code scanning** du dépôt
 GitHub. La query suite `security-extended` couvre un périmètre plus large que
 la suite par défaut.
+
+### Mises à jour automatiques — Renovate (`renovate.json`)
+
+Renovate ouvre des PRs de mise à jour chaque lundi avant 9h (TZ Europe/Paris) :
+
+| Périmètre | Comportement |
+|---|---|
+| npm `ui/package.json` — patch | PR automerge si CI vert |
+| npm `ui/package.json` — minor/major | PR groupée, merge manuel |
+| pip `requirements-test.txt` | PR groupée, merge manuel |
+| Docker `FROM` lines | PR groupée, merge manuel |
+
+Les PRs Renovate reçoivent automatiquement le label `dependencies`. Les PRs
+automerge (patch npm) attendent que les 5 checks CI soient verts — le même
+garde-fou que pour les PRs manuelles.
 
 ### Cache pip avec requirements-test.txt
 

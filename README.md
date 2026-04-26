@@ -377,6 +377,20 @@ Deux checks CI valident cette convention :
 - Force push bloqué
 - Règle appliquée aux administrateurs du dépôt
 
+### Sécurité — Trivy + CodeQL
+
+**Trivy** scanne chaque image Docker de PR à la recherche de CVE CRITICAL et HIGH (Alpine packages, pip, npm). Les résultats sont uploadés dans l'onglet **Security > Code scanning** de GitHub.
+
+**CodeQL** analyse le code Python avec les requêtes `security-extended` à chaque PR, merge sur `main`, et chaque lundi matin. Les alertes apparaissent dans **Security > Code scanning**.
+
+### Mises à jour automatiques — Renovate
+
+Renovate est configuré via `renovate.json` (racine du projet). Il ouvre des PRs chaque lundi avant 9h pour :
+
+- **npm** (`ui/package.json`) — mises à jour groupées ; patch automerge si CI vert
+- **pip** (`requirements-test.txt`) — PR groupée, merge manuel
+- **Docker** (lignes `FROM` du Dockerfile) — PR groupée, merge manuel
+
 ### Formatage du code Vue.js
 
 Prettier est configuré dans `.prettierrc` (racine du projet) :
