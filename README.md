@@ -74,7 +74,21 @@ Sur chaque serveur à auditer, exécuter `provision-host.sh` avec la clé publiq
 bash provision-host.sh "ssh-ed25519 AAAA... ssh-access-manager@container"
 ```
 
-Ce script crée l'utilisateur `audit-collector`, dépose la clé publique dans `authorized_keys` (de façon idempotente) et configure `sudoers`.
+Ce script est **idempotent** : il crée l'utilisateur `audit-collector` (réutilise s'il existe), ajoute la clé publique dans `authorized_keys` si elle est absente, et écrase `/etc/sudoers.d/audit-collector` avec les règles courantes.
+
+### Mettre à jour un hôte déjà provisionné
+
+Après une mise à jour de `provision-host.sh` (ex. changement des règles sudoers), relancer le script sur chaque hôte :
+
+```bash
+# Récupérer la clé publique depuis le container
+PUBKEY=$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)
+
+# Relancer provision-host.sh sur le serveur distant
+ssh root@<ip-du-serveur> "bash -s" < provision-host.sh "$PUBKEY"
+```
+
+Le script réécrit uniquement `/etc/sudoers.d/audit-collector` — aucune clé ni utilisateur n'est supprimé.
 
 ### 2. Déclarer le serveur
 
