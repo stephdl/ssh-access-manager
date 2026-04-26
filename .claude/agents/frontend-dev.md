@@ -28,7 +28,7 @@ Tu es responsable exclusivement de la couche interface utilisateur :
 
 - **Vue.js 3** (Composition API)
 - **Vite** (bundler)
-- **Node.js 22 LTS** (stage build, `node:22-alpine`)
+- **Node.js 24 LTS** (stage build, `node:24-alpine`)
 - **Vue Router** pour la navigation
 - Le build produit `/ui/dist/` copié dans `/app/static/`
 

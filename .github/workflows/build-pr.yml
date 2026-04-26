@@ -3,6 +3,9 @@ name: Build PR image
 on:
   pull_request:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   packages: write
 
