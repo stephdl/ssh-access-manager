@@ -128,6 +128,7 @@ def add_server():
         )
         return jsonify(server), 201
     except (KeyError, ValueError) as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 400
 
 
@@ -138,6 +139,7 @@ def disable_server(hostname):
         actions.disable_server(hostname, g.admin_id)
         return jsonify({"status": "disabled"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -148,6 +150,7 @@ def enable_server(hostname):
         actions.enable_server(hostname, g.admin_id)
         return jsonify({"status": "enabled"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -158,6 +161,7 @@ def delete_server(hostname):
         actions.delete_server(hostname, g.admin_id)
         return jsonify({"status": "deleted"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -226,6 +230,7 @@ def validate_key(fingerprint):
         actions.validate_key(fingerprint, g.admin_id)
         return jsonify({"status": "validated"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -238,6 +243,7 @@ def revoke_key(fingerprint):
         actions.revoke_key(fingerprint, g.admin_id, reason)
         return jsonify({"status": "revoked"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -249,6 +255,7 @@ def assign_key(fingerprint):
         actions.assign_key(fingerprint, data["owner_name"])
         return jsonify({"status": "assigned"})
     except (KeyError, ValueError) as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 400
 
 
@@ -266,6 +273,7 @@ def set_key_expiry(fingerprint):
         actions.set_key_expiry(fingerprint, expires_at)
         return jsonify({"status": "expiry set", "expires_at": expires_at.isoformat()})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -276,6 +284,7 @@ def remove_key_expiry(fingerprint):
         actions.remove_key_expiry(fingerprint)
         return jsonify({"status": "expiry removed"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -325,6 +334,7 @@ def grant_access():
         result["expires_at"] = result["expires_at"].isoformat()
         return jsonify(result), 201
     except (KeyError, ValueError) as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 400
 
 
@@ -360,6 +370,7 @@ def api_deploy_key():
         )
         return jsonify(result), 201
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logging.exception("deploy_key failed")
@@ -394,6 +405,7 @@ def request_access():
         )
         return jsonify({"status": "requested"}), 201
     except (KeyError, Exception) as e:
+        logging.exception(str(e))
         return jsonify({"error": str(e)}), 400
 
 
@@ -404,6 +416,7 @@ def approve_request(request_id):
         actions.approve_request(request_id, g.admin_id)
         return jsonify({"status": "approved"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -414,6 +427,7 @@ def reject_request(request_id):
         actions.reject_request(request_id, g.admin_id)
         return jsonify({"status": "rejected"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -424,6 +438,7 @@ def revoke_request(request_id):
         actions.revoke_request(request_id, g.admin_id)
         return jsonify({"status": "revoked"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -445,6 +460,7 @@ def add_admin():
         admin = actions.add_admin(data["username"], data.get("email", ""), data["password"], g.admin_id)
         return jsonify(admin), 201
     except (KeyError, Exception) as e:
+        logging.exception(str(e))
         return jsonify({"error": str(e)}), 400
 
 
@@ -459,6 +475,7 @@ def change_admin_password(username):
         actions.change_password(username, password)
         return jsonify({"status": "updated"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -477,6 +494,7 @@ def disable_admin(username):
         actions.disable_admin(username, g.admin_id)
         return jsonify({"status": "disabled"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -489,6 +507,7 @@ def enable_admin(username):
         actions.enable_admin(username, g.admin_id)
         return jsonify({"status": "enabled"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 404
 
 
@@ -501,6 +520,7 @@ def delete_admin(username):
         actions.delete_admin(username, g.admin_id)
         return jsonify({"status": "deleted"})
     except ValueError as e:
+        logging.warning(str(e))
         return jsonify({"error": str(e)}), 400
 
 
