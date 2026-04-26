@@ -116,6 +116,19 @@ def test_web_get_keys_owner_is_none_when_unassigned(auth_client):
         assert data[0].get("owner") is None
 
 
+def test_web_get_keys_sql_includes_revocation_and_server_fields(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = []
+        auth_client.get("/api/keys")
+        sql = mock_db.query.call_args[0][0]
+        assert "revoked_automatically" in sql
+        assert "revoked_by" in sql
+        assert "revoked_at" in sql
+        assert "revocation_justification" in sql
+        assert "server_hostname" in sql
+
+
 # ---------------------------------------------------------------------------
 # POST /api/keys/revoke/<fp> — 200 si authentifie, 401 si non authentifie
 # ---------------------------------------------------------------------------
