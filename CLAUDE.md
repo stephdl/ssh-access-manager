@@ -635,16 +635,18 @@ pytest-cov
 pytest-mock
 freezegun           ← pour mocker datetime dans expire.py
 
-## CI/CD — GitHub Actions (issue #110)
+## CI/CD — GitHub Actions
 
 .github/workflows/
-    ci.yml          ← déclenchement : push/PR sur main
-                       job python-tests : pytest + coverage ≥ 80%
-                       job vue-tests : vitest
-                       job prettier : npm run format:check (issue #139)
-                       job commitlint : messages de commit Conventional Commits (issue #140)
-    pr-title.yml    ← validation titre de PR (Conventional Commits) (issue #140)
-    build-pr.yml    ← publication image Docker sur GHCR à chaque PR
+    ci.yml              ← PR : pytest ≥ 80% + vitest + prettier + commitlint
+    pr-title.yml        ← PR : validation titre (Conventional Commits, script shell)
+    build-pr.yml        ← PR : build + push image pr-{N} sur GHCR
+    build-main.yml      ← merge main : build + push image :main sur GHCR
+    publish-release.yml ← tag git : build + push :vX.Y.Z (+ :latest si stable)
+    cleanup-pr.yml      ← fermeture PR : suppression image pr-{N} sur GHCR
+
+Protection branche main :
+    PR obligatoire, 5 checks requis, force push bloqué, enforce_admins=true
 
 ## Formatage — Prettier (issue #139)
 
@@ -656,19 +658,14 @@ Commandes UI :
     npm run format:check   ← vérifie sans modifier (CI)
     npm run format:write   ← formate en place (dev local)
 
-## Convention commits (issue #140)
+## Convention commits — Conventional Commits (issue #140)
 
 Format obligatoire : `type: description courte`
-Types valides : feat, fix, docs, style, refactor, test, ci, chore
-Exemples :
-    feat: dropdown serveurs connus (#137)
-    fix: correction calcul expiration
-    ci: ajout job prettier
-    docs: mise à jour README
+Types valides : feat, fix, docs, style, refactor, test, ci, chore, perf, build, revert
 
-Deux checks CI :
-- `commitlint` (ci.yml) — vérifie chaque message de commit de la PR
-- `pr-title.yml` — vérifie le titre de la PR au même format
+Deux checks CI indépendants :
+- `commitlint` (ci.yml) — chaque message de commit de la PR via wagoid/commitlint-github-action@v6
+- `pr-title.yml` — titre de la PR via grep -P shell (sans dépendance Node.js)
 
 ## Commandes — inventaire complet
 

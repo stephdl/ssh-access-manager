@@ -327,3 +327,67 @@ cd app && python3 -m pytest tests/ --cov=actions --cov-fail-under=80
 # Tests frontend Vitest
 cd ui && npx vitest run
 ```
+
+---
+
+## CI/CD & DevOps
+
+### Workflows GitHub Actions
+
+| Workflow | Déclencheur | Rôle |
+|---|---|---|
+| `ci.yml` | Chaque PR | Tests Python (pytest ≥ 80%), Tests Vue.js (vitest), Prettier, Commitlint |
+| `pr-title.yml` | Ouverture / édition de PR | Validation du titre (Conventional Commits) |
+| `build-pr.yml` | Chaque PR | Build + push image `pr-{N}` sur GHCR |
+| `build-main.yml` | Merge sur `main` | Build + push image `:main` sur GHCR |
+| `publish-release.yml` | Push d'un tag git | Build + push image `:vX.Y.Z` (+ `:latest` si stable) |
+| `cleanup-pr.yml` | Fermeture de PR | Suppression de l'image `pr-{N}` sur GHCR |
+
+### Stratégie de tags Docker (GHCR)
+
+| Événement | Tag publié |
+|---|---|
+| PR ouverte | `pr-{N}` |
+| Merge sur `main` | `main` |
+| Tag git `1.2.0-dev.1` (avec `-`) | `1.2.0-dev.1` uniquement |
+| Tag git `1.2.0` (sans `-`) | `1.2.0` **et** `latest` |
+
+### Convention de commits (Conventional Commits)
+
+Tout commit doit respecter le format `type: description courte`.
+
+Types valides : `feat` `fix` `docs` `style` `refactor` `test` `ci` `chore`
+
+```
+feat: dropdown serveurs connus dans AccessForm
+fix: correction calcul expiration clé
+ci: ajout check Prettier
+docs: mise à jour README workflow accès
+```
+
+Deux checks CI valident cette convention :
+- **Commit messages** (`ci.yml`) — vérifie chaque commit de la PR via `wagoid/commitlint-github-action`
+- **PR title** (`pr-title.yml`) — vérifie le titre de la PR via script shell `grep -P`
+
+### Protection de la branche `main`
+
+- Push direct interdit — toute modification passe obligatoirement par une PR
+- Les 5 checks CI doivent être verts avant le merge : Tests Python, Tests Vue.js, Prettier, Commit messages, Validate PR title
+- Force push bloqué
+- Règle appliquée aux administrateurs du dépôt
+
+### Formatage du code Vue.js
+
+Prettier est configuré dans `.prettierrc` (racine du projet) :
+
+```json
+{ "semi": false, "singleQuote": true, "trailingComma": "es5", "printWidth": 100 }
+```
+
+```bash
+# Vérifier (CI)
+cd ui && npm run format:check
+
+# Formater localement avant de commit
+cd ui && npm run format:write
+```
