@@ -520,7 +520,9 @@ Validation robustesse mot de passe (issue #62) :
 ## Logique métier — actions.py (fonctions complètes)
 
 ### Clés SSH
-- validate_key(fingerprint, admin_id, db)
+- validate_key(fingerprint, admin_id, unix_user=None, hostname=None)
+  ↳ sans unix_user+hostname : valide toutes les lignes PENDING_REVIEW pour ce fingerprint
+  ↳ avec unix_user+hostname : valide uniquement la ligne (fingerprint, server, unix_user) — fix issue #193
 - revoke_key(fingerprint, admin_id, reason, db)
   ↳ fonctionne sur ACTIVE et PENDING_REVIEW (issue #85)
 - handle_disappeared_key(key_id, server_id, db)    ← scénario 2
@@ -660,12 +662,13 @@ ui/tests/
     KeyActions.spec.js    ← modal confirmation révocation (17 tests)
     ExpiryPicker.spec.js  ← modes exclusifs heures/date (11 tests)
     ServerTable.spec.js   ← filtres hostname/IP/env, badges statut (15 tests)
-    KeyTable.spec.js      ← boutons par statut, owner, expires_at (18+ tests)
-    Admins.spec.js        ← modals enable/delete, garde-fous (15 tests)
-    Settings.spec.js      ← chargement, sauvegarde, validation, erreurs (7 tests)
-    DeployKeyForm.spec.js ← formulaire déploiement clé SSH (16 tests)
-    UserLockForm.spec.js  ← verrouillage/déverrouillage compte Unix (10 tests)
-    Anomalies.spec.js     ← filtres recherche, badges compteurs, no_results (13 tests)
+    KeyTable.spec.js           ← boutons par statut, owner, expires_at, barre de filtres texte + statut (30 tests)
+    Admins.spec.js             ← modals enable/delete, garde-fous (15 tests)
+    Settings.spec.js           ← chargement, sauvegarde, validation, erreurs (7 tests)
+    DeployKeyForm.spec.js      ← formulaire déploiement clé SSH (16 tests)
+    UserLockForm.spec.js       ← verrouillage/déverrouillage compte Unix (10 tests)
+    DeployedUsersTable.spec.js ← tableau utilisateurs déployés, filtres (10 tests)
+    Anomalies.spec.js          ← filtres texte + dropdowns type/serveur/conformité, unix_user, badges (20 tests)
 
 ### Ce qui n'est PAS testé unitairement
 
@@ -862,6 +865,7 @@ ui/src/views/
                           + boutons désactiver/réactiver/supprimer (issue #89)
                           + bandeau rouge si serveur désactivé (issue #91)
     Anomalies.vue       ← toutes anomalies actives + barre de recherche (issue #191)
+                          + colonne unix_user + dropdowns type/serveur/conformité (issue #195)
     AccessRequests.vue  ← déploiement de clé SSH (DeployKeyForm) + verrouillage compte Unix (UserLockForm)
     Audit.vue           ← historique filtrable
     Admins.vue          ← gestion administrateurs
@@ -879,8 +883,9 @@ ui/src/components/
                           + barre de filtres texte + dropdown statut (issue #189)
     KeyActions.vue      ← boutons valider/révoquer/expiry
     ExpiryPicker.vue    ← datepicker durée ou date précise
-    DeployKeyForm.vue   ← formulaire déploiement clé SSH (utilisé par AccessRequests.vue)
-    UserLockForm.vue    ← verrouillage/déverrouillage compte Unix (issue #181)
+    DeployKeyForm.vue        ← formulaire déploiement clé SSH (utilisé par AccessRequests.vue)
+    UserLockForm.vue         ← verrouillage/déverrouillage compte Unix (issue #181)
+    DeployedUsersTable.vue   ← tableau des utilisateurs Unix déployés avec filtres
 
 ui/src/
     i18n.js             ← configuration vue-i18n v9 (issue #98)
