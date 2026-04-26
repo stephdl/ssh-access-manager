@@ -292,5 +292,19 @@
     "error_unix_user": "Ungültiger Unix-Benutzername (nur Kleinbuchstaben, Ziffern, _ und -, max. 32 Zeichen)",
     "success_locked": "Konto '{user}' gesperrt auf {server}",
     "success_unlocked": "Konto '{user}' entsperrt auf {server}"
+  },
+  "deployedUsers": {
+    "title": "Bereitgestellte Benutzer",
+    "col_user": "Unix-Benutzer",
+    "col_server": "Server",
+    "col_expires": "Läuft ab",
+    "col_actions": "Aktionen",
+    "unlimited": "Unbegrenzt",
+    "empty": "Keine bereitgestellten Benutzer.",
+    "load_error": "Kann bereitgestellte Benutzer nicht laden: {error}",
+    "lock_success": "Konto '{user}' gesperrt auf {server}.",
+    "unlock_success": "Konto '{user}' entsperrt auf {server}.",
+    "lock_error": "Sperrung fehlgeschlagen: {error}",
+    "unlock_error": "Entsperrung fehlgeschlagen: {error}"
   }
 }

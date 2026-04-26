@@ -292,5 +292,19 @@
     "error_unix_user": "Nombre de usuario Unix inválido (minúsculas, dígitos, _ y - únicamente, máx. 32 caracteres)",
     "success_locked": "Cuenta '{user}' bloqueada en {server}",
     "success_unlocked": "Cuenta '{user}' desbloqueada en {server}"
+  },
+  "deployedUsers": {
+    "title": "Usuarios desplegados",
+    "col_user": "Usuario Unix",
+    "col_server": "Servidor",
+    "col_expires": "Expira",
+    "col_actions": "Acciones",
+    "unlimited": "Ilimitado",
+    "empty": "No hay usuarios desplegados.",
+    "load_error": "No se pueden cargar los usuarios desplegados: {error}",
+    "lock_success": "Cuenta '{user}' bloqueada en {server}.",
+    "unlock_success": "Cuenta '{user}' desbloqueada en {server}.",
+    "lock_error": "Fallo al bloquear: {error}",
+    "unlock_error": "Fallo al desbloquear: {error}"
   }
 }

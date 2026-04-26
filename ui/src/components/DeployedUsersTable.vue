@@ -1,0 +1,265 @@
+<template>
+  <div class="deployed-users-table">
+    <div v-if="loadError" class="alert-error" data-testid="load-error">
+      {{ $t('deployedUsers.load_error', { error: loadError }) }}
+    </div>
+
+    <div v-else-if="loading" class="loading-state">
+      {{ $t('common.loading') }}
+    </div>
+
+    <table v-else-if="users.length > 0" data-testid="table-deployed-users">
+      <thead>
+        <tr>
+          <th>{{ $t('deployedUsers.col_user') }}</th>
+          <th>{{ $t('deployedUsers.col_server') }}</th>
+          <th>{{ $t('deployedUsers.col_expires') }}</th>
+          <th>{{ $t('deployedUsers.col_actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          v-for="user in users"
+          :key="`${user.unix_user}-${user.hostname}`"
+          :data-testid="`row-${user.unix_user}-${user.hostname}`"
+        >
+          <td>{{ user.unix_user }}</td>
+          <td>{{ user.hostname }}</td>
+          <td>{{ formatExpiry(user.expires_at) }}</td>
+          <td class="actions">
+            <button
+              type="button"
+              class="btn-danger btn-sm"
+              :data-testid="`btn-lock-${user.unix_user}-${user.hostname}`"
+              :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`]"
+              @click="lockUser(user)"
+            >
+              {{ $t('userLock.btnLock') }}
+            </button>
+            <button
+              type="button"
+              class="btn-success btn-sm"
+              :data-testid="`btn-unlock-${user.unix_user}-${user.hostname}`"
+              :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`]"
+              @click="unlockUser(user)"
+            >
+              {{ $t('userLock.btnUnlock') }}
+            </button>
+            <div
+              v-if="successMessages[`${user.unix_user}-${user.hostname}`]"
+              class="inline-success"
+              :data-testid="`success-${user.unix_user}-${user.hostname}`"
+            >
+              {{ successMessages[`${user.unix_user}-${user.hostname}`] }}
+            </div>
+            <div
+              v-if="errorMessages[`${user.unix_user}-${user.hostname}`]"
+              class="inline-error"
+              :data-testid="`error-${user.unix_user}-${user.hostname}`"
+            >
+              {{ errorMessages[`${user.unix_user}-${user.hostname}`] }}
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div v-else class="empty-state" data-testid="empty-state">
+      {{ $t('deployedUsers.empty') }}
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
+const users = ref([])
+const loading = ref(false)
+const loadError = ref('')
+const actionInProgress = ref({})
+const successMessages = ref({})
+const errorMessages = ref({})
+
+onMounted(async () => {
+  await loadUsers()
+})
+
+async function loadUsers() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const res = await fetch('/api/access/deployed-users')
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    users.value = await res.json()
+  } catch (e) {
+    loadError.value = e.message
+  } finally {
+    loading.value = false
+  }
+}
+
+function formatExpiry(expiresAt) {
+  if (!expiresAt) {
+    return t('deployedUsers.unlimited')
+  }
+  return new Date(expiresAt).toLocaleString('fr-FR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
+}
+
+async function lockUser(user) {
+  await performAction(user, '/api/access/lock-user', 'lock')
+}
+
+async function unlockUser(user) {
+  await performAction(user, '/api/access/unlock-user', 'unlock')
+}
+
+async function performAction(user, endpoint, actionType) {
+  const key = `${user.unix_user}-${user.hostname}`
+  actionInProgress.value[key] = true
+  successMessages.value[key] = ''
+  errorMessages.value[key] = ''
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        unix_user: user.unix_user,
+        hostname: user.hostname,
+      }),
+    })
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+
+    const result = await res.json()
+    const msgKey = actionType === 'lock' ? 'lock_success' : 'unlock_success'
+    successMessages.value[key] = t(`deployedUsers.${msgKey}`, {
+      user: result.unix_user || user.unix_user,
+      server: result.hostname || user.hostname,
+    })
+
+    setTimeout(() => {
+      successMessages.value[key] = ''
+    }, 5000)
+  } catch (e) {
+    const errorKey = actionType === 'lock' ? 'lock_error' : 'unlock_error'
+    errorMessages.value[key] = t(`deployedUsers.${errorKey}`, { error: e.message })
+
+    setTimeout(() => {
+      errorMessages.value[key] = ''
+    }, 5000)
+  } finally {
+    actionInProgress.value[key] = false
+  }
+}
+</script>
+
+<style scoped>
+.deployed-users-table {
+  margin-top: 1rem;
+}
+
+.loading-state {
+  color: #666;
+  font-style: italic;
+  padding: 1rem;
+}
+
+.alert-error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+th {
+  text-align: left;
+  padding: 0.75rem;
+  background: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #dee2e6;
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.btn-sm {
+  padding: 0.3rem 0.6rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #218838;
+}
+
+.inline-success {
+  color: #155724;
+  background: #d4edda;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.8rem;
+}
+
+.inline-error {
+  color: #721c24;
+  background: #f8d7da;
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.8rem;
+}
+
+.empty-state {
+  color: #666;
+  font-style: italic;
+  padding: 1rem;
+  text-align: center;
+}
+</style>
