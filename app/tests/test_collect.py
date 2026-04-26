@@ -133,6 +133,123 @@ def test_collect_scan_server_scenario2_disappeared_key_calls_handle_disappeared(
 
 
 # ---------------------------------------------------------------------------
+# Tests scan_server() — scenario 5 (cle revoquee/expiree reapparue)
+# ---------------------------------------------------------------------------
+
+def test_collect_scan_server_scenario5_revoked_key_reappeared_calls_handle_reappeared():
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions") as mock_actions, \
+         patch("collect.alerts"):
+
+        mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},              # key found in DB
+            {"status": "REVOKED"},       # authorization exists but REVOKED
+        ]
+        mock_db.query.return_value = []  # no disappeared keys
+        mock_actions.handle_reappeared_key.return_value = {
+            "type": "reappeared", "fingerprint": "SHA256:abc", "hostname": "server-test-01"
+        }
+
+        result = collect.scan_server(SAMPLE_SERVER)
+
+        mock_actions.handle_reappeared_key.assert_called_once_with(
+            KEY_ID, SERVER_ID, "server-test-01"
+        )
+        assert result["new"] == 1
+        assert len(result["anomalies"]) == 1
+        assert result["anomalies"][0]["type"] == "reappeared"
+
+
+def test_collect_scan_server_scenario5_expired_key_reappeared_calls_handle_reappeared():
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions") as mock_actions, \
+         patch("collect.alerts"):
+
+        mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},              # key found in DB
+            {"status": "EXPIRED"},       # authorization exists but EXPIRED
+        ]
+        mock_db.query.return_value = []
+        mock_actions.handle_reappeared_key.return_value = {
+            "type": "reappeared", "fingerprint": "SHA256:abc", "hostname": "server-test-01"
+        }
+
+        result = collect.scan_server(SAMPLE_SERVER)
+
+        mock_actions.handle_reappeared_key.assert_called_once()
+        assert result["anomalies"][0]["type"] == "reappeared"
+
+
+def test_collect_scan_server_scenario5_active_key_not_treated_as_reappeared():
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions") as mock_actions, \
+         patch("collect.alerts"):
+
+        mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},
+            {"status": "ACTIVE"},        # ACTIVE → should remain known, not reappeared
+        ]
+        mock_db.query.return_value = []
+
+        result = collect.scan_server(SAMPLE_SERVER)
+
+        mock_actions.handle_reappeared_key.assert_not_called()
+        assert result["known"] == 1
+        assert result["anomalies"] == []
+
+
+def test_collect_scan_server_scenario5_pending_review_not_treated_as_reappeared():
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions") as mock_actions, \
+         patch("collect.alerts"):
+
+        mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},
+            {"status": "PENDING_REVIEW"},  # already pending → unchanged
+        ]
+        mock_db.query.return_value = []
+
+        result = collect.scan_server(SAMPLE_SERVER)
+
+        mock_actions.handle_reappeared_key.assert_not_called()
+        assert result["known"] == 1
+        assert result["anomalies"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tests run_scan() — email groupe inclut les reapparitions
+# ---------------------------------------------------------------------------
+
+def test_collect_run_scan_includes_reappeared_in_grouped_critical_email():
+    anomaly = {"type": "reappeared", "fingerprint": "SHA256:abc", "hostname": "server-test-01"}
+    with patch("collect.servers_mod") as mock_srv, \
+         patch("collect.scan_server") as mock_scan, \
+         patch("collect.alerts") as mock_alerts:
+
+        mock_srv.get_active_servers.return_value = [SAMPLE_SERVER]
+        mock_scan.return_value = {
+            "hostname": "server-test-01", "new": 1, "disappeared": 0,
+            "known": 0, "error": None, "anomalies": [anomaly]
+        }
+
+        collect.run_scan()
+
+        mock_alerts.send_alert.assert_called_once()
+        assert mock_alerts.send_alert.call_args[0][0] == "CRITICAL"
+        body = mock_alerts.send_alert.call_args[0][2]
+        assert "reapparues" in body
+        assert "SHA256:abc" in body
+
+
+# ---------------------------------------------------------------------------
 # Tests scan_server() — cle connue et ACTIVE (mise a jour last_seen)
 # ---------------------------------------------------------------------------
 

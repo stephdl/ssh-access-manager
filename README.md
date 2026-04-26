@@ -135,6 +135,10 @@ Lors du premier scan :
 
 Après le premier scan, toutes les clés détectées sont en attente de validation.
 
+Une clé passe également en `PENDING_REVIEW` si elle était révoquée ou expirée et
+réapparaît physiquement sur un serveur (ex. `ssh-copy-id` après révocation). Ce
+cas est détecté automatiquement au prochain scan et génère une alerte CRITIQUE.
+
 ### Via l'interface web
 
 1. Aller dans **Anomalies**

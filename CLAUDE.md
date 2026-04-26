@@ -419,7 +419,7 @@ expire_keys() :
 → status=EXPIRED, revoked_automatically=TRUE
 → audit_log KEY_EXPIRED, email INFO
 
-## Les 4 scénarios de révocation
+## Les 5 scénarios de révocation / détection
 
 1. Via système (actions.py revoke_key)
    → sam-revoke, revoked_by=admin_id
@@ -440,6 +440,12 @@ expire_keys() :
    → sam-revoke automatique
    → status=EXPIRED, revoked_automatically=TRUE
    → audit_log KEY_EXPIRED, email INFO
+
+5. Clé révoquée/expirée réapparue (présente serveur, status REVOKED ou EXPIRED en BDD)
+   → status=PENDING_REVIEW, audit_log ANOMALY_DETECTED
+   → reason: revoked_key_reappeared
+   → 1 seul email CRITICAL par scan regroupant toutes les anomalies (issue #123)
+   Cas typique : ssh-copy-id d'une clé précédemment révoquée
 
 ## Alertes email — niveaux
 
@@ -480,6 +486,7 @@ Validation robustesse mot de passe (issue #62) :
   ↳ fonctionne sur ACTIVE et PENDING_REVIEW (issue #85)
 - handle_disappeared_key(key_id, server_id, db)    ← scénario 2
 - handle_unknown_key(key_type, key_b64, comment, server_id, db)  ← scénario 3
+- handle_reappeared_key(key_id, server_id, hostname)             ← scénario 5 (issue #123)
 - warn_expiring_key(key_id, server_id, expires_at, db)
 - assign_key(fingerprint, owner_username, db)
 - set_key_expiry(fingerprint, expires_at, db)

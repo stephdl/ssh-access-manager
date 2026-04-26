@@ -177,6 +177,40 @@ def handle_unknown_key(
     return {"type": "unknown", "fingerprint": fingerprint, "hostname": hostname, "key_type": key_type, "comment": comment}
 
 
+def handle_reappeared_key(key_id: str, server_id: str, hostname: str) -> dict:
+    """
+    Scenario 5 — key was REVOKED or EXPIRED but reappeared on the server.
+    Sets PENDING_REVIEW, logs ANOMALY_DETECTED.
+    Returns info dict for grouped alert in caller.
+    """
+    db.execute(
+        """
+        UPDATE key_authorizations
+        SET status = 'PENDING_REVIEW',
+            revoked_at = NULL,
+            revoked_by = NULL,
+            revoked_automatically = false,
+            revocation_justification = NULL
+        WHERE key_id = %s AND server_id = %s AND status IN ('REVOKED', 'EXPIRED')
+        """,
+        (key_id, server_id),
+    )
+    db.execute(
+        """
+        INSERT INTO audit_log (action, target_key, target_server, details)
+        VALUES ('ANOMALY_DETECTED', %s, %s, %s::jsonb)
+        """,
+        (
+            key_id,
+            server_id,
+            json.dumps({"reason": "revoked_key_reappeared", "hostname": hostname}),
+        ),
+    )
+    key = db.query_one("SELECT fingerprint FROM ssh_keys WHERE id = %s", (key_id,))
+    fp = key["fingerprint"] if key else "unknown"
+    return {"type": "reappeared", "fingerprint": fp, "hostname": hostname}
+
+
 def warn_expiring_key(key_id: str, server_id: str, expires_at: datetime) -> dict | None:
     """
     Log EXPIRY_WARNING with 24h anti-spam.
