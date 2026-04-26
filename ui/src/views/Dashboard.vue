@@ -3,7 +3,9 @@
     <div class="page-header">
       <h1>{{ $t('dashboard.title') }}</h1>
       <div class="header-actions">
-        <button class="btn-secondary" @click="openAddServer">{{ $t('dashboard.add_server') }}</button>
+        <button class="btn-secondary" @click="openAddServer">
+          {{ $t('dashboard.add_server') }}
+        </button>
         <button class="btn-primary" :disabled="scanning" @click="scanAll">
           {{ scanning ? $t('dashboard.scanning') : $t('dashboard.scan_now') }}
         </button>
@@ -47,19 +49,31 @@
     <!-- Add server modal -->
     <div v-if="showAddServer" class="modal-overlay" @click.self="closeAddServer">
       <div class="modal">
-
         <!-- Step 1: form -->
         <template v-if="!addSuccess">
           <h3>{{ $t('add_server.title') }}</h3>
           <div v-if="addError" class="alert-error">{{ addError }}</div>
 
-          <label>{{ $t('add_server.hostname') }} <span class="required">{{ $t('common.required') }}</span></label>
-          <input v-model="addForm.hostname" type="text" :placeholder="$t('add_server.hostname_placeholder')" />
+          <label
+            >{{ $t('add_server.hostname') }}
+            <span class="required">{{ $t('common.required') }}</span></label
+          >
+          <input
+            v-model="addForm.hostname"
+            type="text"
+            :placeholder="$t('add_server.hostname_placeholder')"
+          />
 
-          <label>{{ $t('add_server.ip') }} <span class="required">{{ $t('common.required') }}</span></label>
+          <label
+            >{{ $t('add_server.ip') }}
+            <span class="required">{{ $t('common.required') }}</span></label
+          >
           <input v-model="addForm.ip" type="text" :placeholder="$t('add_server.ip_placeholder')" />
 
-          <label>{{ $t('add_server.environment') }} <span class="required">{{ $t('common.required') }}</span></label>
+          <label
+            >{{ $t('add_server.environment') }}
+            <span class="required">{{ $t('common.required') }}</span></label
+          >
           <select v-model="addForm.environment">
             <option value="">{{ $t('add_server.env_placeholder') }}</option>
             <option value="production">production</option>
@@ -68,7 +82,11 @@
           </select>
 
           <label>{{ $t('add_server.os_family') }}</label>
-          <input v-model="addForm.os_family" type="text" :placeholder="$t('add_server.os_placeholder')" />
+          <input
+            v-model="addForm.os_family"
+            type="text"
+            :placeholder="$t('add_server.os_placeholder')"
+          />
 
           <div class="modal-actions">
             <button
@@ -85,7 +103,9 @@
         <!-- Step 2: success + key display -->
         <template v-else>
           <h3>{{ $t('add_server.success_title') }}</h3>
-          <p class="success-msg">{{ $t('add_server.success_msg', { hostname: addForm.hostname }) }}</p>
+          <p class="success-msg">
+            {{ $t('add_server.success_msg', { hostname: addForm.hostname }) }}
+          </p>
           <p class="deploy-hint">{{ $t('add_server.deploy_hint') }}</p>
           <div class="key-display">
             <code>{{ collectorKey || $t('common.loading') }}</code>
@@ -95,10 +115,11 @@
           </div>
           <p class="deploy-hint small">{{ $t('add_server.deploy_hint2') }}</p>
           <div class="modal-actions">
-            <button class="btn-primary" @click="closeAddServer">{{ $t('add_server.close') }}</button>
+            <button class="btn-primary" @click="closeAddServer">
+              {{ $t('add_server.close') }}
+            </button>
           </div>
         </template>
-
       </div>
     </div>
   </div>
@@ -126,15 +147,13 @@ const addSuccess = ref(false)
 const addForm = ref({ hostname: '', ip: '', environment: '', os_family: '' })
 
 const counts = computed(() => ({
-  ok:     servers.value.filter(s => s.is_active && !s.has_anomalies).length,
-  warn:   servers.value.filter(s => s.is_active && s.has_anomalies).length,
-  danger: servers.value.filter(s => !s.is_active).length,
+  ok: servers.value.filter((s) => s.is_active && !s.has_anomalies).length,
+  warn: servers.value.filter((s) => s.is_active && s.has_anomalies).length,
+  danger: servers.value.filter((s) => !s.is_active).length,
 }))
 
-const addFormValid = computed(() =>
-  addForm.value.hostname.trim() &&
-  addForm.value.ip.trim() &&
-  addForm.value.environment,
+const addFormValid = computed(
+  () => addForm.value.hostname.trim() && addForm.value.ip.trim() && addForm.value.environment
 )
 
 async function loadCollectorKey() {
@@ -152,7 +171,9 @@ async function copyKey(key, context) {
   try {
     await navigator.clipboard.writeText(key)
     copied.value = context
-    setTimeout(() => { copied.value = '' }, 2000)
+    setTimeout(() => {
+      copied.value = ''
+    }, 2000)
   } catch (_) {}
 }
 
@@ -246,9 +267,14 @@ onMounted(() => {
   margin-bottom: 1.25rem;
 }
 
-.header-actions { display: flex; gap: 0.75rem; }
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+}
 
-h1 { font-size: 1.5rem; }
+h1 {
+  font-size: 1.5rem;
+}
 
 .counters {
   display: flex;
@@ -267,12 +293,27 @@ h1 { font-size: 1.5rem; }
   border: 1px solid #e0e0e0;
 }
 
-.counter-value { font-size: 2rem; font-weight: bold; }
-.counter-label { font-size: 0.8rem; color: #555; margin-top: 0.25rem; }
-.counter-ok     { border-left: 4px solid #198754; }
-.counter-warn   { border-left: 4px solid #ffc107; }
-.counter-danger { border-left: 4px solid #dc3545; }
-.counter-total  { border-left: 4px solid #0d6efd; }
+.counter-value {
+  font-size: 2rem;
+  font-weight: bold;
+}
+.counter-label {
+  font-size: 0.8rem;
+  color: #555;
+  margin-top: 0.25rem;
+}
+.counter-ok {
+  border-left: 4px solid #198754;
+}
+.counter-warn {
+  border-left: 4px solid #ffc107;
+}
+.counter-danger {
+  border-left: 4px solid #dc3545;
+}
+.counter-total {
+  border-left: 4px solid #0d6efd;
+}
 
 .collector-key-block {
   display: flex;
@@ -314,17 +355,38 @@ h1 { font-size: 1.5rem; }
   white-space: nowrap;
   transition: background 0.15s;
 }
-.btn-copy:hover { background: #0b5ed7; }
+.btn-copy:hover {
+  background: #0b5ed7;
+}
 
-.loading { text-align: center; padding: 2rem; color: #888; }
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #888;
+}
 
-.alert-error { background: #f8d7da; color: #721c24; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
-.alert-info  { background: #d4edda; color: #155724; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+.alert-error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+.alert-info {
+  background: #d4edda;
+  color: #155724;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
 
 .modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.45);
-  display: flex; align-items: center; justify-content: center;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 100;
 }
 
@@ -339,11 +401,19 @@ h1 { font-size: 1.5rem; }
   gap: 0.75rem;
 }
 
-.modal h3 { font-size: 1.1rem; margin: 0; }
-.modal label { font-size: 0.85rem; font-weight: 600; }
-.required { color: #dc3545; }
+.modal h3 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+.modal label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.required {
+  color: #dc3545;
+}
 
-.modal input[type="text"],
+.modal input[type='text'],
 .modal select {
   width: 100%;
   padding: 0.4rem 0.6rem;
@@ -353,11 +423,25 @@ h1 { font-size: 1.5rem; }
   box-sizing: border-box;
 }
 
-.modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
 
-.success-msg { margin: 0; font-size: 0.95rem; }
-.deploy-hint { margin: 0; font-size: 0.85rem; color: #555; }
-.deploy-hint.small { font-size: 0.8rem; color: #888; }
+.success-msg {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.deploy-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #555;
+}
+.deploy-hint.small {
+  font-size: 0.8rem;
+  color: #888;
+}
 
 .key-display {
   display: flex;

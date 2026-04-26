@@ -641,7 +641,18 @@ freezegun           ← pour mocker datetime dans expire.py
     ci.yml          ← déclenchement : push/PR sur main
                        job python-tests : pytest + coverage ≥ 80%
                        job vue-tests : vitest
+                       job prettier : npm run format:check (issue #139)
     build-pr.yml    ← publication image Docker sur GHCR à chaque PR
+
+## Formatage — Prettier (issue #139)
+
+Configuration : `.prettierrc` à la racine du projet.
+Règles : semi=false, singleQuote=true, trailingComma=es5, printWidth=100.
+Ignorés : ui/dist/, ui/node_modules/, *.lock
+
+Commandes UI :
+    npm run format:check   ← vérifie sans modifier (CI)
+    npm run format:write   ← formate en place (dev local)
 
 ## Commandes — inventaire complet
 

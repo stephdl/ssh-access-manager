@@ -21,7 +21,11 @@
       </div>
     </div>
 
-    <div v-if="!loading && !server.is_active" class="alert-disabled" v-html="$t('server_detail.disabled_alert')"></div>
+    <div
+      v-if="!loading && !server.is_active"
+      class="alert-disabled"
+      v-html="$t('server_detail.disabled_alert')"
+    ></div>
 
     <div v-if="error" class="alert-error">{{ error }}</div>
     <div v-if="message" class="alert-info">{{ message }}</div>
@@ -33,13 +37,24 @@
       <section class="card">
         <h2>{{ $t('server_detail.section_info') }}</h2>
         <dl class="info-grid">
-          <dt>{{ $t('server_detail.field_hostname') }}</dt>  <dd>{{ server.hostname }}</dd>
-          <dt>{{ $t('server_detail.field_ip') }}</dt>        <dd>{{ server.ip_address }}</dd>
+          <dt>{{ $t('server_detail.field_hostname') }}</dt>
+          <dd>{{ server.hostname }}</dd>
+          <dt>{{ $t('server_detail.field_ip') }}</dt>
+          <dd>{{ server.ip_address }}</dd>
           <dt>{{ $t('server_detail.field_environment') }}</dt>
-          <dd><span class="badge" :class="envBadge(server.environment)">{{ server.environment }}</span></dd>
-          <dt>{{ $t('server_detail.field_os') }}</dt>        <dd>{{ server.os_family || '—' }} {{ server.os_version || '' }}</dd>
-          <dt>{{ $t('server_detail.field_active') }}</dt>    <dd>{{ server.is_active ? $t('server_detail.active_yes') : $t('server_detail.active_no') }}</dd>
-          <dt>{{ $t('server_detail.field_added') }}</dt>     <dd>{{ formatDate(server.added_at) }}</dd>
+          <dd>
+            <span class="badge" :class="envBadge(server.environment)">{{
+              server.environment
+            }}</span>
+          </dd>
+          <dt>{{ $t('server_detail.field_os') }}</dt>
+          <dd>{{ server.os_family || '—' }} {{ server.os_version || '' }}</dd>
+          <dt>{{ $t('server_detail.field_active') }}</dt>
+          <dd>
+            {{ server.is_active ? $t('server_detail.active_yes') : $t('server_detail.active_no') }}
+          </dd>
+          <dt>{{ $t('server_detail.field_added') }}</dt>
+          <dd>{{ formatDate(server.added_at) }}</dd>
         </dl>
       </section>
 
@@ -72,10 +87,14 @@
           <tbody>
             <tr v-for="a in accessList" :key="a.id">
               <td>{{ a.requested_by_username || a.requested_by }}</td>
-              <td class="fp"><code>{{ a.fingerprint || '—' }}</code></td>
+              <td class="fp">
+                <code>{{ a.fingerprint || '—' }}</code>
+              </td>
               <td>{{ a.justification }}</td>
               <td>{{ formatDate(a.expires_at) }}</td>
-              <td><span class="badge" :class="accessBadge(a.status)">{{ a.status }}</span></td>
+              <td>
+                <span class="badge" :class="accessBadge(a.status)">{{ a.status }}</span>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -89,7 +108,9 @@
         <h3>{{ $t('server_detail.delete_modal_title') }}</h3>
         <p class="warn-text" v-html="$t('server_detail.delete_modal_warning', { hostname })"></p>
         <div class="modal-actions">
-          <button class="btn-danger" @click="deleteServer">{{ $t('server_detail.delete_confirm') }}</button>
+          <button class="btn-danger" @click="deleteServer">
+            {{ $t('server_detail.delete_confirm') }}
+          </button>
           <button @click="showDeleteModal = false">{{ $t('common.cancel') }}</button>
         </div>
       </div>
@@ -99,9 +120,18 @@
     <div v-if="revokeTarget" class="modal-overlay" @click.self="revokeTarget = null">
       <div class="modal">
         <h3>{{ $t('server_detail.revoke_modal_title') }}</h3>
-        <p class="fp-display"><code>{{ revokeTarget.fingerprint }}</code></p>
-        <label>{{ $t('server_detail.revoke_reason_label') }} <span class="required">{{ $t('common.required') }}</span></label>
-        <textarea v-model="revokeReason" rows="3" :placeholder="$t('server_detail.revoke_reason_placeholder')"></textarea>
+        <p class="fp-display">
+          <code>{{ revokeTarget.fingerprint }}</code>
+        </p>
+        <label
+          >{{ $t('server_detail.revoke_reason_label') }}
+          <span class="required">{{ $t('common.required') }}</span></label
+        >
+        <textarea
+          v-model="revokeReason"
+          rows="3"
+          :placeholder="$t('server_detail.revoke_reason_placeholder')"
+        ></textarea>
         <div class="modal-actions">
           <button class="btn-danger" :disabled="!revokeReason.trim()" @click="confirmRevoke">
             {{ $t('server_detail.revoke_confirm') }}
@@ -115,9 +145,18 @@
     <div v-if="assignTarget" class="modal-overlay" @click.self="assignTarget = null">
       <div class="modal">
         <h3>{{ $t('server_detail.assign_modal_title') }}</h3>
-        <p class="fp-display"><code>{{ assignTarget }}</code></p>
-        <label>{{ $t('server_detail.assign_username_label') }} <span class="required">{{ $t('common.required') }}</span></label>
-        <input v-model="assignUsername" type="text" :placeholder="$t('server_detail.assign_username_placeholder')" />
+        <p class="fp-display">
+          <code>{{ assignTarget }}</code>
+        </p>
+        <label
+          >{{ $t('server_detail.assign_username_label') }}
+          <span class="required">{{ $t('common.required') }}</span></label
+        >
+        <input
+          v-model="assignUsername"
+          type="text"
+          :placeholder="$t('server_detail.assign_username_placeholder')"
+        />
         <div class="modal-actions">
           <button class="btn-primary" :disabled="!assignUsername.trim()" @click="confirmAssign">
             {{ $t('server_detail.assign_confirm') }}
@@ -131,13 +170,17 @@
     <div v-if="expiryTarget" class="modal-overlay" @click.self="expiryTarget = null">
       <div class="modal">
         <h3>{{ $t('server_detail.expiry_modal_title') }}</h3>
-        <p class="fp-display"><code>{{ expiryTarget.fingerprint }}</code></p>
+        <p class="fp-display">
+          <code>{{ expiryTarget.fingerprint }}</code>
+        </p>
         <div class="expiry-modes">
           <label>
-            <input v-model="expiryMode" type="radio" value="hours" /> {{ $t('server_detail.expiry_hours_label') }}
+            <input v-model="expiryMode" type="radio" value="hours" />
+            {{ $t('server_detail.expiry_hours_label') }}
           </label>
           <label>
-            <input v-model="expiryMode" type="radio" value="date" /> {{ $t('server_detail.expiry_date_label') }}
+            <input v-model="expiryMode" type="radio" value="date" />
+            {{ $t('server_detail.expiry_date_label') }}
           </label>
         </div>
         <input
@@ -147,11 +190,7 @@
           min="1"
           :placeholder="$t('server_detail.expiry_hours_placeholder')"
         />
-        <input
-          v-else
-          v-model="expiryDate"
-          type="datetime-local"
-        />
+        <input v-else v-model="expiryDate" type="datetime-local" />
         <div class="modal-actions">
           <button class="btn-primary" :disabled="!expiryValid" @click="confirmExpiry">
             {{ $t('server_detail.expiry_confirm') }}
@@ -220,11 +259,21 @@ async function load() {
 
 async function confirmDisable() {
   if (!confirm(`${t('server_detail.disable')} ${hostname} ?`)) return
-  await apiAction(`/api/servers/${hostname}/disable`, null, 'PUT', t('server_detail.disable_success'))
+  await apiAction(
+    `/api/servers/${hostname}/disable`,
+    null,
+    'PUT',
+    t('server_detail.disable_success')
+  )
 }
 
 async function reactivate() {
-  await apiAction(`/api/servers/${hostname}/enable`, null, 'PUT', t('server_detail.reactivate_success'))
+  await apiAction(
+    `/api/servers/${hostname}/enable`,
+    null,
+    'PUT',
+    t('server_detail.reactivate_success')
+  )
 }
 
 async function deleteServer() {
@@ -261,7 +310,12 @@ async function scanServer() {
 const efp = (fp) => encodeURIComponent(fp)
 
 async function validateKey(fingerprint) {
-  await apiAction(`/api/keys/validate/${efp(fingerprint)}`, {}, 'POST', t('server_detail.key_validated'))
+  await apiAction(
+    `/api/keys/validate/${efp(fingerprint)}`,
+    {},
+    'POST',
+    t('server_detail.key_validated')
+  )
 }
 
 function openRevoke(key) {
@@ -271,7 +325,12 @@ function openRevoke(key) {
 
 async function confirmRevoke() {
   const fp = revokeTarget.value.fingerprint
-  await apiAction(`/api/keys/revoke/${efp(fp)}`, { reason: revokeReason.value }, 'POST', t('server_detail.key_revoked'))
+  await apiAction(
+    `/api/keys/revoke/${efp(fp)}`,
+    { reason: revokeReason.value },
+    'POST',
+    t('server_detail.key_revoked')
+  )
   revokeTarget.value = null
 }
 
@@ -285,7 +344,7 @@ async function confirmAssign() {
     `/api/keys/assign/${efp(assignTarget.value)}`,
     { owner_name: assignUsername.value },
     'POST',
-    t('server_detail.key_assigned', { username: assignUsername.value }),
+    t('server_detail.key_assigned', { username: assignUsername.value })
   )
   assignTarget.value = null
 }
@@ -298,20 +357,24 @@ function openExpiry(key) {
 }
 
 async function confirmExpiry() {
-  const body = expiryMode.value === 'hours'
-    ? { hours: expiryHours.value }
-    : { date: expiryDate.value }
+  const body =
+    expiryMode.value === 'hours' ? { hours: expiryHours.value } : { date: expiryDate.value }
   await apiAction(
     `/api/keys/set-expiry/${efp(expiryTarget.value.fingerprint)}`,
     body,
     'POST',
-    t('server_detail.expiry_set'),
+    t('server_detail.expiry_set')
   )
   expiryTarget.value = null
 }
 
 async function removeExpiry(fingerprint) {
-  await apiAction(`/api/keys/remove-expiry/${efp(fingerprint)}`, null, 'POST', t('server_detail.expiry_removed'))
+  await apiAction(
+    `/api/keys/remove-expiry/${efp(fingerprint)}`,
+    null,
+    'POST',
+    t('server_detail.expiry_removed')
+  )
 }
 
 async function apiAction(url, body, method = 'POST', successMsg) {
@@ -335,16 +398,21 @@ async function apiAction(url, body, method = 'POST', successMsg) {
 }
 
 function envBadge(env) {
-  return { production: 'badge-critical', staging: 'badge-pending', lab: 'badge-active' }[env] || 'badge-expired'
+  return (
+    { production: 'badge-critical', staging: 'badge-pending', lab: 'badge-active' }[env] ||
+    'badge-expired'
+  )
 }
 
 function accessBadge(status) {
-  return {
-    APPROVED: 'badge-active',
-    PENDING:  'badge-pending',
-    REJECTED: 'badge-revoked',
-    EXPIRED:  'badge-expired',
-  }[status] || 'badge-expired'
+  return (
+    {
+      APPROVED: 'badge-active',
+      PENDING: 'badge-pending',
+      REJECTED: 'badge-revoked',
+      EXPIRED: 'badge-expired',
+    }[status] || 'badge-expired'
+  )
 }
 
 function formatDate(iso) {
@@ -362,12 +430,27 @@ onMounted(load)
   justify-content: space-between;
   margin-bottom: 1.25rem;
 }
-.page-header > div { display: flex; align-items: center; gap: 1rem; }
-.header-actions { display: flex; gap: 0.5rem; }
-.warn-text { font-size: 0.9rem; line-height: 1.5; }
+.page-header > div {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.warn-text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
 
-h1 { font-size: 1.5rem; }
-h2 { font-size: 1.1rem; margin-bottom: 0.75rem; }
+h1 {
+  font-size: 1.5rem;
+}
+h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+}
 
 .btn-back {
   background: none;
@@ -392,23 +475,65 @@ h2 { font-size: 1.1rem; margin-bottom: 0.75rem; }
   grid-template-columns: 140px 1fr;
   gap: 0.4rem 1rem;
 }
-dt { font-weight: 600; color: #555; font-size: 0.85rem; }
-dd { margin: 0; }
+dt {
+  font-weight: 600;
+  color: #555;
+  font-size: 0.85rem;
+}
+dd {
+  margin: 0;
+}
 
-.fp { font-size: 0.75rem; word-break: break-all; }
-.fp-display { margin: 0.5rem 0 1rem; }
+.fp {
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+.fp-display {
+  margin: 0.5rem 0 1rem;
+}
 
-.empty { color: #888; font-size: 0.9rem; padding: 0.5rem 0; }
-.loading { text-align: center; padding: 2rem; color: #888; }
+.empty {
+  color: #888;
+  font-size: 0.9rem;
+  padding: 0.5rem 0;
+}
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #888;
+}
 
-.alert-error    { background: #f8d7da; color: #721c24; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
-.alert-info     { background: #d4edda; color: #155724; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
-.alert-disabled { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.95rem; }
+.alert-error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+.alert-info {
+  background: #d4edda;
+  color: #155724;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+.alert-disabled {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
 
 .modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.45);
-  display: flex; align-items: center; justify-content: center;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 100;
 }
 .modal {
@@ -421,19 +546,35 @@ dd { margin: 0; }
   flex-direction: column;
   gap: 0.75rem;
 }
-.modal h3 { font-size: 1.1rem; margin: 0; }
-.modal label { font-size: 0.85rem; font-weight: 600; }
-.required { color: #dc3545; }
+.modal h3 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+.modal label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.required {
+  color: #dc3545;
+}
 .modal textarea,
-.modal input[type="text"],
-.modal input[type="number"],
-.modal input[type="datetime-local"] {
+.modal input[type='text'],
+.modal input[type='number'],
+.modal input[type='datetime-local'] {
   width: 100%;
   padding: 0.4rem 0.6rem;
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 0.9rem;
 }
-.expiry-modes { display: flex; gap: 1.5rem; font-size: 0.9rem; }
-.modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+.expiry-modes {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.9rem;
+}
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
 </style>

@@ -12,13 +12,13 @@ import Settings from '../views/Settings.vue'
 
 const routes = [
   { path: '/login', name: 'Login', component: Login, meta: { public: true } },
-  { path: '/',              name: 'Dashboard',      component: Dashboard },
+  { path: '/', name: 'Dashboard', component: Dashboard },
   { path: '/servers/:hostname', name: 'ServerDetail', component: ServerDetail },
-  { path: '/anomalies',    name: 'Anomalies',      component: Anomalies },
-  { path: '/access',       name: 'AccessRequests', component: AccessRequests },
-  { path: '/audit',        name: 'Audit',          component: Audit },
-  { path: '/admins',       name: 'Admins',         component: Admins },
-  { path: '/settings',     name: 'Settings',       component: Settings },
+  { path: '/anomalies', name: 'Anomalies', component: Anomalies },
+  { path: '/access', name: 'AccessRequests', component: AccessRequests },
+  { path: '/audit', name: 'Audit', component: Audit },
+  { path: '/admins', name: 'Admins', component: Admins },
+  { path: '/settings', name: 'Settings', component: Settings },
 ]
 
 const router = createRouter({

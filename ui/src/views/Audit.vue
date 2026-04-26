@@ -44,11 +44,7 @@
           <tr v-if="entries.length === 0">
             <td colspan="6" class="empty">{{ $t('audit.empty') }}</td>
           </tr>
-          <tr
-            v-for="e in entries"
-            :key="e.id"
-            :class="rowClass(e.action)"
-          >
+          <tr v-for="e in entries" :key="e.id" :class="rowClass(e.action)">
             <td class="date">{{ formatDate(e.performed_at) }}</td>
             <td>
               <span class="badge" :class="actionBadge(e.action)">{{ e.action }}</span>
@@ -74,18 +70,28 @@ import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 
 const ACTIONS = [
-  'KEY_ADDED', 'KEY_REVOKED', 'KEY_EXPIRED', 'EXPIRY_WARNING',
-  'REQUEST_APPROVED', 'REQUEST_REJECTED', 'ANOMALY_DETECTED',
-  'SCAN_COMPLETED', 'SCAN_FAILED', 'SCRIPT_DEPLOYED',
-  'SERVER_ADDED', 'SERVER_DISABLED', 'ADMIN_ADDED', 'ADMIN_DISABLED',
+  'KEY_ADDED',
+  'KEY_REVOKED',
+  'KEY_EXPIRED',
+  'EXPIRY_WARNING',
+  'REQUEST_APPROVED',
+  'REQUEST_REJECTED',
+  'ANOMALY_DETECTED',
+  'SCAN_COMPLETED',
+  'SCAN_FAILED',
+  'SCRIPT_DEPLOYED',
+  'SERVER_ADDED',
+  'SERVER_DISABLED',
+  'ADMIN_ADDED',
+  'ADMIN_DISABLED',
 ]
 
 const CRITICAL_ACTIONS = new Set(['ANOMALY_DETECTED', 'SCAN_FAILED', 'KEY_REVOKED'])
-const WARNING_ACTIONS  = new Set(['EXPIRY_WARNING', 'KEY_EXPIRED'])
+const WARNING_ACTIONS = new Set(['EXPIRY_WARNING', 'KEY_EXPIRED'])
 
 const entries = ref([])
 const loading = ref(true)
-const error   = ref('')
+const error = ref('')
 
 const filters = ref({ server: '', action: '', since: '' })
 
@@ -96,7 +102,7 @@ async function load() {
     const params = new URLSearchParams()
     if (filters.value.server) params.set('server', filters.value.server)
     if (filters.value.action) params.set('action', filters.value.action)
-    if (filters.value.since)  params.set('since',  filters.value.since)
+    if (filters.value.since) params.set('since', filters.value.since)
     const res = await fetch(`/api/audit?${params}`)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     entries.value = await res.json()
@@ -114,13 +120,13 @@ function resetFilters() {
 
 function rowClass(action) {
   if (CRITICAL_ACTIONS.has(action)) return 'row-danger'
-  if (WARNING_ACTIONS.has(action))  return 'row-warning'
+  if (WARNING_ACTIONS.has(action)) return 'row-warning'
   return ''
 }
 
 function actionBadge(action) {
   if (CRITICAL_ACTIONS.has(action)) return 'badge-critical'
-  if (WARNING_ACTIONS.has(action))  return 'badge-pending'
+  if (WARNING_ACTIONS.has(action)) return 'badge-pending'
   return 'badge-active'
 }
 
@@ -141,7 +147,10 @@ onMounted(load)
 </script>
 
 <style scoped>
-h1 { font-size: 1.5rem; margin-bottom: 1.25rem; }
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: 1.25rem;
+}
 
 .card {
   background: #fff;
@@ -151,7 +160,9 @@ h1 { font-size: 1.5rem; margin-bottom: 1.25rem; }
   margin-bottom: 1.25rem;
 }
 
-.filters { padding: 1rem 1.25rem; }
+.filters {
+  padding: 1rem 1.25rem;
+}
 
 .filter-row {
   display: flex;
@@ -160,11 +171,19 @@ h1 { font-size: 1.5rem; margin-bottom: 1.25rem; }
   flex-wrap: wrap;
 }
 
-.field { display: flex; flex-direction: column; gap: 0.25rem; }
-label { font-size: 0.8rem; font-weight: 600; color: #555; }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+}
 
-input[type="text"],
-input[type="date"],
+input[type='text'],
+input[type='date'],
 select {
   padding: 0.35rem 0.6rem;
   border: 1px solid #ccc;
@@ -173,17 +192,50 @@ select {
   min-width: 140px;
 }
 
-.date { white-space: nowrap; font-size: 0.82rem; }
-.fp   { font-size: 0.72rem; word-break: break-all; max-width: 200px; }
-.details { font-size: 0.8rem; color: #555; max-width: 220px; }
+.date {
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+.fp {
+  font-size: 0.72rem;
+  word-break: break-all;
+  max-width: 200px;
+}
+.details {
+  font-size: 0.8rem;
+  color: #555;
+  max-width: 220px;
+}
 
-code { background: #f4f4f4; padding: 0 3px; border-radius: 3px; }
+code {
+  background: #f4f4f4;
+  padding: 0 3px;
+  border-radius: 3px;
+}
 
-.empty { text-align: center; color: #888; padding: 1rem 0; }
-.loading { text-align: center; padding: 2rem; color: #888; }
+.empty {
+  text-align: center;
+  color: #888;
+  padding: 1rem 0;
+}
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #888;
+}
 
-.row-danger  { background: #fff5f5; }
-.row-warning { background: #fffbf0; }
+.row-danger {
+  background: #fff5f5;
+}
+.row-warning {
+  background: #fffbf0;
+}
 
-.alert-error { background: #f8d7da; color: #721c24; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+.alert-error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
 </style>

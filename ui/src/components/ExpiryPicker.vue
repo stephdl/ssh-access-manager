@@ -2,25 +2,20 @@
   <div class="expiry-picker">
     <div class="mode-toggle">
       <label>
-        <input
-          v-model="mode"
-          type="radio"
-          value="hours"
-          data-testid="mode-hours"
-        /> {{ $t('server_detail.expiry_hours_label') }}
+        <input v-model="mode" type="radio" value="hours" data-testid="mode-hours" />
+        {{ $t('server_detail.expiry_hours_label') }}
       </label>
       <label>
-        <input
-          v-model="mode"
-          type="radio"
-          value="date"
-          data-testid="mode-date"
-        /> {{ $t('server_detail.expiry_date_label') }}
+        <input v-model="mode" type="radio" value="date" data-testid="mode-date" />
+        {{ $t('server_detail.expiry_date_label') }}
       </label>
     </div>
 
     <div v-if="mode === 'hours'" class="field">
-      <label for="expiry-hours">{{ $t('access_form.hours_label') }} <span class="required">{{ $t('common.required') }}</span></label>
+      <label for="expiry-hours"
+        >{{ $t('access_form.hours_label') }}
+        <span class="required">{{ $t('common.required') }}</span></label
+      >
       <input
         id="expiry-hours"
         v-model.number="hours"
@@ -36,7 +31,10 @@
     </div>
 
     <div v-else class="field">
-      <label for="expiry-date">{{ $t('server_detail.expiry_date_label') }} <span class="required">{{ $t('common.required') }}</span></label>
+      <label for="expiry-date"
+        >{{ $t('server_detail.expiry_date_label') }}
+        <span class="required">{{ $t('common.required') }}</span></label
+      >
       <input
         id="expiry-date"
         v-model="date"
@@ -57,9 +55,9 @@ import { ref, computed, watch } from 'vue'
 
 const emit = defineEmits(['update:modelValue'])
 
-const mode  = ref('hours')
+const mode = ref('hours')
 const hours = ref('')
-const date  = ref('')
+const date = ref('')
 
 const minDate = computed(() => {
   const d = new Date()
@@ -82,23 +80,40 @@ function emitValue() {
 
 watch(mode, () => {
   hours.value = ''
-  date.value  = ''
+  date.value = ''
   emit('update:modelValue', null)
 })
 </script>
 
 <style scoped>
-.expiry-picker { display: flex; flex-direction: column; gap: 0.75rem; }
+.expiry-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
 
-.mode-toggle { display: flex; gap: 1.5rem; font-size: 0.9rem; }
+.mode-toggle {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.9rem;
+}
 
-.field { display: flex; flex-direction: column; gap: 0.3rem; }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
 
-label { font-size: 0.85rem; font-weight: 600; }
-.required { color: #dc3545; }
+label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.required {
+  color: #dc3545;
+}
 
-input[type="number"],
-input[type="datetime-local"] {
+input[type='number'],
+input[type='datetime-local'] {
   padding: 0.4rem 0.6rem;
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -106,5 +121,8 @@ input[type="datetime-local"] {
   width: 100%;
 }
 
-.field-error { font-size: 0.8rem; color: #dc3545; }
+.field-error {
+  font-size: 0.8rem;
+  color: #dc3545;
+}
 </style>

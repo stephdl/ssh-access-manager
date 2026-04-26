@@ -70,7 +70,9 @@ async function save() {
     }
 
     success.value = true
-    setTimeout(() => { success.value = false }, 3000)
+    setTimeout(() => {
+      success.value = false
+    }, 3000)
   } catch (err) {
     error.value = err.message
   } finally {
@@ -94,7 +96,7 @@ h2 {
   background: #fff;
   padding: 1.5rem;
   border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .card h3 {
