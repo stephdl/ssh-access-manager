@@ -69,10 +69,10 @@ La langue est détectée automatiquement depuis le navigateur, avec fallback sur
 ### 1. Provisionner l'hôte distant
 
 Sur chaque serveur à auditer, depuis la machine hébergeant le container.
-Remplacer `root` par tout utilisateur disposant des droits `sudo` complets :
+`<user>` peut être `root` ou tout utilisateur avec `sudo ALL` — c'est le `sudo bash -s` qui élève les privilèges :
 
 ```bash
-ssh root@<ip-du-serveur> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)'" \
+ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)'" \
     < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 ```
 
@@ -83,7 +83,7 @@ Ce script est **idempotent** : il crée l'utilisateur `audit-collector` (réutil
 Après une mise à jour de `provision-host.sh` (ex. changement des règles sudoers), relancer la même commande sur chaque hôte :
 
 ```bash
-ssh root@<ip-du-serveur> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)'" \
+ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)'" \
     < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 ```
 
