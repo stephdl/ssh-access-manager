@@ -16,7 +16,12 @@ import collect as collect_mod
 import db
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "changeme")
+_flask_secret = os.environ.get("FLASK_SECRET_KEY")
+if not _flask_secret:
+    import warnings
+    warnings.warn("FLASK_SECRET_KEY not set — sessions are insecure", RuntimeWarning, stacklevel=1)
+    _flask_secret = "changeme"
+app.secret_key = _flask_secret
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +246,8 @@ def validate_key(fingerprint):
 def revoke_key(fingerprint):
     data = request.get_json(force=True) or {}
     reason = data.get("reason", "Manual revocation via API")
+    if not actions._FP_RE.match(fingerprint):
+        return jsonify({"error": f"Format de fingerprint invalide : {fingerprint}"}), 400
     try:
         actions.revoke_key(fingerprint, g.admin_id, reason)
         return jsonify({"status": "revoked"})
@@ -356,8 +363,14 @@ def api_deploy_key():
     hours = data.get("hours")
     date_str = data.get("expires_at")
     expires_at = None
-    if hours:
-        expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=int(hours))
+    if hours is not None:
+        try:
+            hours = int(hours)
+        except (ValueError, TypeError):
+            return jsonify({"error": "hours must be an integer"}), 400
+        if not (1 <= hours <= 8760):
+            return jsonify({"error": "hours must be between 1 and 8760"}), 400
+        expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=hours)
     elif date_str:
         expires_at = datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
 
@@ -633,4 +646,6 @@ def update_config():
 
 
 if __name__ == "__main__":
+    if not os.environ.get("FLASK_SECRET_KEY"):
+        raise RuntimeError("FLASK_SECRET_KEY environment variable is required")
     app.run(host="127.0.0.1", port=5000)

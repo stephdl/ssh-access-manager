@@ -621,6 +621,7 @@ ui/tests/
     KeyTable.spec.js      ← boutons par statut, owner, expires_at (18+ tests)
     Admins.spec.js        ← modals enable/delete, garde-fous (15 tests)
     Settings.spec.js      ← chargement, sauvegarde, validation, erreurs (7 tests)
+    DeployKeyForm.spec.js ← formulaire déploiement clé SSH (16 tests)
 
 ### Ce qui n'est PAS testé unitairement
 
@@ -829,6 +830,7 @@ ui/src/components/
                           + bouton Illimité (remove-expiry) (issue #93)
     KeyActions.vue      ← boutons valider/révoquer/expiry
     ExpiryPicker.vue    ← datepicker durée ou date précise
+    DeployKeyForm.vue   ← formulaire déploiement clé SSH (utilisé par AccessRequests.vue)
 
 ui/src/
     i18n.js             ← configuration vue-i18n v9 (issue #98)
@@ -997,7 +999,8 @@ ssh-access-manager/
         │   ├── ServerTable.spec.js
         │   ├── KeyTable.spec.js
         │   ├── Admins.spec.js
-        │   └── Settings.spec.js
+        │   ├── Settings.spec.js
+        │   └── DeployKeyForm.spec.js
         └── src/
             ├── App.vue
             ├── main.js
@@ -1025,4 +1028,5 @@ ssh-access-manager/
                 ├── ServerTable.vue
                 ├── KeyTable.vue
                 ├── KeyActions.vue
-                └── ExpiryPicker.vue
+                ├── ExpiryPicker.vue
+                └── DeployKeyForm.vue
