@@ -660,3 +660,41 @@ def test_web_unlock_user_returns_401_unauthenticated(client):
         "hostname": "server-test-01"
     })
     assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# GET /api/access/deployed-users
+# ---------------------------------------------------------------------------
+
+def test_web_get_deployed_users_returns_200(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = [
+            {
+                "unix_user": "alice",
+                "hostname": "server-01",
+                "ip_address": "192.168.1.10",
+                "expires_at": datetime.now(tz=timezone.utc) + timedelta(hours=8),
+                "fingerprint": "SHA256:abc123"
+            },
+            {
+                "unix_user": "bob",
+                "hostname": "server-02",
+                "ip_address": "192.168.1.20",
+                "expires_at": None,
+                "fingerprint": "SHA256:def456"
+            }
+        ]
+        resp = auth_client.get("/api/access/deployed-users")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, list)
+        assert len(data) == 2
+        assert data[0]["unix_user"] == "alice"
+        assert data[0]["hostname"] == "server-01"
+        assert data[1]["expires_at"] is None
+
+
+def test_web_get_deployed_users_returns_401_unauthenticated(client):
+    resp = client.get("/api/access/deployed-users")
+    assert resp.status_code == 401

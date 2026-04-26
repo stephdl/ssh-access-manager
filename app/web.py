@@ -430,6 +430,39 @@ def api_unlock_user():
         return jsonify({"error": "internal server error"}), 500
 
 
+@app.route("/api/access/deployed-users", methods=["GET"])
+@require_auth
+def list_deployed_users():
+    rows = db.query(
+        """
+        SELECT DISTINCT ON (sk.owner, s.hostname)
+               sk.owner AS unix_user, s.hostname, s.ip_address,
+               ka.expires_at, sk.fingerprint,
+               (
+                   SELECT al.action
+                   FROM audit_log al
+                   WHERE al.details->>'unix_user' = sk.owner
+                     AND al.target_server = s.id
+                     AND al.action IN ('USER_LOCKED', 'USER_UNLOCKED')
+                   ORDER BY al.performed_at DESC
+                   LIMIT 1
+               ) AS lock_status
+        FROM ssh_keys sk
+        JOIN key_authorizations ka ON ka.key_id = sk.id
+        JOIN servers s ON ka.server_id = s.id
+        WHERE sk.owner IS NOT NULL AND ka.status = 'ACTIVE'
+        ORDER BY sk.owner, s.hostname
+        """
+    )
+    results = []
+    for r in rows:
+        row_dict = dict(r)
+        if row_dict.get("expires_at"):
+            row_dict["expires_at"] = row_dict["expires_at"].isoformat()
+        results.append(row_dict)
+    return jsonify(results)
+
+
 @app.route("/api/access/request", methods=["POST"])
 @require_auth
 def request_access():

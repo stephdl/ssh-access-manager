@@ -292,5 +292,26 @@
     "error_unix_user": "Nom d'utilisateur Unix invalide (minuscules, chiffres, _ et - uniquement, max 32 caractères)",
     "success_locked": "Compte '{user}' verrouillé sur {server}",
     "success_unlocked": "Compte '{user}' déverrouillé sur {server}"
+  },
+  "deployedUsers": {
+    "title": "Utilisateurs déployés",
+    "col_user": "Utilisateur Unix",
+    "col_server": "Serveur",
+    "col_expires": "Expire le",
+    "col_status": "Statut",
+    "col_actions": "Actions",
+    "unlimited": "Illimité",
+    "status_active": "Actif",
+    "status_locked": "Verrouillé",
+    "filter_name_placeholder": "Rechercher par nom…",
+    "filter_all_servers": "Tous les serveurs",
+    "filter_all_statuses": "Tous les statuts",
+    "no_results": "Aucun utilisateur ne correspond aux filtres.",
+    "empty": "Aucun utilisateur déployé.",
+    "load_error": "Impossible de charger les utilisateurs déployés : {error}",
+    "lock_success": "Compte '{user}' verrouillé sur {server}.",
+    "unlock_success": "Compte '{user}' déverrouillé sur {server}.",
+    "lock_error": "Échec du verrouillage : {error}",
+    "unlock_error": "Échec du déverrouillage : {error}"
   }
 }

@@ -292,5 +292,26 @@
     "error_unix_user": "Nome utente Unix non valido (solo minuscole, cifre, _ e -, max 32 caratteri)",
     "success_locked": "Account '{user}' bloccato su {server}",
     "success_unlocked": "Account '{user}' sbloccato su {server}"
+  },
+  "deployedUsers": {
+    "title": "Utenti distribuiti",
+    "col_user": "Utente Unix",
+    "col_server": "Server",
+    "col_expires": "Scade il",
+    "col_status": "Stato",
+    "col_actions": "Azioni",
+    "unlimited": "Illimitato",
+    "status_active": "Attivo",
+    "status_locked": "Bloccato",
+    "filter_name_placeholder": "Cerca per nome…",
+    "filter_all_servers": "Tutti i server",
+    "filter_all_statuses": "Tutti gli stati",
+    "no_results": "Nessun utente corrisponde ai filtri.",
+    "empty": "Nessun utente distribuito.",
+    "load_error": "Impossibile caricare gli utenti distribuiti: {error}",
+    "lock_success": "Account '{user}' bloccato su {server}.",
+    "unlock_success": "Account '{user}' sbloccato su {server}.",
+    "lock_error": "Blocco fallito: {error}",
+    "unlock_error": "Sblocco fallito: {error}"
   }
 }

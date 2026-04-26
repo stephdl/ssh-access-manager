@@ -292,5 +292,26 @@
     "error_unix_user": "Invalid Unix username (lowercase, digits, _ and - only, max 32 chars)",
     "success_locked": "Account '{user}' locked on {server}",
     "success_unlocked": "Account '{user}' unlocked on {server}"
+  },
+  "deployedUsers": {
+    "title": "Deployed Users",
+    "col_user": "Unix User",
+    "col_server": "Server",
+    "col_expires": "Expires",
+    "col_status": "Status",
+    "col_actions": "Actions",
+    "unlimited": "Unlimited",
+    "status_active": "Active",
+    "status_locked": "Locked",
+    "filter_name_placeholder": "Search by username…",
+    "filter_all_servers": "All servers",
+    "filter_all_statuses": "All statuses",
+    "no_results": "No users match the current filters.",
+    "empty": "No deployed users.",
+    "load_error": "Cannot load deployed users: {error}",
+    "lock_success": "Account '{user}' locked on {server}.",
+    "unlock_success": "Account '{user}' unlocked on {server}.",
+    "lock_error": "Lock failed: {error}",
+    "unlock_error": "Unlock failed: {error}"
   }
 }

@@ -8,16 +8,15 @@
     <DeployKeyForm />
 
     <section class="card">
-      <h2>{{ $t('access.lock_title') }}</h2>
-      <p class="info-text">{{ $t('access.lock_info') }}</p>
-      <UserLockForm />
+      <h2>{{ $t('deployedUsers.title') }}</h2>
+      <DeployedUsersTable />
     </section>
   </div>
 </template>
 
 <script setup>
 import DeployKeyForm from '../components/DeployKeyForm.vue'
-import UserLockForm from '../components/UserLockForm.vue'
+import DeployedUsersTable from '../components/DeployedUsersTable.vue'
 </script>
 
 <style scoped>
