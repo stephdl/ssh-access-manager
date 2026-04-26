@@ -251,7 +251,13 @@
     "load_error": "Impossibile caricare le chiavi: {error}",
     "key_validated": "Chiave validata.",
     "key_revoked": "Chiave revocata.",
-    "filter_placeholder": "Cerca fingerprint, tipo, server…",
+    "col_unix_user": "Utente Unix",
+    "filter_placeholder": "Cerca fingerprint, tipo, server, utente…",
+    "filter_all_types": "Tutti i tipi",
+    "filter_all_servers": "Tutti i server",
+    "filter_all_compliant": "Conformità",
+    "filter_compliant": "Conforme",
+    "filter_non_compliant": "Non conforme",
     "no_results": "Nessuna anomalia corrispondente."
   },
   "settings": {

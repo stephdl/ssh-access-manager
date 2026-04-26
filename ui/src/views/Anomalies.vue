@@ -16,6 +16,23 @@
           class="filter-input"
           data-testid="anomalies-filter-text"
         />
+        <select v-model="filterType" class="filter-select" data-testid="anomalies-filter-type">
+          <option value="">{{ $t('anomalies.filter_all_types') }}</option>
+          <option v-for="t in uniqueTypes" :key="t" :value="t">{{ t }}</option>
+        </select>
+        <select v-model="filterServer" class="filter-select" data-testid="anomalies-filter-server">
+          <option value="">{{ $t('anomalies.filter_all_servers') }}</option>
+          <option v-for="s in uniqueServers" :key="s" :value="s">{{ s }}</option>
+        </select>
+        <select
+          v-model="filterCompliant"
+          class="filter-select"
+          data-testid="anomalies-filter-compliant"
+        >
+          <option value="">{{ $t('anomalies.filter_all_compliant') }}</option>
+          <option value="yes">{{ $t('anomalies.filter_compliant') }}</option>
+          <option value="no">{{ $t('anomalies.filter_non_compliant') }}</option>
+        </select>
       </div>
 
       <!-- PENDING_REVIEW keys -->
@@ -32,6 +49,7 @@
               <th>{{ $t('anomalies.col_fingerprint') }}</th>
               <th>{{ $t('anomalies.col_type') }}</th>
               <th>{{ $t('anomalies.col_server') }}</th>
+              <th>{{ $t('anomalies.col_unix_user') }}</th>
               <th>{{ $t('anomalies.col_first_seen') }}</th>
               <th>{{ $t('anomalies.col_compliant') }}</th>
               <th>{{ $t('anomalies.col_actions') }}</th>
@@ -53,6 +71,10 @@
                 <router-link :to="`/servers/${k.server_hostname}`" class="server-link">
                   {{ k.server_hostname }}
                 </router-link>
+              </td>
+              <td>
+                <code v-if="k.unix_user">{{ k.unix_user }}</code>
+                <span v-else>—</span>
               </td>
               <td>{{ formatDate(k.first_seen) }}</td>
               <td>
@@ -93,6 +115,7 @@
               <th>{{ $t('anomalies.col_fingerprint') }}</th>
               <th>{{ $t('anomalies.col_type') }}</th>
               <th>{{ $t('anomalies.col_server') }}</th>
+              <th>{{ $t('anomalies.col_unix_user') }}</th>
               <th>{{ $t('anomalies.col_revoked_at') }}</th>
               <th>{{ $t('anomalies.col_details') }}</th>
             </tr>
@@ -113,6 +136,10 @@
                 <router-link :to="`/servers/${k.server_hostname}`" class="server-link">
                   {{ k.server_hostname }}
                 </router-link>
+              </td>
+              <td>
+                <code v-if="k.unix_user">{{ k.unix_user }}</code>
+                <span v-else>—</span>
               </td>
               <td>{{ formatDate(k.revoked_at) }}</td>
               <td>{{ k.revocation_justification || '—' }}</td>
@@ -169,19 +196,11 @@ const message = ref('')
 const revokeTarget = ref(null)
 const revokeReason = ref('')
 const filterText = ref('')
-
-function matchesFilter(k) {
-  const text = filterText.value.trim().toLowerCase()
-  if (!text) return true
-  return (
-    k.fingerprint.toLowerCase().includes(text) ||
-    k.key_type.toLowerCase().includes(text) ||
-    (k.server_hostname || '').toLowerCase().includes(text)
-  )
-}
+const filterType = ref('')
+const filterServer = ref('')
+const filterCompliant = ref('')
 
 const pendingAll = computed(() => allKeys.value.filter((k) => k.status === 'PENDING_REVIEW'))
-const pendingFiltered = computed(() => pendingAll.value.filter(matchesFilter))
 
 const outOfSystemAll = computed(() => {
   const cutoff = new Date()
@@ -194,6 +213,35 @@ const outOfSystemAll = computed(() => {
       new Date(k.revoked_at) >= cutoff
   )
 })
+
+const uniqueTypes = computed(() => {
+  const all = [...pendingAll.value, ...outOfSystemAll.value]
+  return [...new Set(all.map((k) => k.key_type).filter(Boolean))].sort()
+})
+
+const uniqueServers = computed(() => {
+  const all = [...pendingAll.value, ...outOfSystemAll.value]
+  return [...new Set(all.map((k) => k.server_hostname).filter(Boolean))].sort()
+})
+
+function matchesFilter(k) {
+  const text = filterText.value.trim().toLowerCase()
+  if (text) {
+    const match =
+      k.fingerprint.toLowerCase().includes(text) ||
+      k.key_type.toLowerCase().includes(text) ||
+      (k.server_hostname || '').toLowerCase().includes(text) ||
+      (k.unix_user || '').toLowerCase().includes(text)
+    if (!match) return false
+  }
+  if (filterType.value && k.key_type !== filterType.value) return false
+  if (filterServer.value && k.server_hostname !== filterServer.value) return false
+  if (filterCompliant.value === 'yes' && !k.is_compliant) return false
+  if (filterCompliant.value === 'no' && k.is_compliant) return false
+  return true
+}
+
+const pendingFiltered = computed(() => pendingAll.value.filter(matchesFilter))
 const outOfSystemFiltered = computed(() => outOfSystemAll.value.filter(matchesFilter))
 
 async function load() {

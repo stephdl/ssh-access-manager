@@ -251,7 +251,13 @@
     "load_error": "Impossible de charger les clés : {error}",
     "key_validated": "Clé validée.",
     "key_revoked": "Clé révoquée.",
-    "filter_placeholder": "Rechercher fingerprint, type, serveur…",
+    "col_unix_user": "Utilisateur Unix",
+    "filter_placeholder": "Rechercher fingerprint, type, serveur, utilisateur…",
+    "filter_all_types": "Tous les types",
+    "filter_all_servers": "Tous les serveurs",
+    "filter_all_compliant": "Conformité",
+    "filter_compliant": "Conforme",
+    "filter_non_compliant": "Non conforme",
     "no_results": "Aucune anomalie correspondante."
   },
   "settings": {

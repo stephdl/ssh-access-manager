@@ -251,7 +251,13 @@
     "load_error": "Schlüssel können nicht geladen werden: {error}",
     "key_validated": "Schlüssel validiert.",
     "key_revoked": "Schlüssel widerrufen.",
-    "filter_placeholder": "Fingerprint, Typ, Server suchen…",
+    "col_unix_user": "Unix-Benutzer",
+    "filter_placeholder": "Fingerprint, Typ, Server, Benutzer suchen…",
+    "filter_all_types": "Alle Typen",
+    "filter_all_servers": "Alle Server",
+    "filter_all_compliant": "Konformität",
+    "filter_compliant": "Konform",
+    "filter_non_compliant": "Nicht konform",
     "no_results": "Keine passenden Anomalien."
   },
   "settings": {
