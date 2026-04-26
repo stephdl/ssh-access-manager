@@ -85,7 +85,10 @@ Après une mise à jour de `provision-host.sh` (ex. changement des règles sudoe
 PUBKEY=$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)
 
 # Relancer provision-host.sh sur le serveur distant
-ssh root@<ip-du-serveur> "bash -s" < provision-host.sh "$PUBKEY"
+# Note : guillemets simples autour de ${PUBKEY} pour que SSH transmette
+# la clé comme argument unique (la clé contient des espaces)
+ssh root@<ip-du-serveur> "sudo bash -s '${PUBKEY}'" \
+    < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 ```
 
 Le script réécrit uniquement `/etc/sudoers.d/audit-collector` — aucune clé ni utilisateur n'est supprimé.
