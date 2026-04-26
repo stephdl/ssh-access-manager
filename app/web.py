@@ -327,6 +327,43 @@ def grant_access():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/access/deploy", methods=["POST"])
+@require_auth
+def api_deploy_key():
+    from datetime import timedelta
+    data = request.json or {}
+    public_key = (data.get("public_key") or "").strip()
+    unix_user = (data.get("unix_user") or "").strip()
+    hostname = (data.get("hostname") or "").strip()
+    justification = (data.get("justification") or "").strip()
+
+    if not all([public_key, unix_user, hostname, justification]):
+        return jsonify({"error": "public_key, unix_user, hostname, justification requis"}), 400
+
+    hours = data.get("hours")
+    date_str = data.get("expires_at")
+    expires_at = None
+    if hours:
+        expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=int(hours))
+    elif date_str:
+        expires_at = datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
+
+    try:
+        result = actions.deploy_key(
+            public_key=public_key,
+            unix_user=unix_user,
+            hostname=hostname,
+            expires_at=expires_at,
+            justification=justification,
+            admin_id=g.admin_id,
+        )
+        return jsonify(result), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/access/request", methods=["POST"])
 @require_auth
 def request_access():

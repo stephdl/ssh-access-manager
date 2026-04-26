@@ -189,6 +189,34 @@ Depuis la vue détail d'un serveur, les actions disponibles sur chaque clé ACTI
 
 ---
 
+## Workflow — Déployer une clé SSH
+
+Pour donner accès à un utilisateur sur un serveur depuis l'interface :
+
+**Via l'interface web** : Accès → section **Déployer une clé SSH**.
+
+Le formulaire demande :
+- **Utilisateur Unix** — nom du compte à créer sur le serveur cible (créé s'il n'existe pas)
+- **Clé publique** — le contenu de la clé `ssh-ed25519` ou `ssh-rsa` (format authorized_keys)
+- **Serveur cible** — dropdown des serveurs actifs
+- **Durée** — heures / date précise / illimité
+- **Justification** — obligatoire
+
+À la soumission, `sam-add` est exécuté sur le serveur distant via SSH :
+1. Crée l'utilisateur Unix s'il n'existe pas
+2. Ajoute la clé dans `~/.ssh/authorized_keys`
+3. Enregistre la clé dans la base avec statut `ACTIVE` et l'expiration choisie
+
+> **Privilèges sudo du nouvel utilisateur** : `sam-add` crée le compte Unix mais ne lui attribue aucun privilège sudo. C'est à l'administrateur système de décider. Pour donner les droits sudo :
+> ```bash
+> # Debian/Ubuntu
+> usermod -aG sudo alice
+> # RHEL/CentOS/Rocky
+> usermod -aG wheel alice
+> ```
+
+---
+
 ## Workflow — Accès temporaire
 
 ### Demande d'accès

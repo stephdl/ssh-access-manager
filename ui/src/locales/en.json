@@ -287,5 +287,24 @@
     "save": "Save",
     "saved": "Settings saved.",
     "scan_interval_hint": "Between 1 and 24 hours. The cron triggers every 5 minutes but skips if the interval has not elapsed."
+  },
+  "deployKey": {
+    "title": "Deploy SSH Key",
+    "unixUser": "Unix Username",
+    "unixUserPlaceholder": "e.g. alice",
+    "publicKey": "Public Key",
+    "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
+    "server": "Target Server",
+    "justification": "Justification",
+    "justificationPlaceholder": "Reason for access",
+    "submit": "Deploy Key",
+    "submitting": "Deploying...",
+    "successTitle": "Key deployed successfully",
+    "successFingerprint": "Fingerprint",
+    "successUser": "Unix user",
+    "successExpiry": "Expires",
+    "unlimited": "Unlimited",
+    "errorMissingFields": "All fields are required",
+    "newDeploy": "New deployment"
   }
 }

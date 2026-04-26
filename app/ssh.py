@@ -12,6 +12,7 @@ SSH_USER = os.environ.get("SSH_USER", "audit-collector")
 
 SAM_COLLECT_PATH = "/usr/local/bin/sam-collect"
 SAM_REVOKE_PATH = "/usr/local/bin/sam-revoke"
+SAM_ADD_PATH = "/usr/local/bin/sam-add"
 
 # ---------------------------------------------------------------------------
 # Remote scripts — versioned as Python constants.
@@ -88,6 +89,43 @@ done
 revoke_from_file "/root/.ssh/authorized_keys"
 """
 
+SAM_ADD = b"""#!/bin/sh
+# sam-add <username> <pubkey> - create user if absent, add pubkey to authorized_keys
+set -e
+
+TARGET_USER="${1}"
+PUBKEY="${2}"
+
+if [ -z "$TARGET_USER" ] || [ -z "$PUBKEY" ]; then
+    echo "Usage: sam-add <username> <pubkey>" >&2
+    exit 1
+fi
+
+if ! id "$TARGET_USER" >/dev/null 2>&1; then
+    useradd -m -s /bin/bash "$TARGET_USER"
+fi
+
+home=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+if [ -z "$home" ]; then
+    echo "Cannot get home for $TARGET_USER" >&2
+    exit 1
+fi
+
+ssh_dir="${home}/.ssh"
+auth_keys="${ssh_dir}/authorized_keys"
+
+mkdir -p "$ssh_dir"
+chmod 700 "$ssh_dir"
+chown "${TARGET_USER}:${TARGET_USER}" "$ssh_dir"
+
+touch "$auth_keys"
+if ! grep -qF "$PUBKEY" "$auth_keys" 2>/dev/null; then
+    printf '%s\\n' "$PUBKEY" >> "$auth_keys"
+fi
+chmod 600 "$auth_keys"
+chown "${TARGET_USER}:${TARGET_USER}" "$auth_keys"
+"""
+
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -129,7 +167,7 @@ def _deploy_script(
 
 def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
     """
-    Deploy SAM_COLLECT and SAM_REVOKE on the remote host if absent or outdated.
+    Deploy SAM_COLLECT, SAM_REVOKE, and SAM_ADD on the remote host if absent or outdated.
     Logs SCRIPT_DEPLOYED to audit_log for each script actually deployed.
     """
     client = _connect(ip)
@@ -138,6 +176,7 @@ def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
         for content, remote_path in (
             (SAM_COLLECT, SAM_COLLECT_PATH),
             (SAM_REVOKE, SAM_REVOKE_PATH),
+            (SAM_ADD, SAM_ADD_PATH),
         ):
             local_hash = _sha256(content)
             remote_hash = _remote_sha256(client, remote_path)
@@ -185,5 +224,19 @@ def collect_keys(hostname: str, ip: str) -> list[str]:
         if rc != 0:
             raise RuntimeError(f"sam-collect failed on {hostname}")
         return [line for line in out.splitlines() if line.strip()]
+    finally:
+        client.close()
+
+
+def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str) -> None:
+    """Run sam-add on the remote host to deploy a public key for the given Unix user."""
+    import shlex
+    client = _connect(ip)
+    try:
+        _, err, rc = _run(
+            client, f"sudo {SAM_ADD_PATH} {shlex.quote(unix_user)} {shlex.quote(public_key)}"
+        )
+        if rc != 0:
+            raise RuntimeError(f"sam-add failed on {hostname} (rc={rc}): {err}")
     finally:
         client.close()
