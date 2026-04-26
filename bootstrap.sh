@@ -105,11 +105,6 @@ conn.close()
 print("[bootstrap] Administrateur initial insere.")
 PYEOF
 
-    # 9b. Initialiser scan_interval_hours depuis ENV
-    su -s /bin/sh postgres -c \
-        "psql -h /tmp -U ${POSTGRES_USER:-ssh_manager} -d ${POSTGRES_DB:-ssh_manager} \
-         -c \"UPDATE settings SET value = '${SCAN_INTERVAL_HOURS:-4}' WHERE key = 'scan_interval_hours'\""
-
     # 10. Arrêter PostgreSQL temporaire
     su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' stop -w"
 
