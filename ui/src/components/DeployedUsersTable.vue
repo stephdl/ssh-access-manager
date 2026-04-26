@@ -14,6 +14,7 @@
           <th>{{ $t('deployedUsers.col_user') }}</th>
           <th>{{ $t('deployedUsers.col_server') }}</th>
           <th>{{ $t('deployedUsers.col_expires') }}</th>
+          <th>{{ $t('deployedUsers.col_status') }}</th>
           <th>{{ $t('deployedUsers.col_actions') }}</th>
         </tr>
       </thead>
@@ -26,6 +27,18 @@
           <td>{{ user.unix_user }}</td>
           <td>{{ user.hostname }}</td>
           <td>{{ formatExpiry(user.expires_at) }}</td>
+          <td>
+            <span
+              v-if="lockStates[`${user.unix_user}-${user.hostname}`] === 'USER_LOCKED'"
+              class="badge badge-locked"
+              :data-testid="`status-${user.unix_user}-${user.hostname}`"
+            >{{ $t('deployedUsers.status_locked') }}</span>
+            <span
+              v-else
+              class="badge badge-active"
+              :data-testid="`status-${user.unix_user}-${user.hostname}`"
+            >{{ $t('deployedUsers.status_active') }}</span>
+          </td>
           <td class="actions">
             <button
               type="button"
@@ -82,6 +95,7 @@ const loadError = ref('')
 const actionInProgress = ref({})
 const successMessages = ref({})
 const errorMessages = ref({})
+const lockStates = ref({})
 
 onMounted(async () => {
   await loadUsers()
@@ -97,6 +111,10 @@ async function loadUsers() {
       throw new Error(data.error || `HTTP ${res.status}`)
     }
     users.value = await res.json()
+    users.value.forEach((u) => {
+      const key = `${u.unix_user}-${u.hostname}`
+      lockStates.value[key] = u.lock_status || 'USER_UNLOCKED'
+    })
   } catch (e) {
     loadError.value = e.message
   } finally {
@@ -149,6 +167,8 @@ async function performAction(user, endpoint, actionType) {
       user: result.unix_user || user.unix_user,
       server: result.hostname || user.hostname,
     })
+
+    lockStates.value[key] = actionType === 'lock' ? 'USER_LOCKED' : 'USER_UNLOCKED'
 
     setTimeout(() => {
       successMessages.value[key] = ''
@@ -211,6 +231,26 @@ td {
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge-locked {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.badge-active {
+  background: #d4edda;
+  color: #155724;
 }
 
 .btn-sm {
