@@ -14,6 +14,8 @@ SSH_USER = os.environ.get("SSH_USER", "audit-collector")
 SAM_COLLECT_PATH = "/usr/local/bin/sam-collect"
 SAM_REVOKE_PATH = "/usr/local/bin/sam-revoke"
 SAM_ADD_PATH = "/usr/local/bin/sam-add"
+SAM_LOCK_USER_PATH = "/usr/local/bin/sam-lock-user"
+SAM_UNLOCK_USER_PATH = "/usr/local/bin/sam-unlock-user"
 
 # ---------------------------------------------------------------------------
 # Remote scripts — versioned as Python constants.
@@ -127,6 +129,28 @@ chmod 600 "$auth_keys"
 chown "${TARGET_USER}:${TARGET_USER}" "$auth_keys"
 """
 
+SAM_LOCK_USER = b"""#!/bin/sh
+# sam-lock-user <username> - lock Unix user account
+set -e
+USER="$1"
+if [ -z "$USER" ]; then
+    echo "Usage: sam-lock-user <username>" >&2
+    exit 1
+fi
+usermod -L -s /sbin/nologin "$USER"
+"""
+
+SAM_UNLOCK_USER = b"""#!/bin/sh
+# sam-unlock-user <username> - unlock Unix user account
+set -e
+USER="$1"
+if [ -z "$USER" ]; then
+    echo "Usage: sam-unlock-user <username>" >&2
+    exit 1
+fi
+usermod -U -s /bin/bash "$USER"
+"""
+
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -168,7 +192,7 @@ def _deploy_script(
 
 def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
     """
-    Deploy SAM_COLLECT, SAM_REVOKE, and SAM_ADD on the remote host if absent or outdated.
+    Deploy SAM_COLLECT, SAM_REVOKE, SAM_ADD, SAM_LOCK_USER, and SAM_UNLOCK_USER on the remote host if absent or outdated.
     Logs SCRIPT_DEPLOYED to audit_log for each script actually deployed.
     """
     client = _connect(ip)
@@ -178,6 +202,8 @@ def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
             (SAM_COLLECT, SAM_COLLECT_PATH),
             (SAM_REVOKE, SAM_REVOKE_PATH),
             (SAM_ADD, SAM_ADD_PATH),
+            (SAM_LOCK_USER, SAM_LOCK_USER_PATH),
+            (SAM_UNLOCK_USER, SAM_UNLOCK_USER_PATH),
         ):
             local_hash = _sha256(content)
             remote_hash = _remote_sha256(client, remote_path)
@@ -239,5 +265,33 @@ def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str) -
         )
         if rc != 0:
             raise RuntimeError(f"sam-add failed on {hostname} (rc={rc}): {err}")
+    finally:
+        client.close()
+
+
+def lock_user_on_server(hostname: str, unix_user: str, ip: str) -> None:
+    """Run sam-lock-user on the remote host to lock a Unix user account."""
+    import shlex
+    client = _connect(ip)
+    try:
+        _, err, rc = _run(
+            client, f"sudo {SAM_LOCK_USER_PATH} {shlex.quote(unix_user)}"
+        )
+        if rc != 0:
+            raise RuntimeError(f"sam-lock-user failed on {hostname} (rc={rc}): {err}")
+    finally:
+        client.close()
+
+
+def unlock_user_on_server(hostname: str, unix_user: str, ip: str) -> None:
+    """Run sam-unlock-user on the remote host to unlock a Unix user account."""
+    import shlex
+    client = _connect(ip)
+    try:
+        _, err, rc = _run(
+            client, f"sudo {SAM_UNLOCK_USER_PATH} {shlex.quote(unix_user)}"
+        )
+        if rc != 0:
+            raise RuntimeError(f"sam-unlock-user failed on {hostname} (rc={rc}): {err}")
     finally:
         client.close()

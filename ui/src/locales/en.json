@@ -144,7 +144,9 @@
   "access": {
     "title": "Temporary Access",
     "info_deploy": "The form below deploys an SSH key on a target server. If the Unix user does not exist, it will be created automatically.",
-    "info_no_sudo": "The user is created without administrative rights (no sudo/wheel). To grant elevated privileges, intervene manually on the server."
+    "info_no_sudo": "The user is created without administrative rights (no sudo/wheel). To grant elevated privileges, intervene manually on the server.",
+    "lock_title": "Lock / Unlock Unix Account",
+    "lock_info": "Lock a Unix account to prevent all SSH connections (even with a valid key). Unlock to restore access."
   },
   "access_form": {
     "duration_label": "Access duration",
@@ -280,5 +282,15 @@
     "unlimited": "Unlimited",
     "errorMissingFields": "All fields are required",
     "newDeploy": "New deployment"
+  },
+  "userLock": {
+    "unixUser": "Unix Username",
+    "unixUserPlaceholder": "e.g. alice",
+    "server": "Target Server",
+    "btnLock": "Lock",
+    "btnUnlock": "Unlock",
+    "error_unix_user": "Invalid Unix username (lowercase, digits, _ and - only, max 32 chars)",
+    "success_locked": "Account '{user}' locked on {server}",
+    "success_unlocked": "Account '{user}' unlocked on {server}"
   }
 }

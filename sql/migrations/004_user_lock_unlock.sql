@@ -1,0 +1,23 @@
+-- Migration 004 — add USER_LOCKED and USER_UNLOCKED to audit_log CHECK constraint
+ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check;
+
+ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check CHECK (action IN (
+    'KEY_ADDED',
+    'KEY_REVOKED',
+    'KEY_EXPIRED',
+    'EXPIRY_WARNING',
+    'REQUEST_APPROVED',
+    'REQUEST_REJECTED',
+    'ANOMALY_DETECTED',
+    'SCAN_COMPLETED',
+    'SCAN_FAILED',
+    'SCRIPT_DEPLOYED',
+    'SERVER_ADDED',
+    'SERVER_DISABLED',
+    'ADMIN_ADDED',
+    'ADMIN_DISABLED',
+    'ADMIN_ENABLED',
+    'ADMIN_DELETED',
+    'USER_LOCKED',
+    'USER_UNLOCKED'
+));

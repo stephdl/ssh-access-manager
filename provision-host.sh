@@ -43,9 +43,13 @@ printf '# ssh-access-manager — droits sudo pour audit-collector\n' > "${SUDOER
 printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-collect\n' >> "${SUDOERS_FILE}"
 printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke\n' >> "${SUDOERS_FILE}"
 printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-add\n' >> "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-lock-user\n' >> "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user\n' >> "${SUDOERS_FILE}"
 printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-collect /usr/local/bin/sam-collect\n' >> "${SUDOERS_FILE}"
 printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-revoke /usr/local/bin/sam-revoke\n' >> "${SUDOERS_FILE}"
 printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-add /usr/local/bin/sam-add\n' >> "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-lock-user /usr/local/bin/sam-lock-user\n' >> "${SUDOERS_FILE}"
+printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-unlock-user /usr/local/bin/sam-unlock-user\n' >> "${SUDOERS_FILE}"
 
 chmod 440 "${SUDOERS_FILE}"
 echo "[provision] Sudoers configuré dans ${SUDOERS_FILE}."

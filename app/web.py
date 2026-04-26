@@ -392,6 +392,44 @@ def api_deploy_key():
         return jsonify({"error": "internal server error"}), 500
 
 
+@app.route("/api/access/lock-user", methods=["POST"])
+@require_auth
+def api_lock_user():
+    data = request.json or {}
+    unix_user = (data.get("unix_user") or "").strip()
+    hostname = (data.get("hostname") or "").strip()
+    if not unix_user or not hostname:
+        return jsonify({"error": "unix_user and hostname required"}), 400
+    try:
+        result = actions.lock_user(unix_user, hostname, g.admin_id)
+        return jsonify(result), 200
+    except ValueError as e:
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+        return jsonify({"error": str(e)}), 400
+    except Exception:
+        logging.exception("lock_user failed")
+        return jsonify({"error": "internal server error"}), 500
+
+
+@app.route("/api/access/unlock-user", methods=["POST"])
+@require_auth
+def api_unlock_user():
+    data = request.json or {}
+    unix_user = (data.get("unix_user") or "").strip()
+    hostname = (data.get("hostname") or "").strip()
+    if not unix_user or not hostname:
+        return jsonify({"error": "unix_user and hostname required"}), 400
+    try:
+        result = actions.unlock_user(unix_user, hostname, g.admin_id)
+        return jsonify(result), 200
+    except ValueError as e:
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+        return jsonify({"error": str(e)}), 400
+    except Exception:
+        logging.exception("unlock_user failed")
+        return jsonify({"error": "internal server error"}), 500
+
+
 @app.route("/api/access/request", methods=["POST"])
 @require_auth
 def request_access():

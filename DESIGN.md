@@ -302,16 +302,23 @@ clés 2048 bits et 4096 bits construites manuellement en wire format.
 
 ### 6.5 Scripts distants versionnés et hash-déployés
 
-`SAM_COLLECT` et `SAM_REVOKE` sont des constantes Python `bytes` dans `ssh.py`.
-Avant chaque déploiement SFTP, leur hash SHA256 est comparé à celui présent sur le
-serveur distant :
+`SAM_COLLECT`, `SAM_REVOKE`, `SAM_ADD`, `SAM_LOCK_USER` et `SAM_UNLOCK_USER` sont
+des constantes Python `bytes` dans `ssh.py`. Avant chaque déploiement SFTP, leur
+hash SHA256 est comparé à celui présent sur le serveur distant :
 
 ```python
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 def ensure_scripts(hostname, server_id, ip):
-    for content, remote_path in ((SAM_COLLECT, SAM_COLLECT_PATH), (SAM_REVOKE, SAM_REVOKE_PATH)):
+    scripts = (
+        (SAM_COLLECT, SAM_COLLECT_PATH),
+        (SAM_REVOKE, SAM_REVOKE_PATH),
+        (SAM_ADD, SAM_ADD_PATH),
+        (SAM_LOCK_USER, SAM_LOCK_USER_PATH),
+        (SAM_UNLOCK_USER, SAM_UNLOCK_USER_PATH),
+    )
+    for content, remote_path in scripts:
         remote_hash = _remote_sha256(client, remote_path)
         if remote_hash != _sha256(content):
             tmp_path = f"/home/{SSH_USER}/{os.path.basename(remote_path)}"
@@ -671,17 +678,27 @@ Ce guard est non-bloquant : si `fetchMe()` échoue (session expirée), la
 redirection vers Login est automatique. Aucune vue protégée n'est rendue sans
 authentification valide.
 
-### Vue AccessRequests — formulaire DeployKeyForm
+### Vue AccessRequests — formulaires DeployKeyForm et UserLockForm
 
-La vue `AccessRequests.vue` expose uniquement le formulaire `DeployKeyForm` pour
-déployer une clé SSH sur un serveur distant depuis l'interface web.
-Le formulaire collecte : utilisateur Unix, clé publique, serveur cible (dropdown
-des serveurs actifs via `GET /api/servers`, filtré `is_active === true`), durée
-(heures / date précise / illimité) et justification.
+La vue `AccessRequests.vue` expose deux formulaires :
 
+**DeployKeyForm** : déploiement d'une clé SSH sur un serveur distant.
+Collecte : utilisateur Unix, clé publique, serveur cible (dropdown des serveurs
+actifs via `GET /api/servers`, filtré `is_active === true`), durée (heures / date
+précise / illimité) et justification.
 À la soumission, `POST /api/access/deploy` appelle `actions.deploy_key()` :
 exécution de `sam-add` sur le serveur distant, enregistrement de la clé avec
 statut `ACTIVE` et expiration choisie.
+
+**UserLockForm** : verrouillage / déverrouillage d'un compte Unix (issue #181).
+Collecte : utilisateur Unix (regex POSIX strict — pas d'espaces, pas de majuscules),
+serveur cible. Deux boutons distincts : « Bloquer » (POST /api/access/lock-user)
+et « Débloquer » (POST /api/access/unlock-user).
+`sam-lock-user` exécute `usermod -L -s /sbin/nologin <user>` — bloque à la fois
+le mot de passe et le shell, rendant toute connexion SSH impossible même avec une
+clé valide. `sam-unlock-user` rétablit avec `usermod -U -s /bin/bash <user>`.
+Chaque action est tracée dans `audit_log` avec action `USER_LOCKED` ou
+`USER_UNLOCKED`.
 
 Le workflow demande/approbation (`access request` / `access approve`) reste
 disponible via la CLI et l'API REST, mais n'est plus exposé dans l'interface web.
@@ -834,13 +851,13 @@ coûteuse en temps).
 
 | Module | Tests | Couverture |
 |---|---|---|
-| `actions.py` | 60+ | ≥ 80 % (imposé CI) |
-| `test_ssh.py` | 12 | RejectPolicy, ensure_scripts (install), revoke, SAM_REVOKE content, staging path |
-| `test_web.py` | 16 | Toutes les routes critiques, auth 401/200 |
-| `test_manage.py` | 25 | Toutes les commandes CLI |
+| `actions.py` | 62+ | ≥ 80 % (imposé CI) |
+| `test_ssh.py` | 15 | RejectPolicy, ensure_scripts (5 scripts), revoke, lock/unlock, SAM bytes |
+| `test_web.py` | 50+ | Toutes les routes critiques, auth 401/200, lock/unlock routes |
+| `test_manage.py` | 42+ | Toutes les commandes CLI, lock/unlock |
 | `test_collect.py` | 15 | 4 scénarios détection, RSA parsing |
 | `test_expire.py` | 12 | Anti-spam 24h, expiration auto |
-| Vue.js specs | 52 | KeyActions, ExpiryPicker, KeyTable, ServerTable |
+| Vue.js specs | 99 | KeyActions, ExpiryPicker, KeyTable, ServerTable, UserLockForm |
 
 ---
 

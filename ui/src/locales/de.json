@@ -144,7 +144,9 @@
   "access": {
     "title": "Temporärer Zugriff",
     "info_deploy": "Das folgende Formular stellt einen SSH-Schlüssel auf einem Zielserver bereit. Falls der Unix-Benutzer nicht existiert, wird er automatisch erstellt.",
-    "info_no_sudo": "Der Benutzer wird ohne Administratorrechte erstellt (kein sudo/wheel). Um erhöhte Rechte zu erteilen, greifen Sie manuell auf den Server zu."
+    "info_no_sudo": "Der Benutzer wird ohne Administratorrechte erstellt (kein sudo/wheel). Um erhöhte Rechte zu erteilen, greifen Sie manuell auf den Server zu.",
+    "lock_title": "Unix-Konto sperren / entsperren",
+    "lock_info": "Sperrt ein Unix-Konto, um alle SSH-Verbindungen zu blockieren (auch mit gültigem Schlüssel). Entsperren, um den Zugang wiederherzustellen."
   },
   "access_form": {
     "duration_label": "Zugriffsdauer",
@@ -280,5 +282,15 @@
     "unlimited": "Unbegrenzt",
     "errorMissingFields": "Alle Felder sind erforderlich",
     "newDeploy": "Neue Bereitstellung"
+  },
+  "userLock": {
+    "unixUser": "Unix-Benutzer",
+    "unixUserPlaceholder": "z.B. alice",
+    "server": "Zielserver",
+    "btnLock": "Sperren",
+    "btnUnlock": "Entsperren",
+    "error_unix_user": "Ungültiger Unix-Benutzername (nur Kleinbuchstaben, Ziffern, _ und -, max. 32 Zeichen)",
+    "success_locked": "Konto '{user}' gesperrt auf {server}",
+    "success_unlocked": "Konto '{user}' entsperrt auf {server}"
   }
 }

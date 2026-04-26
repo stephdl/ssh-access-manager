@@ -6,11 +6,18 @@
       <p>{{ $t('access.info_no_sudo') }}</p>
     </div>
     <DeployKeyForm />
+
+    <section class="card">
+      <h2>{{ $t('access.lock_title') }}</h2>
+      <p class="info-text">{{ $t('access.lock_info') }}</p>
+      <UserLockForm />
+    </section>
   </div>
 </template>
 
 <script setup>
 import DeployKeyForm from '../components/DeployKeyForm.vue'
+import UserLockForm from '../components/UserLockForm.vue'
 </script>
 
 <style scoped>
@@ -35,5 +42,23 @@ h1 {
 }
 .info-box p:last-child {
   margin-bottom: 0;
+}
+
+.card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+.card h2 {
+  font-size: 1.2rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+.info-text {
+  color: #555;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
 }
 </style>

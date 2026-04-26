@@ -144,7 +144,9 @@
   "access": {
     "title": "Acceso temporal",
     "info_deploy": "El formulario a continuación despliega una clave SSH en un servidor destino. Si el usuario Unix no existe, se creará automáticamente.",
-    "info_no_sudo": "El usuario se crea sin derechos de administración (sin sudo/wheel). Para otorgar privilegios elevados, intervenga manualmente en el servidor."
+    "info_no_sudo": "El usuario se crea sin derechos de administración (sin sudo/wheel). Para otorgar privilegios elevados, intervenga manualmente en el servidor.",
+    "lock_title": "Bloquear / Desbloquear cuenta Unix",
+    "lock_info": "Bloquea una cuenta Unix para impedir todas las conexiones SSH (incluso con clave válida). Desbloquear para restaurar el acceso."
   },
   "access_form": {
     "duration_label": "Duración del acceso",
@@ -280,5 +282,15 @@
     "unlimited": "Ilimitado",
     "errorMissingFields": "Todos los campos son obligatorios",
     "newDeploy": "Nuevo despliegue"
+  },
+  "userLock": {
+    "unixUser": "Usuario Unix",
+    "unixUserPlaceholder": "ej: alice",
+    "server": "Servidor destino",
+    "btnLock": "Bloquear",
+    "btnUnlock": "Desbloquear",
+    "error_unix_user": "Nombre de usuario Unix inválido (minúsculas, dígitos, _ y - únicamente, máx. 32 caracteres)",
+    "success_locked": "Cuenta '{user}' bloqueada en {server}",
+    "success_unlocked": "Cuenta '{user}' desbloqueada en {server}"
   }
 }
