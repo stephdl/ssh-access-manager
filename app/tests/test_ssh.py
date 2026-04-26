@@ -324,3 +324,35 @@ def test_ssh_add_key_on_server_raises_on_nonzero_exit(sample_server):
                 "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI test",
                 sample_server["ip_address"],
             )
+
+
+# ---------------------------------------------------------------------------
+# Sécurité — JSON injection : audit_log.details sérialisé avec json.dumps
+# ---------------------------------------------------------------------------
+
+def test_ssh_ensure_scripts_audit_details_valid_json(sample_server):
+    """audit_log.details doit être du JSON valide même avec des caractères spéciaux."""
+    import json
+    hostile_server = dict(sample_server)
+    hostile_server["hostname"] = 'server"}, "injected": "true'
+
+    wrong_hash = "0" * 64
+    with patch("ssh._connect") as mock_connect, patch("ssh.db") as mock_db:
+        client = MagicMock()
+        sftp = MagicMock()
+        mock_connect.return_value = client
+        client.open_sftp.return_value = sftp
+        stdout_wrong = MagicMock()
+        stdout_wrong.read.return_value = f"{wrong_hash}  /usr/local/bin/sam-collect\n".encode()
+        stdout_wrong.channel.recv_exit_status.return_value = 0
+        client.exec_command.return_value = (
+            MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b""))
+        )
+
+        ssh.ensure_scripts(hostile_server["hostname"], hostile_server["id"], hostile_server["ip_address"])
+
+        assert mock_db.execute.called
+        details_arg = mock_db.execute.call_args[0][1][2]
+        parsed = json.loads(details_arg)
+        assert parsed["hostname"] == hostile_server["hostname"]
+        assert "injected" not in parsed

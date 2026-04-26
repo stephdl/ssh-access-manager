@@ -457,3 +457,44 @@ def test_web_deploy_key_returns_400_missing_fields(auth_client):
             json={"public_key": "ssh-ed25519 AAAA test"},
         )
         assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Sécurité — log injection : newlines sanitisées avant logging
+# ---------------------------------------------------------------------------
+
+def test_web_log_injection_newlines_sanitized_in_warning(auth_client):
+    """Une ValueError avec \\n ne doit pas produire de fausses lignes de log."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions, \
+         patch("web.logging") as mock_logging:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.revoke_key.side_effect = ValueError(
+            "Key not found: SHA256:test\nWARNING:root:FAKE_ALERT"
+        )
+        resp = auth_client.post(
+            f"/api/keys/revoke/{FINGERPRINT}",
+            json={"reason": "x"},
+        )
+        assert resp.status_code == 404
+        assert mock_logging.warning.called
+        logged_msg = mock_logging.warning.call_args[0][1]
+        assert "\n" not in logged_msg
+        assert "\\n" in logged_msg
+
+
+def test_web_log_injection_carriage_return_sanitized(auth_client):
+    """Une ValueError avec \\r ne doit pas produire de fausses lignes de log."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions, \
+         patch("web.logging") as mock_logging:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.revoke_key.side_effect = ValueError(
+            "Key not found: SHA256:test\rINJECTED"
+        )
+        resp = auth_client.post(
+            f"/api/keys/revoke/{FINGERPRINT}",
+            json={"reason": "x"},
+        )
+        assert resp.status_code == 404
+        logged_msg = mock_logging.warning.call_args[0][1]
+        assert "\r" not in logged_msg
+        assert "\\r" in logged_msg
