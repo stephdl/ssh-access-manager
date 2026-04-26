@@ -640,7 +640,7 @@ freezegun           ← pour mocker datetime dans expire.py
 .github/workflows/
     ci.yml              ← PR : pytest ≥ 80% + vitest + prettier + commitlint
     pr-title.yml        ← PR : validation titre (Conventional Commits, script shell)
-    build-pr.yml        ← PR : build + push image pr-{N} sur GHCR
+    build-pr.yml        ← PR : build + push image pr-{N} + scan Trivy CVE (issue #147)
     build-main.yml      ← merge main : build + push image :main sur GHCR
     publish-release.yml ← tag git : build + push :vX.Y.Z (+ :latest si stable)
     cleanup-pr.yml      ← fermeture PR : suppression image pr-{N} sur GHCR
