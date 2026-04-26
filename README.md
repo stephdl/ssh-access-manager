@@ -76,18 +76,7 @@ ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec ssh-access-manager cat /
     < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 ```
 
-Ce script est **idempotent** : il crée l'utilisateur `audit-collector` (réutilise s'il existe), ajoute la clé publique dans `authorized_keys` si elle est absente, et écrase `/etc/sudoers.d/audit-collector` avec les règles courantes.
-
-### Mettre à jour un hôte déjà provisionné
-
-Après une mise à jour de `provision-host.sh` (ex. changement des règles sudoers), relancer la même commande sur chaque hôte :
-
-```bash
-ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)'" \
-    < <(podman exec ssh-access-manager cat /app/provision-host.sh)
-```
-
-Le script réécrit uniquement `/etc/sudoers.d/audit-collector` — aucune clé ni utilisateur n'est supprimé.
+Cette commande est **identique** pour un premier provisionnement ou une mise à jour (ex. après un rebuild ou un changement des règles sudoers). Le script est **idempotent** : il crée l'utilisateur `audit-collector` (réutilise s'il existe), ajoute la clé publique dans `authorized_keys` si elle est absente, et écrase `/etc/sudoers.d/audit-collector` avec les règles courantes.
 
 ### 2. Déclarer le serveur
 
@@ -217,45 +206,6 @@ Le formulaire demande :
 
 ---
 
-## Workflow — Accès temporaire
-
-### Demande d'accès
-
-**Via l'interface web (recommandé)** : Accès → section **Nouvelle demande d'accès**.
-
-Le formulaire propose :
-- Un **dropdown des serveurs connus** (serveurs actifs uniquement) — plus besoin de connaître le hostname exact.
-- Trois modes de durée :
-  - **Durée (heures)** — expiration automatique après N heures
-  - **Date précise** — expiration à une date/heure précise
-  - **Illimité** — pas d'expiration (à utiliser avec discernement)
-
-**Via la CLI** :
-
-```bash
-podman exec ssh-access-manager python3 /app/app/manage.py access request \
-  --key SHA256:... \
-  --server server-prod-01 \
-  --hours 8 \
-  --reason "Intervention maintenance planifiée"
-```
-
-### Approbation
-
-```bash
-# Lister les demandes en attente
-podman exec ssh-access-manager python3 /app/app/manage.py access list --status PENDING
-
-# Approuver
-podman exec ssh-access-manager python3 /app/app/manage.py access approve <id>
-```
-
-Ou via **Accès** dans l'interface web : bouton **Approuver** sur la demande en attente.
-
-À expiration, la clé est automatiquement révoquée par `expire.py` (cron toutes les 5 minutes, l'intervalle effectif est configurable via l'UI dans **Paramètres**).
-
----
-
 ## Workflow — Révocation hors système
 
 Si un scan détecte qu'une clé `ACTIVE` a disparu de `authorized_keys` sans action dans le système :
@@ -277,8 +227,6 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `POSTGRES_USER` | Utilisateur PostgreSQL | `ssh_manager` |
 | `POSTGRES_PASSWORD` | Mot de passe PostgreSQL | — |
 | `NGINX_PORT` | Port d'écoute Nginx | `8080` |
-| `NGINX_USER` | Login Basic Auth | `admin` |
-| `NGINX_PASSWORD` | Mot de passe Basic Auth | — |
 | `FLASK_SECRET_KEY` | Clé secrète Flask (sessions) | — |
 | `SMTP_HOST` | Serveur SMTP | — |
 | `SMTP_PORT` | Port SMTP | `587` |
@@ -401,7 +349,7 @@ Tout commit doit respecter le format `type: description courte`.
 Types valides : `feat` `fix` `docs` `style` `refactor` `test` `ci` `chore`
 
 ```
-feat: dropdown serveurs connus dans AccessForm
+feat: formulaire DeployKeyForm dans la vue Accès
 fix: correction calcul expiration clé
 ci: ajout check Prettier
 docs: mise à jour README workflow accès
