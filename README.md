@@ -76,18 +76,7 @@ ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec ssh-access-manager cat /
     < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 ```
 
-Ce script est **idempotent** : il crée l'utilisateur `audit-collector` (réutilise s'il existe), ajoute la clé publique dans `authorized_keys` si elle est absente, et écrase `/etc/sudoers.d/audit-collector` avec les règles courantes.
-
-### Mettre à jour un hôte déjà provisionné
-
-Après une mise à jour de `provision-host.sh` (ex. changement des règles sudoers), relancer la même commande sur chaque hôte :
-
-```bash
-ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)'" \
-    < <(podman exec ssh-access-manager cat /app/provision-host.sh)
-```
-
-Le script réécrit uniquement `/etc/sudoers.d/audit-collector` — aucune clé ni utilisateur n'est supprimé.
+Cette commande est **identique** pour un premier provisionnement ou une mise à jour (ex. après un rebuild ou un changement des règles sudoers). Le script est **idempotent** : il crée l'utilisateur `audit-collector` (réutilise s'il existe), ajoute la clé publique dans `authorized_keys` si elle est absente, et écrase `/etc/sudoers.d/audit-collector` avec les règles courantes.
 
 ### 2. Déclarer le serveur
 
