@@ -235,7 +235,7 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `SMTP_FROM` | Adresse expéditeur | — |
 | `SMTP_TO` | Adresse destinataire des alertes | — |
 | `SSH_USER` | Utilisateur SSH collecteur | `audit-collector` |
-| `SCAN_INTERVAL_HOURS` | Intervalle de scan initial (heures) — modifiable via l'UI sans redémarrage | `4` |
+| `SCAN_INTERVAL_HOURS` | Valeur initiale de l'intervalle de scan (heures). **Utilisée uniquement au premier démarrage** (volume vide) pour initialiser la table `settings` en DB. Ignorée si les données existent déjà. Modifiable ensuite sans redémarrage via **Settings** dans l'UI. | `4` |
 | `EXPIRE_WARN_DAYS` | Alerte J-N avant expiration (premier avertissement) | `7` |
 | `EXPIRE_WARN_DAYS_2` | Alerte J-N avant expiration (second avertissement) | `2` |
 | `ADMIN_USERNAME` | Username de l'administrateur initial | `admin` |
