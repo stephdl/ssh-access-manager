@@ -449,7 +449,9 @@ def revoke_request(request_id):
 @app.route("/api/admins", methods=["GET"])
 @require_auth
 def list_admins():
-    return jsonify(db.query("SELECT * FROM administrators ORDER BY username"))
+    return jsonify(db.query(
+        "SELECT id, username, email, role, is_active, created_at FROM administrators ORDER BY username"
+    ))
 
 
 @app.route("/api/admins", methods=["POST"])

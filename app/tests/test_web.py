@@ -498,3 +498,18 @@ def test_web_log_injection_carriage_return_sanitized(auth_client):
         logged_msg = mock_logging.warning.call_args[0][1]
         assert "\r" not in logged_msg
         assert "\\r" in logged_msg
+
+
+# ---------------------------------------------------------------------------
+# Sécurité — GET /api/admins ne doit pas exposer password_hash
+# ---------------------------------------------------------------------------
+
+def test_web_list_admins_does_not_expose_password_hash(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = []
+        resp = auth_client.get("/api/admins")
+        assert resp.status_code == 200
+        sql = mock_db.query.call_args[0][0]
+        assert "password_hash" not in sql
+        assert "SELECT *" not in sql
