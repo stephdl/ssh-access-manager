@@ -18,6 +18,7 @@ erDiagram
         VARCHAR username UK
         VARCHAR email
         VARCHAR role
+        VARCHAR password_hash
         BOOLEAN is_active
         TIMESTAMPTZ created_at
     }
@@ -29,7 +30,7 @@ erDiagram
         SMALLINT key_size_bits
         TEXT public_key
         VARCHAR comment
-        UUID owner_id FK
+        VARCHAR owner
         BOOLEAN is_compliant
         TIMESTAMPTZ first_seen
         TIMESTAMPTZ last_seen
@@ -38,6 +39,7 @@ erDiagram
     key_authorizations {
         UUID key_id FK
         UUID server_id FK
+        VARCHAR unix_user
         UUID authorized_by FK
         TIMESTAMPTZ authorized_at
         TIMESTAMPTZ expires_at
@@ -73,7 +75,11 @@ erDiagram
         JSONB details
     }
 
-    administrators ||--o{ ssh_keys : "possède (owner_id)"
+    settings {
+        VARCHAR key PK
+        TEXT value
+    }
+
     ssh_keys ||--o{ key_authorizations : "autorisée via"
     servers ||--o{ key_authorizations : "héberge"
     administrators ||--o{ key_authorizations : "autorisée par"
@@ -91,8 +97,7 @@ erDiagram
 
 | Relation | Cardinalité | Description |
 |---|---|---|
-| `administrators` → `ssh_keys` | 1:N | Un admin peut posséder plusieurs clés (owner_id) |
-| `ssh_keys` → `key_authorizations` | 1:N | Une clé peut être autorisée sur plusieurs serveurs |
+| `ssh_keys` → `key_authorizations` | 1:N | Une clé peut être autorisée sur plusieurs serveurs/utilisateurs |
 | `servers` → `key_authorizations` | 1:N | Un serveur peut héberger plusieurs clés autorisées |
 | `administrators` → `key_authorizations` | 1:N | Un admin autorise / révoque des accès |
 | `administrators` → `access_requests` | 1:N | Un admin fait ou approuve des demandes |
@@ -102,7 +107,12 @@ erDiagram
 | `ssh_keys` → `audit_log` | 1:N | Une clé est référencée dans l'audit |
 | `servers` → `audit_log` | 1:N | Un serveur est référencé dans l'audit |
 
-## Colonnes générées
+## Clé primaire composite — key_authorizations
+
+`key_authorizations` a une PK composite sur trois colonnes : `(key_id, server_id, unix_user)`.
+Cela permet à une même clé SSH d'être déployée pour plusieurs utilisateurs Unix sur le même serveur.
+
+## Colonne générée — ssh_keys.is_compliant
 
 `ssh_keys.is_compliant` est une colonne `GENERATED ALWAYS AS … STORED` :
 
@@ -114,3 +124,13 @@ is_compliant BOOLEAN GENERATED ALWAYS AS (
 ```
 
 Valeur calculée automatiquement par PostgreSQL à chaque INSERT/UPDATE — jamais écrite par l'application.
+
+## Champ owner — texte libre
+
+`ssh_keys.owner` est un `VARCHAR(255)` libre (pas une FK vers `administrators`).
+Il peut désigner un non-administrateur (ex : développeur externe) et reste NULL si inconnu.
+
+## Table settings
+
+Stocke la configuration dynamique du système (ex : intervalle de scan).
+Modifiable via `PUT /api/system/config` sans redémarrage du container.
