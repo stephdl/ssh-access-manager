@@ -873,6 +873,14 @@ L'état en mémoire est perdu au redémarrage du conteneur, mais la combinaison
 (limitation applicative éphémère + audit_log permanent + fail2ban optionnel)
 couvre les trois couches : applicative, traçabilité, réseau.
 
+### Timeout de session (issue #239)
+
+Deux durées de session selon le choix de l'utilisateur au login :
+- **30 minutes** (défaut) — session courte, sans "Keep me logged on this device"
+- **8 heures** — session longue, avec la checkbox cochée
+
+Implémentation : `session["expires_at"]` (timestamp UTC float) posé dans `auth_login()`, vérifié dans `require_auth` avant chaque requête protégée. Session expirée → `session.clear()` + HTTP 401. Durées hardcodées comme constantes `SESSION_SHORT_MINUTES = 30` et `SESSION_LONG_HOURS = 8` dans `web.py` — pas de dépendance à la table `settings`, pas de redémarrage nécessaire.
+
 ### Vue AccessRequests — formulaires DeployKeyForm et UserLockForm
 
 La vue `AccessRequests.vue` expose deux formulaires :

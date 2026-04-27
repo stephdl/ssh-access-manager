@@ -19,6 +19,7 @@
     "username": "Username",
     "username_placeholder": "admin",
     "password": "Password",
+    "remember_me": "Keep me logged on this device",
     "submit": "Sign in",
     "submitting": "Signing in…"
   },

@@ -514,6 +514,13 @@ Décorateur require_auth sur toutes les routes protégées.
 Retourne 401 JSON si session manquante.
 Charge g.admin_id, g.admin_username, g.admin_role à chaque requête.
 
+Timeout de session (issue #239) :
+- Sans coche "Keep me logged on this device" → expire après SESSION_SHORT_MINUTES (30 min)
+- Avec coche → expire après SESSION_LONG_HOURS (8h)
+- `session["expires_at"]` (timestamp UTC) posé au login, vérifié dans require_auth
+- Session expirée → clear session + 401 {"error": "Session expired"}
+- Durées hardcodées comme constantes dans web.py (pas de settings table)
+
 RBAC — décorateur require_role(*roles) (issue #222) :
 Retourne 403 JSON si g.admin_role ∉ roles.
 
@@ -762,6 +769,9 @@ test_web.py :
 - PUT /api/admins/<username> retourne 200/401/403/404
 - POST /api/system/test-smtp retourne 200/400/401/500/502
 - GET /api/system/collector-key retourne {public_key, ssh_user}
+- GET /api/* retourne 401 si session expirée (expires_at dans le passé)
+- POST /api/auth/login sans remember_me → expires_at dans ~30 min
+- POST /api/auth/login avec remember_me=true → expires_at dans ~8h
 
 ### Tests frontend — Vitest
 
@@ -776,6 +786,7 @@ ui/tests/
     UserLockForm.spec.js       ← verrouillage/déverrouillage compte Unix (10 tests)
     DeployedUsersTable.spec.js ← tableau utilisateurs déployés, filtres, RBAC operator/viewer (12 tests)
     Anomalies.spec.js          ← filtres texte + dropdowns type/serveur/conformité, unix_user, badges (20 tests)
+    Login.spec.js              ← checkbox remember-me, payload remember_me (8 tests)
 
 ### Ce qui n'est PAS testé unitairement
 
@@ -968,7 +979,7 @@ POST /api/system/test-smtp          ← envoie un email de test à l'adresse de 
 ## Interface Vue.js 3 — vues
 
 ui/src/views/
-    Login.vue           ← page de connexion (issue #53)
+    Login.vue           ← page de connexion + checkbox "Keep me logged on this device" (issues #53, #239)
     Dashboard.vue       ← tableau serveurs + recherche + compteurs
                           + modal ajout serveur (issue #71)
                           + affichage clé collecteur (issue #74)

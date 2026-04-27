@@ -1373,3 +1373,92 @@ def test_web_config_login_ban_seconds_too_low(auth_client):
         mock_db.query_one.return_value = _admin_row()
         resp = auth_client.put("/api/system/config", json={"login_ban_seconds": 10})
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Session timeout
+# ---------------------------------------------------------------------------
+
+def test_web_session_expired_returns_401(client):
+    """Expired session returns 401."""
+    past = datetime.now(timezone.utc).timestamp() - 1
+    with client.session_transaction() as sess:
+        sess["admin_id"] = ADMIN_ID
+        sess["admin_username"] = "admin"
+        sess["expires_at"] = past
+    with patch("web.db") as mock_db:
+        resp = client.get("/api/keys")
+    assert resp.status_code == 401
+    data = resp.get_json()
+    assert data["error"] == "Session expired"
+
+
+def test_web_session_not_expired_passes(client):
+    """Session with future expiry passes through require_auth."""
+    future = datetime.now(timezone.utc).timestamp() + 3600
+    with client.session_transaction() as sess:
+        sess["admin_id"] = ADMIN_ID
+        sess["admin_username"] = "admin"
+        sess["expires_at"] = future
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = []
+        resp = client.get("/api/keys")
+    assert resp.status_code == 200
+
+
+def test_web_session_no_expiry_field_passes(client):
+    """Session without expires_at (legacy) passes — no regression."""
+    with client.session_transaction() as sess:
+        sess["admin_id"] = ADMIN_ID
+        sess["admin_username"] = "admin"
+        # no expires_at
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = []
+        resp = client.get("/api/keys")
+    assert resp.status_code == 200
+
+
+def test_web_login_without_remember_me_sets_short_expiry(client):
+    """Login without remember_me sets expires_at ~30 minutes from now."""
+    web._login_attempts.clear()
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "10"},
+            {"value": "300"},
+            {"id": ADMIN_ID, "username": "admin", "password_hash": "pbkdf2:sha256:hash"},
+        ]
+        with patch("web.check_password_hash", return_value=True):
+            resp = client.post(
+                "/api/auth/login",
+                json={"username": "admin", "password": "correct"},
+            )
+    assert resp.status_code == 200
+    with client.session_transaction() as sess:
+        expires_at = sess.get("expires_at")
+    now = datetime.now(timezone.utc).timestamp()
+    expected = now + web.SESSION_SHORT_MINUTES * 60
+    assert abs(expires_at - expected) < 5  # within 5 seconds
+
+
+def test_web_login_with_remember_me_sets_long_expiry(client):
+    """Login with remember_me=True sets expires_at ~8 hours from now."""
+    web._login_attempts.clear()
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "10"},
+            {"value": "300"},
+            {"id": ADMIN_ID, "username": "admin", "password_hash": "pbkdf2:sha256:hash"},
+        ]
+        with patch("web.check_password_hash", return_value=True):
+            resp = client.post(
+                "/api/auth/login",
+                json={"username": "admin", "password": "correct", "remember_me": True},
+            )
+    assert resp.status_code == 200
+    with client.session_transaction() as sess:
+        expires_at = sess.get("expires_at")
+    now = datetime.now(timezone.utc).timestamp()
+    expected = now + web.SESSION_LONG_HOURS * 3600
+    assert abs(expires_at - expected) < 5
