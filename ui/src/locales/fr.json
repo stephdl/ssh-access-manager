@@ -157,7 +157,8 @@
     "info_deploy": "Le formulaire ci-dessous déploie une clé SSH sur un serveur cible. Si l'utilisateur Unix n'existe pas, il sera créé automatiquement.",
     "info_no_sudo": "L'utilisateur est créé sans droits d'administration (pas de sudo/wheel). Pour accorder des privilèges élevés, intervenez manuellement sur le serveur.",
     "lock_title": "Verrouiller / Déverrouiller un compte Unix",
-    "lock_info": "Verrouille un compte Unix pour bloquer toutes les connexions SSH (même avec une clé valide). Déverrouiller pour rétablir l'accès."
+    "lock_info": "Verrouille un compte Unix pour bloquer toutes les connexions SSH (même avec une clé valide). Déverrouiller pour rétablir l'accès.",
+    "readonly_message": "Accès en lecture seule. Contactez un sysadmin pour effectuer des actions."
   },
   "access_form": {
     "duration_label": "Durée d'accès",

@@ -23,9 +23,9 @@ function makeKey(overrides = {}) {
   }
 }
 
-function mountTable(keys) {
+function mountTable(keys, currentRole = 'sysadmin') {
   return mount(KeyTable, {
-    props: { keys },
+    props: { keys, currentRole },
     global: { plugins: [i18n] },
   })
 }

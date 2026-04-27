@@ -82,7 +82,7 @@
                 <span v-else class="non-compliant" :title="complianceTooltip(k)">⚠️</span>
               </td>
               <td>
-                <div class="actions">
+                <div v-if="currentRole !== 'viewer'" class="actions">
                   <button class="btn-success" @click="validate(k)">
                     {{ $t('anomalies.btn_validate') }}
                   </button>
@@ -193,8 +193,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useAuth } from '../composables/useAuth.js'
 
 const { t } = useI18n()
+const { admin } = useAuth()
+const currentRole = computed(() => admin.value?.role || 'viewer')
 
 const allKeys = ref([])
 const loading = ref(true)

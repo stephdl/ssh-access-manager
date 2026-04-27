@@ -916,3 +916,71 @@ def test_web_rbac_operator_cannot_change_other_password(client):
             sess["admin_id"] = ADMIN_ID
         resp = client.put("/api/admins/other_user/password", json={"password": "NewP@ss1!"})
         assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# RBAC — viewer blocked on write routes
+# ---------------------------------------------------------------------------
+
+def test_web_rbac_viewer_cannot_add_server(client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "viewer_user", "role": "viewer"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        resp = client.post("/api/servers", json={"hostname": "h", "ip": "1.2.3.4", "environment": "lab"})
+        assert resp.status_code == 403
+
+
+def test_web_rbac_viewer_cannot_revoke_key(client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "viewer_user", "role": "viewer"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        resp = client.post("/api/keys/revoke/SHA256:abc123", json={})
+        assert resp.status_code == 403
+
+
+def test_web_rbac_viewer_cannot_deploy_key(client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "viewer_user", "role": "viewer"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        resp = client.post("/api/access/deploy", json={})
+        assert resp.status_code == 403
+
+
+def test_web_rbac_viewer_cannot_update_config(client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "viewer_user", "role": "viewer"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        resp = client.put("/api/system/config", json={"scan_interval_hours": 2})
+        assert resp.status_code == 403
+
+
+def test_web_rbac_operator_cannot_add_server(client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "op_user", "role": "operator"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        resp = client.post("/api/servers", json={"hostname": "h", "ip": "1.2.3.4", "environment": "lab"})
+        assert resp.status_code == 403
+
+
+def test_web_rbac_operator_can_revoke_key(client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "op_user", "role": "operator"}
+        mock_actions.revoke_key.return_value = None
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        resp = client.post("/api/keys/revoke/SHA256:validfp123456789012345678901234567890123", json={})
+        assert resp.status_code == 200
+
+
+def test_web_rbac_operator_cannot_update_config(client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "op_user", "role": "operator"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        resp = client.put("/api/system/config", json={"scan_interval_hours": 2})
+        assert resp.status_code == 403

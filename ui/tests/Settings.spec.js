@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import Settings from '../src/views/Settings.vue'
 import { createI18n } from 'vue-i18n'
+import { ref } from 'vue'
 
 const i18n = createI18n({
   legacy: false,
@@ -15,15 +16,28 @@ const i18n = createI18n({
         hours: 'hours',
         save: 'Save',
         saved: 'Settings saved.',
-        scan_interval_hint: 'Between 1 and 24 hours. The cron triggers every 5 minutes but skips if the interval has not elapsed.',
+        scan_interval_hint:
+          'Between 1 and 24 hours. The cron triggers every 5 minutes but skips if the interval has not elapsed.',
       },
     },
   },
 })
 
+const mockAdmin = ref({ username: 'admin', email: 'admin@test.com', role: 'sysadmin' })
+
+vi.mock('../src/composables/useAuth.js', () => ({
+  useAuth: () => ({
+    admin: mockAdmin,
+    fetchMe: vi.fn(),
+    login: vi.fn(),
+    logout: vi.fn(),
+  }),
+}))
+
 describe('Settings.vue', () => {
   beforeEach(() => {
     global.fetch = vi.fn()
+    mockAdmin.value = { username: 'admin', email: 'admin@test.com', role: 'sysadmin' }
   })
 
   it('loads current scan interval on mount', async () => {

@@ -1,11 +1,18 @@
 <template>
   <div class="access-requests-view">
     <h1>{{ $t('access.title') }}</h1>
-    <div class="info-box">
-      <p>{{ $t('access.info_deploy') }}</p>
-      <p>{{ $t('access.info_no_sudo') }}</p>
+
+    <div v-if="currentRole === 'viewer'" class="readonly-message">
+      {{ $t('access.readonly_message') }}
     </div>
-    <DeployKeyForm @deployed="deployedUsersTable?.refresh()" />
+
+    <template v-else>
+      <div class="info-box">
+        <p>{{ $t('access.info_deploy') }}</p>
+        <p>{{ $t('access.info_no_sudo') }}</p>
+      </div>
+      <DeployKeyForm @deployed="deployedUsersTable?.refresh()" />
+    </template>
 
     <section class="card">
       <h2>{{ $t('deployedUsers.title') }}</h2>
@@ -15,10 +22,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useAuth } from '../composables/useAuth.js'
 import DeployKeyForm from '../components/DeployKeyForm.vue'
 import DeployedUsersTable from '../components/DeployedUsersTable.vue'
 
+const { admin } = useAuth()
+const currentRole = computed(() => admin.value?.role || 'viewer')
 const deployedUsersTable = ref(null)
 </script>
 
@@ -44,6 +54,16 @@ h1 {
 }
 .info-box p:last-child {
   margin-bottom: 0;
+}
+
+.readonly-message {
+  background: #fff3cd;
+  border-left: 4px solid #ffc107;
+  border-radius: 4px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.95rem;
+  color: #856404;
 }
 
 .card {

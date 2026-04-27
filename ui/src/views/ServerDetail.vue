@@ -6,16 +6,33 @@
         <h1>{{ hostname }}</h1>
       </div>
       <div class="header-actions">
-        <button class="btn-primary" :disabled="scanning" @click="scanServer">
+        <button
+          v-if="currentRole !== 'viewer'"
+          class="btn-primary"
+          :disabled="scanning"
+          @click="scanServer"
+        >
           {{ scanning ? $t('server_detail.scanning') : $t('server_detail.scan') }}
         </button>
-        <button v-if="server.is_active" class="btn-warning" @click="confirmDisable">
+        <button
+          v-if="server.is_active && currentRole === 'sysadmin'"
+          class="btn-warning"
+          @click="confirmDisable"
+        >
           {{ $t('server_detail.disable') }}
         </button>
-        <button v-else class="btn-success" @click="reactivate">
+        <button
+          v-if="!server.is_active && currentRole === 'sysadmin'"
+          class="btn-success"
+          @click="reactivate"
+        >
           {{ $t('server_detail.reactivate') }}
         </button>
-        <button class="btn-danger" @click="showDeleteModal = true">
+        <button
+          v-if="currentRole === 'sysadmin'"
+          class="btn-danger"
+          @click="showDeleteModal = true"
+        >
           {{ $t('server_detail.delete') }}
         </button>
       </div>
@@ -63,6 +80,7 @@
         <h2>{{ $t('server_detail.section_keys') }}</h2>
         <KeyTable
           :keys="keys"
+          :current-role="currentRole"
           @validate="validateKey"
           @revoke="openRevoke"
           @set-expiry="openExpiry"
@@ -200,9 +218,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useAuth } from '../composables/useAuth.js'
 import KeyTable from '../components/KeyTable.vue'
 
 const { t } = useI18n()
+const { admin } = useAuth()
+const currentRole = computed(() => admin.value?.role || 'viewer')
 const route = useRoute()
 const router = useRouter()
 const hostname = route.params.hostname

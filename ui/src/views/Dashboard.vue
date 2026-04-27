@@ -3,10 +3,15 @@
     <div class="page-header">
       <h1>{{ $t('dashboard.title') }}</h1>
       <div class="header-actions">
-        <button class="btn-secondary" @click="openAddServer">
+        <button v-if="currentRole === 'sysadmin'" class="btn-secondary" @click="openAddServer">
           {{ $t('dashboard.add_server') }}
         </button>
-        <button class="btn-primary" :disabled="scanning" @click="scanAll">
+        <button
+          v-if="currentRole !== 'viewer'"
+          class="btn-primary"
+          :disabled="scanning"
+          @click="scanAll"
+        >
           {{ scanning ? $t('dashboard.scanning') : $t('dashboard.scan_now') }}
         </button>
       </div>
@@ -44,7 +49,13 @@
     </div>
 
     <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
-    <ServerTable v-else :servers="servers" @scan="scanOne" @edit="openEditServer" />
+    <ServerTable
+      v-else
+      :servers="servers"
+      :current-role="currentRole"
+      @scan="scanOne"
+      @edit="openEditServer"
+    />
 
     <!-- Add server modal -->
     <div v-if="showAddServer" class="modal-overlay" @click.self="closeAddServer">
@@ -183,9 +194,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useAuth } from '../composables/useAuth.js'
 import ServerTable from '../components/ServerTable.vue'
 
 const { t } = useI18n()
+const { admin } = useAuth()
+const currentRole = computed(() => admin.value?.role || 'viewer')
 
 const servers = ref([])
 const loading = ref(true)

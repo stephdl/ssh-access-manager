@@ -49,10 +49,18 @@
           <td>{{ formatDate(s.added_at) }}</td>
           <td>
             <div style="display: flex; gap: 0.5rem">
-              <button class="btn-primary" @click="$emit('scan', s.hostname)">
+              <button
+                v-if="props.currentRole !== 'viewer'"
+                class="btn-primary"
+                @click="$emit('scan', s.hostname)"
+              >
                 {{ $t('server_table.scan') }}
               </button>
-              <button class="btn-secondary" @click="$emit('edit', s)">
+              <button
+                v-if="props.currentRole === 'sysadmin'"
+                class="btn-secondary"
+                @click="$emit('edit', s)"
+              >
                 {{ $t('server_table.edit') }}
               </button>
             </div>
@@ -68,6 +76,7 @@ import { ref, computed } from 'vue'
 
 const props = defineProps({
   servers: { type: Array, default: () => [] },
+  currentRole: { type: String, default: 'viewer' },
 })
 defineEmits(['scan', 'edit'])
 

@@ -136,6 +136,7 @@ def get_server(hostname):
 
 @app.route("/api/servers", methods=["POST"])
 @require_auth
+@require_role("sysadmin")
 def add_server():
     data = request.get_json(force=True) or {}
     try:
@@ -151,6 +152,7 @@ def add_server():
 
 @app.route("/api/servers/<hostname>", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def update_server(hostname):
     data = request.get_json(force=True) or {}
     try:
@@ -166,6 +168,7 @@ def update_server(hostname):
 
 @app.route("/api/servers/<hostname>/disable", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def disable_server(hostname):
     try:
         actions.disable_server(hostname, g.admin_id)
@@ -177,6 +180,7 @@ def disable_server(hostname):
 
 @app.route("/api/servers/<hostname>/enable", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def enable_server(hostname):
     try:
         actions.enable_server(hostname, g.admin_id)
@@ -188,6 +192,7 @@ def enable_server(hostname):
 
 @app.route("/api/servers/<hostname>", methods=["DELETE"])
 @require_auth
+@require_role("sysadmin")
 def delete_server(hostname):
     try:
         actions.delete_server(hostname, g.admin_id)
@@ -199,6 +204,7 @@ def delete_server(hostname):
 
 @app.route("/api/servers/<hostname>/scan", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def scan_server(hostname):
     results = collect_mod.run_scan(hostname=hostname)
     return jsonify(results)
@@ -259,6 +265,7 @@ def get_key(fingerprint):
 
 @app.route("/api/keys/validate/<path:fingerprint>", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def validate_key(fingerprint):
     data = request.get_json(silent=True) or {}
     unix_user = data.get("unix_user") or None
@@ -273,6 +280,7 @@ def validate_key(fingerprint):
 
 @app.route("/api/keys/revoke/<path:fingerprint>", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def revoke_key(fingerprint):
     data = request.get_json(force=True) or {}
     reason = data.get("reason", "Manual revocation via API")
@@ -290,6 +298,7 @@ def revoke_key(fingerprint):
 
 @app.route("/api/keys/assign/<path:fingerprint>", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def assign_key(fingerprint):
     data = request.get_json(force=True) or {}
     try:
@@ -302,6 +311,7 @@ def assign_key(fingerprint):
 
 @app.route("/api/keys/set-expiry/<path:fingerprint>", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def set_key_expiry(fingerprint):
     from datetime import timedelta
     data = request.get_json(force=True) or {}
@@ -320,6 +330,7 @@ def set_key_expiry(fingerprint):
 
 @app.route("/api/keys/remove-expiry/<path:fingerprint>", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def remove_key_expiry(fingerprint):
     try:
         actions.remove_key_expiry(fingerprint)
@@ -357,6 +368,7 @@ def get_access(request_id):
 
 @app.route("/api/access/grant", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def grant_access():
     data = request.get_json(force=True) or {}
     expires_at = _parse_datetime(data.get("expires_at"))
@@ -381,6 +393,7 @@ def grant_access():
 
 @app.route("/api/access/deploy", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def api_deploy_key():
     from datetime import timedelta
     data = request.json or {}
@@ -426,6 +439,7 @@ def api_deploy_key():
 
 @app.route("/api/access/lock-user", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def api_lock_user():
     data = request.json or {}
     unix_user = (data.get("unix_user") or "").strip()
@@ -445,6 +459,7 @@ def api_lock_user():
 
 @app.route("/api/access/unlock-user", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def api_unlock_user():
     data = request.json or {}
     unix_user = (data.get("unix_user") or "").strip()
@@ -497,6 +512,7 @@ def list_deployed_users():
 
 @app.route("/api/access/request", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def request_access():
     data = request.get_json(force=True) or {}
     try:
@@ -529,6 +545,7 @@ def request_access():
 
 @app.route("/api/access/<request_id>/approve", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def approve_request(request_id):
     try:
         actions.approve_request(request_id, g.admin_id)
@@ -540,6 +557,7 @@ def approve_request(request_id):
 
 @app.route("/api/access/<request_id>/reject", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def reject_request(request_id):
     try:
         actions.reject_request(request_id, g.admin_id)
@@ -551,6 +569,7 @@ def reject_request(request_id):
 
 @app.route("/api/access/<request_id>/revoke", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def revoke_request(request_id):
     try:
         actions.revoke_request(request_id, g.admin_id)
@@ -730,6 +749,7 @@ def system_status():
 
 @app.route("/api/system/scan", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def system_scan():
     results = collect_mod.run_scan()
     return jsonify(results)
@@ -756,6 +776,7 @@ def get_config():
 
 @app.route("/api/system/config", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def update_config():
     data = request.get_json(force=True) or {}
     hours = data.get("scan_interval_hours")
