@@ -247,7 +247,9 @@
     "error_has_records": "No se puede eliminar: existen registros que hacen referencia a esta cuenta.",
     "role_sysadmin": "Administrador",
     "role_operator": "Operador",
-    "role_viewer": "Lector"
+    "role_viewer": "Lector",
+    "section_my_account": "Mi cuenta",
+    "my_account_hint": "Puede cambiar su propia contraseña aquí."
   },
   "anomalies": {
     "title": "Anomalías",

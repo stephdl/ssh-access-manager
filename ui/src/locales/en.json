@@ -247,7 +247,9 @@
     "error_has_records": "Cannot delete: this account has existing records.",
     "role_sysadmin": "Sysadmin",
     "role_operator": "Operator",
-    "role_viewer": "Viewer"
+    "role_viewer": "Viewer",
+    "section_my_account": "My account",
+    "my_account_hint": "You can change your own password here."
   },
   "anomalies": {
     "title": "Anomalies",

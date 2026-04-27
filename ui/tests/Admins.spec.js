@@ -202,22 +202,21 @@ describe('Admins', () => {
     expect(editBtn).toBeFalsy()
   })
 
-  it('operator sees own Password button', async () => {
+  it('operator sees own Password button in my-account section', async () => {
     const w = mk([{ ...ACTIVE_ADMIN, username: 'operator1', role: 'operator' }], 'operator1', 'operator')
     await flushPromises()
-    const rows = w.findAll('tr')
-    const selfRow = rows.find(r => r.text().includes('operator1'))
-    const pwdBtn = selfRow.findAll('button').find(b => b.text().includes('Password'))
+    const myAccountSection = w.findAll('section').find(s => s.text().includes('My account'))
+    expect(myAccountSection).toBeTruthy()
+    const pwdBtn = myAccountSection.findAll('button').find(b => b.text().includes('Password'))
     expect(pwdBtn).toBeTruthy()
   })
 
-  it('operator does not see Password button for other users', async () => {
+  it('operator does not see Password button in table rows', async () => {
     const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE], 'admin', 'operator')
     await flushPromises()
     const rows = w.findAll('tr')
-    const aliceRow = rows.find(r => r.text().includes('alice'))
-    const pwdBtn = aliceRow.findAll('button').find(b => b.text().includes('Password'))
-    expect(pwdBtn).toBeFalsy()
+    const hasAnyPwdInTable = rows.some(r => r.findAll('button').some(b => b.text().includes('Password')))
+    expect(hasAnyPwdInTable).toBeFalsy()
   })
 
   it('add form hidden for operator', async () => {

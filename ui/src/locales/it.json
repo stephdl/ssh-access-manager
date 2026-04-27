@@ -247,7 +247,9 @@
     "error_has_records": "Impossibile eliminare: esistono record che fanno riferimento a questo account.",
     "role_sysadmin": "Amministratore",
     "role_operator": "Operatore",
-    "role_viewer": "Lettore"
+    "role_viewer": "Lettore",
+    "section_my_account": "Il mio account",
+    "my_account_hint": "Puoi cambiare la tua password qui."
   },
   "anomalies": {
     "title": "Anomalie",

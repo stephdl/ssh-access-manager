@@ -247,7 +247,9 @@
     "error_has_records": "Impossible de supprimer : des enregistrements référencent ce compte.",
     "role_sysadmin": "Administrateur",
     "role_operator": "Opérateur",
-    "role_viewer": "Lecteur"
+    "role_viewer": "Lecteur",
+    "section_my_account": "Mon compte",
+    "my_account_hint": "Vous pouvez changer votre propre mot de passe ici."
   },
   "anomalies": {
     "title": "Anomalies",

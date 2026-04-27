@@ -19,12 +19,14 @@
               <th>{{ $t('admins.col_role') }}</th>
               <th>{{ $t('admins.col_active') }}</th>
               <th>{{ $t('admins.col_created') }}</th>
-              <th>{{ $t('admins.col_actions') }}</th>
+              <th v-if="currentRole === 'sysadmin'">{{ $t('admins.col_actions') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="admins.length === 0">
-              <td colspan="6" class="empty">{{ $t('admins.empty') }}</td>
+              <td :colspan="currentRole === 'sysadmin' ? 6 : 5" class="empty">
+                {{ $t('admins.empty') }}
+              </td>
             </tr>
             <tr v-for="a in admins" :key="a.id" :class="{ 'row-inactive': !a.is_active }">
               <td>
@@ -38,7 +40,7 @@
                 </span>
               </td>
               <td>{{ formatDate(a.created_at) }}</td>
-              <td class="actions-cell">
+              <td v-if="currentRole === 'sysadmin'" class="actions-cell">
                 <template v-if="a.is_active">
                   <button
                     v-if="currentRole === 'sysadmin'"
@@ -89,6 +91,15 @@
             </tr>
           </tbody>
         </table>
+      </section>
+
+      <!-- My account — password change for non-sysadmin -->
+      <section v-if="currentRole !== 'sysadmin'" class="card my-account-card">
+        <h2>{{ $t('admins.section_my_account') }}</h2>
+        <p class="my-account-hint">{{ $t('admins.my_account_hint') }}</p>
+        <button class="btn-secondary" @click="openEditPassword(currentUsername)">
+          {{ $t('admins.btn_password') }}
+        </button>
       </section>
 
       <!-- Add administrator form -->
@@ -806,6 +817,16 @@ h2 {
   gap: 0.5rem;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.my-account-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.my-account-hint {
+  font-size: 0.875rem;
+  color: #555;
 }
 
 .add-form {

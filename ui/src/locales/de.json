@@ -247,7 +247,9 @@
     "error_has_records": "Löschen nicht möglich: Dieses Konto wird noch referenziert.",
     "role_sysadmin": "Administrator",
     "role_operator": "Operator",
-    "role_viewer": "Betrachter"
+    "role_viewer": "Betrachter",
+    "section_my_account": "Mein Konto",
+    "my_account_hint": "Sie können hier Ihr eigenes Passwort ändern."
   },
   "anomalies": {
     "title": "Anomalien",
