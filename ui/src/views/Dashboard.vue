@@ -51,7 +51,10 @@
       <div class="modal">
         <!-- Step 1: form -->
         <template v-if="!addSuccess">
-          <h3>{{ $t('add_server.title') }}</h3>
+          <div class="modal-header">
+            <h3>{{ $t('add_server.title') }}</h3>
+            <button class="modal-close" @click="closeAddServer" aria-label="Close">&#x2715;</button>
+          </div>
           <div v-if="addError" class="alert-error">{{ addError }}</div>
 
           <label
@@ -102,7 +105,10 @@
 
         <!-- Step 2: success + key display -->
         <template v-else>
-          <h3>{{ $t('add_server.success_title') }}</h3>
+          <div class="modal-header">
+            <h3>{{ $t('add_server.success_title') }}</h3>
+            <button class="modal-close" @click="closeAddServer" aria-label="Close">&#x2715;</button>
+          </div>
           <p class="success-msg">
             {{ $t('add_server.success_msg', { hostname: addForm.hostname }) }}
           </p>
@@ -126,7 +132,10 @@
     <!-- Edit server modal -->
     <div v-if="showEditServer" class="modal-overlay" @click.self="closeEditServer">
       <div class="modal">
-        <h3>{{ $t('edit_server.title') }}</h3>
+        <div class="modal-header">
+          <h3>{{ $t('edit_server.title') }}</h3>
+          <button class="modal-close" @click="closeEditServer" aria-label="Close">&#x2715;</button>
+        </div>
         <div v-if="editError" class="alert-error">{{ editError }}</div>
 
         <label>{{ $t('edit_server.hostname') }}</label>
@@ -493,10 +502,6 @@ h1 {
   gap: 0.75rem;
 }
 
-.modal h3 {
-  font-size: 1.1rem;
-  margin: 0;
-}
 .modal label {
   font-size: 0.85rem;
   font-weight: 600;

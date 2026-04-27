@@ -160,7 +160,12 @@
     <!-- Revoke modal -->
     <div v-if="revokeTarget" class="modal-overlay" @click.self="revokeTarget = null">
       <div class="modal">
-        <h3>{{ $t('anomalies.revoke_modal_title') }}</h3>
+        <div class="modal-header">
+          <h3>{{ $t('anomalies.revoke_modal_title') }}</h3>
+          <button class="modal-close" @click="revokeTarget = null" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
         <p class="fp-display">
           <code>{{ revokeTarget.fingerprint }}</code>
         </p>
@@ -465,10 +470,6 @@ code {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-}
-.modal h3 {
-  font-size: 1.1rem;
-  margin: 0;
 }
 label {
   font-size: 0.85rem;

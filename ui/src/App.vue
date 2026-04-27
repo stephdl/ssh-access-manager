@@ -227,4 +227,25 @@ button:disabled {
 .btn-warning:hover:not(:disabled) {
   background: #e0a800;
 }
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.4rem;
+  color: #888;
+  border-radius: 4px;
+}
+.modal-close:hover {
+  color: #333;
+  background: #eee;
+}
 </style>
