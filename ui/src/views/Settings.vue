@@ -17,18 +17,8 @@
             :disabled="currentRole !== 'sysadmin'"
           />
           <span class="unit">{{ $t('settings.hours') }}</span>
-          <button
-            v-if="currentRole === 'sysadmin'"
-            class="btn-primary"
-            :disabled="saving"
-            @click="save"
-          >
-            {{ $t('settings.save') }}
-          </button>
         </div>
         <p class="hint">{{ $t('settings.scan_interval_hint') }}</p>
-        <p v-if="success" class="success-msg">{{ $t('settings.saved') }}</p>
-        <p v-if="error" class="error-msg">{{ error }}</p>
       </div>
 
       <div class="field">
@@ -63,6 +53,14 @@
           <span class="unit">{{ $t('settings.days') }}</span>
         </div>
         <p class="hint">{{ $t('settings.expire_warn_days_2_hint') }}</p>
+      </div>
+
+      <div v-if="currentRole === 'sysadmin'" class="field">
+        <button class="btn-primary" :disabled="saving" @click="save">
+          {{ $t('settings.save') }}
+        </button>
+        <p v-if="success" class="success-msg">{{ $t('settings.saved') }}</p>
+        <p v-if="error" class="error-msg">{{ error }}</p>
       </div>
     </section>
 
