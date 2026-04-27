@@ -430,6 +430,19 @@ def test_web_system_status_returns_200(auth_client):
         assert "keys_pending_review" in data
 
 
+def test_web_collector_key_includes_ssh_user(auth_client, tmp_path):
+    pub_key_file = tmp_path / "collector_key.pub"
+    pub_key_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 test")
+    with patch("web.db") as mock_db, patch("web.ssh.SSH_USER", "custom-collector"), \
+         patch.dict("os.environ", {"COLLECTOR_KEY": str(tmp_path / "collector_key")}):
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.get("/api/system/collector-key")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ssh_user"] == "custom-collector"
+        assert "ssh-ed25519" in data["public_key"]
+
+
 # ---------------------------------------------------------------------------
 # PUT /api/admins/<username>/disable
 # ---------------------------------------------------------------------------
@@ -591,15 +604,31 @@ def test_web_update_admin_missing_role_returns_400(auth_client):
 def test_web_get_config_returns_settings(auth_client):
     with patch("web.db") as mock_db:
         mock_db.query_one.return_value = {"id": "admin-id", "username": "admin", "role": "sysadmin"}
-        mock_db.query.return_value = [{"key": "scan_interval_hours", "value": "4"}]
+        mock_db.query.return_value = [
+            {"key": "scan_interval_hours", "value": "4"},
+            {"key": "expire_warn_days", "value": "7"},
+            {"key": "expire_warn_days_2", "value": "2"},
+        ]
         resp = auth_client.get("/api/system/config")
         assert resp.status_code == 200
-        assert resp.get_json()["scan_interval_hours"] == "4"
+        data = resp.get_json()
+        assert data["scan_interval_hours"] == "4"
+        assert data["expire_warn_days"] == "7"
+        assert data["expire_warn_days_2"] == "2"
 
 
 def test_web_put_config_updates_interval(auth_client):
     with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin", "role": "sysadmin"}
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},  # current expire_warn_days
+            {"value": "2"},  # current expire_warn_days_2
+        ]
+        mock_db.query.return_value = [
+            {"key": "scan_interval_hours", "value": "6"},
+            {"key": "expire_warn_days", "value": "7"},
+            {"key": "expire_warn_days_2", "value": "2"},
+        ]
         resp = auth_client.put("/api/system/config", json={"scan_interval_hours": 6})
         assert resp.status_code == 200
         assert resp.get_json()["scan_interval_hours"] == 6
@@ -617,6 +646,84 @@ def test_web_put_config_rejects_missing_field(auth_client):
         mock_db.query_one.return_value = {"id": "admin-id", "username": "admin", "role": "sysadmin"}
         resp = auth_client.put("/api/system/config", json={})
         assert resp.status_code == 400
+        assert "At least one setting" in resp.get_json()["error"]
+
+
+def test_web_put_config_updates_expire_warn_days(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},  # current expire_warn_days
+            {"value": "2"},  # current expire_warn_days_2
+        ]
+        mock_db.query.return_value = [
+            {"key": "scan_interval_hours", "value": "4"},
+            {"key": "expire_warn_days", "value": "10"},
+            {"key": "expire_warn_days_2", "value": "2"},
+        ]
+        resp = auth_client.put("/api/system/config", json={"expire_warn_days": 10})
+        assert resp.status_code == 200
+        assert resp.get_json()["expire_warn_days"] == 10
+
+
+def test_web_put_config_rejects_when_warn_days_not_greater_than_warn_days_2(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},  # current expire_warn_days
+            {"value": "2"},  # current expire_warn_days_2
+        ]
+        resp = auth_client.put("/api/system/config", json={"expire_warn_days": 2})
+        assert resp.status_code == 400
+        assert "greater than" in resp.get_json()["error"]
+
+
+def test_web_put_config_rejects_out_of_range_expire_warn_days(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},
+            {"value": "2"},
+        ]
+        resp = auth_client.put("/api/system/config", json={"expire_warn_days": 0})
+        assert resp.status_code == 400
+        assert "between 1 and 30" in resp.get_json()["error"]
+
+
+def test_web_put_config_rejects_out_of_range_expire_warn_days_2(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},
+            {"value": "2"},
+        ]
+        resp = auth_client.put("/api/system/config", json={"expire_warn_days_2": 31})
+        assert resp.status_code == 400
+        assert "between 1 and 30" in resp.get_json()["error"]
+
+
+def test_web_put_config_updates_multiple_settings(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},  # current expire_warn_days
+            {"value": "2"},  # current expire_warn_days_2
+        ]
+        mock_db.query.return_value = [
+            {"key": "scan_interval_hours", "value": "6"},
+            {"key": "expire_warn_days", "value": "14"},
+            {"key": "expire_warn_days_2", "value": "3"},
+        ]
+        resp = auth_client.put("/api/system/config", json={
+            "scan_interval_hours": 6,
+            "expire_warn_days": 14,
+            "expire_warn_days_2": 3,
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["scan_interval_hours"] == 6
+        assert data["expire_warn_days"] == 14
+        assert data["expire_warn_days_2"] == 3
 
 
 # ---------------------------------------------------------------------------
@@ -859,12 +966,11 @@ def test_web_get_deployed_users_returns_401_unauthenticated(client):
 
 
 def test_web_deployed_users_excludes_ssh_user(auth_client):
-    with patch("web.db") as mock_db, patch.dict("os.environ", {"SSH_USER": "audit-collector"}):
+    with patch("web.db") as mock_db, patch("web.ssh.SSH_USER", "audit-collector"):
         mock_db.query_one.return_value = _admin_row()
         mock_db.query.return_value = []
         auth_client.get("/api/access/deployed-users")
         call_args = mock_db.query.call_args
-        sql = call_args[0][0]
         params = call_args[0][1]
         assert "audit-collector" in params
 

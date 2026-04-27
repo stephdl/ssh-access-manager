@@ -14,10 +14,17 @@ const i18n = createI18n({
         scan_section: 'Scan interval',
         scan_interval_label: 'Run a scan every',
         hours: 'hours',
+        days: 'days',
         save: 'Save',
         saved: 'Settings saved.',
         scan_interval_hint:
           'Between 1 and 24 hours. The cron triggers every 5 minutes but skips if the interval has not elapsed.',
+        expire_warn_days_label: 'First expiry warning',
+        expire_warn_days_hint: 'Send a warning email N days before a key expires (1–30).',
+        expire_warn_days_2_label: 'Second expiry warning',
+        expire_warn_days_2_hint:
+          'Send a second warning email N days before expiry. Must be less than the first warning (1–30).',
+        expire_warn_error: 'First warning days must be greater than second warning days.',
         smtp_section: 'SMTP configuration',
         smtp_hint: 'Send a test email to your account address to verify the SMTP configuration.',
         smtp_test_btn: 'Send test email',
@@ -49,7 +56,11 @@ describe('Settings.vue', () => {
   it('loads current scan interval on mount', async () => {
     global.fetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ scan_interval_hours: '8' }),
+      json: async () => ({
+        scan_interval_hours: '8',
+        expire_warn_days: '7',
+        expire_warn_days_2: '2',
+      }),
     })
 
     const wrapper = mount(Settings, { global: { plugins: [i18n] } })
@@ -75,7 +86,11 @@ describe('Settings.vue', () => {
     global.fetch
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ scan_interval_hours: '4' }),
+        json: async () => ({
+          scan_interval_hours: '4',
+          expire_warn_days: '7',
+          expire_warn_days_2: '2',
+        }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -97,7 +112,11 @@ describe('Settings.vue', () => {
       expect.objectContaining({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scan_interval_hours: 12 }),
+        body: JSON.stringify({
+          scan_interval_hours: 12,
+          expire_warn_days: 7,
+          expire_warn_days_2: 2,
+        }),
       })
     )
 
@@ -108,7 +127,11 @@ describe('Settings.vue', () => {
     global.fetch
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ scan_interval_hours: '4' }),
+        json: async () => ({
+          scan_interval_hours: '4',
+          expire_warn_days: '7',
+          expire_warn_days_2: '2',
+        }),
       })
       .mockResolvedValueOnce({
         ok: false,
@@ -129,7 +152,11 @@ describe('Settings.vue', () => {
   it('validates interval min/max before saving', async () => {
     global.fetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ scan_interval_hours: '4' }),
+      json: async () => ({
+        scan_interval_hours: '4',
+        expire_warn_days: '7',
+        expire_warn_days_2: '2',
+      }),
     })
 
     const wrapper = mount(Settings, { global: { plugins: [i18n] } })
@@ -150,11 +177,13 @@ describe('Settings.vue', () => {
     global.fetch
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ scan_interval_hours: '4' }),
+        json: async () => ({
+          scan_interval_hours: '4',
+          expire_warn_days: '7',
+          expire_warn_days_2: '2',
+        }),
       })
-      .mockImplementationOnce(
-        () => new Promise((resolve) => setTimeout(resolve, 100))
-      )
+      .mockImplementationOnce(() => new Promise((resolve) => setTimeout(resolve, 100)))
 
     const wrapper = mount(Settings, { global: { plugins: [i18n] } })
     await flushPromises()
@@ -168,7 +197,11 @@ describe('Settings.vue', () => {
   it('shows SMTP test button', async () => {
     global.fetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ scan_interval_hours: '4' }),
+      json: async () => ({
+        scan_interval_hours: '4',
+        expire_warn_days: '7',
+        expire_warn_days_2: '2',
+      }),
     })
     const wrapper = mount(Settings, { global: { plugins: [i18n] } })
     await flushPromises()
@@ -177,20 +210,43 @@ describe('Settings.vue', () => {
 
   it('calls POST /api/system/test-smtp on click', async () => {
     global.fetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ scan_interval_hours: '4' }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'sent', to: 'admin@test.com' }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          scan_interval_hours: '4',
+          expire_warn_days: '7',
+          expire_warn_days_2: '2',
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ status: 'sent', to: 'admin@test.com' }),
+      })
     const wrapper = mount(Settings, { global: { plugins: [i18n] } })
     await flushPromises()
     const smtpBtn = wrapper.findAll('button').find((b) => b.text() === 'Send test email')
     await smtpBtn.trigger('click')
     await flushPromises()
-    expect(global.fetch).toHaveBeenCalledWith('/api/system/test-smtp', expect.objectContaining({ method: 'POST' }))
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/system/test-smtp',
+      expect.objectContaining({ method: 'POST' })
+    )
   })
 
   it('shows success message after test email sent', async () => {
     global.fetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ scan_interval_hours: '4' }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'sent', to: 'admin@test.com' }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          scan_interval_hours: '4',
+          expire_warn_days: '7',
+          expire_warn_days_2: '2',
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ status: 'sent', to: 'admin@test.com' }),
+      })
     const wrapper = mount(Settings, { global: { plugins: [i18n] } })
     await flushPromises()
     const smtpBtn = wrapper.findAll('button').find((b) => b.text() === 'Send test email')
@@ -201,7 +257,14 @@ describe('Settings.vue', () => {
 
   it('shows error message when test email fails', async () => {
     global.fetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ scan_interval_hours: '4' }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          scan_interval_hours: '4',
+          expire_warn_days: '7',
+          expire_warn_days_2: '2',
+        }),
+      })
       .mockResolvedValueOnce({
         ok: false,
         status: 502,
@@ -221,7 +284,11 @@ describe('Settings.vue', () => {
     global.fetch
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ scan_interval_hours: '4' }),
+        json: async () => ({
+          scan_interval_hours: '4',
+          expire_warn_days: '7',
+          expire_warn_days_2: '2',
+        }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -243,5 +310,92 @@ describe('Settings.vue', () => {
     expect(wrapper.text()).not.toContain('Settings saved.')
 
     vi.useRealTimers()
+  })
+
+  it('shows expire warn days fields', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        scan_interval_hours: '4',
+        expire_warn_days: '7',
+        expire_warn_days_2: '2',
+      }),
+    })
+
+    const wrapper = mount(Settings, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('First expiry warning')
+    expect(wrapper.text()).toContain('Second expiry warning')
+
+    const inputs = wrapper.findAll('input[type="number"]')
+    expect(inputs.length).toBe(3)
+    expect(inputs[1].element.value).toBe('7')
+    expect(inputs[2].element.value).toBe('2')
+  })
+
+  it('saves expire warn days with scan interval', async () => {
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          scan_interval_hours: '4',
+          expire_warn_days: '7',
+          expire_warn_days_2: '2',
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      })
+
+    const wrapper = mount(Settings, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input[type="number"]')
+    await inputs[1].setValue(10)
+    await inputs[2].setValue(3)
+
+    const saveBtn = wrapper.find('button.btn-primary')
+    await saveBtn.trigger('click')
+    await flushPromises()
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/system/config',
+      expect.objectContaining({
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scan_interval_hours: 4,
+          expire_warn_days: 10,
+          expire_warn_days_2: 3,
+        }),
+      })
+    )
+  })
+
+  it('shows error when expire_warn_days <= expire_warn_days_2', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        scan_interval_hours: '4',
+        expire_warn_days: '7',
+        expire_warn_days_2: '2',
+      }),
+    })
+
+    const wrapper = mount(Settings, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input[type="number"]')
+    await inputs[1].setValue(3)
+    await inputs[2].setValue(5)
+
+    const saveBtn = wrapper.find('button.btn-primary')
+    await saveBtn.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('First warning days must be greater than second warning days')
+    expect(global.fetch).toHaveBeenCalledTimes(1)
   })
 })

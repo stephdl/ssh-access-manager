@@ -4,8 +4,8 @@
 set -e
 
 COLLECTOR_PUBKEY="${1}"
-COLLECTOR_USER="audit-collector"
-SUDOERS_FILE="/etc/sudoers.d/audit-collector"
+COLLECTOR_USER="${2:-audit-collector}"
+SUDOERS_FILE="/etc/sudoers.d/${COLLECTOR_USER}"
 
 if [ -z "${COLLECTOR_PUBKEY}" ]; then
     echo "Usage : $0 \"<contenu collector_key.pub>\"" >&2
@@ -39,17 +39,17 @@ echo "[provision] Clé publique déployée dans ${AUTH_KEYS}."
 
 # 4. Créer le fichier sudoers
 # printf avec \n explicite : résistant au \r\n introduit par sudo PTY lors d'un pipe
-printf '# ssh-access-manager — droits sudo pour audit-collector\n' > "${SUDOERS_FILE}"
-printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-collect\n' >> "${SUDOERS_FILE}"
-printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke\n' >> "${SUDOERS_FILE}"
-printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-add\n' >> "${SUDOERS_FILE}"
-printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-lock-user\n' >> "${SUDOERS_FILE}"
-printf 'audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user\n' >> "${SUDOERS_FILE}"
-printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-collect /usr/local/bin/sam-collect\n' >> "${SUDOERS_FILE}"
-printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-revoke /usr/local/bin/sam-revoke\n' >> "${SUDOERS_FILE}"
-printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-add /usr/local/bin/sam-add\n' >> "${SUDOERS_FILE}"
-printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-lock-user /usr/local/bin/sam-lock-user\n' >> "${SUDOERS_FILE}"
-printf 'audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/audit-collector/sam-unlock-user /usr/local/bin/sam-unlock-user\n' >> "${SUDOERS_FILE}"
+printf "# ssh-access-manager — droits sudo pour ${COLLECTOR_USER}\n" > "${SUDOERS_FILE}"
+printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-collect\n" >> "${SUDOERS_FILE}"
+printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke\n" >> "${SUDOERS_FILE}"
+printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-add\n" >> "${SUDOERS_FILE}"
+printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-lock-user\n" >> "${SUDOERS_FILE}"
+printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user\n" >> "${SUDOERS_FILE}"
+printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/${COLLECTOR_USER}/sam-collect /usr/local/bin/sam-collect\n" >> "${SUDOERS_FILE}"
+printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/${COLLECTOR_USER}/sam-revoke /usr/local/bin/sam-revoke\n" >> "${SUDOERS_FILE}"
+printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/${COLLECTOR_USER}/sam-add /usr/local/bin/sam-add\n" >> "${SUDOERS_FILE}"
+printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/${COLLECTOR_USER}/sam-lock-user /usr/local/bin/sam-lock-user\n" >> "${SUDOERS_FILE}"
+printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /home/${COLLECTOR_USER}/sam-unlock-user /usr/local/bin/sam-unlock-user\n" >> "${SUDOERS_FILE}"
 
 chmod 440 "${SUDOERS_FILE}"
 echo "[provision] Sudoers configuré dans ${SUDOERS_FILE}."
