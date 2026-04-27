@@ -830,6 +830,8 @@ def delete_admin(username: str, admin_id: str | None = None) -> None:
 
 def lock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
     """Lock a Unix user account on a remote server."""
+    if unix_user == ssh.SSH_USER:
+        raise ValueError(f"Cannot lock the collector account '{ssh.SSH_USER}'")
     if not _UNIX_USER_RE.match(unix_user):
         raise ValueError(f"Nom d'utilisateur Unix invalide : '{unix_user}'")
     server = db.query_one(
@@ -850,6 +852,8 @@ def lock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
 
 def unlock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
     """Unlock a Unix user account on a remote server."""
+    if unix_user == ssh.SSH_USER:
+        raise ValueError(f"Cannot unlock the collector account '{ssh.SSH_USER}'")
     if not _UNIX_USER_RE.match(unix_user):
         raise ValueError(f"Nom d'utilisateur Unix invalide : '{unix_user}'")
     server = db.query_one(

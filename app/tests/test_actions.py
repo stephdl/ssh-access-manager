@@ -759,6 +759,20 @@ def test_actions_unlock_user_invalid_username():
         actions.unlock_user("bad@user", "server-test-01", ADMIN_ID)
 
 
+def test_actions_lock_user_ssh_user_raises():
+    with patch("actions.ssh") as mock_ssh:
+        mock_ssh.SSH_USER = "audit-collector"
+        with pytest.raises(ValueError, match="Cannot lock the collector account"):
+            actions.lock_user("audit-collector", "server-test-01", ADMIN_ID)
+
+
+def test_actions_unlock_user_ssh_user_raises():
+    with patch("actions.ssh") as mock_ssh:
+        mock_ssh.SSH_USER = "audit-collector"
+        with pytest.raises(ValueError, match="Cannot unlock the collector account"):
+            actions.unlock_user("audit-collector", "server-test-01", ADMIN_ID)
+
+
 # ---------------------------------------------------------------------------
 # unix_user dans key_authorizations
 # ---------------------------------------------------------------------------
