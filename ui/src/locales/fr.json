@@ -292,7 +292,7 @@
   },
   "settings": {
     "title": "Paramètres",
-    "scan_section": "Intervalle de scan",
+    "scan_section": "Scan & alertes expiration",
     "scan_interval_label": "Lancer un scan toutes les",
     "hours": "heures",
     "days": "jours",

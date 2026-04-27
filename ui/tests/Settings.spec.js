@@ -11,7 +11,7 @@ const i18n = createI18n({
     en: {
       settings: {
         title: 'Settings',
-        scan_section: 'Scan interval',
+        scan_section: 'Scan & expiry alerts',
         scan_interval_label: 'Run a scan every',
         hours: 'hours',
         days: 'days',

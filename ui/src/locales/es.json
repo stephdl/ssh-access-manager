@@ -292,7 +292,7 @@
   },
   "settings": {
     "title": "Ajustes",
-    "scan_section": "Intervalo de escaneo",
+    "scan_section": "Escaneo & alertas de expiración",
     "scan_interval_label": "Ejecutar un escaneo cada",
     "hours": "horas",
     "days": "días",

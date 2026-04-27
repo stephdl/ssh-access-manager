@@ -292,7 +292,7 @@
   },
   "settings": {
     "title": "Einstellungen",
-    "scan_section": "Scan-Intervall",
+    "scan_section": "Scan & Ablaufwarnungen",
     "scan_interval_label": "Einen Scan ausführen alle",
     "hours": "Stunden",
     "days": "Tage",

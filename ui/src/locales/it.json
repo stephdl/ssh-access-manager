@@ -292,7 +292,7 @@
   },
   "settings": {
     "title": "Impostazioni",
-    "scan_section": "Intervallo di scansione",
+    "scan_section": "Scansione & avvisi di scadenza",
     "scan_interval_label": "Esegui una scansione ogni",
     "hours": "ore",
     "days": "giorni",

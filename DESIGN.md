@@ -575,7 +575,7 @@ Trois niveaux de criticité avec comportements distincts :
 |---|---|---|
 | `CRITICAL` | Email immédiat via msmtp | Clé inconnue détectée, révocation hors système, scan échoué |
 | `WARNING` | Email immédiat avec anti-spam 24h | Clé proche de l'expiration (J-N, seuils configurables) |
-| `INFO` | Log uniquement | KEY_EXPIRED, KEY_REVOKED, SCAN_COMPLETED |
+| `INFO` | Log uniquement | KEY_EXPIRED, KEY_REVOKED, SCAN_COMPLETED, LOGIN_FAILED, LOGIN_BANNED |
 
 L'**anti-spam** sur les alertes WARNING est implémenté via une requête sur
 `audit_log` :
@@ -781,6 +781,97 @@ Les éléments sensibles utilisent `v-if` (jamais `v-show`) pour être absents d
 - **Dashboard, ServerDetail** : boutons d'ajout/désactivation/suppression masqués pour viewer
 - **DeployedUsersTable** : colonne Actions + boutons Lock/Unlock masqués pour viewer
 - **Settings** : formulaire de configuration masqué pour operator et viewer
+
+### Protection contre les attaques par force brute (issue #236)
+
+Un système de limitation de taux (rate limiting) protège la route
+`POST /api/auth/login` contre les tentatives de connexion par force brute.
+L'implémentation est entièrement en mémoire — aucune dépendance externe
+(Redis, Memcached) n'est requise.
+
+#### Architecture
+
+```python
+# web.py — État global thread-safe
+from threading import Lock
+
+_login_attempts = {}  # dict[ip] = {"count": int, "first_seen": datetime}
+_login_attempts_lock = Lock()
+```
+
+Chaque IP est suivie indépendamment. Le dictionnaire global `_login_attempts`
+enregistre le nombre d'échecs de connexion et le timestamp de la première
+tentative. Le lock garantit la cohérence de l'état face aux requêtes concurrentes.
+
+#### Extraction de l'IP client
+
+La directive `proxy_set_header X-Forwarded-For $remote_addr;` dans Nginx injecte
+l'IP réelle du client dans chaque requête. Flask la lit via
+`request.headers.get("X-Forwarded-For", request.remote_addr).split(",")[0]`.
+En production, Nginx est le seul point d'entrée HTTP — l'IP extraite est fiable.
+
+#### Configuration dynamique
+
+Deux paramètres contrôlent le comportement, stockés dans la table `settings` :
+
+- **`login_max_attempts`** (défaut : 10) — nombre d'échecs tolérés avant blocage
+- **`login_ban_seconds`** (défaut : 300 / 5 minutes) — durée du blocage
+
+Ces valeurs sont modifiables sans redémarrage via `PUT /api/system/config`.
+À chaque requête `/api/auth/login`, les seuils sont lus depuis la base de données.
+
+#### Comportement
+
+**Login échoué** (mot de passe invalide) :
+```
+→ Incrément compteur pour l'IP
+→ HTTP 401 {"error": "Invalid credentials"}
+→ stdout : [LOGIN_FAILED] ip=... username=...
+→ INSERT audit_log (action='LOGIN_FAILED', details={"ip": ..., "username": ...})
+```
+
+**Seuil dépassé** :
+```
+→ HTTP 429 {"error": "Too many login attempts. Try again in X seconds."}
+→ stdout : [LOGIN_BANNED] ip=... attempts=... ban_seconds=...
+→ INSERT audit_log (action='LOGIN_BANNED', details={"ip": ..., "attempts": ...})
+```
+
+**Login réussi** :
+```
+→ Suppression de l'entrée pour cette IP (reset du compteur)
+→ HTTP 200 + session établie
+```
+
+**Fenêtre glissante** : après `login_ban_seconds`, l'entrée est supprimée
+automatiquement lors de la prochaine vérification — l'IP peut retenter.
+
+#### Intégration avec fail2ban / CrowdSec
+
+Les logs stdout structurés permettent le filtrage externe :
+
+```
+[LOGIN_FAILED] ip=192.0.2.15 username=admin
+[LOGIN_BANNED] ip=192.0.2.15 attempts=10 ban_seconds=300
+```
+
+Un regex fail2ban peut détecter `[LOGIN_FAILED]` ou `[LOGIN_BANNED]` et
+bannir l'IP au niveau du firewall (iptables/nftables). Le rate limiting
+applicatif et le rate limiting réseau (fail2ban) se complètent : le premier
+réduit la charge sur PostgreSQL, le second bloque au niveau transport.
+
+#### Pourquoi in-memory plutôt que Redis
+
+1. **Simplicité de déploiement** : conteneur unique sans orchestration de services
+2. **Faible charge** : quelques dizaines d'admins, pas de flotte de containers
+3. **Cohérence avec l'architecture** : toute la persistance est PostgreSQL + volume
+4. **Fail-safe acceptable** : un redémarrage réinitialise les compteurs (tolérable
+   pour un outil interne — un attaquant persistant sera de toute façon bloqué
+   par fail2ban au niveau réseau)
+
+L'état en mémoire est perdu au redémarrage du conteneur, mais la combinaison
+(limitation applicative éphémère + audit_log permanent + fail2ban optionnel)
+couvre les trois couches : applicative, traçabilité, réseau.
 
 ### Vue AccessRequests — formulaires DeployKeyForm et UserLockForm
 
@@ -1196,6 +1287,7 @@ permet de modifier `NGINX_PORT` ou `SMTP_HOST` sans reconstruire l'image — un
 | `actions.py` centralisé | Source unique de vérité CLI+API | Import circulaire impossible |
 | Multi-stage Dockerfile | Image finale sans Node.js | Build légèrement plus lent |
 | Session Flask | Simplicité d'implémentation | Pas de support multi-device/token |
+| Rate limiting in-memory | Pas de dépendance Redis/Memcached | État perdu au redémarrage |
 | JSONB audit details | Extensibilité sans migration | Données non structurées en DB |
 | Réécriture atomique SAM_REVOKE | `authorized_keys` jamais corrompu | Complexité du script shell |
 | Anti-spam audit_log | Pas de flood d'emails expiration | Index supplémentaire requis |
@@ -1213,7 +1305,8 @@ d'ingénierie logicielle niveau 7 :
 - **Séparation des préoccupations** : chaque module a une responsabilité unique et
   délimitée (db, ssh, actions, collect, expire, alerts, web, manage).
 - **Défense en profondeur** : sécurité SSH (RejectPolicy + keyscan + IP directe),
-  conformité ANSSI (DB + UI), audit immuable (INSERT uniquement sur `audit_log`).
+  conformité ANSSI (DB + UI), audit immuable (INSERT uniquement sur `audit_log`),
+  protection brute-force (rate limiting applicatif + logs structurés fail2ban).
 - **Idempotence** : sync YAML, keyscan, bootstrap, déploiement de scripts.
 - **Traçabilité complète** : les 4 scénarios de révocation sont distingués par des
   colonnes dédiées et des entrées `audit_log` de types différents.

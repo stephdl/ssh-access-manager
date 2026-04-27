@@ -96,6 +96,32 @@ $EXEC admin update alice --role viewer
 
 ---
 
+## Sécurité — Protection contre les attaques par force brute
+
+Le système intègre une protection contre les tentatives de connexion répétées. En cas de multiples échecs de connexion depuis la même adresse IP, celle-ci est temporairement bannie.
+
+### Fonctionnement
+
+- **Limite de tentatives** : après N échecs de connexion consécutifs, l'IP est bloquée pour M secondes
+- **Réponse HTTP** : `429 Too Many Requests` pendant la durée du bannissement
+- **Configuration** : les deux paramètres sont modifiables à chaud via **Settings → Security** (rôle `sysadmin` requis)
+  - `login_max_attempts` (défaut : 10) — nombre d'échecs avant bannissement
+  - `login_ban_seconds` (défaut : 300) — durée du bannissement en secondes
+- **Aucun redémarrage** : les modifications prennent effet immédiatement
+
+### Logs stdout — intégration fail2ban / CrowdSec
+
+Chaque tentative de connexion échouée et chaque bannissement sont tracés dans stdout (visibles via `podman logs`) au format suivant :
+
+```
+[LOGIN_FAILED] ip=1.2.3.4 username=admin
+[LOGIN_BANNED] ip=1.2.3.4 username=admin ban_seconds=300
+```
+
+Ces logs structurés facilitent l'intégration avec des systèmes de détection d'intrusion comme **fail2ban** ou **CrowdSec** pour appliquer des règles de bannissement au niveau du pare-feu système.
+
+---
+
 ## Workflow — Ajout d'un serveur distant
 
 ### 1. Provisionner l'hôte distant
