@@ -721,6 +721,56 @@ def require_role(*roles):
 
 Exception : `PUT /api/admins/<username>/password` — autorisé si sysadmin OU si l'admin modifie son propre mot de passe.
 
+#### Matrice RBAC complète
+
+| Route | Méthode | sysadmin | operator | viewer |
+|-------|---------|----------|----------|--------|
+| /api/servers | GET | ✓ | ✓ | ✓ |
+| /api/servers | POST | ✓ | 403 | 403 |
+| /api/servers/\<hostname\> | GET | ✓ | ✓ | ✓ |
+| /api/servers/\<hostname\> | PUT | ✓ | 403 | 403 |
+| /api/servers/\<hostname\>/disable | PUT | ✓ | 403 | 403 |
+| /api/servers/\<hostname\>/enable | PUT | ✓ | 403 | 403 |
+| /api/servers/\<hostname\> | DELETE | ✓ | 403 | 403 |
+| /api/servers/\<hostname\>/scan | POST | ✓ | ✓ | 403 |
+| /api/keys | GET | ✓ | ✓ | ✓ |
+| /api/keys/get/\<fp\> | GET | ✓ | ✓ | ✓ |
+| /api/keys/search | GET | ✓ | ✓ | ✓ |
+| /api/keys/validate/\<fp\> | POST | ✓ | ✓ | 403 |
+| /api/keys/revoke/\<fp\> | POST | ✓ | ✓ | 403 |
+| /api/keys/assign/\<fp\> | POST | ✓ | ✓ | 403 |
+| /api/keys/set-expiry/\<fp\> | POST | ✓ | ✓ | 403 |
+| /api/keys/remove-expiry/\<fp\> | POST | ✓ | ✓ | 403 |
+| /api/access | GET | ✓ | ✓ | ✓ |
+| /api/access/\<id\> | GET | ✓ | ✓ | ✓ |
+| /api/access/deployed-users | GET | ✓ | ✓ | ✓ |
+| /api/access/grant | POST | ✓ | ✓ | 403 |
+| /api/access/deploy | POST | ✓ | ✓ | 403 |
+| /api/access/lock-user | POST | ✓ | ✓ | 403 |
+| /api/access/unlock-user | POST | ✓ | ✓ | 403 |
+| /api/access/request | POST | ✓ | ✓ | 403 |
+| /api/access/\<id\>/approve | POST | ✓ | ✓ | 403 |
+| /api/access/\<id\>/reject | POST | ✓ | ✓ | 403 |
+| /api/access/\<id\>/revoke | POST | ✓ | ✓ | 403 |
+| /api/admins | GET | ✓ | ✓ | ✓ |
+| /api/admins/me | GET | ✓ | ✓ | ✓ |
+| /api/admins | POST | ✓ | 403 | 403 |
+| /api/admins/\<username\> | PUT | ✓ | 403 | 403 |
+| /api/admins/\<username\>/disable | PUT | ✓ | 403 | 403 |
+| /api/admins/\<username\>/enable | PUT | ✓ | 403 | 403 |
+| /api/admins/\<username\> | DELETE | ✓ | 403 | 403 |
+| /api/admins/\<username\>/alerts | PUT | ✓ | 403 | 403 |
+| /api/admins/\<username\>/password | PUT | ✓ | ✓* | 403* |
+| /api/audit | GET | ✓ | ✓ | ✓ |
+| /api/system/status | GET | ✓ | ✓ | ✓ |
+| /api/system/scan | POST | ✓ | ✓ | 403 |
+| /api/system/collector-key | GET | ✓ | ✓ | ✓ |
+| /api/system/config | GET | ✓ | ✓ | ✓ |
+| /api/system/config | PUT | ✓ | 403 | 403 |
+| /api/system/test-smtp | POST | ✓ | ✓ | ✓ |
+
+\* `PUT /api/admins/<username>/password` : sysadmin → toujours autorisé ; operator/viewer → autorisé uniquement pour modifier son propre mot de passe (403 sinon).
+
 #### Frontend — visibilité par rôle
 
 `useAuth.js` expose `admin.value.role` (chargé après login via `fetchMe()`).

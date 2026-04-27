@@ -78,6 +78,15 @@ Le rôle est vérifié **côté backend** (Flask retourne 403 pour les requêtes
 
 Un `sysadmin` ne peut pas modifier son propre rôle. Un email est obligatoire à la création.
 
+### Permissions par catégorie
+
+| Catégorie | sysadmin | operator | viewer |
+|-----------|----------|----------|--------|
+| Lecture (GET — toutes les ressources) | ✓ | ✓ | ✓ |
+| Actions SSH (valider/révoquer clés, scans, déploiement, lock/unlock) | ✓ | ✓ | ✗ |
+| Administration système (serveurs, admins, configuration) | ✓ | ✗ | ✗ |
+| Changement de son propre mot de passe | ✓ | ✓ | ✓ |
+
 Pour créer un administrateur avec un rôle spécifique (défaut : `operator`) :
 
 ```bash
