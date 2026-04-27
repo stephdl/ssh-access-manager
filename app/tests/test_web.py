@@ -1192,3 +1192,184 @@ def test_web_test_smtp_returns_500_when_msmtp_not_found(auth_client):
 def test_web_test_smtp_returns_401_when_unauthenticated(client):
     resp = client.post("/api/system/test-smtp")
     assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting — /api/auth/login brute-force protection
+# ---------------------------------------------------------------------------
+
+def _login_settings_side_effect(query, params=None):
+    """Mock db.query_one for settings table during login."""
+    if params and "login_max_attempts" in str(params):
+        return {"value": "3"}
+    if params and "login_ban_seconds" in str(params):
+        return {"value": "300"}
+    return None
+
+
+def test_web_login_success_returns_200(client):
+    """Successful login returns 200 and resets attempt counter."""
+    web._login_attempts.clear()
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "3"},    # login_max_attempts (check_rate_limit)
+            {"value": "300"},  # login_ban_seconds  (check_rate_limit)
+            {"id": ADMIN_ID, "username": "admin", "password_hash": "pbkdf2:sha256:hash"},
+        ]
+        with patch("web.check_password_hash", return_value=True):
+            resp = client.post(
+                "/api/auth/login",
+                json={"username": "admin", "password": "correct"},
+            )
+    assert resp.status_code == 200
+    assert "127.0.0.1" not in web._login_attempts
+
+
+def test_web_login_failure_returns_401(client):
+    """Wrong password returns 401 and records failure."""
+    web._login_attempts.clear()
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "10"},   # login_max_attempts (check_rate_limit)
+            {"value": "300"},  # login_ban_seconds  (check_rate_limit)
+            {"id": ADMIN_ID, "username": "admin", "password_hash": "hash"},
+            {"value": "10"},   # login_max_attempts (_record_failure)
+            {"value": "300"},  # login_ban_seconds  (_record_failure)
+        ]
+        with patch("web.check_password_hash", return_value=False):
+            resp = client.post(
+                "/api/auth/login",
+                json={"username": "admin", "password": "wrong"},
+            )
+    assert resp.status_code == 401
+
+
+def test_web_login_missing_credentials_returns_400(client):
+    """Missing username or password returns 400 before rate-limit check."""
+    web._login_attempts.clear()
+    resp = client.post("/api/auth/login", json={"username": "admin"})
+    assert resp.status_code == 400
+
+
+def test_web_login_banned_ip_returns_429(client):
+    """IP with active ban returns 429."""
+    web._login_attempts.clear()
+    future = datetime.now(timezone.utc).timestamp() + 300
+    web._login_attempts["127.0.0.1"] = {"count": 5, "banned_until": future}
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "3"},    # login_max_attempts (check_rate_limit)
+            {"value": "300"},  # login_ban_seconds  (check_rate_limit)
+        ]
+        resp = client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "any"},
+        )
+    web._login_attempts.clear()
+    assert resp.status_code == 429
+
+
+def test_web_login_ban_lifted_after_timeout(client):
+    """Expired ban entry is cleared and request proceeds."""
+    web._login_attempts.clear()
+    past = datetime.now(timezone.utc).timestamp() - 1
+    web._login_attempts["127.0.0.1"] = {"count": 5, "banned_until": past}
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "3"},    # login_max_attempts (check_rate_limit)
+            {"value": "300"},  # login_ban_seconds  (check_rate_limit)
+            {"id": ADMIN_ID, "username": "admin", "password_hash": "pbkdf2:sha256:hash"},
+        ]
+        with patch("web.check_password_hash", return_value=True):
+            resp = client.post(
+                "/api/auth/login",
+                json={"username": "admin", "password": "correct"},
+            )
+    web._login_attempts.clear()
+    assert resp.status_code == 200
+
+
+def test_web_login_max_attempts_triggers_ban(client):
+    """Reaching max_attempts on the last failure triggers ban."""
+    web._login_attempts.clear()
+    # 2 failures already recorded, max_attempts=3 → 3rd failure triggers ban
+    web._login_attempts["127.0.0.1"] = {"count": 2, "banned_until": 0}
+    with patch("web.db") as mock_db:
+        # check_rate_limit: max_attempts, ban_seconds
+        # _record_failure:  max_attempts, ban_seconds
+        mock_db.query_one.side_effect = [
+            {"value": "3"},    # check_rate_limit: login_max_attempts
+            {"value": "300"},  # check_rate_limit: login_ban_seconds
+            {"id": ADMIN_ID, "username": "admin", "password_hash": "hash"},
+            {"value": "3"},    # _record_failure:  login_max_attempts
+            {"value": "300"},  # _record_failure:  login_ban_seconds
+        ]
+        mock_db.execute.return_value = None
+        with patch("web.check_password_hash", return_value=False):
+            resp = client.post(
+                "/api/auth/login",
+                json={"username": "admin", "password": "wrong"},
+            )
+    entry = web._login_attempts.get("127.0.0.1")
+    web._login_attempts.clear()
+    assert resp.status_code == 401
+    assert entry is not None
+    assert entry["banned_until"] > 0
+
+
+def test_web_config_update_login_max_attempts(auth_client):
+    """PUT /api/system/config accepts login_max_attempts."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"value": "7"},   # current expire_warn_days
+            {"value": "2"},   # current expire_warn_days_2
+        ]
+        mock_db.query.return_value = [
+            {"key": "scan_interval_hours", "value": "4"},
+            {"key": "expire_warn_days", "value": "7"},
+            {"key": "expire_warn_days_2", "value": "2"},
+            {"key": "login_max_attempts", "value": "5"},
+            {"key": "login_ban_seconds", "value": "300"},
+        ]
+        resp = auth_client.put("/api/system/config", json={"login_max_attempts": 5})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["login_max_attempts"] == 5
+
+
+def test_web_config_update_login_ban_seconds(auth_client):
+    """PUT /api/system/config accepts login_ban_seconds."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"value": "7"},
+            {"value": "2"},
+        ]
+        mock_db.query.return_value = [
+            {"key": "scan_interval_hours", "value": "4"},
+            {"key": "expire_warn_days", "value": "7"},
+            {"key": "expire_warn_days_2", "value": "2"},
+            {"key": "login_max_attempts", "value": "10"},
+            {"key": "login_ban_seconds", "value": "600"},
+        ]
+        resp = auth_client.put("/api/system/config", json={"login_ban_seconds": 600})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["login_ban_seconds"] == 600
+
+
+def test_web_config_login_max_attempts_out_of_range(auth_client):
+    """PUT /api/system/config rejects login_max_attempts > 100."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/system/config", json={"login_max_attempts": 200})
+    assert resp.status_code == 400
+
+
+def test_web_config_login_ban_seconds_too_low(auth_client):
+    """PUT /api/system/config rejects login_ban_seconds < 30."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/system/config", json={"login_ban_seconds": 10})
+    assert resp.status_code == 400

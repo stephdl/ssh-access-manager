@@ -143,6 +143,8 @@ Clés présentes par défaut :
 | `scan_interval_hours` | `4` | Intervalle entre deux scans SSH |
 | `expire_warn_days` | `7` | Premier avertissement avant expiration (jours) |
 | `expire_warn_days_2` | `2` | Second avertissement avant expiration (jours) |
+| `login_max_attempts` | `10` | Tentatives max avant bannissement IP (brute-force) |
+| `login_ban_seconds` | `300` | Durée du bannissement en secondes |
 
 ## Colonne receive_alerts — administrators
 
@@ -188,3 +190,5 @@ Six index optimisent les requêtes fréquentes :
 | `ADMIN_UPDATED` | Administrateur modifié (email, rôle) |
 | `USER_LOCKED` | Compte Unix verrouillé (SSH bloqué) |
 | `USER_UNLOCKED` | Compte Unix déverrouillé |
+| `LOGIN_FAILED` | Échec d'authentification (IP enregistrée) |
+| `LOGIN_BANNED` | IP bannie après trop d'échecs (rate limiter) |

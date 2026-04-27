@@ -312,7 +312,9 @@ CREATE TABLE audit_log (
                         'ADMIN_DELETED',
                         'ADMIN_UPDATED',
                         'USER_LOCKED',
-                        'USER_UNLOCKED'
+                        'USER_UNLOCKED',
+                        'LOGIN_FAILED',
+                        'LOGIN_BANNED'
                     )),
     performed_by    UUID REFERENCES administrators(id),
     target_key      UUID REFERENCES ssh_keys(id),
@@ -331,9 +333,12 @@ CREATE TABLE settings (
 INSERT INTO settings (key, value) VALUES ('scan_interval_hours', '4');
 INSERT INTO settings (key, value) VALUES ('expire_warn_days', '7');
 INSERT INTO settings (key, value) VALUES ('expire_warn_days_2', '2');
+INSERT INTO settings (key, value) VALUES ('login_max_attempts', '10');
+INSERT INTO settings (key, value) VALUES ('login_ban_seconds', '300');
 
 -- Modifiables via GET/PUT /api/system/config ou Settings UI sans redémarrage.
 -- expire_warn_days et expire_warn_days_2 remplacent les variables d'env (issue #230).
+-- login_max_attempts et login_ban_seconds : protection brute-force login (issue #236).
 
 ## Index
 
@@ -528,6 +533,33 @@ Exception : PUT /api/admins/<username>/password autorisé si sysadmin OU usernam
 Validation robustesse mot de passe (issue #62) :
 - 8+ caractères, 1+ majuscule, 1+ minuscule, 1+ chiffre, 1+ spécial
 - Appliquée dans add_admin() et change_password()
+
+## Logique métier — protection brute-force (issue #236)
+
+Rate limiter en mémoire sur POST /api/auth/login.
+Aucune dépendance externe (pas de Redis).
+
+Fonctions dans web.py :
+- `_get_client_ip()` — extrait l'IP réelle depuis X-Forwarded-For (Nginx proxy)
+- `_load_login_settings()` — lit login_max_attempts et login_ban_seconds en base
+- `_check_rate_limit(ip)` — retourne (is_banned, retry_after_seconds)
+- `_record_failure(ip, username)` — incrémente compteur, retourne True si ban déclenché
+- `_reset_attempts(ip)` — efface l'entrée après succès
+
+Comportement :
+→ Chaque échec : print `[LOGIN_FAILED] ip=... username=...` + INSERT audit_log LOGIN_FAILED
+→ Seuil atteint : print `[LOGIN_BANNED] ip=... ban_seconds=...` + INSERT audit_log LOGIN_BANNED
+→ IP bannie : HTTP 429 avec `{"error": "Too many failed attempts. Try again later."}`
+→ Succès : compteur réinitialisé
+→ Ban expiré : entrée supprimée automatiquement à la prochaine requête
+
+Configurable sans redémarrage via PUT /api/system/config (sysadmin uniquement) :
+- login_max_attempts : 1–100, défaut 10
+- login_ban_seconds : 30–86400, défaut 300
+
+Format stdout compatible fail2ban / CrowdSec :
+  [LOGIN_FAILED] ip=1.2.3.4 username=admin
+  [LOGIN_BANNED] ip=1.2.3.4 username=admin ban_seconds=300
 
 ## Logique métier — actions.py (fonctions complètes)
 
@@ -954,6 +986,7 @@ ui/src/views/
                           + toggle receive_alerts par admin (issue #223)
     Settings.vue        ← configuration système : intervalle de scan, seuils d'alerte
                           expiration (expire_warn_days, expire_warn_days_2), test SMTP
+                          + section Sécurité : login_max_attempts, login_ban_seconds (issue #236)
                           + GET/PUT /api/system/config (issues #133, #224, #230)
 
 ui/src/components/

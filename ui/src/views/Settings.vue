@@ -65,6 +65,51 @@
     </section>
 
     <section class="card">
+      <h3>{{ $t('settings.security_section') }}</h3>
+      <div class="field">
+        <label>{{ $t('settings.login_max_attempts_label') }}</label>
+        <div class="input-row">
+          <input
+            v-model.number="loginMaxAttempts"
+            type="number"
+            min="1"
+            max="100"
+            step="1"
+            class="input-number"
+            :disabled="currentRole !== 'sysadmin'"
+          />
+          <span class="unit">{{ $t('settings.attempts') }}</span>
+        </div>
+        <p class="hint">{{ $t('settings.login_max_attempts_hint') }}</p>
+      </div>
+
+      <div class="field">
+        <label>{{ $t('settings.login_ban_seconds_label') }}</label>
+        <div class="input-row">
+          <input
+            v-model.number="loginBanSeconds"
+            type="number"
+            min="30"
+            max="86400"
+            step="30"
+            class="input-number"
+            :disabled="currentRole !== 'sysadmin'"
+          />
+          <span class="unit">{{ $t('settings.seconds') }}</span>
+        </div>
+        <p class="hint">{{ $t('settings.login_ban_seconds_hint') }}</p>
+      </div>
+
+      <div v-if="currentRole === 'sysadmin'" class="field">
+        <button class="btn-primary" :disabled="savingSecurity" @click="saveSecurity">
+          {{ $t('settings.save') }}
+        </button>
+        <p v-if="successSecurity" class="success-msg">{{ $t('settings.saved') }}</p>
+        <p v-if="errorSecurity" class="error-msg">{{ errorSecurity }}</p>
+      </div>
+    </section>
+
+    <section class="card">
       <h3>{{ $t('settings.smtp_section') }}</h3>
       <div class="field">
         <div class="input-row">
@@ -92,9 +137,14 @@ const currentRole = computed(() => admin.value?.role || 'viewer')
 const intervalHours = ref(4)
 const expireWarnDays = ref(7)
 const expireWarnDays2 = ref(2)
+const loginMaxAttempts = ref(10)
+const loginBanSeconds = ref(300)
 const saving = ref(false)
 const success = ref(false)
 const error = ref('')
+const savingSecurity = ref(false)
+const successSecurity = ref(false)
+const errorSecurity = ref('')
 
 const smtpTesting = ref(false)
 const smtpSuccess = ref('')
@@ -108,6 +158,8 @@ onMounted(async () => {
     intervalHours.value = parseInt(data.scan_interval_hours)
     expireWarnDays.value = parseInt(data.expire_warn_days || 7)
     expireWarnDays2.value = parseInt(data.expire_warn_days_2 || 2)
+    loginMaxAttempts.value = parseInt(data.login_max_attempts || 10)
+    loginBanSeconds.value = parseInt(data.login_ban_seconds || 300)
   } catch (err) {
     error.value = err.message
   }
@@ -178,6 +230,46 @@ async function save() {
     error.value = err.message
   } finally {
     saving.value = false
+  }
+}
+
+async function saveSecurity() {
+  if (loginMaxAttempts.value < 1 || loginMaxAttempts.value > 100) {
+    errorSecurity.value = t('settings.login_max_attempts_hint')
+    return
+  }
+  if (loginBanSeconds.value < 30 || loginBanSeconds.value > 86400) {
+    errorSecurity.value = t('settings.login_ban_seconds_hint')
+    return
+  }
+
+  savingSecurity.value = true
+  successSecurity.value = false
+  errorSecurity.value = ''
+
+  try {
+    const res = await fetch('/api/system/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        login_max_attempts: loginMaxAttempts.value,
+        login_ban_seconds: loginBanSeconds.value,
+      }),
+    })
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+
+    successSecurity.value = true
+    setTimeout(() => {
+      successSecurity.value = false
+    }, 3000)
+  } catch (err) {
+    errorSecurity.value = err.message
+  } finally {
+    savingSecurity.value = false
   }
 }
 </script>

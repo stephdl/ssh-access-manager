@@ -3,8 +3,10 @@ web.py — API REST Flask JSON.
 Toutes les routes retournent JSON. Prefixe /api/.
 Importe actions.py pour la logique metier — jamais de duplication.
 """
+import json
 import logging
 import os
+import threading
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -16,6 +18,67 @@ import alerts
 import collect as collect_mod
 import db
 import ssh
+
+# ---------------------------------------------------------------------------
+# Rate limiter — protection brute-force sur /api/auth/login
+# Stockage en mémoire : {ip: {"count": N, "banned_until": timestamp}}
+# ---------------------------------------------------------------------------
+_login_attempts: dict = {}
+_login_lock = threading.Lock()
+
+
+def _get_client_ip() -> str:
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def _load_login_settings() -> tuple[int, int]:
+    try:
+        row_attempts = db.query_one("SELECT value FROM settings WHERE key = 'login_max_attempts'")
+        row_ban = db.query_one("SELECT value FROM settings WHERE key = 'login_ban_seconds'")
+        max_attempts = int(row_attempts["value"]) if row_attempts else 10
+        ban_seconds = int(row_ban["value"]) if row_ban else 300
+    except Exception:
+        max_attempts, ban_seconds = 10, 300
+    return max_attempts, ban_seconds
+
+
+def _check_rate_limit(ip: str) -> tuple[bool, int]:
+    """Retourne (is_banned, seconds_remaining)."""
+    _, ban_seconds = _load_login_settings()
+    with _login_lock:
+        entry = _login_attempts.get(ip)
+        if not entry:
+            return False, 0
+        banned_until = entry.get("banned_until", 0)
+        now = datetime.now(timezone.utc).timestamp()
+        if banned_until and now < banned_until:
+            return True, int(banned_until - now)
+        if banned_until and now >= banned_until:
+            _login_attempts.pop(ip, None)
+        return False, 0
+
+
+def _record_failure(ip: str, username: str) -> bool:
+    """Incrémente le compteur. Retourne True si l'IP vient d'être bannie."""
+    max_attempts, ban_seconds = _load_login_settings()
+    now = datetime.now(timezone.utc).timestamp()
+    with _login_lock:
+        entry = _login_attempts.setdefault(ip, {"count": 0, "banned_until": 0})
+        entry["count"] += 1
+        count = entry["count"]
+        if count >= max_attempts and not entry["banned_until"]:
+            entry["banned_until"] = now + ban_seconds
+            return True
+    return False
+
+
+def _reset_attempts(ip: str) -> None:
+    with _login_lock:
+        _login_attempts.pop(ip, None)
+
 
 app = Flask(__name__)
 _flask_secret = os.environ.get("FLASK_SECRET_KEY")
@@ -71,14 +134,42 @@ def auth_login():
     password = data.get("password", "")
     if not username or not password:
         return jsonify({"error": "username and password required"}), 400
+
+    ip = _get_client_ip()
+
+    # Check if IP is currently banned
+    is_banned, retry_after = _check_rate_limit(ip)
+    if is_banned:
+        print(f"[LOGIN_BANNED] ip={ip} username={username} retry_after={retry_after}s", flush=True)
+        return jsonify({"error": "Too many failed attempts. Try again later."}), 429
+
     admin = db.query_one(
         "SELECT id, username, password_hash FROM administrators WHERE username = %s AND is_active = true",
         (username,),
     )
-    if not admin or not admin["password_hash"]:
+    if not admin or not admin["password_hash"] or not check_password_hash(admin["password_hash"], password):
+        just_banned = _record_failure(ip, username)
+        print(f"[LOGIN_FAILED] ip={ip} username={username}", flush=True)
+        try:
+            db.execute(
+                "INSERT INTO audit_log (action, details) VALUES ('LOGIN_FAILED', %s)",
+                (json.dumps({"ip": ip, "username": username}),),
+            )
+        except Exception:
+            pass
+        if just_banned:
+            _, ban_seconds = _load_login_settings()
+            print(f"[LOGIN_BANNED] ip={ip} username={username} ban_seconds={ban_seconds}", flush=True)
+            try:
+                db.execute(
+                    "INSERT INTO audit_log (action, details) VALUES ('LOGIN_BANNED', %s)",
+                    (json.dumps({"ip": ip, "username": username, "ban_seconds": ban_seconds}),),
+                )
+            except Exception:
+                pass
         return jsonify({"error": "Invalid credentials"}), 401
-    if not check_password_hash(admin["password_hash"], password):
-        return jsonify({"error": "Invalid credentials"}), 401
+
+    _reset_attempts(ip)
     session.clear()
     session["admin_id"] = str(admin["id"])
     session["admin_username"] = admin["username"]
@@ -807,9 +898,12 @@ def update_config():
     scan_interval_hours = data.get("scan_interval_hours")
     expire_warn_days = data.get("expire_warn_days")
     expire_warn_days_2 = data.get("expire_warn_days_2")
+    login_max_attempts = data.get("login_max_attempts")
+    login_ban_seconds = data.get("login_ban_seconds")
 
     # Must have at least one value
-    if scan_interval_hours is None and expire_warn_days is None and expire_warn_days_2 is None:
+    if all(v is None for v in [scan_interval_hours, expire_warn_days, expire_warn_days_2,
+                                login_max_attempts, login_ban_seconds]):
         return jsonify({"error": "At least one setting must be provided"}), 400
 
     # Validate scan_interval_hours if present
@@ -839,6 +933,24 @@ def update_config():
         except (ValueError, TypeError):
             return jsonify({"error": "expire_warn_days_2 must be between 1 and 30"}), 400
 
+    # Validate login_max_attempts if present
+    if login_max_attempts is not None:
+        try:
+            login_max_attempts = int(login_max_attempts)
+            if not (1 <= login_max_attempts <= 100):
+                raise ValueError
+        except (ValueError, TypeError):
+            return jsonify({"error": "login_max_attempts must be between 1 and 100"}), 400
+
+    # Validate login_ban_seconds if present
+    if login_ban_seconds is not None:
+        try:
+            login_ban_seconds = int(login_ban_seconds)
+            if not (30 <= login_ban_seconds <= 86400):
+                raise ValueError
+        except (ValueError, TypeError):
+            return jsonify({"error": "login_ban_seconds must be between 30 and 86400"}), 400
+
     # Read current values from DB if not in request
     current_warn_days = db.query_one("SELECT value FROM settings WHERE key = 'expire_warn_days'")
     current_warn_days_2 = db.query_one("SELECT value FROM settings WHERE key = 'expire_warn_days_2'")
@@ -851,21 +963,16 @@ def update_config():
         return jsonify({"error": "expire_warn_days must be greater than expire_warn_days_2"}), 400
 
     # Update settings in DB
-    if scan_interval_hours is not None:
-        db.execute(
-            "UPDATE settings SET value = %s WHERE key = 'scan_interval_hours'",
-            (str(scan_interval_hours),)
-        )
-    if expire_warn_days is not None:
-        db.execute(
-            "UPDATE settings SET value = %s WHERE key = 'expire_warn_days'",
-            (str(expire_warn_days),)
-        )
-    if expire_warn_days_2 is not None:
-        db.execute(
-            "UPDATE settings SET value = %s WHERE key = 'expire_warn_days_2'",
-            (str(expire_warn_days_2),)
-        )
+    updates = {
+        "scan_interval_hours": scan_interval_hours,
+        "expire_warn_days": expire_warn_days,
+        "expire_warn_days_2": expire_warn_days_2,
+        "login_max_attempts": login_max_attempts,
+        "login_ban_seconds": login_ban_seconds,
+    }
+    for key, value in updates.items():
+        if value is not None:
+            db.execute("UPDATE settings SET value = %s WHERE key = %s", (str(value), key))
 
     # Return full updated config
     rows = db.query("SELECT key, value FROM settings")
