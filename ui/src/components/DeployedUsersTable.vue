@@ -121,9 +121,11 @@
 import { ref, computed, onMounted, defineExpose } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth.js'
+import { useFormatDate } from '../composables/useFormatDate.js'
 
 const { t } = useI18n()
 const { admin } = useAuth()
+const { formatDate } = useFormatDate()
 const currentRole = computed(() => admin.value?.role || 'viewer')
 
 const users = ref([])
@@ -182,7 +184,7 @@ async function loadUsers() {
 
 function formatExpiry(expiresAt) {
   if (!expiresAt) return t('deployedUsers.unlimited')
-  return new Date(expiresAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+  return formatDate(expiresAt)
 }
 
 async function lockUser(user) {

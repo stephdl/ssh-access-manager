@@ -139,8 +139,10 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useFormatDate } from '../composables/useFormatDate.js'
 
 const { t } = useI18n()
+const { formatDate } = useFormatDate()
 const emit = defineEmits(['deployed'])
 
 const unixUser = ref('')
@@ -263,11 +265,6 @@ function reset() {
   error.value = ''
   success.value = false
   result.value = null
-}
-
-function formatDate(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 }
 </script>
 

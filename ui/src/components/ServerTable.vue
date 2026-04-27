@@ -46,7 +46,7 @@
             </span>
           </td>
           <td>{{ s.os_family || '—' }}</td>
-          <td>{{ formatDate(s.added_at) }}</td>
+          <td>{{ formatDateOnly(s.added_at) }}</td>
           <td>
             <div style="display: flex; gap: 0.5rem">
               <button
@@ -73,6 +73,9 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useFormatDate } from '../composables/useFormatDate.js'
+
+const { formatDateOnly } = useFormatDate()
 
 const props = defineProps({
   servers: { type: Array, default: () => [] },
@@ -114,11 +117,6 @@ function envBadge(env) {
       lab: 'badge-active',
     }[env] || 'badge-expired'
   )
-}
-
-function formatDate(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('fr-FR')
 }
 </script>
 

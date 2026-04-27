@@ -66,8 +66,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useFormatDate } from '../composables/useFormatDate.js'
 
 const { t } = useI18n()
+const { formatDate } = useFormatDate()
 
 const ACTIONS = [
   'KEY_ADDED',
@@ -128,11 +130,6 @@ function actionBadge(action) {
   if (CRITICAL_ACTIONS.has(action)) return 'badge-critical'
   if (WARNING_ACTIONS.has(action)) return 'badge-pending'
   return 'badge-active'
-}
-
-function formatDate(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 function formatDetails(details) {

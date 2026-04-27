@@ -40,7 +40,7 @@
                   {{ a.is_active ? $t('admins.status_active') : $t('admins.status_disabled') }}
                 </span>
               </td>
-              <td>{{ formatDate(a.created_at) }}</td>
+              <td>{{ formatDateOnly(a.created_at) }}</td>
               <td v-if="currentRole === 'sysadmin'">
                 <div class="alerts-cell">
                   <span class="badge" :class="a.receive_alerts ? 'badge-active' : 'badge-off'">
@@ -549,9 +549,11 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth'
+import { useFormatDate } from '../composables/useFormatDate.js'
 
 const { t } = useI18n()
 const { admin } = useAuth()
+const { formatDateOnly } = useFormatDate()
 
 const currentRole = computed(() => admin.value?.role || 'viewer')
 
@@ -822,11 +824,6 @@ async function confirmEdit() {
   } catch (e) {
     error.value = e.message
   }
-}
-
-function formatDate(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('fr-FR')
 }
 
 onMounted(load)
