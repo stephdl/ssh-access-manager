@@ -297,7 +297,13 @@
     "hours": "Stunden",
     "save": "Speichern",
     "saved": "Einstellungen gespeichert.",
-    "scan_interval_hint": "Zwischen 1 und 24 Stunden. Der Cron wird alle 5 Minuten ausgelöst, überspringt aber die Ausführung, wenn das Intervall nicht abgelaufen ist."
+    "scan_interval_hint": "Zwischen 1 und 24 Stunden. Der Cron wird alle 5 Minuten ausgelöst, überspringt aber die Ausführung, wenn das Intervall nicht abgelaufen ist.",
+    "smtp_section": "SMTP-Konfiguration",
+    "smtp_hint": "Sendet eine Test-E-Mail an Ihre Adresse, um die SMTP-Konfiguration zu überprüfen.",
+    "smtp_test_btn": "Test-E-Mail senden",
+    "smtp_testing": "Wird gesendet…",
+    "smtp_sent": "Test-E-Mail wurde an {to} gesendet.",
+    "smtp_error": "Senden fehlgeschlagen: {error}"
   },
   "deployKey": {
     "title": "SSH-Schlüssel bereitstellen",

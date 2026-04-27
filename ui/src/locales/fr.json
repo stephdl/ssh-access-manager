@@ -297,7 +297,13 @@
     "hours": "heures",
     "save": "Sauvegarder",
     "saved": "Paramètres sauvegardés.",
-    "scan_interval_hint": "Entre 1 et 24 heures. Le cron se déclenche toutes les 5 minutes mais ignore l'exécution si l'intervalle n'est pas écoulé."
+    "scan_interval_hint": "Entre 1 et 24 heures. Le cron se déclenche toutes les 5 minutes mais ignore l'exécution si l'intervalle n'est pas écoulé.",
+    "smtp_section": "Configuration SMTP",
+    "smtp_hint": "Envoie un email de test à votre adresse pour vérifier la configuration SMTP.",
+    "smtp_test_btn": "Envoyer un email de test",
+    "smtp_testing": "Envoi en cours…",
+    "smtp_sent": "Email de test envoyé à {to}.",
+    "smtp_error": "Échec de l'envoi : {error}"
   },
   "deployKey": {
     "title": "Déployer une clé SSH",
