@@ -684,6 +684,8 @@ function closeEdit() {
 
 async function confirmEdit() {
   const username = editTarget.value.username
+  const email = editEmail.value.trim() || null
+  const role = editRole.value.trim()
   closeEdit()
   error.value = ''
   message.value = ''
@@ -691,10 +693,7 @@ async function confirmEdit() {
     const res = await fetch(`/api/admins/${username}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: editEmail.value.trim() || null,
-        role: editRole.value.trim(),
-      }),
+      body: JSON.stringify({ email, role }),
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))

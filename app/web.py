@@ -56,15 +56,15 @@ def auth_login():
     username = data.get("username", "").strip()
     password = data.get("password", "")
     if not username or not password:
-        return jsonify({"error": "username et password requis"}), 400
+        return jsonify({"error": "username and password required"}), 400
     admin = db.query_one(
         "SELECT id, username, password_hash FROM administrators WHERE username = %s AND is_active = true",
         (username,),
     )
     if not admin or not admin["password_hash"]:
-        return jsonify({"error": "Identifiants invalides"}), 401
+        return jsonify({"error": "Invalid credentials"}), 401
     if not check_password_hash(admin["password_hash"], password):
-        return jsonify({"error": "Identifiants invalides"}), 401
+        return jsonify({"error": "Invalid credentials"}), 401
     session.clear()
     session["admin_id"] = str(admin["id"])
     session["admin_username"] = admin["username"]
@@ -267,7 +267,7 @@ def revoke_key(fingerprint):
     hostname = (data.get("hostname") or "").strip() or None
     unix_user = (data.get("unix_user") or "").strip() or None
     if not actions._FP_RE.match(fingerprint):
-        return jsonify({"error": f"Format de fingerprint invalide : {fingerprint}"}), 400
+        return jsonify({"error": f"Invalid fingerprint format: {fingerprint}"}), 400
     try:
         actions.revoke_key(fingerprint, g.admin_id, reason, hostname=hostname, unix_user=unix_user)
         return jsonify({"status": "revoked"})
@@ -378,7 +378,7 @@ def api_deploy_key():
     justification = (data.get("justification") or "").strip()
 
     if not all([public_key, unix_user, hostname, justification]):
-        return jsonify({"error": "public_key, unix_user, hostname, justification requis"}), 400
+        return jsonify({"error": "public_key, unix_user, hostname, justification required"}), 400
 
     hours = data.get("hours")
     date_str = data.get("expires_at")
@@ -579,7 +579,7 @@ def update_admin(username):
     email = (data.get("email") or "").strip() or None
     role = (data.get("role") or "").strip()
     if not role:
-        return jsonify({"error": "role requis"}), 400
+        return jsonify({"error": "role required"}), 400
     try:
         result = actions.update_admin(username, email, role, g.admin_id)
         return jsonify({"message": "Admin updated"})
@@ -597,7 +597,7 @@ def change_admin_password(username):
     data = request.get_json(force=True) or {}
     password = data.get("password", "").strip()
     if not password:
-        return jsonify({"error": "password requis"}), 400
+        return jsonify({"error": "password required"}), 400
     try:
         actions.change_password(username, password)
         return jsonify({"status": "updated"})
@@ -725,7 +725,7 @@ def get_collector_key():
         with open(pub_path) as f:
             return jsonify({"public_key": f.read().strip()})
     except FileNotFoundError:
-        return jsonify({"error": "Clé collecteur introuvable"}), 404
+        return jsonify({"error": "Collector key not found"}), 404
 
 
 @app.route("/api/system/config", methods=["GET"])

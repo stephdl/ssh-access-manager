@@ -654,7 +654,7 @@ def test_actions_deploy_key_invalid_key_type(sample_server):
 def test_actions_deploy_key_server_not_found(sample_key):
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="Serveur introuvable"):
+        with pytest.raises(ValueError, match="Server not found"):
             actions.deploy_key(
                 public_key=sample_key["public_key"],
                 unix_user="alice",
@@ -666,7 +666,7 @@ def test_actions_deploy_key_server_not_found(sample_key):
 
 
 def test_actions_deploy_key_invalid_format():
-    with pytest.raises(ValueError, match="Format de clé invalide"):
+    with pytest.raises(ValueError, match="Invalid key format"):
         actions.deploy_key(
             public_key="notakey",
             unix_user="alice",
@@ -678,7 +678,7 @@ def test_actions_deploy_key_invalid_format():
 
 
 def test_actions_deploy_key_invalid_unix_user_with_space():
-    with pytest.raises(ValueError, match="Nom d'utilisateur Unix invalide"):
+    with pytest.raises(ValueError, match="Invalid Unix username"):
         actions.deploy_key(
             public_key="ssh-ed25519 AAAA test",
             unix_user="zoor dupont",
@@ -690,7 +690,7 @@ def test_actions_deploy_key_invalid_unix_user_with_space():
 
 
 def test_actions_deploy_key_invalid_unix_user_uppercase():
-    with pytest.raises(ValueError, match="Nom d'utilisateur Unix invalide"):
+    with pytest.raises(ValueError, match="Invalid Unix username"):
         actions.deploy_key(
             public_key="ssh-ed25519 AAAA test",
             unix_user="Alice",
@@ -723,28 +723,28 @@ def test_actions_deploy_key_valid_unix_user_passes_check(sample_server, sample_k
 # ---------------------------------------------------------------------------
 
 def test_actions_validate_key_rejects_invalid_fingerprint_format():
-    with pytest.raises(ValueError, match="Format de fingerprint invalide"):
+    with pytest.raises(ValueError, match="Invalid fingerprint format"):
         actions.validate_key("not-a-fingerprint", ADMIN_ID)
 
 
 def test_actions_revoke_key_rejects_invalid_fingerprint_format():
-    with pytest.raises(ValueError, match="Format de fingerprint invalide"):
+    with pytest.raises(ValueError, match="Invalid fingerprint format"):
         actions.revoke_key("INVALID:abc", ADMIN_ID, "test")
 
 
 def test_actions_assign_key_rejects_invalid_fingerprint_format():
-    with pytest.raises(ValueError, match="Format de fingerprint invalide"):
+    with pytest.raises(ValueError, match="Invalid fingerprint format"):
         actions.assign_key("sha256:lowercase", "alice")
 
 
 def test_actions_set_expiry_rejects_invalid_fingerprint_format():
     from datetime import datetime, timezone
-    with pytest.raises(ValueError, match="Format de fingerprint invalide"):
+    with pytest.raises(ValueError, match="Invalid fingerprint format"):
         actions.set_key_expiry("bad\nfingerprint", datetime.now(tz=timezone.utc))
 
 
 def test_actions_remove_expiry_rejects_invalid_fingerprint_format():
-    with pytest.raises(ValueError, match="Format de fingerprint invalide"):
+    with pytest.raises(ValueError, match="Invalid fingerprint format"):
         actions.remove_key_expiry("SHA256:bad/char!")
 
 
@@ -772,14 +772,14 @@ def test_actions_lock_user_success():
 
 
 def test_actions_lock_user_invalid_username():
-    with pytest.raises(ValueError, match="Nom d'utilisateur Unix invalide"):
+    with pytest.raises(ValueError, match="Invalid Unix username"):
         actions.lock_user("bad user", "server-test-01", ADMIN_ID)
 
 
 def test_actions_lock_user_server_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="Serveur introuvable ou inactif"):
+        with pytest.raises(ValueError, match="Server not found or inactive"):
             actions.lock_user("alice", "unknown-server", ADMIN_ID)
 
 
@@ -797,7 +797,7 @@ def test_actions_unlock_user_success():
 
 
 def test_actions_unlock_user_invalid_username():
-    with pytest.raises(ValueError, match="Nom d'utilisateur Unix invalide"):
+    with pytest.raises(ValueError, match="Invalid Unix username"):
         actions.unlock_user("bad@user", "server-test-01", ADMIN_ID)
 
 

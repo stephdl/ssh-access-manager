@@ -16,7 +16,7 @@ _UNIX_USER_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 
 def _check_fingerprint(fp: str) -> None:
     if not _FP_RE.match(fp):
-        raise ValueError(f"Format de fingerprint invalide : {fp}")
+        raise ValueError(f"Invalid fingerprint format: {fp}")
 
 
 # ---------------------------------------------------------------------------
@@ -439,12 +439,12 @@ def deploy_key(
     """
     if not _UNIX_USER_RE.match(unix_user):
         raise ValueError(
-            f"Nom d'utilisateur Unix invalide : '{unix_user}' "
-            "(minuscules, chiffres, _ et - uniquement, max 32 caractères)"
+            f"Invalid Unix username: '{unix_user}' "
+            "(lowercase letters, digits, _ and - only, max 32 chars)"
         )
     parts = public_key.strip().split()
     if len(parts) < 2:
-        raise ValueError("Format de clé invalide")
+        raise ValueError("Invalid key format")
     key_type = parts[0]
     key_b64 = parts[1]
     comment = parts[2] if len(parts) > 2 else unix_user
@@ -476,7 +476,7 @@ def deploy_key(
         (hostname,),
     )
     if not server:
-        raise ValueError(f"Serveur introuvable ou inactif: {hostname}")
+        raise ValueError(f"Server not found or inactive: {hostname}")
 
     db.execute(
         """
@@ -919,13 +919,13 @@ def lock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
     if unix_user == ssh.SSH_USER:
         raise ValueError(f"Cannot lock the collector account '{ssh.SSH_USER}'")
     if not _UNIX_USER_RE.match(unix_user):
-        raise ValueError(f"Nom d'utilisateur Unix invalide : '{unix_user}'")
+        raise ValueError(f"Invalid Unix username: '{unix_user}'")
     server = db.query_one(
         "SELECT id, ip_address FROM servers WHERE hostname = %s AND is_active = true",
         (hostname,)
     )
     if not server:
-        raise ValueError(f"Serveur introuvable ou inactif: {hostname}")
+        raise ValueError(f"Server not found or inactive: {hostname}")
     ssh.ensure_scripts(hostname, server["id"], server["ip_address"])
     ssh.lock_user_on_server(hostname, unix_user, server["ip_address"])
     db.execute(
@@ -941,13 +941,13 @@ def unlock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
     if unix_user == ssh.SSH_USER:
         raise ValueError(f"Cannot unlock the collector account '{ssh.SSH_USER}'")
     if not _UNIX_USER_RE.match(unix_user):
-        raise ValueError(f"Nom d'utilisateur Unix invalide : '{unix_user}'")
+        raise ValueError(f"Invalid Unix username: '{unix_user}'")
     server = db.query_one(
         "SELECT id, ip_address FROM servers WHERE hostname = %s AND is_active = true",
         (hostname,)
     )
     if not server:
-        raise ValueError(f"Serveur introuvable ou inactif: {hostname}")
+        raise ValueError(f"Server not found or inactive: {hostname}")
     ssh.ensure_scripts(hostname, server["id"], server["ip_address"])
     ssh.unlock_user_on_server(hostname, unix_user, server["ip_address"])
     db.execute(
