@@ -679,6 +679,47 @@ Ce guard est non-bloquant : si `fetchMe()` échoue (session expirée), la
 redirection vers Login est automatique. Aucune vue protégée n'est rendue sans
 authentification valide.
 
+### RBAC — contrôle d'accès par rôle (issue #222)
+
+Trois rôles sont définis par une contrainte CHECK PostgreSQL dans la table
+`administrators` : `sysadmin`, `operator`, `viewer`.
+
+#### Backend — décorateur require_role
+
+```python
+def require_role(*roles):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if g.admin_role not in roles:
+                return jsonify({"error": "Forbidden"}), 403
+            return f(*args, **kwargs)
+        return wrapped
+    return decorator
+```
+
+`require_auth` charge `g.admin_role` à chaque requête. `require_role` compose avec
+`require_auth` pour protéger les routes par niveau d'accès :
+
+| Niveau | Routes protégées |
+|---|---|
+| `sysadmin` uniquement | `POST /api/admins`, `PUT /api/admins/<u>`, disable/enable/delete admin, `POST /api/servers`, disable/enable/delete server, `PUT /api/system/config` |
+| `sysadmin` ou `operator` | Toutes les routes d'écriture clés, accès, scans |
+| Tous (auth seule) | Routes GET, `GET /api/auth/me` |
+
+Exception : `PUT /api/admins/<username>/password` — autorisé si sysadmin OU si l'admin modifie son propre mot de passe.
+
+#### Frontend — visibilité par rôle
+
+`useAuth.js` expose `admin.value.role` (chargé après login via `fetchMe()`).
+Chaque vue calcule `currentRole = computed(() => admin.value?.role || 'viewer')`.
+Les éléments sensibles utilisent `v-if` (jamais `v-show`) pour être absents du DOM :
+
+- **Admins.vue** : colonne Actions, formulaire d'ajout, boutons Edit/Disable/Enable/Delete masqués pour operator et viewer ; section "My account" visible pour tous pour changer son propre mot de passe
+- **Dashboard, ServerDetail** : boutons d'ajout/désactivation/suppression masqués pour viewer
+- **DeployedUsersTable** : colonne Actions + boutons Lock/Unlock masqués pour viewer
+- **Settings** : formulaire de configuration masqué pour operator et viewer
+
 ### Vue AccessRequests — formulaires DeployKeyForm et UserLockForm
 
 La vue `AccessRequests.vue` expose deux formulaires :

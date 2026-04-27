@@ -64,6 +64,29 @@ La langue est détectée automatiquement depuis le navigateur, avec fallback sur
 
 ---
 
+## Rôles et permissions
+
+Trois rôles sont disponibles pour les administrateurs :
+
+| Rôle | Droits |
+|---|---|
+| `sysadmin` | Accès complet : gestion des administrateurs, des serveurs, des clés SSH, des accès et de la configuration système |
+| `operator` | Actions SSH : valider, révoquer, déployer des clés, verrouiller/déverrouiller des comptes Unix, lancer des scans |
+| `viewer` | Lecture seule : consultation de toutes les vues sans possibilité d'action |
+
+Le rôle est vérifié **côté backend** (Flask retourne 403 pour les requêtes non autorisées) **et côté frontend** (boutons et formulaires masqués selon le rôle).
+
+Un `sysadmin` ne peut pas modifier son propre rôle. Un email est obligatoire à la création.
+
+Pour créer un administrateur avec un rôle spécifique (défaut : `operator`) :
+
+```bash
+$EXEC admin add --username alice --email alice@example.com --password SECRET --role operator
+$EXEC admin update alice --role viewer
+```
+
+---
+
 ## Workflow — Ajout d'un serveur distant
 
 ### 1. Provisionner l'hôte distant
@@ -311,7 +334,8 @@ $EXEC access unlock-user --user USER --server HOST
 
 # Administrateurs
 $EXEC admin list
-$EXEC admin add --username USER --email EMAIL --password PASSWORD
+$EXEC admin add --username USER --email EMAIL --password PASSWORD [--role ROLE]
+# ROLE : sysadmin | operator (défaut) | viewer
 $EXEC admin update <username> [--email EMAIL] [--role ROLE]
 $EXEC admin disable USERNAME
 $EXEC admin enable USERNAME
