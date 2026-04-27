@@ -243,7 +243,10 @@
     "success_enabled": "Administrateur {username} réactivé.",
     "success_deleted": "Administrateur {username} supprimé.",
     "error_self_action": "Vous ne pouvez pas effectuer cette action sur votre propre compte.",
-    "error_has_records": "Impossible de supprimer : des enregistrements référencent ce compte."
+    "error_has_records": "Impossible de supprimer : des enregistrements référencent ce compte.",
+    "role_sysadmin": "Administrateur",
+    "role_operator": "Opérateur",
+    "role_viewer": "Lecteur"
   },
   "anomalies": {
     "title": "Anomalies",

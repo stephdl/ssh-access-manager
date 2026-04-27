@@ -56,7 +56,7 @@ CREATE TABLE administrators (
     -- Adresse email pour les notifications
     email       VARCHAR(255),
     -- Rôle fonctionnel (extensible)
-    role          VARCHAR(50) DEFAULT 'sysadmin',
+    role          VARCHAR(50) DEFAULT 'sysadmin' CHECK (role IN ('sysadmin', 'operator', 'viewer')),
     -- Hash du mot de passe (werkzeug generate_password_hash)
     password_hash VARCHAR(255),
     -- Compte actif ou désactivé (jamais supprimé pour préserver l'audit)

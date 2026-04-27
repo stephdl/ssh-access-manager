@@ -40,21 +40,29 @@
               <td>{{ formatDate(a.created_at) }}</td>
               <td class="actions-cell">
                 <template v-if="a.is_active">
-                  <button class="btn-secondary" @click="openEdit(a)">
+                  <button
+                    v-if="currentRole === 'sysadmin'"
+                    class="btn-secondary"
+                    @click="openEdit(a)"
+                  >
                     {{ $t('admins.btn_edit') }}
                   </button>
-                  <button class="btn-secondary" @click="openEditPassword(a.username)">
+                  <button
+                    v-if="currentRole === 'sysadmin' || a.username === admin?.username"
+                    class="btn-secondary"
+                    @click="openEditPassword(a.username)"
+                  >
                     {{ $t('admins.btn_password') }}
                   </button>
                   <button
-                    v-if="a.username !== currentUsername"
+                    v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
                     class="btn-warning"
                     @click="openDisable(a.username)"
                   >
                     {{ $t('admins.btn_disable') }}
                   </button>
                   <button
-                    v-if="a.username !== currentUsername"
+                    v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
                     class="btn-danger"
                     @click="openDelete(a.username)"
                   >
@@ -62,10 +70,18 @@
                   </button>
                 </template>
                 <template v-else>
-                  <button class="btn-success" @click="openEnable(a.username)">
+                  <button
+                    v-if="currentRole === 'sysadmin'"
+                    class="btn-success"
+                    @click="openEnable(a.username)"
+                  >
                     {{ $t('admins.btn_enable') }}
                   </button>
-                  <button class="btn-danger" @click="openDelete(a.username)">
+                  <button
+                    v-if="currentRole === 'sysadmin'"
+                    class="btn-danger"
+                    @click="openDelete(a.username)"
+                  >
                     {{ $t('admins.btn_delete') }}
                   </button>
                 </template>
@@ -76,7 +92,7 @@
       </section>
 
       <!-- Add administrator form -->
-      <section class="card">
+      <section v-if="currentRole === 'sysadmin'" class="card">
         <h2>{{ $t('admins.section_add') }}</h2>
         <form class="add-form" @submit.prevent="submitAdd">
           <div class="field">
@@ -87,8 +103,19 @@
             <input id="adm-username" v-model="newUsername" type="text" placeholder="username" />
           </div>
           <div class="field">
-            <label for="adm-email">{{ $t('admins.field_email') }}</label>
+            <label for="adm-email"
+              >{{ $t('admins.field_email') }}
+              <span class="required">{{ $t('common.required') }}</span></label
+            >
             <input id="adm-email" v-model="newEmail" type="email" placeholder="admin@example.com" />
+          </div>
+          <div class="field">
+            <label for="adm-role">{{ $t('admins.col_role') }}</label>
+            <select id="adm-role" v-model="newRole">
+              <option value="sysadmin">{{ $t('admins.role_sysadmin') }}</option>
+              <option value="operator">{{ $t('admins.role_operator') }}</option>
+              <option value="viewer">{{ $t('admins.role_viewer') }}</option>
+            </select>
           </div>
           <div class="field">
             <label for="adm-password"
@@ -453,13 +480,16 @@
           </div>
           <div class="field" style="margin-bottom: 1rem">
             <label for="edit-role">{{ $t('admins.col_role') }}</label>
-            <input
+            <select
               id="edit-role"
               v-model="editRole"
-              type="text"
               :disabled="editTarget.username === currentUsername"
               :class="{ 'input-readonly': editTarget.username === currentUsername }"
-            />
+            >
+              <option value="sysadmin">{{ $t('admins.role_sysadmin') }}</option>
+              <option value="operator">{{ $t('admins.role_operator') }}</option>
+              <option value="viewer">{{ $t('admins.role_viewer') }}</option>
+            </select>
             <span v-if="editTarget.username === currentUsername" class="field-hint">
               {{ $t('admins.self_role_warning') }}
             </span>
@@ -479,8 +509,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useAuth } from '../composables/useAuth'
 
 const { t } = useI18n()
+const { admin } = useAuth()
+
+const currentRole = computed(() => admin.value?.role || 'viewer')
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -511,6 +545,7 @@ const message = ref('')
 const currentUsername = ref('')
 const newUsername = ref('')
 const newEmail = ref('')
+const newRole = ref('operator')
 const newPassword = ref('')
 const newPasswordConfirm = ref('')
 const showNewPwd = ref(false)
@@ -545,12 +580,13 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [adminsRes, meRes] = await Promise.all([fetch('/api/admins'), fetch('/api/admins/me')])
+    const [adminsRes, meRes] = await Promise.all([fetch('/api/admins'), fetch('/api/auth/me')])
     if (!adminsRes.ok) throw new Error(`HTTP ${adminsRes.status}`)
     admins.value = await adminsRes.json()
     if (meRes.ok) {
       const me = await meRes.json()
       currentUsername.value = me.username
+      admin.value = me
     }
   } catch (e) {
     error.value = t('admins.load_error', { error: e.message })
@@ -570,6 +606,7 @@ async function submitAdd() {
       body: JSON.stringify({
         username: newUsername.value.trim(),
         email: newEmail.value.trim() || null,
+        role: newRole.value,
         password: newPassword.value,
       }),
     })
@@ -580,6 +617,7 @@ async function submitAdd() {
     message.value = t('admins.success_added', { username: newUsername.value })
     newUsername.value = ''
     newEmail.value = ''
+    newRole.value = 'operator'
     newPassword.value = ''
     newPasswordConfirm.value = ''
     showNewPwd.value = false
@@ -818,7 +856,8 @@ label {
 
 input[type='text'],
 input[type='email'],
-input[type='password'] {
+input[type='password'],
+select {
   padding: 0.4rem 0.6rem;
   border: 1px solid #ccc;
   border-radius: 4px;

@@ -243,7 +243,10 @@
     "success_enabled": "Amministratore {username} riattivato.",
     "success_deleted": "Amministratore {username} eliminato.",
     "error_self_action": "Non è possibile eseguire questa azione sul proprio account.",
-    "error_has_records": "Impossibile eliminare: esistono record che fanno riferimento a questo account."
+    "error_has_records": "Impossibile eliminare: esistono record che fanno riferimento a questo account.",
+    "role_sysadmin": "Amministratore",
+    "role_operator": "Operatore",
+    "role_viewer": "Lettore"
   },
   "anomalies": {
     "title": "Anomalie",

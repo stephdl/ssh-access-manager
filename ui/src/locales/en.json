@@ -243,7 +243,10 @@
     "success_enabled": "Administrator {username} enabled.",
     "success_deleted": "Administrator {username} deleted.",
     "error_self_action": "You cannot perform this action on your own account.",
-    "error_has_records": "Cannot delete: this account has existing records."
+    "error_has_records": "Cannot delete: this account has existing records.",
+    "role_sysadmin": "Sysadmin",
+    "role_operator": "Operator",
+    "role_viewer": "Viewer"
   },
   "anomalies": {
     "title": "Anomalies",

@@ -19,7 +19,7 @@ FINGERPRINT = "SHA256:testABCDEF1234"
 
 
 def _admin_row():
-    return {"id": ADMIN_ID, "username": "admin"}
+    return {"id": ADMIN_ID, "username": "admin", "role": "sysadmin"}
 
 
 @pytest.fixture
@@ -590,7 +590,7 @@ def test_web_update_admin_missing_role_returns_400(auth_client):
 
 def test_web_get_config_returns_settings(auth_client):
     with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin"}
+        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin", "role": "sysadmin"}
         mock_db.query.return_value = [{"key": "scan_interval_hours", "value": "4"}]
         resp = auth_client.get("/api/system/config")
         assert resp.status_code == 200
@@ -599,7 +599,7 @@ def test_web_get_config_returns_settings(auth_client):
 
 def test_web_put_config_updates_interval(auth_client):
     with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin"}
+        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin", "role": "sysadmin"}
         resp = auth_client.put("/api/system/config", json={"scan_interval_hours": 6})
         assert resp.status_code == 200
         assert resp.get_json()["scan_interval_hours"] == 6
@@ -607,14 +607,14 @@ def test_web_put_config_updates_interval(auth_client):
 
 def test_web_put_config_rejects_out_of_range(auth_client):
     with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin"}
+        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin", "role": "sysadmin"}
         resp = auth_client.put("/api/system/config", json={"scan_interval_hours": 99})
         assert resp.status_code == 400
 
 
 def test_web_put_config_rejects_missing_field(auth_client):
     with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin"}
+        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin", "role": "sysadmin"}
         resp = auth_client.put("/api/system/config", json={})
         assert resp.status_code == 400
 
@@ -625,7 +625,7 @@ def test_web_put_config_rejects_missing_field(auth_client):
 
 def test_web_deploy_key_returns_201(auth_client):
     with patch("web.db") as mock_db, patch("web.actions.deploy_key") as mock_deploy:
-        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin"}
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin", "role": "sysadmin"}
         mock_deploy.return_value = {
             "fingerprint": "SHA256:test",
             "key_type": "ssh-ed25519",
@@ -662,7 +662,7 @@ def test_web_deploy_key_returns_401_unauthenticated(client):
 
 def test_web_deploy_key_returns_400_missing_fields(auth_client):
     with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin"}
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin", "role": "sysadmin"}
         resp = auth_client.post(
             "/api/access/deploy",
             json={"public_key": "ssh-ed25519 AAAA test"},
@@ -672,7 +672,7 @@ def test_web_deploy_key_returns_400_missing_fields(auth_client):
 
 def test_web_deploy_key_hours_out_of_range_returns_400(auth_client):
     with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin"}
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin", "role": "sysadmin"}
         for bad_hours in [0, -1, 8761, 99999]:
             resp = auth_client.post(
                 "/api/access/deploy",
@@ -689,7 +689,7 @@ def test_web_deploy_key_hours_out_of_range_returns_400(auth_client):
 
 def test_web_deploy_key_hours_not_integer_returns_400(auth_client):
     with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin"}
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin", "role": "sysadmin"}
         resp = auth_client.post(
             "/api/access/deploy",
             json={
@@ -867,3 +867,52 @@ def test_web_deployed_users_excludes_ssh_user(auth_client):
         sql = call_args[0][0]
         params = call_args[0][1]
         assert "audit-collector" in params
+
+
+# ---------------------------------------------------------------------------
+# RBAC tests
+# ---------------------------------------------------------------------------
+
+def test_web_rbac_operator_cannot_create_admin(client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "op", "role": "operator"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        resp = client.post("/api/admins", json={"username": "new", "email": "x@x.com", "password": "P@ssw0rd!"})
+        assert resp.status_code == 403
+
+
+def test_web_rbac_viewer_cannot_disable_admin(client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "viewer", "role": "viewer"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        resp = client.put("/api/admins/someuser/disable")
+        assert resp.status_code == 403
+
+
+def test_web_rbac_sysadmin_can_create_admin(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin", "role": "sysadmin"}
+        mock_actions.add_admin.return_value = {"username": "new", "email": "x@x.com", "role": "operator"}
+        resp = auth_client.post("/api/admins", json={"username": "new", "email": "x@x.com", "password": "P@ssw0rd!"})
+        assert resp.status_code == 201
+
+
+def test_web_rbac_operator_can_change_own_password(client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "op", "role": "operator"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        mock_actions.change_password.return_value = {"username": "op"}
+        resp = client.put("/api/admins/op/password", json={"password": "NewP@ss1!"})
+        assert resp.status_code == 200
+
+
+def test_web_rbac_operator_cannot_change_other_password(client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "op", "role": "operator"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        resp = client.put("/api/admins/other_user/password", json={"password": "NewP@ss1!"})
+        assert resp.status_code == 403

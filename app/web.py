@@ -35,15 +35,27 @@ def require_auth(f):
         if not admin_id:
             return jsonify({"error": "Unauthorized"}), 401
         admin = db.query_one(
-            "SELECT id, username FROM administrators WHERE id = %s AND is_active = true",
+            "SELECT id, username, role FROM administrators WHERE id = %s AND is_active = true",
             (admin_id,),
         )
         if not admin:
             return jsonify({"error": "Unauthorized"}), 401
         g.admin_id = admin["id"]
         g.admin_username = admin["username"]
+        g.admin_role = admin["role"]
         return f(*args, **kwargs)
     return decorated
+
+
+def require_role(*roles):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if g.admin_role not in roles:
+                return jsonify({"error": "Insufficient permissions"}), 403
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
 
 
 # ---------------------------------------------------------------------------
@@ -562,6 +574,7 @@ def list_admins():
 
 @app.route("/api/admins", methods=["POST"])
 @require_auth
+@require_role("sysadmin")
 def add_admin():
     data = request.get_json(force=True) or {}
     try:
@@ -574,6 +587,7 @@ def add_admin():
 
 @app.route("/api/admins/<username>", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def update_admin(username):
     data = request.get_json(force=True) or {}
     email = (data.get("email") or "").strip() or None
@@ -594,6 +608,8 @@ def update_admin(username):
 @app.route("/api/admins/<username>/password", methods=["PUT"])
 @require_auth
 def change_admin_password(username):
+    if g.admin_role != "sysadmin" and username != g.admin_username:
+        return jsonify({"error": "Insufficient permissions"}), 403
     data = request.get_json(force=True) or {}
     password = data.get("password", "").strip()
     if not password:
@@ -614,6 +630,7 @@ def get_me():
 
 @app.route("/api/admins/<username>/disable", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def disable_admin(username):
     if username == g.admin_username:
         return jsonify({"error": "Cannot disable your own account"}), 403
@@ -627,6 +644,7 @@ def disable_admin(username):
 
 @app.route("/api/admins/<username>/enable", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def enable_admin(username):
     if username == g.admin_username:
         return jsonify({"error": "Cannot enable your own account"}), 403
@@ -640,6 +658,7 @@ def enable_admin(username):
 
 @app.route("/api/admins/<username>", methods=["DELETE"])
 @require_auth
+@require_role("sysadmin")
 def delete_admin(username):
     if username == g.admin_username:
         return jsonify({"error": "Cannot delete your own account"}), 403

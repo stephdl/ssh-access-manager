@@ -12,6 +12,7 @@ import ssh
 
 _FP_RE = re.compile(r"^SHA256:[A-Za-z0-9+/=]+$")
 _UNIX_USER_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
+VALID_ROLES = {"sysadmin", "operator", "viewer"}
 
 
 def _check_fingerprint(fp: str) -> None:
@@ -765,14 +766,18 @@ def _validate_password_strength(password: str) -> None:
         raise ValueError("Mot de passe insuffisant : " + ", ".join(errors))
 
 
-def add_admin(username: str, email: str, password: str, admin_id: str | None = None) -> dict:
+def add_admin(username: str, email: str, password: str, admin_id: str | None = None, role: str = "sysadmin") -> dict:
     """Insert a new administrator and log ADMIN_ADDED."""
     from werkzeug.security import generate_password_hash
+    if not email or not email.strip():
+        raise ValueError("email required")
+    if role not in VALID_ROLES:
+        raise ValueError(f"Invalid role: {role}. Must be one of: {', '.join(sorted(VALID_ROLES))}")
     _validate_password_strength(password)
     password_hash = generate_password_hash(password)
     db.execute(
-        "INSERT INTO administrators (username, email, password_hash) VALUES (%s, %s, %s)",
-        (username, email, password_hash),
+        "INSERT INTO administrators (username, email, password_hash, role) VALUES (%s, %s, %s, %s)",
+        (username, email, password_hash, role),
     )
     admin = db.query_one("SELECT id FROM administrators WHERE username = %s", (username,))
     db.execute(
@@ -780,7 +785,7 @@ def add_admin(username: str, email: str, password: str, admin_id: str | None = N
         INSERT INTO audit_log (action, performed_by, details)
         VALUES ('ADMIN_ADDED', %s, %s::jsonb)
         """,
-        (admin_id, json.dumps({"username": username, "email": email})),
+        (admin_id, json.dumps({"username": username, "email": email, "role": role})),
     )
     return admin
 
@@ -802,6 +807,10 @@ def change_password(username: str, new_password: str) -> None:
 
 def update_admin(username: str, email: str | None, role: str, admin_id: str) -> dict:
     """Update administrator email and role. Log ADMIN_UPDATED."""
+    if not email or not email.strip():
+        raise ValueError("email required")
+    if role not in VALID_ROLES:
+        raise ValueError(f"Invalid role: {role}. Must be one of: {', '.join(sorted(VALID_ROLES))}")
     admin = db.query_one(
         "SELECT id, email, role FROM administrators WHERE username = %s", (username,)
     )

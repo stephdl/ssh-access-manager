@@ -243,7 +243,10 @@
     "success_enabled": "Administrador {username} activado.",
     "success_deleted": "Administrador {username} eliminado.",
     "error_self_action": "No puede realizar esta acción sobre su propia cuenta.",
-    "error_has_records": "No se puede eliminar: existen registros que hacen referencia a esta cuenta."
+    "error_has_records": "No se puede eliminar: existen registros que hacen referencia a esta cuenta.",
+    "role_sysadmin": "Administrador",
+    "role_operator": "Operador",
+    "role_viewer": "Lector"
   },
   "anomalies": {
     "title": "Anomalías",
