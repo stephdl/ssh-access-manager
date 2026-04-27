@@ -9,8 +9,6 @@ services:
       - ssh_data:/data
     env_file:
       - .env
-    environment:
-      - TZ=${TZ:-Europe/Paris}
 
 volumes:
   ssh_data:
