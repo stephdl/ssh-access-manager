@@ -883,6 +883,20 @@ def enable_admin(username: str, admin_id: str | None = None) -> None:
     )
 
 
+def toggle_alerts(username: str, receive_alerts: bool) -> dict:
+    """Set receive_alerts flag for an active administrator."""
+    admin = db.query_one(
+        "SELECT id FROM administrators WHERE username = %s AND is_active = true", (username,)
+    )
+    if not admin:
+        raise ValueError(f"Active admin not found: {username}")
+    db.execute(
+        "UPDATE administrators SET receive_alerts = %s WHERE id = %s",
+        (receive_alerts, admin["id"]),
+    )
+    return {"username": username, "receive_alerts": receive_alerts}
+
+
 def delete_admin(username: str, admin_id: str | None = None) -> None:
     """Permanently delete an admin if no FK references exist. Log ADMIN_DELETED."""
     admin = db.query_one(

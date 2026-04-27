@@ -1020,3 +1020,35 @@ def test_actions_update_admin_invalid_role_raises():
         mock_db.query_one.return_value = {"id": ADMIN_ID, "email": "test@example.com", "role": "operator"}
         with pytest.raises(ValueError, match="Invalid role"):
             actions.update_admin("user", "x@x.com", "superadmin", ADMIN_ID)
+
+
+# ---------------------------------------------------------------------------
+# toggle_alerts
+# ---------------------------------------------------------------------------
+
+def test_actions_toggle_alerts_enable():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID}
+        result = actions.toggle_alerts("alice", True)
+        sql = mock_db.execute.call_args[0][0]
+        params = mock_db.execute.call_args[0][1]
+        assert "receive_alerts" in sql
+        assert True in params
+        assert ADMIN_ID in params
+    assert result == {"username": "alice", "receive_alerts": True}
+
+
+def test_actions_toggle_alerts_disable():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID}
+        result = actions.toggle_alerts("bob", False)
+        params = mock_db.execute.call_args[0][1]
+        assert False in params
+    assert result == {"username": "bob", "receive_alerts": False}
+
+
+def test_actions_toggle_alerts_unknown_admin_raises():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(ValueError, match="Active admin not found"):
+            actions.toggle_alerts("ghost", True)

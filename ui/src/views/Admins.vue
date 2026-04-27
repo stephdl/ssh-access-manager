@@ -19,12 +19,13 @@
               <th>{{ $t('admins.col_role') }}</th>
               <th>{{ $t('admins.col_active') }}</th>
               <th>{{ $t('admins.col_created') }}</th>
+              <th v-if="currentRole === 'sysadmin'">{{ $t('admins.col_alerts') }}</th>
               <th v-if="currentRole === 'sysadmin'">{{ $t('admins.col_actions') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="admins.length === 0">
-              <td :colspan="currentRole === 'sysadmin' ? 6 : 5" class="empty">
+              <td :colspan="currentRole === 'sysadmin' ? 7 : 5" class="empty">
                 {{ $t('admins.empty') }}
               </td>
             </tr>
@@ -40,6 +41,27 @@
                 </span>
               </td>
               <td>{{ formatDate(a.created_at) }}</td>
+              <td v-if="currentRole === 'sysadmin'" class="alerts-cell">
+                <span class="badge" :class="a.receive_alerts ? 'badge-active' : 'badge-off'">
+                  {{ a.receive_alerts ? $t('admins.alerts_on') : $t('admins.alerts_off') }}
+                </span>
+                <button
+                  v-if="a.receive_alerts"
+                  class="btn-secondary btn-sm"
+                  :data-testid="`btn-alerts-off-${a.username}`"
+                  @click="toggleAlerts(a, false)"
+                >
+                  {{ $t('admins.btn_alerts_off') }}
+                </button>
+                <button
+                  v-else
+                  class="btn-success btn-sm"
+                  :data-testid="`btn-alerts-on-${a.username}`"
+                  @click="toggleAlerts(a, true)"
+                >
+                  {{ $t('admins.btn_alerts_on') }}
+                </button>
+              </td>
               <td v-if="currentRole === 'sysadmin'" class="actions-cell">
                 <template v-if="a.is_active">
                   <button
@@ -651,6 +673,24 @@ function openDelete(username) {
   deleteTarget.value = username
 }
 
+async function toggleAlerts(admin, receive_alerts) {
+  error.value = ''
+  try {
+    const res = await fetch(`/api/admins/${admin.username}/alerts`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receive_alerts }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    admin.receive_alerts = receive_alerts
+  } catch (e) {
+    error.value = t('admins.toggle_alerts_error', { error: e.message })
+  }
+}
+
 async function confirmDisable() {
   const username = disableTarget.value
   disableTarget.value = null
@@ -819,6 +859,18 @@ h2 {
   gap: 0.5rem;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.alerts-cell {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.badge-off {
+  background: #e9ecef;
+  color: #6c757d;
 }
 
 .my-account-card {

@@ -5,12 +5,15 @@ Niveaux :
   CRITICAL  → email immediat
   WARNING   → email immediat (anti-spam 24h gere par actions.py)
   INFO      → log uniquement, pas d'email
+
+Les destinataires sont les administrateurs actifs avec receive_alerts=true.
 """
 import logging
 import os
 import subprocess
 
-SMTP_TO = os.environ.get("SMTP_TO", "admin@example.com")
+import db
+
 SMTP_FROM = os.environ.get("SMTP_FROM", "ssh-manager@example.com")
 
 _EMAIL_LEVELS = {"CRITICAL", "WARNING"}
@@ -19,11 +22,18 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger(__name__)
 
 
-def _build_message(level: str, subject: str, body: str) -> str:
+def _get_alert_recipients() -> list[str]:
+    rows = db.query(
+        "SELECT email FROM administrators WHERE receive_alerts = true AND is_active = true AND email IS NOT NULL"
+    )
+    return [r["email"] for r in rows]
+
+
+def _build_message(level: str, subject: str, body: str, to_email: str) -> str:
     priority = "1 (Highest)" if level == "CRITICAL" else "3 (Normal)"
     return (
         f"From: {SMTP_FROM}\n"
-        f"To: {SMTP_TO}\n"
+        f"To: {to_email}\n"
         f"Subject: [{level}] {subject}\n"
         f"X-Priority: {priority}\n"
         f"\n"
@@ -35,7 +45,7 @@ def _build_message(level: str, subject: str, body: str) -> str:
 def send_alert(level: str, subject: str, body: str) -> None:
     """
     Send an alert at the given level.
-    CRITICAL/WARNING → email via msmtp.
+    CRITICAL/WARNING → email via msmtp to all admins with receive_alerts=true.
     INFO             → log only, no email.
     """
     log.info("[%s] %s", level, subject)
@@ -43,17 +53,24 @@ def send_alert(level: str, subject: str, body: str) -> None:
     if level not in _EMAIL_LEVELS:
         return
 
-    message = _build_message(level, subject, body)
-    try:
-        result = subprocess.run(
-            ["msmtp", "--", SMTP_TO],
-            input=message,
-            text=True,
-            capture_output=True,
-        )
-        if result.returncode != 0:
-            log.error("msmtp failed (rc=%d): %s", result.returncode, result.stderr)
-    except FileNotFoundError:
-        log.error("msmtp not found — alert not sent: %s", subject)
-    except Exception as exc:
-        log.error("Failed to send alert: %s", exc)
+    recipients = _get_alert_recipients()
+    if not recipients:
+        log.warning("No alert recipients configured — alert not sent: %s", subject)
+        return
+
+    for to_email in recipients:
+        message = _build_message(level, subject, body, to_email)
+        try:
+            result = subprocess.run(
+                ["msmtp", "--", to_email],
+                input=message,
+                text=True,
+                capture_output=True,
+            )
+            if result.returncode != 0:
+                log.error("msmtp failed for %s (rc=%d): %s", to_email, result.returncode, result.stderr)
+        except FileNotFoundError:
+            log.error("msmtp not found — alert not sent: %s", subject)
+            return
+        except Exception as exc:
+            log.error("Failed to send alert to %s: %s", to_email, exc)
