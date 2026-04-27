@@ -430,6 +430,19 @@ def test_web_system_status_returns_200(auth_client):
         assert "keys_pending_review" in data
 
 
+def test_web_collector_key_includes_ssh_user(auth_client, tmp_path):
+    pub_key_file = tmp_path / "collector_key.pub"
+    pub_key_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 test")
+    with patch("web.db") as mock_db, patch("web.ssh.SSH_USER", "custom-collector"), \
+         patch.dict("os.environ", {"COLLECTOR_KEY": str(tmp_path / "collector_key")}):
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.get("/api/system/collector-key")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ssh_user"] == "custom-collector"
+        assert "ssh-ed25519" in data["public_key"]
+
+
 # ---------------------------------------------------------------------------
 # PUT /api/admins/<username>/disable
 # ---------------------------------------------------------------------------

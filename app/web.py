@@ -785,7 +785,7 @@ def get_collector_key():
     pub_path = os.path.join(keys_dir, "collector_key.pub")
     try:
         with open(pub_path) as f:
-            return jsonify({"public_key": f.read().strip()})
+            return jsonify({"public_key": f.read().strip(), "ssh_user": ssh.SSH_USER})
     except FileNotFoundError:
         return jsonify({"error": "Collector key not found"}), 404
 

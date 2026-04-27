@@ -123,7 +123,7 @@
           <p class="success-msg">
             {{ $t('add_server.success_msg', { hostname: addForm.hostname }) }}
           </p>
-          <p class="deploy-hint">{{ $t('add_server.deploy_hint') }}</p>
+          <p class="deploy-hint">{{ $t('add_server.deploy_hint', { sshUser }) }}</p>
           <div class="key-display">
             <code>{{ collectorKey || $t('common.loading') }}</code>
             <button class="btn-copy" @click="copyKey(collectorKey, 'modal')">
@@ -207,6 +207,7 @@ const scanning = ref(false)
 const error = ref('')
 const scanMessage = ref('')
 const collectorKey = ref('')
+const sshUser = ref('audit-collector')
 const copied = ref('')
 
 const showAddServer = ref(false)
@@ -238,6 +239,7 @@ async function loadCollectorKey() {
     if (res.ok) {
       const data = await res.json()
       collectorKey.value = data.public_key
+      if (data.ssh_user) sshUser.value = data.ssh_user
     }
   } catch (_) {}
 }

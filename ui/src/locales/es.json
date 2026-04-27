@@ -53,7 +53,7 @@
     "submit": "Añadir",
     "success_title": "Servidor añadido",
     "success_msg": "✅ {hostname} ha sido añadido.",
-    "deploy_hint": "Despliega ahora la clave del colector en este servidor en `/home/audit-collector/.ssh/authorized_keys`:",
+    "deploy_hint": "Despliega ahora la clave del colector en este servidor en `/home/{sshUser}/.ssh/authorized_keys`:",
     "deploy_hint2": "O ejecuta `provision-host.sh` con esta clave.",
     "close": "Cerrar"
   },

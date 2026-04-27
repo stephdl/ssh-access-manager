@@ -53,7 +53,7 @@
     "submit": "Hinzufügen",
     "success_title": "Server hinzugefügt",
     "success_msg": "✅ {hostname} wurde hinzugefügt.",
-    "deploy_hint": "Stellen Sie jetzt den Collector-Schlüssel auf diesem Server in `/home/audit-collector/.ssh/authorized_keys` bereit:",
+    "deploy_hint": "Stellen Sie jetzt den Collector-Schlüssel auf diesem Server in `/home/{sshUser}/.ssh/authorized_keys` bereit:",
     "deploy_hint2": "Oder führen Sie `provision-host.sh` mit diesem Schlüssel aus.",
     "close": "Schließen"
   },

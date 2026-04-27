@@ -53,7 +53,7 @@
     "submit": "Add",
     "success_title": "Server added",
     "success_msg": "✅ {hostname} has been added.",
-    "deploy_hint": "Now deploy the collector key on this server in `/home/audit-collector/.ssh/authorized_keys`:",
+    "deploy_hint": "Now deploy the collector key on this server in `/home/{sshUser}/.ssh/authorized_keys`:",
     "deploy_hint2": "Or run `provision-host.sh` with this key.",
     "close": "Close"
   },
