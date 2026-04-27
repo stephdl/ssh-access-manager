@@ -6,9 +6,9 @@ import Admins from '../src/views/Admins.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
 
-const ACTIVE_ADMIN  = { id: '1', username: 'admin',    email: 'a@b.c', role: 'sysadmin', is_active: true,  created_at: null }
-const OTHER_ACTIVE  = { id: '2', username: 'alice',    email: 'alice@b.c', role: 'sysadmin', is_active: true,  created_at: null }
-const DISABLED_ADMIN = { id: '3', username: 'bob',    email: 'bob@b.c',   role: 'sysadmin', is_active: false, created_at: null }
+const ACTIVE_ADMIN  = { id: '1', username: 'admin',    email: 'a@b.c',     role: 'sysadmin', is_active: true,  receive_alerts: true,  created_at: null }
+const OTHER_ACTIVE  = { id: '2', username: 'alice',    email: 'alice@b.c', role: 'sysadmin', is_active: true,  receive_alerts: true,  created_at: null }
+const DISABLED_ADMIN = { id: '3', username: 'bob',    email: 'bob@b.c',   role: 'sysadmin', is_active: false, receive_alerts: true,  created_at: null }
 
 function mkFetch(admins, meUsername = 'admin', meRole = 'sysadmin') {
   return vi.fn((url) => {
@@ -274,5 +274,81 @@ describe('Admins', () => {
     const bobRow = rows.find(r => r.text().includes('bob'))
     const deleteBtn = bobRow.findAll('button').find(b => b.text().includes('Delete'))
     expect(deleteBtn).toBeFalsy()
+  })
+
+  // Alerts toggle tests
+  it('sysadmin sees Alerts column header', async () => {
+    const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE], 'admin', 'sysadmin')
+    await flushPromises()
+    const ths = w.findAll('th')
+    expect(ths.some(th => th.text() === 'Alerts')).toBe(true)
+  })
+
+  it('operator does not see Alerts column', async () => {
+    const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE], 'admin', 'operator')
+    await flushPromises()
+    const ths = w.findAll('th')
+    expect(ths.some(th => th.text() === 'Alerts')).toBe(false)
+  })
+
+  it('shows On badge when receive_alerts is true', async () => {
+    const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE], 'admin', 'sysadmin')
+    await flushPromises()
+    const alertsCell = w.find('[data-testid="btn-alerts-off-alice"]').element.closest('td')
+    expect(alertsCell.querySelector('.badge').textContent.trim()).toBe('On')
+  })
+
+  it('shows Off badge when receive_alerts is false', async () => {
+    const ALICE_ALERTS_OFF = { ...OTHER_ACTIVE, receive_alerts: false }
+    const w = mk([ACTIVE_ADMIN, ALICE_ALERTS_OFF], 'admin', 'sysadmin')
+    await flushPromises()
+    const enableBtn = w.find('[data-testid="btn-alerts-on-alice"]')
+    const alertsCell = enableBtn.element.closest('td')
+    expect(alertsCell.querySelector('.badge').textContent.trim()).toBe('Off')
+  })
+
+  it('clicking Disable alerts calls PUT /api/admins/alice/alerts with receive_alerts false', async () => {
+    const fetchMock = vi.fn((url, opts) => {
+      if (url === '/api/auth/me' || url === '/api/admins/me') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: '1', username: 'admin', role: 'sysadmin' }) })
+      }
+      if (url === '/api/admins/alice/alerts') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ username: 'alice', receive_alerts: false }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([ACTIVE_ADMIN, OTHER_ACTIVE]) })
+    })
+    global.fetch = fetchMock
+    const w = mount(Admins, { global: { plugins: [i18n] } })
+    await flushPromises()
+    await w.find('[data-testid="btn-alerts-off-alice"]').trigger('click')
+    await flushPromises()
+    const alertCall = fetchMock.mock.calls.find(
+      ([url, opts]) => url === '/api/admins/alice/alerts' && opts?.method === 'PUT'
+    )
+    expect(alertCall).toBeTruthy()
+    expect(JSON.parse(alertCall[1].body)).toEqual({ receive_alerts: false })
+  })
+
+  it('clicking Enable alerts calls PUT /api/admins/alice/alerts with receive_alerts true', async () => {
+    const ALICE_ALERTS_OFF = { ...OTHER_ACTIVE, receive_alerts: false }
+    const fetchMock = vi.fn((url, opts) => {
+      if (url === '/api/auth/me' || url === '/api/admins/me') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: '1', username: 'admin', role: 'sysadmin' }) })
+      }
+      if (url === '/api/admins/alice/alerts') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ username: 'alice', receive_alerts: true }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([ACTIVE_ADMIN, ALICE_ALERTS_OFF]) })
+    })
+    global.fetch = fetchMock
+    const w = mount(Admins, { global: { plugins: [i18n] } })
+    await flushPromises()
+    await w.find('[data-testid="btn-alerts-on-alice"]').trigger('click')
+    await flushPromises()
+    const alertCall = fetchMock.mock.calls.find(
+      ([url, opts]) => url === '/api/admins/alice/alerts' && opts?.method === 'PUT'
+    )
+    expect(alertCall).toBeTruthy()
+    expect(JSON.parse(alertCall[1].body)).toEqual({ receive_alerts: true })
   })
 })

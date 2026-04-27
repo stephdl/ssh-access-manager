@@ -61,6 +61,8 @@ CREATE TABLE administrators (
     password_hash VARCHAR(255),
     -- Compte actif ou désactivé (jamais supprimé pour préserver l'audit)
     is_active     BOOLEAN DEFAULT true,
+    -- Reçoit les emails d'alerte CRITICAL/WARNING
+    receive_alerts BOOLEAN DEFAULT true NOT NULL,
     -- Date de création du compte
     created_at    TIMESTAMPTZ DEFAULT now()
 );
@@ -72,6 +74,7 @@ COMMENT ON COLUMN administrators.email IS 'Email pour les alertes et notificatio
 COMMENT ON COLUMN administrators.role IS 'Rôle fonctionnel, défaut : sysadmin';
 COMMENT ON COLUMN administrators.password_hash IS 'Hash werkzeug (pbkdf2:sha256) du mot de passe';
 COMMENT ON COLUMN administrators.is_active IS 'False = compte désactivé (jamais supprimé)';
+COMMENT ON COLUMN administrators.receive_alerts IS 'True = reçoit les emails CRITICAL/WARNING';
 COMMENT ON COLUMN administrators.created_at IS 'Horodatage de création du compte';
 
 -- ---------------------------------------------------------------------------

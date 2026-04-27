@@ -587,7 +587,7 @@ def revoke_request(request_id):
 @require_auth
 def list_admins():
     return jsonify(db.query(
-        "SELECT id, username, email, role, is_active, created_at FROM administrators ORDER BY username"
+        "SELECT id, username, email, role, is_active, receive_alerts, created_at FROM administrators ORDER BY username"
     ))
 
 
@@ -693,6 +693,21 @@ def delete_admin(username):
     except ValueError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/admins/<username>/alerts", methods=["PUT"])
+@require_auth
+@require_role("sysadmin")
+def toggle_admin_alerts(username):
+    data = request.get_json(force=True) or {}
+    receive_alerts = data.get("receive_alerts")
+    if not isinstance(receive_alerts, bool):
+        return jsonify({"error": "receive_alerts (boolean) required"}), 400
+    try:
+        result = actions.toggle_alerts(username, receive_alerts)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
 
 
 # ---------------------------------------------------------------------------

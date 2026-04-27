@@ -19,12 +19,13 @@
               <th>{{ $t('admins.col_role') }}</th>
               <th>{{ $t('admins.col_active') }}</th>
               <th>{{ $t('admins.col_created') }}</th>
+              <th v-if="currentRole === 'sysadmin'">{{ $t('admins.col_alerts') }}</th>
               <th v-if="currentRole === 'sysadmin'">{{ $t('admins.col_actions') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="admins.length === 0">
-              <td :colspan="currentRole === 'sysadmin' ? 6 : 5" class="empty">
+              <td :colspan="currentRole === 'sysadmin' ? 7 : 5" class="empty">
                 {{ $t('admins.empty') }}
               </td>
             </tr>
@@ -40,53 +41,78 @@
                 </span>
               </td>
               <td>{{ formatDate(a.created_at) }}</td>
-              <td v-if="currentRole === 'sysadmin'" class="actions-cell">
-                <template v-if="a.is_active">
+              <td v-if="currentRole === 'sysadmin'">
+                <div class="alerts-cell">
+                  <span class="badge" :class="a.receive_alerts ? 'badge-active' : 'badge-off'">
+                    {{ a.receive_alerts ? $t('admins.alerts_on') : $t('admins.alerts_off') }}
+                  </span>
                   <button
-                    v-if="currentRole === 'sysadmin'"
-                    class="btn-secondary"
-                    @click="openEdit(a)"
+                    v-if="a.receive_alerts"
+                    class="btn-secondary btn-sm"
+                    :data-testid="`btn-alerts-off-${a.username}`"
+                    @click="toggleAlerts(a, false)"
                   >
-                    {{ $t('admins.btn_edit') }}
+                    {{ $t('admins.btn_alerts_off') }}
                   </button>
                   <button
-                    v-if="currentRole === 'sysadmin' || a.username === admin?.username"
-                    class="btn-secondary"
-                    @click="openEditPassword(a.username)"
+                    v-else
+                    class="btn-success btn-sm"
+                    :data-testid="`btn-alerts-on-${a.username}`"
+                    @click="toggleAlerts(a, true)"
                   >
-                    {{ $t('admins.btn_password') }}
+                    {{ $t('admins.btn_alerts_on') }}
                   </button>
-                  <button
-                    v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
-                    class="btn-warning"
-                    @click="openDisable(a.username)"
-                  >
-                    {{ $t('admins.btn_disable') }}
-                  </button>
-                  <button
-                    v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
-                    class="btn-danger"
-                    @click="openDelete(a.username)"
-                  >
-                    {{ $t('admins.btn_delete') }}
-                  </button>
-                </template>
-                <template v-else>
-                  <button
-                    v-if="currentRole === 'sysadmin'"
-                    class="btn-success"
-                    @click="openEnable(a.username)"
-                  >
-                    {{ $t('admins.btn_enable') }}
-                  </button>
-                  <button
-                    v-if="currentRole === 'sysadmin'"
-                    class="btn-danger"
-                    @click="openDelete(a.username)"
-                  >
-                    {{ $t('admins.btn_delete') }}
-                  </button>
-                </template>
+                </div>
+              </td>
+              <td v-if="currentRole === 'sysadmin'">
+                <div class="actions-cell">
+                  <template v-if="a.is_active">
+                    <button
+                      v-if="currentRole === 'sysadmin'"
+                      class="btn-secondary btn-sm"
+                      @click="openEdit(a)"
+                    >
+                      {{ $t('admins.btn_edit') }}
+                    </button>
+                    <button
+                      v-if="currentRole === 'sysadmin' || a.username === admin?.username"
+                      class="btn-secondary btn-sm"
+                      @click="openEditPassword(a.username)"
+                    >
+                      {{ $t('admins.btn_password') }}
+                    </button>
+                    <button
+                      v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
+                      class="btn-warning btn-sm"
+                      @click="openDisable(a.username)"
+                    >
+                      {{ $t('admins.btn_disable') }}
+                    </button>
+                    <button
+                      v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
+                      class="btn-danger btn-sm"
+                      @click="openDelete(a.username)"
+                    >
+                      {{ $t('admins.btn_delete') }}
+                    </button>
+                  </template>
+                  <template v-else>
+                    <button
+                      v-if="currentRole === 'sysadmin'"
+                      class="btn-success btn-sm"
+                      @click="openEnable(a.username)"
+                    >
+                      {{ $t('admins.btn_enable') }}
+                    </button>
+                    <button
+                      v-if="currentRole === 'sysadmin'"
+                      class="btn-danger btn-sm"
+                      @click="openDelete(a.username)"
+                    >
+                      {{ $t('admins.btn_delete') }}
+                    </button>
+                  </template>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -651,6 +677,24 @@ function openDelete(username) {
   deleteTarget.value = username
 }
 
+async function toggleAlerts(admin, receive_alerts) {
+  error.value = ''
+  try {
+    const res = await fetch(`/api/admins/${admin.username}/alerts`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receive_alerts }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    admin.receive_alerts = receive_alerts
+  } catch (e) {
+    error.value = t('admins.toggle_alerts_error', { error: e.message })
+  }
+}
+
 async function confirmDisable() {
   const username = disableTarget.value
   disableTarget.value = null
@@ -819,6 +863,18 @@ h2 {
   gap: 0.5rem;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.alerts-cell {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.badge-off {
+  background: #e9ecef;
+  color: #6c757d;
 }
 
 .my-account-card {

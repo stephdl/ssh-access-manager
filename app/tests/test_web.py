@@ -984,3 +984,61 @@ def test_web_rbac_operator_cannot_update_config(client):
             sess["admin_id"] = ADMIN_ID
         resp = client.put("/api/system/config", json={"scan_interval_hours": 2})
         assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# PUT /api/admins/<username>/alerts — toggle receive_alerts
+# ---------------------------------------------------------------------------
+
+def test_web_toggle_alerts_enable_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.toggle_alerts.return_value = {"username": "alice", "receive_alerts": True}
+        resp = auth_client.put("/api/admins/alice/alerts", json={"receive_alerts": True})
+    assert resp.status_code == 200
+    assert resp.get_json()["receive_alerts"] is True
+
+
+def test_web_toggle_alerts_disable_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.toggle_alerts.return_value = {"username": "alice", "receive_alerts": False}
+        resp = auth_client.put("/api/admins/alice/alerts", json={"receive_alerts": False})
+    assert resp.status_code == 200
+    assert resp.get_json()["receive_alerts"] is False
+
+
+def test_web_toggle_alerts_missing_field_returns_400(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/admins/alice/alerts", json={})
+    assert resp.status_code == 400
+
+
+def test_web_toggle_alerts_non_bool_returns_400(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/admins/alice/alerts", json={"receive_alerts": "yes"})
+    assert resp.status_code == 400
+
+
+def test_web_toggle_alerts_unknown_admin_returns_404(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.toggle_alerts.side_effect = ValueError("Active admin not found")
+        resp = auth_client.put("/api/admins/ghost/alerts", json={"receive_alerts": True})
+    assert resp.status_code == 404
+
+
+def test_web_toggle_alerts_unauthenticated_returns_401(client):
+    resp = client.put("/api/admins/alice/alerts", json={"receive_alerts": True})
+    assert resp.status_code == 401
+
+
+def test_web_toggle_alerts_operator_returns_403(client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "op_user", "role": "operator"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        resp = client.put("/api/admins/alice/alerts", json={"receive_alerts": True})
+    assert resp.status_code == 403
