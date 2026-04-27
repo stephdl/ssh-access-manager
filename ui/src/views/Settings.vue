@@ -65,6 +65,43 @@
     </section>
 
     <section class="card">
+      <h3>{{ $t('settings.security_section') }}</h3>
+      <div class="field">
+        <label>{{ $t('settings.login_max_attempts_label') }}</label>
+        <div class="input-row">
+          <input
+            v-model.number="loginMaxAttempts"
+            type="number"
+            min="1"
+            max="100"
+            step="1"
+            class="input-number"
+            :disabled="currentRole !== 'sysadmin'"
+          />
+          <span class="unit">{{ $t('settings.attempts') }}</span>
+        </div>
+        <p class="hint">{{ $t('settings.login_max_attempts_hint') }}</p>
+      </div>
+
+      <div class="field">
+        <label>{{ $t('settings.login_ban_seconds_label') }}</label>
+        <div class="input-row">
+          <input
+            v-model.number="loginBanSeconds"
+            type="number"
+            min="30"
+            max="86400"
+            step="30"
+            class="input-number"
+            :disabled="currentRole !== 'sysadmin'"
+          />
+          <span class="unit">{{ $t('settings.seconds') }}</span>
+        </div>
+        <p class="hint">{{ $t('settings.login_ban_seconds_hint') }}</p>
+      </div>
+    </section>
+
+    <section class="card">
       <h3>{{ $t('settings.smtp_section') }}</h3>
       <div class="field">
         <div class="input-row">
@@ -92,6 +129,8 @@ const currentRole = computed(() => admin.value?.role || 'viewer')
 const intervalHours = ref(4)
 const expireWarnDays = ref(7)
 const expireWarnDays2 = ref(2)
+const loginMaxAttempts = ref(10)
+const loginBanSeconds = ref(300)
 const saving = ref(false)
 const success = ref(false)
 const error = ref('')
@@ -108,6 +147,8 @@ onMounted(async () => {
     intervalHours.value = parseInt(data.scan_interval_hours)
     expireWarnDays.value = parseInt(data.expire_warn_days || 7)
     expireWarnDays2.value = parseInt(data.expire_warn_days_2 || 2)
+    loginMaxAttempts.value = parseInt(data.login_max_attempts || 10)
+    loginBanSeconds.value = parseInt(data.login_ban_seconds || 300)
   } catch (err) {
     error.value = err.message
   }
@@ -162,6 +203,8 @@ async function save() {
         scan_interval_hours: intervalHours.value,
         expire_warn_days: expireWarnDays.value,
         expire_warn_days_2: expireWarnDays2.value,
+        login_max_attempts: loginMaxAttempts.value,
+        login_ban_seconds: loginBanSeconds.value,
       }),
     })
 

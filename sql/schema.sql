@@ -259,7 +259,9 @@ CREATE TABLE audit_log (
                       'ADMIN_DELETED',      -- administrateur supprimé définitivement
                       'ADMIN_UPDATED',      -- administrateur modifié (email, rôle)
                       'USER_LOCKED',        -- compte Unix verrouillé (SSH bloqué)
-                      'USER_UNLOCKED'       -- compte Unix déverrouillé
+                      'USER_UNLOCKED',      -- compte Unix déverrouillé
+                      'LOGIN_FAILED',       -- tentative de connexion échouée (mauvais mot de passe)
+                      'LOGIN_BANNED'        -- IP bannie après trop de tentatives échouées
                   )),
     -- Administrateur ayant déclenché l'action (NULL si automatique)
     performed_by  UUID REFERENCES administrators(id),
@@ -298,6 +300,8 @@ COMMENT ON COLUMN settings.value IS 'Valeur texte';
 INSERT INTO settings (key, value) VALUES ('scan_interval_hours', '4');
 INSERT INTO settings (key, value) VALUES ('expire_warn_days', '7');
 INSERT INTO settings (key, value) VALUES ('expire_warn_days_2', '2');
+INSERT INTO settings (key, value) VALUES ('login_max_attempts', '10');
+INSERT INTO settings (key, value) VALUES ('login_ban_seconds', '300');
 
 -- =============================================================================
 -- INDEX
