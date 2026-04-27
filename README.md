@@ -122,6 +122,20 @@ Ces logs structurés facilitent l'intégration avec des systèmes de détection 
 
 ---
 
+## Gestion de session
+
+La durée de session est contrôlée par une checkbox sur la page de connexion :
+
+| Mode | Durée |
+|------|-------|
+| Sans coche | 30 minutes |
+| "Keep me logged on this device" | 8 heures |
+
+À l'expiration, les routes protégées retournent HTTP 401 et l'UI redirige vers `/login`.
+Les durées sont des constantes dans `web.py` — pas de redémarrage nécessaire pour les modifier en dev.
+
+---
+
 ## Workflow — Ajout d'un serveur distant
 
 ### 1. Provisionner l'hôte distant

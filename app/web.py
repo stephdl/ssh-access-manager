@@ -80,6 +80,13 @@ def _reset_attempts(ip: str) -> None:
         _login_attempts.pop(ip, None)
 
 
+# ---------------------------------------------------------------------------
+# Session timeout — constantes (pas de config DB, pas de UI)
+# ---------------------------------------------------------------------------
+SESSION_SHORT_MINUTES = 30   # sans "remember me"
+SESSION_LONG_HOURS = 8       # avec "remember me"
+
+
 app = Flask(__name__)
 _flask_secret = os.environ.get("FLASK_SECRET_KEY")
 if not _flask_secret:
@@ -99,6 +106,11 @@ def require_auth(f):
         admin_id = session.get("admin_id")
         if not admin_id:
             return jsonify({"error": "Unauthorized"}), 401
+        # Check session expiry
+        expires_at = session.get("expires_at")
+        if expires_at and datetime.now(timezone.utc).timestamp() > expires_at:
+            session.clear()
+            return jsonify({"error": "Session expired"}), 401
         admin = db.query_one(
             "SELECT id, username, role FROM administrators WHERE id = %s AND is_active = true",
             (admin_id,),
@@ -170,9 +182,13 @@ def auth_login():
         return jsonify({"error": "Invalid credentials"}), 401
 
     _reset_attempts(ip)
+    remember_me = bool(data.get("remember_me", False))
+    expires_delta = SESSION_LONG_HOURS * 3600 if remember_me else SESSION_SHORT_MINUTES * 60
+    expires_at = datetime.now(timezone.utc).timestamp() + expires_delta
     session.clear()
     session["admin_id"] = str(admin["id"])
     session["admin_username"] = admin["username"]
+    session["expires_at"] = expires_at
     return jsonify({"username": admin["username"]}), 200
 
 

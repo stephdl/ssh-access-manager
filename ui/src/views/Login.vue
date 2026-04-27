@@ -29,6 +29,13 @@
           />
         </div>
 
+        <div class="field field-checkbox">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="rememberMe" :disabled="loading" />
+            {{ $t('auth.remember_me') }}
+          </label>
+        </div>
+
         <div v-if="error" class="alert-error">{{ error }}</div>
 
         <button type="submit" class="btn-primary btn-full" :disabled="loading || !canSubmit">
@@ -49,6 +56,7 @@ const { login } = useAuth()
 
 const username = ref('')
 const password = ref('')
+const rememberMe = ref(false)
 const error = ref('')
 const loading = ref(false)
 
@@ -58,7 +66,7 @@ async function submit() {
   error.value = ''
   loading.value = true
   try {
-    await login(username.value.trim(), password.value)
+    await login(username.value.trim(), password.value, rememberMe.value)
     router.push('/')
   } catch (e) {
     error.value = e.message
@@ -114,9 +122,25 @@ form {
   flex-direction: column;
   gap: 0.3rem;
 }
+.field-checkbox {
+  flex-direction: row;
+  align-items: center;
+}
 label {
   font-size: 0.85rem;
   font-weight: 600;
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: normal;
+  cursor: pointer;
+}
+.checkbox-label input[type='checkbox'] {
+  width: auto;
+  cursor: pointer;
 }
 
 input {

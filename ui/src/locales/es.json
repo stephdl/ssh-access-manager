@@ -19,6 +19,7 @@
     "username": "Usuario",
     "username_placeholder": "admin",
     "password": "Contraseña",
+    "remember_me": "Mantenerme conectado",
     "submit": "Entrar",
     "submitting": "Entrando…"
   },
