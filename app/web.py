@@ -576,10 +576,10 @@ def add_admin():
 @require_auth
 def update_admin(username):
     data = request.get_json(force=True) or {}
-    email = data.get("email", "").strip()
-    role = data.get("role", "").strip()
-    if not email or not role:
-        return jsonify({"error": "email et role requis"}), 400
+    email = (data.get("email") or "").strip() or None
+    role = (data.get("role") or "").strip()
+    if not role:
+        return jsonify({"error": "role requis"}), 400
     try:
         result = actions.update_admin(username, email, role, g.admin_id)
         return jsonify({"message": "Admin updated"})

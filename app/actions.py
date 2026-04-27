@@ -800,7 +800,7 @@ def change_password(username: str, new_password: str) -> None:
     )
 
 
-def update_admin(username: str, email: str, role: str, admin_id: str) -> dict:
+def update_admin(username: str, email: str | None, role: str, admin_id: str) -> dict:
     """Update administrator email and role. Log ADMIN_UPDATED."""
     admin = db.query_one(
         "SELECT id, email, role FROM administrators WHERE username = %s", (username,)
