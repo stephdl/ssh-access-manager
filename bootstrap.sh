@@ -32,7 +32,8 @@ generate_msmtprc() {
         -e "s|{{SMTP_PASSWORD}}|${SMTP_PASSWORD:-changeme}|g" \
         -e "s|{{SMTP_FROM}}|${SMTP_FROM:-ssh-manager@example.com}|g" \
         /app/msmtp.conf.template > /etc/msmtprc
-    chmod 600 /etc/msmtprc
+    chmod 640 /etc/msmtprc
+    chown root:nobody /etc/msmtprc
 }
 
 # ---------------------------------------------------------------------------

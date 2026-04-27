@@ -35,12 +35,12 @@
     <section class="card">
       <h3>{{ $t('settings.smtp_section') }}</h3>
       <div class="field">
-        <p class="hint">{{ $t('settings.smtp_hint') }}</p>
         <div class="input-row">
-          <button class="btn-secondary" :disabled="smtpTesting" @click="testSmtp">
+          <button class="btn-primary" :disabled="smtpTesting" @click="testSmtp">
             {{ smtpTesting ? $t('settings.smtp_testing') : $t('settings.smtp_test_btn') }}
           </button>
         </div>
+        <p class="hint">{{ $t('settings.smtp_hint') }}</p>
         <p v-if="smtpSuccess" class="success-msg">{{ smtpSuccess }}</p>
         <p v-if="smtpError" class="error-msg">{{ smtpError }}</p>
       </div>
