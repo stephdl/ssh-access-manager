@@ -41,74 +41,78 @@
                 </span>
               </td>
               <td>{{ formatDate(a.created_at) }}</td>
-              <td v-if="currentRole === 'sysadmin'" class="alerts-cell">
-                <span class="badge" :class="a.receive_alerts ? 'badge-active' : 'badge-off'">
-                  {{ a.receive_alerts ? $t('admins.alerts_on') : $t('admins.alerts_off') }}
-                </span>
-                <button
-                  v-if="a.receive_alerts"
-                  class="btn-secondary btn-sm"
-                  :data-testid="`btn-alerts-off-${a.username}`"
-                  @click="toggleAlerts(a, false)"
-                >
-                  {{ $t('admins.btn_alerts_off') }}
-                </button>
-                <button
-                  v-else
-                  class="btn-success btn-sm"
-                  :data-testid="`btn-alerts-on-${a.username}`"
-                  @click="toggleAlerts(a, true)"
-                >
-                  {{ $t('admins.btn_alerts_on') }}
-                </button>
+              <td v-if="currentRole === 'sysadmin'">
+                <div class="alerts-cell">
+                  <span class="badge" :class="a.receive_alerts ? 'badge-active' : 'badge-off'">
+                    {{ a.receive_alerts ? $t('admins.alerts_on') : $t('admins.alerts_off') }}
+                  </span>
+                  <button
+                    v-if="a.receive_alerts"
+                    class="btn-secondary btn-sm"
+                    :data-testid="`btn-alerts-off-${a.username}`"
+                    @click="toggleAlerts(a, false)"
+                  >
+                    {{ $t('admins.btn_alerts_off') }}
+                  </button>
+                  <button
+                    v-else
+                    class="btn-success btn-sm"
+                    :data-testid="`btn-alerts-on-${a.username}`"
+                    @click="toggleAlerts(a, true)"
+                  >
+                    {{ $t('admins.btn_alerts_on') }}
+                  </button>
+                </div>
               </td>
-              <td v-if="currentRole === 'sysadmin'" class="actions-cell">
-                <template v-if="a.is_active">
-                  <button
-                    v-if="currentRole === 'sysadmin'"
-                    class="btn-secondary"
-                    @click="openEdit(a)"
-                  >
-                    {{ $t('admins.btn_edit') }}
-                  </button>
-                  <button
-                    v-if="currentRole === 'sysadmin' || a.username === admin?.username"
-                    class="btn-secondary"
-                    @click="openEditPassword(a.username)"
-                  >
-                    {{ $t('admins.btn_password') }}
-                  </button>
-                  <button
-                    v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
-                    class="btn-warning"
-                    @click="openDisable(a.username)"
-                  >
-                    {{ $t('admins.btn_disable') }}
-                  </button>
-                  <button
-                    v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
-                    class="btn-danger"
-                    @click="openDelete(a.username)"
-                  >
-                    {{ $t('admins.btn_delete') }}
-                  </button>
-                </template>
-                <template v-else>
-                  <button
-                    v-if="currentRole === 'sysadmin'"
-                    class="btn-success"
-                    @click="openEnable(a.username)"
-                  >
-                    {{ $t('admins.btn_enable') }}
-                  </button>
-                  <button
-                    v-if="currentRole === 'sysadmin'"
-                    class="btn-danger"
-                    @click="openDelete(a.username)"
-                  >
-                    {{ $t('admins.btn_delete') }}
-                  </button>
-                </template>
+              <td v-if="currentRole === 'sysadmin'">
+                <div class="actions-cell">
+                  <template v-if="a.is_active">
+                    <button
+                      v-if="currentRole === 'sysadmin'"
+                      class="btn-secondary btn-sm"
+                      @click="openEdit(a)"
+                    >
+                      {{ $t('admins.btn_edit') }}
+                    </button>
+                    <button
+                      v-if="currentRole === 'sysadmin' || a.username === admin?.username"
+                      class="btn-secondary btn-sm"
+                      @click="openEditPassword(a.username)"
+                    >
+                      {{ $t('admins.btn_password') }}
+                    </button>
+                    <button
+                      v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
+                      class="btn-warning btn-sm"
+                      @click="openDisable(a.username)"
+                    >
+                      {{ $t('admins.btn_disable') }}
+                    </button>
+                    <button
+                      v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
+                      class="btn-danger btn-sm"
+                      @click="openDelete(a.username)"
+                    >
+                      {{ $t('admins.btn_delete') }}
+                    </button>
+                  </template>
+                  <template v-else>
+                    <button
+                      v-if="currentRole === 'sysadmin'"
+                      class="btn-success btn-sm"
+                      @click="openEnable(a.username)"
+                    >
+                      {{ $t('admins.btn_enable') }}
+                    </button>
+                    <button
+                      v-if="currentRole === 'sysadmin'"
+                      class="btn-danger btn-sm"
+                      @click="openDelete(a.username)"
+                    >
+                      {{ $t('admins.btn_delete') }}
+                    </button>
+                  </template>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -865,7 +869,7 @@ h2 {
   display: flex;
   gap: 0.4rem;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .badge-off {
