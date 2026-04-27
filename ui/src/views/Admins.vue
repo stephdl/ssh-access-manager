@@ -221,7 +221,12 @@
     <!-- Disable confirmation modal -->
     <div v-if="disableTarget" class="modal-overlay" @click.self="disableTarget = null">
       <div class="modal">
-        <h3>{{ $t('admins.disable_modal_title') }}</h3>
+        <div class="modal-header">
+          <h3>{{ $t('admins.disable_modal_title') }}</h3>
+          <button class="modal-close" @click="disableTarget = null" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
         <p>{{ $t('admins.disable_modal_text', { username: disableTarget }) }}</p>
         <div class="modal-actions">
           <button class="btn-danger" @click="confirmDisable">
@@ -235,7 +240,12 @@
     <!-- Enable confirmation modal -->
     <div v-if="enableTarget" class="modal-overlay" @click.self="enableTarget = null">
       <div class="modal">
-        <h3>{{ $t('admins.enable_modal_title') }}</h3>
+        <div class="modal-header">
+          <h3>{{ $t('admins.enable_modal_title') }}</h3>
+          <button class="modal-close" @click="enableTarget = null" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
         <p>{{ $t('admins.enable_modal_text', { username: enableTarget }) }}</p>
         <div class="modal-actions">
           <button class="btn-success" @click="confirmEnable">
@@ -249,7 +259,12 @@
     <!-- Delete confirmation modal -->
     <div v-if="deleteTarget" class="modal-overlay" @click.self="deleteTarget = null">
       <div class="modal">
-        <h3>{{ $t('admins.delete_modal_title') }}</h3>
+        <div class="modal-header">
+          <h3>{{ $t('admins.delete_modal_title') }}</h3>
+          <button class="modal-close" @click="deleteTarget = null" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
         <p>{{ $t('admins.delete_modal_text', { username: deleteTarget }) }}</p>
         <div class="modal-actions">
           <button class="btn-danger" @click="confirmDelete">
@@ -263,7 +278,12 @@
     <!-- Change password modal -->
     <div v-if="editPasswordTarget" class="modal-overlay" @click.self="closeEditPassword">
       <div class="modal">
-        <h3>{{ $t('admins.pwd_modal_title', { username: editPasswordTarget }) }}</h3>
+        <div class="modal-header">
+          <h3>{{ $t('admins.pwd_modal_title', { username: editPasswordTarget }) }}</h3>
+          <button class="modal-close" @click="closeEditPassword" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
         <form @submit.prevent="confirmEditPassword">
           <div class="field" style="margin-bottom: 0.75rem">
             <label for="edit-password"
@@ -406,7 +426,10 @@
     <!-- Edit admin modal -->
     <div v-if="editTarget" class="modal-overlay" @click.self="closeEdit">
       <div class="modal">
-        <h3>{{ $t('admins.edit_modal_title') }}</h3>
+        <div class="modal-header">
+          <h3>{{ $t('admins.edit_modal_title') }}</h3>
+          <button class="modal-close" @click="closeEdit" aria-label="Close">&#x2715;</button>
+        </div>
         <form @submit.prevent="confirmEdit">
           <div class="field" style="margin-bottom: 0.75rem">
             <label for="edit-username">{{ $t('admins.field_username') }}</label>
@@ -913,10 +936,6 @@ input.input-error {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-}
-.modal h3 {
-  font-size: 1.1rem;
-  margin: 0;
 }
 .modal-actions {
   display: flex;

@@ -227,4 +227,40 @@ button:disabled {
 .btn-warning:hover:not(:disabled) {
   background: #e0a800;
 }
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e9ecef;
+  margin-bottom: 1.25rem;
+}
+.modal-header h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0;
+}
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.8rem;
+  height: 1.8rem;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #999;
+  border-radius: 50%;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.modal-close:hover {
+  color: #333;
+  background: #f0f0f0;
+}
 </style>

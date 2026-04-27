@@ -75,7 +75,12 @@
     <!-- Delete modal -->
     <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
       <div class="modal">
-        <h3>{{ $t('server_detail.delete_modal_title') }}</h3>
+        <div class="modal-header">
+          <h3>{{ $t('server_detail.delete_modal_title') }}</h3>
+          <button class="modal-close" @click="showDeleteModal = false" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
         <p class="warn-text" v-html="$t('server_detail.delete_modal_warning', { hostname })"></p>
         <div class="modal-actions">
           <button class="btn-danger" @click="deleteServer">
@@ -89,7 +94,12 @@
     <!-- Revoke modal -->
     <div v-if="revokeTarget" class="modal-overlay" @click.self="revokeTarget = null">
       <div class="modal">
-        <h3>{{ $t('server_detail.revoke_modal_title') }}</h3>
+        <div class="modal-header">
+          <h3>{{ $t('server_detail.revoke_modal_title') }}</h3>
+          <button class="modal-close" @click="revokeTarget = null" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
         <p class="fp-display">
           <code>{{ revokeTarget.fingerprint }}</code>
         </p>
@@ -118,7 +128,12 @@
     <!-- Assign modal -->
     <div v-if="assignTarget" class="modal-overlay" @click.self="assignTarget = null">
       <div class="modal">
-        <h3>{{ $t('server_detail.assign_modal_title') }}</h3>
+        <div class="modal-header">
+          <h3>{{ $t('server_detail.assign_modal_title') }}</h3>
+          <button class="modal-close" @click="assignTarget = null" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
         <p class="fp-display">
           <code>{{ assignTarget }}</code>
         </p>
@@ -143,7 +158,12 @@
     <!-- Expiry modal -->
     <div v-if="expiryTarget" class="modal-overlay" @click.self="expiryTarget = null">
       <div class="modal">
-        <h3>{{ $t('server_detail.expiry_modal_title') }}</h3>
+        <div class="modal-header">
+          <h3>{{ $t('server_detail.expiry_modal_title') }}</h3>
+          <button class="modal-close" @click="expiryTarget = null" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
         <p class="fp-display">
           <code>{{ expiryTarget.fingerprint }}</code>
         </p>
@@ -511,10 +531,6 @@ dd {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-}
-.modal h3 {
-  font-size: 1.1rem;
-  margin: 0;
 }
 .modal label {
   font-size: 0.85rem;

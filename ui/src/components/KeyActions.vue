@@ -15,7 +15,12 @@
     <!-- Revoke confirmation modal -->
     <div v-if="confirming" class="modal-overlay" @click.self="confirming = false">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-        <h3 id="modal-title">{{ $t('server_detail.revoke_modal_title') }}</h3>
+        <div class="modal-header">
+          <h3 id="modal-title">{{ $t('server_detail.revoke_modal_title') }}</h3>
+          <button class="modal-close" @click="confirming = false" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
         <p class="fp-display">
           <code>{{ fingerprint }}</code>
         </p>
@@ -101,11 +106,6 @@ function confirmRevoke() {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-}
-
-.modal h3 {
-  font-size: 1.1rem;
-  margin: 0;
 }
 
 .fp-display {
