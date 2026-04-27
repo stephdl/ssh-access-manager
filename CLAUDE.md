@@ -539,6 +539,8 @@ Validation robustesse mot de passe (issue #62) :
 ### Administrateurs
 - add_admin(username, email, password, db)
   ↳ valide robustesse mot de passe, hash avec werkzeug
+- update_admin(username, email, role, admin_id)
+  ↳ garde-fou : ne peut pas modifier son propre rôle
 - change_password(username, new_password, db)   ← issue #61
 - disable_admin(username, db)
 - enable_admin(username, db)     ← issue #116
@@ -638,6 +640,7 @@ test_web.py :
 - POST /api/access/lock-user retourne 400 si champs manquants
 - POST /api/access/unlock-user retourne 200 si admin authentifié
 - POST /api/access/unlock-user retourne 401 si non authentifié
+- PUT /api/admins/<username> retourne 200/401/403/404
 
 ### Tests frontend — Vitest
 
@@ -760,6 +763,7 @@ access unlock-user --user USER --server HOST
 ### Administrateurs
 admin list
 admin add --username USER --email EMAIL --password PASSWORD
+admin update <username> [--email EMAIL] [--role ROLE]
 admin disable <username>
 admin enable <username>
 admin delete <username>
@@ -822,6 +826,7 @@ POST /api/access/<id>/revoke
 GET    /api/admins
 GET    /api/admins/me
 POST   /api/admins
+PUT    /api/admins/<username>
 PUT    /api/admins/<username>/disable
 PUT    /api/admins/<username>/enable
 DELETE /api/admins/<username>

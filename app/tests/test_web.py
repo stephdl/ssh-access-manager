@@ -510,6 +510,57 @@ def test_web_delete_admin_with_references_returns_400(auth_client):
 
 
 # ---------------------------------------------------------------------------
+# PUT /api/admins/<username> — update email/role
+# ---------------------------------------------------------------------------
+
+def test_web_update_admin_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.update_admin.return_value = {
+            "username": "testuser", "email": "new@example.com", "role": "operator"
+        }
+        resp = auth_client.put("/api/admins/testuser", json={
+            "email": "new@example.com",
+            "role": "operator"
+        })
+        assert resp.status_code == 200
+        assert resp.get_json()["message"] == "Admin updated"
+        mock_actions.update_admin.assert_called_once_with(
+            "testuser", "new@example.com", "operator", ADMIN_ID
+        )
+
+
+def test_web_update_admin_returns_401_unauthenticated(client):
+    resp = client.put("/api/admins/testuser", json={
+        "email": "new@example.com",
+        "role": "operator"
+    })
+    assert resp.status_code == 401
+
+
+def test_web_update_admin_returns_404_not_found(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.update_admin.side_effect = ValueError("Admin not found: ghost")
+        resp = auth_client.put("/api/admins/ghost", json={
+            "email": "new@example.com",
+            "role": "operator"
+        })
+        assert resp.status_code == 404
+
+
+def test_web_update_admin_returns_403_self_role(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.update_admin.side_effect = ValueError("Cannot change your own role")
+        resp = auth_client.put("/api/admins/admin", json={
+            "email": "admin@example.com",
+            "role": "operator"
+        })
+        assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
 # GET/PUT /api/system/config
 # ---------------------------------------------------------------------------
 
