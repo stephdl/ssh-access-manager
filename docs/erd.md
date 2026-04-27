@@ -20,6 +20,7 @@ erDiagram
         VARCHAR role
         VARCHAR password_hash
         BOOLEAN is_active
+        BOOLEAN receive_alerts
         TIMESTAMPTZ created_at
     }
 
@@ -132,5 +133,18 @@ Il peut désigner un non-administrateur (ex : développeur externe) et reste NUL
 
 ## Table settings
 
-Stocke la configuration dynamique du système (ex : intervalle de scan).
-Modifiable via `PUT /api/system/config` sans redémarrage du container.
+Stocke la configuration dynamique du système. Modifiable via `PUT /api/system/config`
+ou l'UI Settings sans redémarrage du container.
+
+Clés présentes par défaut :
+
+| Clé | Valeur par défaut | Description |
+|-----|-------------------|-------------|
+| `scan_interval_hours` | `4` | Intervalle entre deux scans SSH |
+| `expire_warn_days` | `7` | Premier avertissement avant expiration (jours) |
+| `expire_warn_days_2` | `2` | Second avertissement avant expiration (jours) |
+
+## Colonne receive_alerts — administrators
+
+`administrators.receive_alerts` contrôle si un administrateur reçoit les emails d'alerte.
+Modifiable par un sysadmin via `PUT /api/admins/<username>/alerts` ou le toggle dans l'UI Admins.
