@@ -207,9 +207,7 @@ const addFormValid = computed(
   () => addForm.value.hostname.trim() && addForm.value.ip.trim() && addForm.value.environment
 )
 
-const editFormValid = computed(
-  () => editForm.value.ip.trim() && editForm.value.environment
-)
+const editFormValid = computed(() => editForm.value.ip.trim() && editForm.value.environment)
 
 async function loadCollectorKey() {
   try {

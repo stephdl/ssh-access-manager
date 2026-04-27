@@ -117,4 +117,19 @@ describe('ServerTable', () => {
     const w = mountTable([SERVERS[2]])
     expect(w.text()).toContain('—')
   })
+
+  it('affiche le bouton Edit dans chaque ligne', () => {
+    const w = mountTable()
+    const editButtons = w.findAll('button').filter((btn) => btn.text().includes('Edit'))
+    expect(editButtons.length).toBe(SERVERS.length)
+  })
+
+  it('le bouton Edit émet edit avec le serveur correspondant', async () => {
+    const w = mountTable([SERVERS[0]])
+    const buttons = w.findAll('button')
+    const editButton = buttons.find((btn) => btn.text().includes('Edit'))
+    await editButton.trigger('click')
+    expect(w.emitted('edit')).toBeTruthy()
+    expect(w.emitted('edit')[0][0]).toEqual(SERVERS[0])
+  })
 })
