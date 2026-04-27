@@ -591,15 +591,31 @@ def test_web_update_admin_missing_role_returns_400(auth_client):
 def test_web_get_config_returns_settings(auth_client):
     with patch("web.db") as mock_db:
         mock_db.query_one.return_value = {"id": "admin-id", "username": "admin", "role": "sysadmin"}
-        mock_db.query.return_value = [{"key": "scan_interval_hours", "value": "4"}]
+        mock_db.query.return_value = [
+            {"key": "scan_interval_hours", "value": "4"},
+            {"key": "expire_warn_days", "value": "7"},
+            {"key": "expire_warn_days_2", "value": "2"},
+        ]
         resp = auth_client.get("/api/system/config")
         assert resp.status_code == 200
-        assert resp.get_json()["scan_interval_hours"] == "4"
+        data = resp.get_json()
+        assert data["scan_interval_hours"] == "4"
+        assert data["expire_warn_days"] == "7"
+        assert data["expire_warn_days_2"] == "2"
 
 
 def test_web_put_config_updates_interval(auth_client):
     with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = {"id": "admin-id", "username": "admin", "role": "sysadmin"}
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},  # current expire_warn_days
+            {"value": "2"},  # current expire_warn_days_2
+        ]
+        mock_db.query.return_value = [
+            {"key": "scan_interval_hours", "value": "6"},
+            {"key": "expire_warn_days", "value": "7"},
+            {"key": "expire_warn_days_2", "value": "2"},
+        ]
         resp = auth_client.put("/api/system/config", json={"scan_interval_hours": 6})
         assert resp.status_code == 200
         assert resp.get_json()["scan_interval_hours"] == 6
@@ -617,6 +633,84 @@ def test_web_put_config_rejects_missing_field(auth_client):
         mock_db.query_one.return_value = {"id": "admin-id", "username": "admin", "role": "sysadmin"}
         resp = auth_client.put("/api/system/config", json={})
         assert resp.status_code == 400
+        assert "At least one setting" in resp.get_json()["error"]
+
+
+def test_web_put_config_updates_expire_warn_days(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},  # current expire_warn_days
+            {"value": "2"},  # current expire_warn_days_2
+        ]
+        mock_db.query.return_value = [
+            {"key": "scan_interval_hours", "value": "4"},
+            {"key": "expire_warn_days", "value": "10"},
+            {"key": "expire_warn_days_2", "value": "2"},
+        ]
+        resp = auth_client.put("/api/system/config", json={"expire_warn_days": 10})
+        assert resp.status_code == 200
+        assert resp.get_json()["expire_warn_days"] == 10
+
+
+def test_web_put_config_rejects_when_warn_days_not_greater_than_warn_days_2(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},  # current expire_warn_days
+            {"value": "2"},  # current expire_warn_days_2
+        ]
+        resp = auth_client.put("/api/system/config", json={"expire_warn_days": 2})
+        assert resp.status_code == 400
+        assert "greater than" in resp.get_json()["error"]
+
+
+def test_web_put_config_rejects_out_of_range_expire_warn_days(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},
+            {"value": "2"},
+        ]
+        resp = auth_client.put("/api/system/config", json={"expire_warn_days": 0})
+        assert resp.status_code == 400
+        assert "between 1 and 30" in resp.get_json()["error"]
+
+
+def test_web_put_config_rejects_out_of_range_expire_warn_days_2(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},
+            {"value": "2"},
+        ]
+        resp = auth_client.put("/api/system/config", json={"expire_warn_days_2": 31})
+        assert resp.status_code == 400
+        assert "between 1 and 30" in resp.get_json()["error"]
+
+
+def test_web_put_config_updates_multiple_settings(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "admin-id", "username": "admin", "role": "sysadmin"},
+            {"value": "7"},  # current expire_warn_days
+            {"value": "2"},  # current expire_warn_days_2
+        ]
+        mock_db.query.return_value = [
+            {"key": "scan_interval_hours", "value": "6"},
+            {"key": "expire_warn_days", "value": "14"},
+            {"key": "expire_warn_days_2", "value": "3"},
+        ]
+        resp = auth_client.put("/api/system/config", json={
+            "scan_interval_hours": 6,
+            "expire_warn_days": 14,
+            "expire_warn_days_2": 3,
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["scan_interval_hours"] == 6
+        assert data["expire_warn_days"] == 14
+        assert data["expire_warn_days_2"] == 3
 
 
 # ---------------------------------------------------------------------------

@@ -6,23 +6,24 @@ warn_expiring_keys() : alerte J-7 et J-2 avec anti-spam 24h
 expire_keys()        : scenario 4 — revocation automatique a echeance
 """
 import json
-import os
 
 import actions
 import alerts
 import db
 import ssh
 
-EXPIRE_WARN_DAYS = int(os.environ.get("EXPIRE_WARN_DAYS", "7"))
-EXPIRE_WARN_DAYS_2 = int(os.environ.get("EXPIRE_WARN_DAYS_2", "2"))
-
 
 def warn_expiring_keys() -> int:
     """
-    Find ACTIVE keys expiring within EXPIRE_WARN_DAYS or EXPIRE_WARN_DAYS_2 days.
+    Find ACTIVE keys expiring within expire_warn_days or expire_warn_days_2 days.
     Sends one grouped WARNING email for all keys needing a warning (24h anti-spam via actions).
     Returns the number of warnings logged.
     """
+    warn_days_row = db.query_one("SELECT value FROM settings WHERE key = 'expire_warn_days'")
+    warn_days_2_row = db.query_one("SELECT value FROM settings WHERE key = 'expire_warn_days_2'")
+    warn_days = int(warn_days_row["value"]) if warn_days_row else 7
+    warn_days_2 = int(warn_days_2_row["value"]) if warn_days_2_row else 2
+
     rows = db.query(
         """
         SELECT ka.key_id, ka.server_id, ka.expires_at
@@ -32,7 +33,7 @@ def warn_expiring_keys() -> int:
           AND ka.expires_at > now()
           AND ka.expires_at <= now() + INTERVAL '%s days'
         """,
-        (max(EXPIRE_WARN_DAYS, EXPIRE_WARN_DAYS_2),),
+        (max(warn_days, warn_days_2),),
     )
     warnings = []
     for row in rows:

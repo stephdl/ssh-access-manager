@@ -801,20 +801,75 @@ def get_config():
 @require_role("sysadmin")
 def update_config():
     data = request.get_json(force=True) or {}
-    hours = data.get("scan_interval_hours")
-    if hours is None:
-        return jsonify({"error": "scan_interval_hours required"}), 400
-    try:
-        hours = int(hours)
-        if not (1 <= hours <= 24):
-            raise ValueError
-    except (ValueError, TypeError):
-        return jsonify({"error": "scan_interval_hours must be between 1 and 24"}), 400
-    db.execute(
-        "UPDATE settings SET value = %s WHERE key = 'scan_interval_hours'",
-        (str(hours),)
-    )
-    return jsonify({"scan_interval_hours": hours})
+
+    # Extract optional values
+    scan_interval_hours = data.get("scan_interval_hours")
+    expire_warn_days = data.get("expire_warn_days")
+    expire_warn_days_2 = data.get("expire_warn_days_2")
+
+    # Must have at least one value
+    if scan_interval_hours is None and expire_warn_days is None and expire_warn_days_2 is None:
+        return jsonify({"error": "At least one setting must be provided"}), 400
+
+    # Validate scan_interval_hours if present
+    if scan_interval_hours is not None:
+        try:
+            scan_interval_hours = int(scan_interval_hours)
+            if not (1 <= scan_interval_hours <= 24):
+                raise ValueError
+        except (ValueError, TypeError):
+            return jsonify({"error": "scan_interval_hours must be between 1 and 24"}), 400
+
+    # Validate expire_warn_days if present
+    if expire_warn_days is not None:
+        try:
+            expire_warn_days = int(expire_warn_days)
+            if not (1 <= expire_warn_days <= 30):
+                raise ValueError
+        except (ValueError, TypeError):
+            return jsonify({"error": "expire_warn_days must be between 1 and 30"}), 400
+
+    # Validate expire_warn_days_2 if present
+    if expire_warn_days_2 is not None:
+        try:
+            expire_warn_days_2 = int(expire_warn_days_2)
+            if not (1 <= expire_warn_days_2 <= 30):
+                raise ValueError
+        except (ValueError, TypeError):
+            return jsonify({"error": "expire_warn_days_2 must be between 1 and 30"}), 400
+
+    # Read current values from DB if not in request
+    current_warn_days = db.query_one("SELECT value FROM settings WHERE key = 'expire_warn_days'")
+    current_warn_days_2 = db.query_one("SELECT value FROM settings WHERE key = 'expire_warn_days_2'")
+
+    final_warn_days = expire_warn_days if expire_warn_days is not None else int(current_warn_days["value"])
+    final_warn_days_2 = expire_warn_days_2 if expire_warn_days_2 is not None else int(current_warn_days_2["value"])
+
+    # Validate that warn_days > warn_days_2
+    if final_warn_days <= final_warn_days_2:
+        return jsonify({"error": "expire_warn_days must be greater than expire_warn_days_2"}), 400
+
+    # Update settings in DB
+    if scan_interval_hours is not None:
+        db.execute(
+            "UPDATE settings SET value = %s WHERE key = 'scan_interval_hours'",
+            (str(scan_interval_hours),)
+        )
+    if expire_warn_days is not None:
+        db.execute(
+            "UPDATE settings SET value = %s WHERE key = 'expire_warn_days'",
+            (str(expire_warn_days),)
+        )
+    if expire_warn_days_2 is not None:
+        db.execute(
+            "UPDATE settings SET value = %s WHERE key = 'expire_warn_days_2'",
+            (str(expire_warn_days_2),)
+        )
+
+    # Return full updated config
+    rows = db.query("SELECT key, value FROM settings")
+    config = {r["key"]: int(r["value"]) for r in rows}
+    return jsonify(config)
 
 
 @app.route("/api/system/test-smtp", methods=["POST"])

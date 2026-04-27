@@ -296,6 +296,8 @@ COMMENT ON COLUMN settings.key IS 'Clé de configuration (ex: scan_interval_hour
 COMMENT ON COLUMN settings.value IS 'Valeur texte';
 
 INSERT INTO settings (key, value) VALUES ('scan_interval_hours', '4');
+INSERT INTO settings (key, value) VALUES ('expire_warn_days', '7');
+INSERT INTO settings (key, value) VALUES ('expire_warn_days_2', '2');
 
 -- =============================================================================
 -- INDEX

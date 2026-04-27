@@ -30,6 +30,40 @@
         <p v-if="success" class="success-msg">{{ $t('settings.saved') }}</p>
         <p v-if="error" class="error-msg">{{ error }}</p>
       </div>
+
+      <div class="field">
+        <label>{{ $t('settings.expire_warn_days_label') }}</label>
+        <div class="input-row">
+          <input
+            v-model.number="expireWarnDays"
+            type="number"
+            min="1"
+            max="30"
+            step="1"
+            class="input-number"
+            :disabled="currentRole !== 'sysadmin'"
+          />
+          <span class="unit">{{ $t('settings.days') }}</span>
+        </div>
+        <p class="hint">{{ $t('settings.expire_warn_days_hint') }}</p>
+      </div>
+
+      <div class="field">
+        <label>{{ $t('settings.expire_warn_days_2_label') }}</label>
+        <div class="input-row">
+          <input
+            v-model.number="expireWarnDays2"
+            type="number"
+            min="1"
+            max="30"
+            step="1"
+            class="input-number"
+            :disabled="currentRole !== 'sysadmin'"
+          />
+          <span class="unit">{{ $t('settings.days') }}</span>
+        </div>
+        <p class="hint">{{ $t('settings.expire_warn_days_2_hint') }}</p>
+      </div>
     </section>
 
     <section class="card">
@@ -58,6 +92,8 @@ const { admin } = useAuth()
 const currentRole = computed(() => admin.value?.role || 'viewer')
 
 const intervalHours = ref(4)
+const expireWarnDays = ref(7)
+const expireWarnDays2 = ref(2)
 const saving = ref(false)
 const success = ref(false)
 const error = ref('')
@@ -72,6 +108,8 @@ onMounted(async () => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     intervalHours.value = parseInt(data.scan_interval_hours)
+    expireWarnDays.value = parseInt(data.expire_warn_days || 7)
+    expireWarnDays2.value = parseInt(data.expire_warn_days_2 || 2)
   } catch (err) {
     error.value = err.message
   }
@@ -99,6 +137,21 @@ async function save() {
     return
   }
 
+  if (expireWarnDays.value < 1 || expireWarnDays.value > 30) {
+    error.value = t('settings.expire_warn_error')
+    return
+  }
+
+  if (expireWarnDays2.value < 1 || expireWarnDays2.value > 30) {
+    error.value = t('settings.expire_warn_error')
+    return
+  }
+
+  if (expireWarnDays.value <= expireWarnDays2.value) {
+    error.value = t('settings.expire_warn_error')
+    return
+  }
+
   saving.value = true
   success.value = false
   error.value = ''
@@ -107,7 +160,11 @@ async function save() {
     const res = await fetch('/api/system/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scan_interval_hours: intervalHours.value }),
+      body: JSON.stringify({
+        scan_interval_hours: intervalHours.value,
+        expire_warn_days: expireWarnDays.value,
+        expire_warn_days_2: expireWarnDays2.value,
+      }),
     })
 
     if (!res.ok) {
