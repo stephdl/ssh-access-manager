@@ -40,6 +40,9 @@
               <td>{{ formatDate(a.created_at) }}</td>
               <td class="actions-cell">
                 <template v-if="a.is_active">
+                  <button class="btn-secondary" @click="openEdit(a)">
+                    {{ $t('admins.btn_edit') }}
+                  </button>
                   <button class="btn-secondary" @click="openEditPassword(a.username)">
                     {{ $t('admins.btn_password') }}
                   </button>
@@ -399,6 +402,54 @@
         </form>
       </div>
     </div>
+
+    <!-- Edit admin modal -->
+    <div v-if="editTarget" class="modal-overlay" @click.self="closeEdit">
+      <div class="modal">
+        <h3>{{ $t('admins.edit_modal_title') }}</h3>
+        <form @submit.prevent="confirmEdit">
+          <div class="field" style="margin-bottom: 0.75rem">
+            <label for="edit-username">{{ $t('admins.field_username') }}</label>
+            <input
+              id="edit-username"
+              v-model="editTarget.username"
+              type="text"
+              disabled
+              class="input-readonly"
+            />
+            <span class="field-hint">{{ $t('admins.field_username_readonly') }}</span>
+          </div>
+          <div class="field" style="margin-bottom: 0.75rem">
+            <label for="edit-email">{{ $t('admins.field_email') }}</label>
+            <input
+              id="edit-email"
+              v-model="editEmail"
+              type="email"
+              placeholder="admin@example.com"
+            />
+          </div>
+          <div class="field" style="margin-bottom: 1rem">
+            <label for="edit-role">{{ $t('admins.col_role') }}</label>
+            <input
+              id="edit-role"
+              v-model="editRole"
+              type="text"
+              :disabled="editTarget.username === currentUsername"
+              :class="{ 'input-readonly': editTarget.username === currentUsername }"
+            />
+            <span v-if="editTarget.username === currentUsername" class="field-hint">
+              {{ $t('admins.self_role_warning') }}
+            </span>
+          </div>
+          <div class="modal-actions">
+            <button type="submit" class="btn-primary">
+              {{ $t('admins.btn_save') }}
+            </button>
+            <button type="button" @click="closeEdit">{{ $t('common.cancel') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -449,6 +500,9 @@ const editPassword = ref('')
 const editPasswordConfirm = ref('')
 const showEditPwd = ref(false)
 const showEditPwdConfirm = ref(false)
+const editTarget = ref(null)
+const editEmail = ref('')
+const editRole = ref('')
 
 const canSubmitAdd = computed(
   () =>
@@ -616,6 +670,43 @@ async function confirmEditPassword() {
   }
 }
 
+function openEdit(admin) {
+  editTarget.value = admin
+  editEmail.value = admin.email || ''
+  editRole.value = admin.role || ''
+}
+
+function closeEdit() {
+  editTarget.value = null
+  editEmail.value = ''
+  editRole.value = ''
+}
+
+async function confirmEdit() {
+  const username = editTarget.value.username
+  closeEdit()
+  error.value = ''
+  message.value = ''
+  try {
+    const res = await fetch(`/api/admins/${username}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: editEmail.value.trim() || null,
+        role: editRole.value.trim(),
+      }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    message.value = t('admins.success_edited', { username })
+    await load()
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
 function formatDate(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('fr-FR')
@@ -712,6 +803,19 @@ input[type='password'] {
   font-size: 0.9rem;
   width: 100%;
   box-sizing: border-box;
+}
+
+input.input-readonly {
+  background-color: #f5f5f5;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.field-hint {
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: 0.25rem;
+  display: block;
 }
 
 input.input-error {
