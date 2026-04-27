@@ -540,7 +540,7 @@ Validation robustesse mot de passe (issue #62) :
 - add_admin(username, email, password, db)
   ↳ valide robustesse mot de passe, hash avec werkzeug
 - update_admin(username, email, role, admin_id)
-  ↳ garde-fou : ne peut pas modifier son propre rôle
+  ↳ email est nullable (str | None) — ne peut pas modifier son propre rôle
 - change_password(username, new_password, db)   ← issue #61
 - disable_admin(username, db)
 - enable_admin(username, db)     ← issue #116

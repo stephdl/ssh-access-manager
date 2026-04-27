@@ -560,6 +560,30 @@ def test_web_update_admin_returns_403_self_role(auth_client):
         assert resp.status_code == 403
 
 
+def test_web_update_admin_null_email_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.update_admin.return_value = {
+            "username": "testuser", "email": None, "role": "operator"
+        }
+        resp = auth_client.put("/api/admins/testuser", json={
+            "email": None,
+            "role": "operator"
+        })
+        assert resp.status_code == 200
+        mock_actions.update_admin.assert_called_once_with(
+            "testuser", None, "operator", ADMIN_ID
+        )
+
+
+def test_web_update_admin_missing_role_returns_400(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/admins/testuser", json={"email": "x@x.com"})
+        assert resp.status_code == 400
+        assert "role" in resp.get_json()["error"]
+
+
 # ---------------------------------------------------------------------------
 # GET/PUT /api/system/config
 # ---------------------------------------------------------------------------
