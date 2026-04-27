@@ -574,7 +574,7 @@ Trois niveaux de criticité avec comportements distincts :
 | Niveau | Comportement | Cas d'usage |
 |---|---|---|
 | `CRITICAL` | Email immédiat via msmtp | Clé inconnue détectée, révocation hors système, scan échoué |
-| `WARNING` | Email immédiat avec anti-spam 24h | Clé proche de l'expiration (J-7, J-2) |
+| `WARNING` | Email immédiat avec anti-spam 24h | Clé proche de l'expiration (J-N, seuils configurables) |
 | `INFO` | Log uniquement | KEY_EXPIRED, KEY_REVOKED, SCAN_COMPLETED |
 
 L'**anti-spam** sur les alertes WARNING est implémenté via une requête sur
@@ -625,14 +625,20 @@ uniquement via la CLI et l'API REST.
    → UPDATE status='REVOKED', revoked_by=admin_id
 ```
 
-Les alertes d'avertissement s'intercalent avant l'expiration :
+Les alertes d'avertissement s'intercalent avant l'expiration. Les seuils
+`expire_warn_days` (défaut 7) et `expire_warn_days_2` (défaut 2) sont stockés
+dans la table `settings` et modifiables sans redémarrage via Settings UI :
 
 ```
-J-7 et J-2 : expire.warn_expiring_keys()
+J-N et J-M : expire.warn_expiring_keys()
+  → Lit expire_warn_days et expire_warn_days_2 depuis la table settings
   → Anti-spam 24h : si pas d'alerte aujourd'hui
   → alerts.send_alert('WARNING', "Clé expire dans N jours")
   → INSERT audit_log('EXPIRY_WARNING')
 ```
+
+Les alertes email sont envoyées aux administrateurs dont `receive_alerts=true`
+(colonne ajoutée à la table `administrators`, toggle par admin via l'UI Admins).
 
 ---
 
@@ -640,8 +646,14 @@ J-7 et J-2 : expire.warn_expiring_keys()
 
 ### Composition API et composables
 
-Vue.js 3 avec `<script setup>` est utilisé systématiquement. Le composable
-`useAuth.js` encapsule l'état d'authentification partagé entre toutes les vues :
+Vue.js 3 avec `<script setup>` est utilisé systématiquement. Deux composables
+encapsulent la logique partagée :
+
+- **`useAuth.js`** — état d'authentification partagé entre toutes les vues
+- **`useFormatDate.js`** — `formatDate()` et `formatDateOnly()` avec locale du navigateur
+  (`toLocaleString(undefined, ...)` — s'adapte automatiquement au fuseau du navigateur)
+
+Le composable `useAuth.js` encapsule l'état d'authentification partagé entre toutes les vues :
 
 ```javascript
 // useAuth.js

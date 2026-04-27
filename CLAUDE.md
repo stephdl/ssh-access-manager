@@ -133,21 +133,23 @@ SMTP_PORT=587
 SMTP_USER=alerts@example.com
 SMTP_PASSWORD=changeme
 SMTP_FROM=ssh-manager@example.com
-SMTP_TO=admin@example.com
 
 # Collector
 SSH_USER=audit-collector
-EXPIRE_WARN_DAYS=7
-EXPIRE_WARN_DAYS_2=2
 ADMIN_USERNAME=admin
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=changeme
-TZ=Europe/Paris
 
 Note : NGINX_USER/NGINX_PASSWORD supprimés (Basic Auth Nginx remplacé
 par authentification Flask session — issue #54).
 ADMIN_PASSWORD ajouté pour définir le mot de passe du premier admin
 au bootstrap (issue #51).
+SMTP_TO supprimé : les destinataires des alertes sont les admins ayant
+receive_alerts=true en base (issue #223).
+TZ supprimé : PostgreSQL stocke en TIMESTAMPTZ (UTC), la UI convertit
+dans le fuseau du navigateur via useFormatDate.js (issue #228).
+EXPIRE_WARN_DAYS et EXPIRE_WARN_DAYS_2 supprimés : configurables en
+base via Settings UI ou PUT /api/system/config (issue #230).
 
 ## bootstrap.sh — ordre strict obligatoire
 
@@ -206,18 +208,20 @@ CREATE TABLE servers (
 );
 
 CREATE TABLE administrators (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    username      VARCHAR(100) NOT NULL UNIQUE,
-    email         VARCHAR(255) NOT NULL,
-    role          VARCHAR(50) DEFAULT 'sysadmin'
-                      CHECK (role IN ('sysadmin', 'operator', 'viewer')),
-    password_hash VARCHAR(255),
-    is_active     BOOLEAN DEFAULT true,
-    created_at    TIMESTAMPTZ DEFAULT now()
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username        VARCHAR(100) NOT NULL UNIQUE,
+    email           VARCHAR(255) NOT NULL,
+    role            VARCHAR(50) DEFAULT 'sysadmin'
+                        CHECK (role IN ('sysadmin', 'operator', 'viewer')),
+    password_hash   VARCHAR(255),
+    is_active       BOOLEAN DEFAULT true,
+    receive_alerts  BOOLEAN DEFAULT true NOT NULL,
+    created_at      TIMESTAMPTZ DEFAULT now()
 );
 
 -- password_hash ajouté via issue #51
 -- role CHECK + email NOT NULL ajoutés via issue #222
+-- receive_alerts ajouté via issue #223 — toggle par admin via PUT /api/admins/<username>/alerts
 
 CREATE TABLE ssh_keys (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -323,8 +327,11 @@ CREATE TABLE settings (
 );
 
 INSERT INTO settings (key, value) VALUES ('scan_interval_hours', '4');
+INSERT INTO settings (key, value) VALUES ('expire_warn_days', '7');
+INSERT INTO settings (key, value) VALUES ('expire_warn_days_2', '2');
 
--- Défaut 4h hardcodé. Modifiable via GET/PUT /api/system/config sans redémarrage.
+-- Modifiables via GET/PUT /api/system/config ou Settings UI sans redémarrage.
+-- expire_warn_days et expire_warn_days_2 remplacent les variables d'env (issue #230).
 
 ## Index
 
@@ -431,7 +438,8 @@ known_hosts est indexé par IP (ssh-keyscan -H <ip>).
 expire.py appelé par cron à chaque cycle :
 
 warn_expiring_keys() :
-→ clés ACTIVE avec expires_at dans max(EXPIRE_WARN_DAYS, EXPIRE_WARN_DAYS_2)
+→ lit expire_warn_days et expire_warn_days_2 depuis la table settings en DB (issue #230)
+→ clés ACTIVE avec expires_at dans max(expire_warn_days, expire_warn_days_2)
 → anti-spam NOT EXISTS audit_log EXPIRY_WARNING sur 24h
 → 1 seul email WARNING groupé par cycle (issue #119)
 → audit_log EXPIRY_WARNING par clé
@@ -479,8 +487,8 @@ CRITIQUE (1 seul email par scan — issue #119) :
 - Scan échoué (serveur injoignable)
 
 WARNING (1 seul email par cycle expire — issue #119, anti-spam 24h) :
-- Clé expire dans EXPIRE_WARN_DAYS jours
-- Clé expire dans EXPIRE_WARN_DAYS_2 jours
+- Clé expire dans expire_warn_days jours (configurable en DB, défaut 7)
+- Clé expire dans expire_warn_days_2 jours (configurable en DB, défaut 2)
 
 INFO (log uniquement) :
 - KEY_EXPIRED, KEY_REVOKED, SCAN_COMPLETED, SCRIPT_DEPLOYED
@@ -561,6 +569,7 @@ Validation robustesse mot de passe (issue #62) :
 - update_admin(username, email, role, admin_id)
   ↳ email obligatoire, valide role ∈ VALID_ROLES, ne peut pas modifier son propre rôle
 - change_password(username, new_password, db)   ← issue #61
+- toggle_alerts(username, receive_alerts, db)   ← issue #223 — active/désactive les alertes email
 - disable_admin(username, db)
 - enable_admin(username, db)     ← issue #116
 - delete_admin(username, db)     ← issue #116 — vérifie FK avant DELETE
@@ -660,6 +669,8 @@ test_web.py :
 - POST /api/access/unlock-user retourne 200 si admin authentifié
 - POST /api/access/unlock-user retourne 401 si non authentifié
 - PUT /api/admins/<username> retourne 200/401/403/404
+- POST /api/system/test-smtp retourne 200/400/401/500/502
+- GET /api/system/collector-key retourne {public_key, ssh_user}
 
 ### Tests frontend — Vitest
 
@@ -668,8 +679,8 @@ ui/tests/
     ExpiryPicker.spec.js  ← modes exclusifs heures/date (9 tests)
     ServerTable.spec.js   ← filtres hostname/IP/env, badges statut (15 tests)
     KeyTable.spec.js           ← boutons par statut, owner, expires_at, barre de filtres texte + statut (30 tests)
-    Admins.spec.js             ← modals enable/delete, garde-fous RBAC (25 tests)
-    Settings.spec.js           ← chargement, sauvegarde, validation, erreurs (7 tests)
+    Admins.spec.js             ← modals enable/delete, garde-fous RBAC, toggle alerts (31 tests)
+    Settings.spec.js           ← scan interval, expiry warn days, SMTP test, validation (14 tests)
     DeployKeyForm.spec.js      ← formulaire déploiement clé SSH (16 tests)
     UserLockForm.spec.js       ← verrouillage/déverrouillage compte Unix (10 tests)
     DeployedUsersTable.spec.js ← tableau utilisateurs déployés, filtres, RBAC operator/viewer (12 tests)
@@ -850,6 +861,7 @@ PUT    /api/admins/<username>/disable
 PUT    /api/admins/<username>/enable
 DELETE /api/admins/<username>
 PUT    /api/admins/<username>/password
+PUT    /api/admins/<username>/alerts
 
 ### Audit
 GET /api/audit?server=&action=&since=
@@ -857,9 +869,10 @@ GET /api/audit?server=&action=&since=
 ### Système
 GET  /api/system/status
 POST /api/system/scan
-GET  /api/system/collector-key
+GET  /api/system/collector-key      ← retourne {public_key, ssh_user}
 GET  /api/system/config
 PUT  /api/system/config
+POST /api/system/test-smtp          ← envoie un email de test à l'adresse de l'admin authentifié
 
 ## Interface Vue.js 3 — vues
 
@@ -879,8 +892,10 @@ ui/src/views/
                           + modals enable/delete + garde-fou self (issue #116)
                           + modal changement mot de passe (issue #61)
                           + confirmation mot de passe + bouton œil (issues #60, #66)
-    Settings.vue        ← configuration système (intervalle de scan)
-                          + GET/PUT /api/system/config (issue #133)
+                          + toggle receive_alerts par admin (issue #223)
+    Settings.vue        ← configuration système : intervalle de scan, seuils d'alerte
+                          expiration (expire_warn_days, expire_warn_days_2), test SMTP
+                          + GET/PUT /api/system/config (issues #133, #224, #230)
 
 ui/src/components/
     ServerTable.vue     ← tableau serveurs avec recherche
@@ -897,7 +912,8 @@ ui/src/components/
 ui/src/
     i18n.js             ← configuration vue-i18n v9 (issue #98)
     composables/
-        useAuth.js      ← composable authentification session
+        useAuth.js          ← composable authentification session
+        useFormatDate.js    ← formatDate() et formatDateOnly() avec locale navigateur (issue #228)
     locales/
         en.json         ← traductions anglais
         fr.json         ← traductions français
@@ -946,17 +962,19 @@ audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 755 -o root -g root /ho
 ## provision-host.sh
 
 Invocation depuis la machine hébergeant le container (<user> = root ou admin avec sudo ALL) :
-ssh <user>@<ip> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)'" \
+SSH_USER est passé en $2 (optionnel, défaut audit-collector — doit correspondre à la valeur SSH_USER du container) :
+ssh <user>@<ip> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)' '${SSH_USER}'" \
     < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 
 Actions :
-1. useradd -r -m -s /bin/bash audit-collector (réutilise si existe déjà)
-2. Créer /home/audit-collector/.ssh (chmod 700)
+1. useradd -r -m -s /bin/bash ${COLLECTOR_USER} (réutilise si existe déjà)
+2. Créer /home/${COLLECTOR_USER}/.ssh (chmod 700)
 3. Déployer clé publique dans authorized_keys en mode append (>>)
-   chown audit-collector:audit-collector (fix issue #86 — pas root:root)
-4. Créer /etc/sudoers.d/audit-collector (chmod 440)
+   chown ${COLLECTOR_USER}:${COLLECTOR_USER} (fix issue #86 — pas root:root)
+4. Créer /etc/sudoers.d/${COLLECTOR_USER} (chmod 440)
    Utilise printf ligne par ligne — résistant au CRLF introduit par sudo PTY (fix issue #159)
    Règles install au lieu de mv+chown+chmod — évite le ":" dans les args sudoers (fix issue #161)
+   Toutes les lignes sudoers utilisent ${COLLECTOR_USER} (dynamique)
 
 ## Nginx
 
@@ -1066,7 +1084,9 @@ ssh-access-manager/
         │   ├── Admins.spec.js
         │   ├── Settings.spec.js
         │   ├── DeployKeyForm.spec.js
-        │   └── UserLockForm.spec.js
+        │   ├── UserLockForm.spec.js
+        │   ├── DeployedUsersTable.spec.js
+        │   └── Anomalies.spec.js
         └── src/
             ├── App.vue
             ├── main.js
@@ -1074,7 +1094,8 @@ ssh-access-manager/
             ├── router/
             │   └── index.js
             ├── composables/
-            │   └── useAuth.js
+            │   ├── useAuth.js
+            │   └── useFormatDate.js
             ├── locales/
             │   ├── en.json
             │   ├── fr.json
@@ -1089,11 +1110,12 @@ ssh-access-manager/
             │   ├── AccessRequests.vue
             │   ├── Audit.vue
             │   ├── Admins.vue
-    │   └── Settings.vue
+            │   └── Settings.vue
             └── components/
                 ├── ServerTable.vue
                 ├── KeyTable.vue
                 ├── KeyActions.vue
                 ├── ExpiryPicker.vue
                 ├── DeployKeyForm.vue
-                └── UserLockForm.vue
+                ├── UserLockForm.vue
+                └── DeployedUsersTable.vue

@@ -275,14 +275,16 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `SMTP_USER` | Utilisateur SMTP | — |
 | `SMTP_PASSWORD` | Mot de passe SMTP | — |
 | `SMTP_FROM` | Adresse expéditeur | — |
-| `SMTP_TO` | Adresse destinataire des alertes | — |
 | `SSH_USER` | Utilisateur SSH collecteur | `audit-collector` |
-| `EXPIRE_WARN_DAYS` | Alerte J-N avant expiration (premier avertissement) | `7` |
-| `EXPIRE_WARN_DAYS_2` | Alerte J-N avant expiration (second avertissement) | `2` |
 | `ADMIN_USERNAME` | Username de l'administrateur initial | `admin` |
 | `ADMIN_EMAIL` | Email de l'administrateur initial | — |
 | `ADMIN_PASSWORD` | Mot de passe de l'administrateur initial | — |
-| `TZ` | Fuseau horaire | `Europe/Paris` |
+
+> **Destinataires des alertes** : les alertes sont envoyées aux administrateurs ayant `receive_alerts=true` (configurable par admin dans l'UI Admins). `SMTP_TO` n'est plus utilisé.
+>
+> **Seuils d'alerte expiration** : `expire_warn_days` (défaut 7) et `expire_warn_days_2` (défaut 2) sont configurables sans redémarrage depuis **Settings → Expiry warnings**.
+>
+> **Fuseau horaire** : les dates sont stockées en UTC dans PostgreSQL. L'interface web affiche automatiquement les dates dans le fuseau du navigateur.
 
 > **Secrets obligatoires avant un déploiement en production** — ne jamais laisser les valeurs d'exemple :
 > ```bash
