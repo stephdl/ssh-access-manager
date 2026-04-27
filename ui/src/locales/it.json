@@ -57,6 +57,18 @@
     "deploy_hint2": "Oppure esegui `provision-host.sh` con questa chiave.",
     "close": "Chiudi"
   },
+  "edit_server": {
+    "title": "Modifica server",
+    "hostname": "Hostname (sola lettura)",
+    "ip": "Indirizzo IP",
+    "ip_placeholder": "es: 192.168.1.10",
+    "environment": "Ambiente",
+    "env_placeholder": "— Scegliere —",
+    "os_family": "Famiglia OS",
+    "os_placeholder": "es: rhel, debian (opzionale)",
+    "submitting": "Salvataggio…",
+    "submit": "Salva"
+  },
   "server_table": {
     "search_placeholder": "Cerca un server…",
     "col_status": "Stato",
@@ -68,7 +80,8 @@
     "col_actions": "Azioni",
     "empty": "Nessun server trovato.",
     "disabled_badge": "DISABILITATO",
-    "scan": "Scansiona"
+    "scan": "Scansiona",
+    "edit": "Modifica"
   },
   "server_detail": {
     "scan": "Scansiona",

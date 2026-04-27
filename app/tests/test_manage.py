@@ -54,6 +54,24 @@ def test_manage_servers_add(runner):
         assert HOSTNAME in result.output
 
 
+def test_manage_servers_update_command(runner):
+    current = {
+        "ip_address": "192.168.1.10",
+        "environment": "lab",
+        "os_family": "rhel",
+    }
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.side_effect = [_admin(), current]
+        result = runner.invoke(manage.cli, [
+            "servers", "update", HOSTNAME,
+            "--ip", "192.168.1.20", "--env", "production",
+        ])
+        assert result.exit_code == 0
+        mock_actions.update_server.assert_called_once_with(
+            HOSTNAME, "192.168.1.20", "production", "rhel", ADMIN_ID
+        )
+
+
 def test_manage_servers_disable(runner):
     with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
         mock_db.query_one.return_value = _admin()

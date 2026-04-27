@@ -668,6 +668,52 @@ def disable_server(hostname: str, admin_id: str | None = None) -> None:
     )
 
 
+def update_server(
+    hostname: str, new_ip: str, new_env: str, new_os_family: str | None,
+    admin_id: str | None = None,
+) -> dict:
+    """Update server IP, environment, OS. If IP changes, run ssh-keyscan."""
+    import servers as servers_mod
+    server = db.query_one(
+        "SELECT id, ip_address, environment, os_family FROM servers WHERE hostname = %s",
+        (hostname,),
+    )
+    if not server:
+        raise ValueError(f"Server not found: {hostname}")
+
+    old_ip = server["ip_address"]
+    old_env = server["environment"]
+    old_os = server["os_family"]
+
+    if new_ip != old_ip:
+        try:
+            servers_mod.add_to_known_hosts(new_ip)
+        except Exception as e:
+            raise ValueError(f"Impossible de joindre {hostname} ({new_ip}) pour le keyscan : {e}") from e
+
+    db.execute(
+        "UPDATE servers SET ip_address = %s, environment = %s, os_family = %s WHERE hostname = %s",
+        (new_ip, new_env, new_os_family, hostname),
+    )
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, target_server, details)
+        VALUES ('SERVER_UPDATED', %s, %s, %s::jsonb)
+        """,
+        (
+            admin_id,
+            server["id"],
+            json.dumps({
+                "hostname": hostname,
+                "old_ip": old_ip, "new_ip": new_ip,
+                "old_env": old_env, "new_env": new_env,
+                "old_os": old_os, "new_os": new_os_family,
+            }),
+        ),
+    )
+    return server
+
+
 def enable_server(hostname: str, admin_id: str | None = None) -> None:
     """Set is_active=true and log SERVER_ADDED."""
     server = db.query_one(

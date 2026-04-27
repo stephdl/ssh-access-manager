@@ -57,6 +57,18 @@
     "deploy_hint2": "Or run `provision-host.sh` with this key.",
     "close": "Close"
   },
+  "edit_server": {
+    "title": "Edit server",
+    "hostname": "Hostname (read-only)",
+    "ip": "IP Address",
+    "ip_placeholder": "e.g.: 192.168.1.10",
+    "environment": "Environment",
+    "env_placeholder": "— Choose —",
+    "os_family": "OS Family",
+    "os_placeholder": "e.g.: rhel, debian (optional)",
+    "submitting": "Saving…",
+    "submit": "Save"
+  },
   "server_table": {
     "search_placeholder": "Search for a server…",
     "col_status": "Status",
@@ -68,7 +80,8 @@
     "col_actions": "Actions",
     "empty": "No server found.",
     "disabled_badge": "DISABLED",
-    "scan": "Scan"
+    "scan": "Scan",
+    "edit": "Edit"
   },
   "server_detail": {
     "scan": "Scan",

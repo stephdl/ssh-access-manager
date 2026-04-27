@@ -44,7 +44,7 @@
     </div>
 
     <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
-    <ServerTable v-else :servers="servers" @scan="scanOne" />
+    <ServerTable v-else :servers="servers" @scan="scanOne" @edit="openEditServer" />
 
     <!-- Add server modal -->
     <div v-if="showAddServer" class="modal-overlay" @click.self="closeAddServer">
@@ -122,6 +122,52 @@
         </template>
       </div>
     </div>
+
+    <!-- Edit server modal -->
+    <div v-if="showEditServer" class="modal-overlay" @click.self="closeEditServer">
+      <div class="modal">
+        <h3>{{ $t('edit_server.title') }}</h3>
+        <div v-if="editError" class="alert-error">{{ editError }}</div>
+
+        <label>{{ $t('edit_server.hostname') }}</label>
+        <input v-model="editForm.hostname" type="text" disabled class="input-readonly" />
+
+        <label
+          >{{ $t('edit_server.ip') }}
+          <span class="required">{{ $t('common.required') }}</span></label
+        >
+        <input v-model="editForm.ip" type="text" :placeholder="$t('edit_server.ip_placeholder')" />
+
+        <label
+          >{{ $t('edit_server.environment') }}
+          <span class="required">{{ $t('common.required') }}</span></label
+        >
+        <select v-model="editForm.environment">
+          <option value="">{{ $t('edit_server.env_placeholder') }}</option>
+          <option value="production">production</option>
+          <option value="staging">staging</option>
+          <option value="lab">lab</option>
+        </select>
+
+        <label>{{ $t('edit_server.os_family') }}</label>
+        <input
+          v-model="editForm.os_family"
+          type="text"
+          :placeholder="$t('edit_server.os_placeholder')"
+        />
+
+        <div class="modal-actions">
+          <button
+            class="btn-primary"
+            :disabled="!editFormValid || editing"
+            @click="confirmEditServer"
+          >
+            {{ editing ? $t('edit_server.submitting') : $t('edit_server.submit') }}
+          </button>
+          <button @click="closeEditServer">{{ $t('common.cancel') }}</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -146,6 +192,11 @@ const addError = ref('')
 const addSuccess = ref(false)
 const addForm = ref({ hostname: '', ip: '', environment: '', os_family: '' })
 
+const showEditServer = ref(false)
+const editing = ref(false)
+const editError = ref('')
+const editForm = ref({ hostname: '', ip: '', environment: '', os_family: '' })
+
 const counts = computed(() => ({
   ok: servers.value.filter((s) => s.is_active && !s.has_anomalies).length,
   warn: servers.value.filter((s) => s.is_active && s.has_anomalies).length,
@@ -155,6 +206,8 @@ const counts = computed(() => ({
 const addFormValid = computed(
   () => addForm.value.hostname.trim() && addForm.value.ip.trim() && addForm.value.environment
 )
+
+const editFormValid = computed(() => editForm.value.ip.trim() && editForm.value.environment)
 
 async function loadCollectorKey() {
   try {
@@ -250,6 +303,45 @@ async function triggerScan(url, hostname) {
     error.value = t('dashboard.scan_error', { error: e.message })
   } finally {
     scanning.value = false
+  }
+}
+
+function openEditServer(server) {
+  editForm.value = {
+    hostname: server.hostname,
+    ip: server.ip_address,
+    environment: server.environment,
+    os_family: server.os_family || '',
+  }
+  editError.value = ''
+  showEditServer.value = true
+}
+
+function closeEditServer() {
+  showEditServer.value = false
+}
+
+async function confirmEditServer() {
+  editing.value = true
+  editError.value = ''
+  try {
+    const res = await fetch(`/api/servers/${editForm.value.hostname}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ip: editForm.value.ip.trim(),
+        environment: editForm.value.environment,
+        os_family: editForm.value.os_family.trim() || null,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+    closeEditServer()
+    await loadServers()
+  } catch (e) {
+    editError.value = e.message
+  } finally {
+    editing.value = false
   }
 }
 
@@ -421,6 +513,12 @@ h1 {
   border-radius: 4px;
   font-size: 0.9rem;
   box-sizing: border-box;
+}
+
+.input-readonly {
+  background: #f5f5f5;
+  color: #666;
+  cursor: not-allowed;
 }
 
 .modal-actions {

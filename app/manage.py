@@ -99,6 +99,32 @@ def servers_add(hostname, ip, env, os_family):
     click.echo(f"Serveur {hostname} ajoute.")
 
 
+@servers.command("update")
+@click.argument("hostname")
+@click.option("--ip", default=None, help="Nouvelle adresse IP")
+@click.option("--env", default=None, type=click.Choice(["production", "staging", "lab"]), help="Nouvel environnement")
+@click.option("--os", "os_family", default=None, help="Nouvelle famille OS")
+def servers_update(hostname, ip, env, os_family):
+    """Mettre a jour un serveur."""
+    if not any([ip, env, os_family]):
+        raise click.UsageError("Au moins un parametre requis : --ip, --env ou --os")
+    admin_id = _require_admin()
+    try:
+        current = db.query_one("SELECT ip_address, environment, os_family FROM servers WHERE hostname = %s", (hostname,))
+        if not current:
+            raise click.ClickException(f"Serveur introuvable : {hostname}")
+        actions.update_server(
+            hostname,
+            ip or current["ip_address"],
+            env or current["environment"],
+            os_family if os_family is not None else current["os_family"],
+            admin_id,
+        )
+        click.echo(f"Serveur {hostname} mis a jour.")
+    except ValueError as e:
+        raise click.ClickException(str(e))
+
+
 @servers.command("disable")
 @click.argument("hostname")
 def servers_disable(hostname):

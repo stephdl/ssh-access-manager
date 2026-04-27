@@ -891,3 +891,47 @@ def test_actions_validate_key_scoped_raises_if_server_not_found(sample_key):
         ]
         with pytest.raises(ValueError, match="Server not found"):
             actions.validate_key(sample_key["fingerprint"], ADMIN_ID, unix_user="alice", hostname="unknown")
+
+
+# ---------------------------------------------------------------------------
+# update_server
+# ---------------------------------------------------------------------------
+
+def test_actions_update_server_success():
+    """update_server met à jour les champs et log SERVER_UPDATED."""
+    with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"):
+        mock_db.query_one.return_value = {
+            "id": SERVER_ID,
+            "ip_address": "192.168.1.10",
+            "environment": "lab",
+            "os_family": "rhel",
+        }
+        actions.update_server("server-test-01", "192.168.1.20", "production", "debian", ADMIN_ID)
+        update_call = mock_db.execute.call_args_list[0]
+        assert "UPDATE servers" in update_call[0][0]
+        assert "192.168.1.20" in update_call[0][1]
+        assert "production" in update_call[0][1]
+        assert "debian" in update_call[0][1]
+        audit_call = mock_db.execute.call_args_list[1]
+        assert "SERVER_UPDATED" in audit_call[0][0]
+
+
+def test_actions_update_server_ip_change_calls_keyscan():
+    """Si l'IP change, add_to_known_hosts est appelé."""
+    with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts") as mock_keyscan:
+        mock_db.query_one.return_value = {
+            "id": SERVER_ID,
+            "ip_address": "192.168.1.10",
+            "environment": "lab",
+            "os_family": "rhel",
+        }
+        actions.update_server("server-test-01", "192.168.1.99", "lab", "rhel", ADMIN_ID)
+        mock_keyscan.assert_called_once_with("192.168.1.99")
+
+
+def test_actions_update_server_not_found():
+    """Si le serveur n'existe pas, ValueError levée."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(ValueError, match="Server not found"):
+            actions.update_server("unknown-server", "10.0.0.1", "lab", "rhel", ADMIN_ID)

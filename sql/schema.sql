@@ -249,6 +249,7 @@ CREATE TABLE audit_log (
                       'SCRIPT_DEPLOYED',    -- sam-collect ou sam-revoke redéployé
                       'SERVER_ADDED',       -- nouveau serveur enregistré
                       'SERVER_DISABLED',    -- serveur désactivé du périmètre
+                      'SERVER_UPDATED',     -- serveur modifié (IP, env, OS)
                       'ADMIN_ADDED',        -- nouvel administrateur créé
                       'ADMIN_DISABLED',     -- administrateur désactivé
                       'ADMIN_ENABLED',      -- administrateur réactivé
