@@ -148,3 +148,43 @@ Clés présentes par défaut :
 
 `administrators.receive_alerts` contrôle si un administrateur reçoit les emails d'alerte.
 Modifiable par un sysadmin via `PUT /api/admins/<username>/alerts` ou le toggle dans l'UI Admins.
+
+## Index
+
+Six index optimisent les requêtes fréquentes :
+
+| Index | Table | Colonne(s) | Objectif |
+|-------|-------|------------|----------|
+| `idx_key_auth_status` | `key_authorizations` | `status` | Filtrage par statut (ACTIVE, PENDING_REVIEW…) |
+| `idx_key_auth_expires` | `key_authorizations` | `expires_at` WHERE NOT NULL | Clés avec expiration définie — partiel pour exclure les NULL |
+| `idx_audit_log_performed_at` | `audit_log` | `performed_at DESC` | Tri chronologique inverse (vue Audit) |
+| `idx_audit_log_action` | `audit_log` | `(action, performed_at DESC)` | Anti-spam EXPIRY_WARNING : NOT EXISTS dans les 24h |
+| `idx_ssh_keys_compliant` | `ssh_keys` | `is_compliant` | Filtrage conformité (rapport sécurité) |
+| `idx_ssh_keys_fingerprint` | `ssh_keys` | `fingerprint` | Recherche par fingerprint — opération la plus fréquente |
+
+## Valeurs de la contrainte CHECK — audit_log.action
+
+20 valeurs contrôlées :
+
+| Action | Déclencheur |
+|--------|-------------|
+| `KEY_ADDED` | Clé validée (PENDING_REVIEW → ACTIVE) |
+| `KEY_REVOKED` | Révocation manuelle via le système |
+| `KEY_EXPIRED` | Expiration programmée atteinte |
+| `EXPIRY_WARNING` | Alerte J-N avant expiration (anti-spam 24h) |
+| `REQUEST_APPROVED` | Demande d'accès approuvée |
+| `REQUEST_REJECTED` | Demande d'accès rejetée |
+| `ANOMALY_DETECTED` | Clé inconnue ou révocation hors système |
+| `SCAN_COMPLETED` | Scan SSH terminé avec succès |
+| `SCAN_FAILED` | Scan SSH échoué (serveur injoignable) |
+| `SCRIPT_DEPLOYED` | sam-collect/sam-revoke/sam-add redéployé |
+| `SERVER_ADDED` | Nouveau serveur enregistré |
+| `SERVER_DISABLED` | Serveur désactivé du périmètre |
+| `SERVER_UPDATED` | Serveur modifié (IP, environnement, OS) |
+| `ADMIN_ADDED` | Nouvel administrateur créé |
+| `ADMIN_DISABLED` | Administrateur désactivé |
+| `ADMIN_ENABLED` | Administrateur réactivé |
+| `ADMIN_DELETED` | Administrateur supprimé définitivement |
+| `ADMIN_UPDATED` | Administrateur modifié (email, rôle) |
+| `USER_LOCKED` | Compte Unix verrouillé (SSH bloqué) |
+| `USER_UNLOCKED` | Compte Unix déverrouillé |
