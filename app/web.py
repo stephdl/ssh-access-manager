@@ -469,9 +469,10 @@ def list_deployed_users():
         FROM key_authorizations ka
         JOIN ssh_keys sk ON sk.id = ka.key_id
         JOIN servers s ON ka.server_id = s.id
-        WHERE ka.unix_user != '' AND ka.status = 'ACTIVE'
+        WHERE ka.unix_user != '' AND ka.unix_user != %s AND ka.status = 'ACTIVE'
         ORDER BY ka.unix_user, s.hostname
-        """
+        """,
+        (os.environ.get("SSH_USER", "audit-collector"),)
     )
     results = []
     for r in rows:
