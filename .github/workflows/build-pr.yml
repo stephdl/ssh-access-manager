@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    name: Build & push pr-${{ github.event.number }}
+    name: Build & push
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
