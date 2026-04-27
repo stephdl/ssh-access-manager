@@ -144,3 +144,36 @@ def test_alerts_queries_only_eligible_recipients(mock_smtp):
         query_sql = mock_db.query.call_args[0][0]
     assert "receive_alerts" in query_sql
     assert "is_active" in query_sql
+
+
+# ---------------------------------------------------------------------------
+# send_test_email
+# ---------------------------------------------------------------------------
+
+def test_alerts_send_test_email_calls_msmtp(mock_smtp):
+    mock_smtp.return_value = MagicMock(returncode=0, stderr="", stdout="")
+    alerts.send_test_email("user@example.com")
+    mock_smtp.assert_called_once()
+    args = mock_smtp.call_args[0][0]
+    assert "msmtp" in args
+    assert "user@example.com" in args
+
+
+def test_alerts_send_test_email_message_contains_test_subject(mock_smtp):
+    mock_smtp.return_value = MagicMock(returncode=0, stderr="", stdout="")
+    alerts.send_test_email("user@example.com")
+    msg = mock_smtp.call_args[1]["input"]
+    assert "TEST" in msg
+    assert "ssh-access-manager" in msg
+
+
+def test_alerts_send_test_email_raises_on_msmtp_error(mock_smtp):
+    mock_smtp.return_value = MagicMock(returncode=1, stderr="connection refused", stdout="")
+    with pytest.raises(RuntimeError, match="connection refused"):
+        alerts.send_test_email("user@example.com")
+
+
+def test_alerts_send_test_email_raises_on_msmtp_not_found():
+    with patch("subprocess.run", side_effect=FileNotFoundError("msmtp not found")):
+        with pytest.raises(FileNotFoundError):
+            alerts.send_test_email("user@example.com")

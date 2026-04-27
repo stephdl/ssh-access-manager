@@ -42,6 +42,28 @@ def _build_message(level: str, subject: str, body: str, to_email: str) -> str:
     )
 
 
+def send_test_email(to_email: str) -> None:
+    """Send a test email to verify SMTP configuration. Raises on failure."""
+    message = (
+        f"From: {SMTP_FROM}\n"
+        f"To: {to_email}\n"
+        f"Subject: [TEST] ssh-access-manager SMTP test\n"
+        f"X-Priority: 3 (Normal)\n"
+        f"\n"
+        f"This is a test email sent from ssh-access-manager.\n"
+        f"If you received this message, your SMTP configuration is working correctly.\n"
+        f"\n--\nssh-access-manager\n"
+    )
+    result = subprocess.run(
+        ["msmtp", "--", to_email],
+        input=message,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or f"msmtp exited with code {result.returncode}")
+
+
 def send_alert(level: str, subject: str, body: str) -> None:
     """
     Send an alert at the given level.

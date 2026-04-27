@@ -31,13 +31,29 @@
         <p v-if="error" class="error-msg">{{ error }}</p>
       </div>
     </section>
+
+    <section class="card">
+      <h3>{{ $t('settings.smtp_section') }}</h3>
+      <div class="field">
+        <p class="hint">{{ $t('settings.smtp_hint') }}</p>
+        <div class="input-row">
+          <button class="btn-secondary" :disabled="smtpTesting" @click="testSmtp">
+            {{ smtpTesting ? $t('settings.smtp_testing') : $t('settings.smtp_test_btn') }}
+          </button>
+        </div>
+        <p v-if="smtpSuccess" class="success-msg">{{ smtpSuccess }}</p>
+        <p v-if="smtpError" class="error-msg">{{ smtpError }}</p>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth.js'
 
+const { t } = useI18n()
 const { admin } = useAuth()
 const currentRole = computed(() => admin.value?.role || 'viewer')
 
@@ -45,6 +61,10 @@ const intervalHours = ref(4)
 const saving = ref(false)
 const success = ref(false)
 const error = ref('')
+
+const smtpTesting = ref(false)
+const smtpSuccess = ref('')
+const smtpError = ref('')
 
 onMounted(async () => {
   try {
@@ -56,6 +76,22 @@ onMounted(async () => {
     error.value = err.message
   }
 })
+
+async function testSmtp() {
+  smtpTesting.value = true
+  smtpSuccess.value = ''
+  smtpError.value = ''
+  try {
+    const res = await fetch('/api/system/test-smtp', { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+    smtpSuccess.value = t('settings.smtp_sent', { to: data.to })
+  } catch (err) {
+    smtpError.value = t('settings.smtp_error', { error: err.message })
+  } finally {
+    smtpTesting.value = false
+  }
+}
 
 async function save() {
   if (intervalHours.value < 1 || intervalHours.value > 24) {

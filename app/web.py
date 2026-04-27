@@ -12,6 +12,7 @@ from flask import Flask, g, jsonify, request, session
 from werkzeug.security import check_password_hash
 
 import actions
+import alerts
 import collect as collect_mod
 import db
 
@@ -814,6 +815,24 @@ def update_config():
         (str(hours),)
     )
     return jsonify({"scan_interval_hours": hours})
+
+
+@app.route("/api/system/test-smtp", methods=["POST"])
+@require_auth
+def test_smtp():
+    admin = db.query_one(
+        "SELECT email FROM administrators WHERE id = %s", (g.admin_id,)
+    )
+    to_email = admin["email"] if admin else None
+    if not to_email:
+        return jsonify({"error": "No email address configured for your account"}), 400
+    try:
+        alerts.send_test_email(to_email)
+        return jsonify({"status": "sent", "to": to_email})
+    except FileNotFoundError:
+        return jsonify({"error": "msmtp not found on this system"}), 500
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 502
 
 
 if __name__ == "__main__":

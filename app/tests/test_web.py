@@ -1042,3 +1042,47 @@ def test_web_toggle_alerts_operator_returns_403(client):
             sess["admin_id"] = ADMIN_ID
         resp = client.put("/api/admins/alice/alerts", json={"receive_alerts": True})
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# POST /api/system/test-smtp
+# ---------------------------------------------------------------------------
+
+def test_web_test_smtp_returns_200_when_sent(auth_client):
+    with patch("web.db") as mock_db, patch("web.alerts") as mock_alerts:
+        mock_db.query_one.side_effect = [_admin_row(), {"email": "admin@example.com"}]
+        mock_alerts.send_test_email.return_value = None
+        resp = auth_client.post("/api/system/test-smtp")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "sent"
+    assert data["to"] == "admin@example.com"
+
+
+def test_web_test_smtp_returns_400_when_no_email(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [_admin_row(), {"email": None}]
+        resp = auth_client.post("/api/system/test-smtp")
+    assert resp.status_code == 400
+
+
+def test_web_test_smtp_returns_502_on_msmtp_error(auth_client):
+    with patch("web.db") as mock_db, patch("web.alerts") as mock_alerts:
+        mock_db.query_one.side_effect = [_admin_row(), {"email": "admin@example.com"}]
+        mock_alerts.send_test_email.side_effect = RuntimeError("connection refused")
+        resp = auth_client.post("/api/system/test-smtp")
+    assert resp.status_code == 502
+    assert "connection refused" in resp.get_json()["error"]
+
+
+def test_web_test_smtp_returns_500_when_msmtp_not_found(auth_client):
+    with patch("web.db") as mock_db, patch("web.alerts") as mock_alerts:
+        mock_db.query_one.side_effect = [_admin_row(), {"email": "admin@example.com"}]
+        mock_alerts.send_test_email.side_effect = FileNotFoundError("msmtp not found")
+        resp = auth_client.post("/api/system/test-smtp")
+    assert resp.status_code == 500
+
+
+def test_web_test_smtp_returns_401_when_unauthenticated(client):
+    resp = client.post("/api/system/test-smtp")
+    assert resp.status_code == 401

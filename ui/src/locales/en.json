@@ -297,7 +297,13 @@
     "hours": "hours",
     "save": "Save",
     "saved": "Settings saved.",
-    "scan_interval_hint": "Between 1 and 24 hours. The cron triggers every 5 minutes but skips if the interval has not elapsed."
+    "scan_interval_hint": "Between 1 and 24 hours. The cron triggers every 5 minutes but skips if the interval has not elapsed.",
+    "smtp_section": "SMTP configuration",
+    "smtp_hint": "Send a test email to your account address to verify the SMTP configuration.",
+    "smtp_test_btn": "Send test email",
+    "smtp_testing": "Sending…",
+    "smtp_sent": "Test email sent to {to}.",
+    "smtp_error": "Failed to send: {error}"
   },
   "deployKey": {
     "title": "Deploy SSH Key",

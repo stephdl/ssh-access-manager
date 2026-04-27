@@ -297,7 +297,13 @@
     "hours": "ore",
     "save": "Salva",
     "saved": "Impostazioni salvate.",
-    "scan_interval_hint": "Tra 1 e 24 ore. Il cron si attiva ogni 5 minuti ma salta l'esecuzione se l'intervallo non è trascorso."
+    "scan_interval_hint": "Tra 1 e 24 ore. Il cron si attiva ogni 5 minuti ma salta l'esecuzione se l'intervallo non è trascorso.",
+    "smtp_section": "Configurazione SMTP",
+    "smtp_hint": "Invia un'email di prova al tuo indirizzo per verificare la configurazione SMTP.",
+    "smtp_test_btn": "Invia email di prova",
+    "smtp_testing": "Invio in corso…",
+    "smtp_sent": "Email di prova inviata a {to}.",
+    "smtp_error": "Invio fallito: {error}"
   },
   "deployKey": {
     "title": "Distribuire chiave SSH",

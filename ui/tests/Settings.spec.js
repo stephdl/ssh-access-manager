@@ -18,6 +18,12 @@ const i18n = createI18n({
         saved: 'Settings saved.',
         scan_interval_hint:
           'Between 1 and 24 hours. The cron triggers every 5 minutes but skips if the interval has not elapsed.',
+        smtp_section: 'SMTP configuration',
+        smtp_hint: 'Send a test email to your account address to verify the SMTP configuration.',
+        smtp_test_btn: 'Send test email',
+        smtp_testing: 'Sending…',
+        smtp_sent: 'Test email sent to {to}.',
+        smtp_error: 'Failed to send: {error}',
       },
     },
   },
@@ -157,6 +163,56 @@ describe('Settings.vue', () => {
     await saveBtn.trigger('click')
 
     expect(saveBtn.element.disabled).toBe(true)
+  })
+
+  it('shows SMTP test button', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ scan_interval_hours: '4' }),
+    })
+    const wrapper = mount(Settings, { global: { plugins: [i18n] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Send test email')
+  })
+
+  it('calls POST /api/system/test-smtp on click', async () => {
+    global.fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ scan_interval_hours: '4' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'sent', to: 'admin@test.com' }) })
+    const wrapper = mount(Settings, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const smtpBtn = wrapper.findAll('button').find((b) => b.text() === 'Send test email')
+    await smtpBtn.trigger('click')
+    await flushPromises()
+    expect(global.fetch).toHaveBeenCalledWith('/api/system/test-smtp', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('shows success message after test email sent', async () => {
+    global.fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ scan_interval_hours: '4' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'sent', to: 'admin@test.com' }) })
+    const wrapper = mount(Settings, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const smtpBtn = wrapper.findAll('button').find((b) => b.text() === 'Send test email')
+    await smtpBtn.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('admin@test.com')
+  })
+
+  it('shows error message when test email fails', async () => {
+    global.fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ scan_interval_hours: '4' }) })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => ({ error: 'connection refused' }),
+      })
+    const wrapper = mount(Settings, { global: { plugins: [i18n] } })
+    await flushPromises()
+    const smtpBtn = wrapper.findAll('button').find((b) => b.text() === 'Send test email')
+    await smtpBtn.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('connection refused')
   })
 
   it('success message disappears after 3 seconds', async () => {
