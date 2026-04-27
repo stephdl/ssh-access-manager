@@ -99,6 +99,14 @@
         </div>
         <p class="hint">{{ $t('settings.login_ban_seconds_hint') }}</p>
       </div>
+
+      <div v-if="currentRole === 'sysadmin'" class="field">
+        <button class="btn-primary" :disabled="savingSecurity" @click="saveSecurity">
+          {{ $t('settings.save') }}
+        </button>
+        <p v-if="successSecurity" class="success-msg">{{ $t('settings.saved') }}</p>
+        <p v-if="errorSecurity" class="error-msg">{{ errorSecurity }}</p>
+      </div>
     </section>
 
     <section class="card">
@@ -134,6 +142,9 @@ const loginBanSeconds = ref(300)
 const saving = ref(false)
 const success = ref(false)
 const error = ref('')
+const savingSecurity = ref(false)
+const successSecurity = ref(false)
+const errorSecurity = ref('')
 
 const smtpTesting = ref(false)
 const smtpSuccess = ref('')
@@ -203,8 +214,6 @@ async function save() {
         scan_interval_hours: intervalHours.value,
         expire_warn_days: expireWarnDays.value,
         expire_warn_days_2: expireWarnDays2.value,
-        login_max_attempts: loginMaxAttempts.value,
-        login_ban_seconds: loginBanSeconds.value,
       }),
     })
 
@@ -221,6 +230,46 @@ async function save() {
     error.value = err.message
   } finally {
     saving.value = false
+  }
+}
+
+async function saveSecurity() {
+  if (loginMaxAttempts.value < 1 || loginMaxAttempts.value > 100) {
+    errorSecurity.value = t('settings.login_max_attempts_hint')
+    return
+  }
+  if (loginBanSeconds.value < 30 || loginBanSeconds.value > 86400) {
+    errorSecurity.value = t('settings.login_ban_seconds_hint')
+    return
+  }
+
+  savingSecurity.value = true
+  successSecurity.value = false
+  errorSecurity.value = ''
+
+  try {
+    const res = await fetch('/api/system/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        login_max_attempts: loginMaxAttempts.value,
+        login_ban_seconds: loginBanSeconds.value,
+      }),
+    })
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+
+    successSecurity.value = true
+    setTimeout(() => {
+      successSecurity.value = false
+    }, 3000)
+  } catch (err) {
+    errorSecurity.value = err.message
+  } finally {
+    savingSecurity.value = false
   }
 }
 </script>

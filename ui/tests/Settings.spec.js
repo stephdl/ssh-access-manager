@@ -125,8 +125,6 @@ describe('Settings.vue', () => {
           scan_interval_hours: 12,
           expire_warn_days: 7,
           expire_warn_days_2: 2,
-          login_max_attempts: 10,
-          login_ban_seconds: 300,
         }),
       })
     )
@@ -380,8 +378,6 @@ describe('Settings.vue', () => {
           scan_interval_hours: 4,
           expire_warn_days: 10,
           expire_warn_days_2: 3,
-          login_max_attempts: 10,
-          login_ban_seconds: 300,
         }),
       })
     )
@@ -480,14 +476,17 @@ describe('Settings.vue', () => {
     await inputs[3].setValue(20)
     await inputs[4].setValue(120)
 
-    const saveBtn = wrapper.find('button.btn-primary')
-    await saveBtn.trigger('click')
+    // Click the security Save button (second btn-primary)
+    const saveBtns = wrapper.findAll('button.btn-primary')
+    const securitySaveBtn = saveBtns[1]
+    await securitySaveBtn.trigger('click')
     await flushPromises()
 
     const putCall = global.fetch.mock.calls.find((c) => c[1]?.method === 'PUT')
     const body = JSON.parse(putCall[1].body)
     expect(body.login_max_attempts).toBe(20)
     expect(body.login_ban_seconds).toBe(120)
+    expect(body.scan_interval_hours).toBeUndefined()
   })
 
   it('disables security inputs for non-sysadmin', async () => {
