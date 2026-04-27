@@ -953,12 +953,11 @@ def test_web_get_deployed_users_returns_401_unauthenticated(client):
 
 
 def test_web_deployed_users_excludes_ssh_user(auth_client):
-    with patch("web.db") as mock_db, patch.dict("os.environ", {"SSH_USER": "audit-collector"}):
+    with patch("web.db") as mock_db, patch("web.ssh.SSH_USER", "audit-collector"):
         mock_db.query_one.return_value = _admin_row()
         mock_db.query.return_value = []
         auth_client.get("/api/access/deployed-users")
         call_args = mock_db.query.call_args
-        sql = call_args[0][0]
         params = call_args[0][1]
         assert "audit-collector" in params
 

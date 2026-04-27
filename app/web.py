@@ -15,6 +15,7 @@ import actions
 import alerts
 import collect as collect_mod
 import db
+import ssh
 
 app = Flask(__name__)
 _flask_secret = os.environ.get("FLASK_SECRET_KEY")
@@ -500,7 +501,7 @@ def list_deployed_users():
         WHERE ka.unix_user != '' AND ka.unix_user != %s AND ka.status = 'ACTIVE'
         ORDER BY ka.unix_user, s.hostname
         """,
-        (os.environ.get("SSH_USER", "audit-collector"),)
+        (ssh.SSH_USER,)
     )
     results = []
     for r in rows:
