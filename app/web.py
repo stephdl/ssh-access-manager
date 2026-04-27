@@ -597,7 +597,13 @@ def list_admins():
 def add_admin():
     data = request.get_json(force=True) or {}
     try:
-        admin = actions.add_admin(data["username"], data.get("email", ""), data["password"], g.admin_id)
+        admin = actions.add_admin(
+            data["username"],
+            data.get("email", ""),
+            data["password"],
+            g.admin_id,
+            role=data.get("role", "operator"),
+        )
         return jsonify(admin), 201
     except (KeyError, Exception) as e:
         logging.exception("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))

@@ -766,7 +766,7 @@ def _validate_password_strength(password: str) -> None:
         raise ValueError("Mot de passe insuffisant : " + ", ".join(errors))
 
 
-def add_admin(username: str, email: str, password: str, admin_id: str | None = None, role: str = "sysadmin") -> dict:
+def add_admin(username: str, email: str, password: str, admin_id: str | None = None, role: str = "operator") -> dict:
     """Insert a new administrator and log ADMIN_ADDED."""
     from werkzeug.security import generate_password_hash
     if not email or not email.strip():

@@ -23,7 +23,7 @@ export function useAuth() {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || 'Identifiants invalides')
     }
-    admin.value = await res.json()
+    await fetchMe()
     return admin.value
   }
 
