@@ -48,9 +48,14 @@
           <td>{{ s.os_family || '—' }}</td>
           <td>{{ formatDate(s.added_at) }}</td>
           <td>
-            <button class="btn-primary" @click="$emit('scan', s.hostname)">
-              {{ $t('server_table.scan') }}
-            </button>
+            <div style="display: flex; gap: 0.5rem">
+              <button class="btn-primary" @click="$emit('scan', s.hostname)">
+                {{ $t('server_table.scan') }}
+              </button>
+              <button class="btn-secondary" @click="$emit('edit', s)">
+                {{ $t('server_table.edit') }}
+              </button>
+            </div>
           </td>
         </tr>
       </tbody>
@@ -64,7 +69,7 @@ import { ref, computed } from 'vue'
 const props = defineProps({
   servers: { type: Array, default: () => [] },
 })
-defineEmits(['scan'])
+defineEmits(['scan', 'edit'])
 
 const search = ref('')
 

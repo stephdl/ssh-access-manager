@@ -137,6 +137,21 @@ def add_server():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/servers/<hostname>", methods=["PUT"])
+@require_auth
+def update_server(hostname):
+    data = request.get_json(force=True) or {}
+    try:
+        actions.update_server(
+            hostname, data["ip"], data["environment"],
+            data.get("os_family"), g.admin_id,
+        )
+        return jsonify({"message": "Server updated"})
+    except (KeyError, ValueError) as e:
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+        return jsonify({"error": str(e)}), 404 if isinstance(e, ValueError) else 400
+
+
 @app.route("/api/servers/<hostname>/disable", methods=["PUT"])
 @require_auth
 def disable_server(hostname):

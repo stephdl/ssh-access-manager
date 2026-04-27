@@ -68,7 +68,8 @@
     "col_actions": "Aktionen",
     "empty": "Kein Server gefunden.",
     "disabled_badge": "DEAKTIVIERT",
-    "scan": "Scannen"
+    "scan": "Scannen",
+    "edit": "Bearbeiten"
   },
   "server_detail": {
     "scan": "Scannen",

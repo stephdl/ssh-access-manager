@@ -313,6 +313,42 @@ def test_web_add_server_returns_201(auth_client):
 
 
 # ---------------------------------------------------------------------------
+# PUT /api/servers/<hostname> — update server
+# ---------------------------------------------------------------------------
+
+def test_web_update_server_authenticated_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put(
+            "/api/servers/server-test-01",
+            json={"ip": "10.0.0.2", "environment": "production", "os_family": "debian"},
+        )
+        assert resp.status_code == 200
+        mock_actions.update_server.assert_called_once_with(
+            "server-test-01", "10.0.0.2", "production", "debian", ADMIN_ID
+        )
+
+
+def test_web_update_server_unauthenticated_returns_401(client):
+    resp = client.put(
+        "/api/servers/server-test-01",
+        json={"ip": "10.0.0.2", "environment": "production"},
+    )
+    assert resp.status_code == 401
+
+
+def test_web_update_server_not_found_returns_404(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.update_server.side_effect = ValueError("Server not found")
+        resp = auth_client.put(
+            "/api/servers/ghost",
+            json={"ip": "10.0.0.2", "environment": "lab"},
+        )
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # PUT /api/servers/<hostname>/enable
 # ---------------------------------------------------------------------------
 
