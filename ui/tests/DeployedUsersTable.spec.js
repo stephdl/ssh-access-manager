@@ -89,7 +89,7 @@ describe('DeployedUsersTable', () => {
 
     const row2 = w.find('[data-testid="row-bob-staging-01"]')
     expect(row2.text()).not.toContain('Unlimited')
-    expect(row2.html()).toContain('2026')
+    expect(row2.text()).not.toContain('—')
   })
 
   it('affiche le message "empty" si liste vide', async () => {

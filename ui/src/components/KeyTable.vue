@@ -115,7 +115,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useFormatDate } from '../composables/useFormatDate.js'
+
 const { t } = useI18n()
+const { formatDate } = useFormatDate()
 
 const props = defineProps({
   keys: { type: Array, default: () => [] },
@@ -158,11 +161,6 @@ function statusBadge(status) {
       UNAUTHORIZED: 'badge-revoked',
     }[status] || 'badge-expired'
   )
-}
-
-function formatDate(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 }
 </script>
 

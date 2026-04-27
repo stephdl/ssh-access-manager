@@ -219,10 +219,12 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth.js'
+import { useFormatDate } from '../composables/useFormatDate.js'
 import KeyTable from '../components/KeyTable.vue'
 
 const { t } = useI18n()
 const { admin } = useAuth()
+const { formatDate } = useFormatDate()
 const currentRole = computed(() => admin.value?.role || 'viewer')
 const route = useRoute()
 const router = useRouter()
@@ -415,11 +417,6 @@ function envBadge(env) {
     { production: 'badge-critical', staging: 'badge-pending', lab: 'badge-active' }[env] ||
     'badge-expired'
   )
-}
-
-function formatDate(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 onMounted(load)
