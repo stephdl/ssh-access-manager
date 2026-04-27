@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
-import { ref } from 'vue'
 import en from '../src/locales/en.json'
 import DeployedUsersTable from '../src/components/DeployedUsersTable.vue'
 
+const mockAdmin = vi.hoisted(() => ({ value: { username: 'admin', role: 'sysadmin' } }))
+
 vi.mock('../src/composables/useAuth.js', () => ({
-  useAuth: () => ({ admin: ref({ username: 'admin', role: 'sysadmin' }) }),
+  useAuth: () => ({ admin: mockAdmin }),
 }))
 
 const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
@@ -29,6 +30,7 @@ const MOCK_USERS = [
 ]
 
 beforeEach(() => {
+  mockAdmin.value = { username: 'admin', role: 'sysadmin' }
   vi.stubGlobal(
     'fetch',
     vi.fn().mockResolvedValue({
@@ -86,9 +88,7 @@ describe('DeployedUsersTable', () => {
     await flushPromises()
 
     const row2 = w.find('[data-testid="row-bob-staging-01"]')
-    // La date est formatée en toLocaleString, on vérifie qu'elle ne contient pas "Unlimited"
     expect(row2.text()).not.toContain('Unlimited')
-    // Vérifie que la date est présente (format peut varier selon locale du test)
     expect(row2.html()).toContain('2026')
   })
 
@@ -255,7 +255,7 @@ describe('DeployedUsersTable', () => {
     expect(success.text()).toContain('staging-01')
   })
 
-  it('affiche erreur inline si l\'API répond en erreur', async () => {
+  it("affiche erreur inline si l'API répond en erreur", async () => {
     vi.stubGlobal('fetch', (url, opts) => {
       if (url === '/api/access/deployed-users') {
         return Promise.resolve({
@@ -281,5 +281,24 @@ describe('DeployedUsersTable', () => {
     const error = w.find('[data-testid="error-alice-prod-01"]')
     expect(error.exists()).toBe(true)
     expect(error.text()).toContain('User not found')
+  })
+
+  it('operator voit le bouton Lock', async () => {
+    mockAdmin.value = { username: 'operator', role: 'operator' }
+    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    expect(w.find('[data-testid="btn-lock-alice-prod-01"]').exists()).toBe(true)
+  })
+
+  it('viewer ne voit pas le bouton Lock ni la colonne Actions', async () => {
+    mockAdmin.value = { username: 'viewer', role: 'viewer' }
+    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    expect(w.find('[data-testid="btn-lock-alice-prod-01"]').exists()).toBe(false)
+    const headers = w.findAll('th')
+    const hasActions = headers.some((h) => h.text().toUpperCase().includes('ACTION'))
+    expect(hasActions).toBe(false)
   })
 })

@@ -62,28 +62,26 @@
               >
             </td>
             <td v-if="currentRole !== 'viewer'" class="actions">
-              <template>
-                <button
-                  v-if="lockStates[`${user.unix_user}-${user.hostname}`] !== 'USER_LOCKED'"
-                  type="button"
-                  class="btn-danger btn-sm"
-                  :data-testid="`btn-lock-${user.unix_user}-${user.hostname}`"
-                  :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`]"
-                  @click="lockUser(user)"
-                >
-                  {{ $t('userLock.btnLock') }}
-                </button>
-                <button
-                  v-else
-                  type="button"
-                  class="btn-success btn-sm"
-                  :data-testid="`btn-unlock-${user.unix_user}-${user.hostname}`"
-                  :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`]"
-                  @click="unlockUser(user)"
-                >
-                  {{ $t('userLock.btnUnlock') }}
-                </button>
-              </template>
+              <button
+                v-if="lockStates[`${user.unix_user}-${user.hostname}`] !== 'USER_LOCKED'"
+                type="button"
+                class="btn-danger btn-sm"
+                :data-testid="`btn-lock-${user.unix_user}-${user.hostname}`"
+                :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`]"
+                @click="lockUser(user)"
+              >
+                {{ $t('userLock.btnLock') }}
+              </button>
+              <button
+                v-else
+                type="button"
+                class="btn-success btn-sm"
+                :data-testid="`btn-unlock-${user.unix_user}-${user.hostname}`"
+                :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`]"
+                @click="unlockUser(user)"
+              >
+                {{ $t('userLock.btnUnlock') }}
+              </button>
               <div
                 v-if="successMessages[`${user.unix_user}-${user.hostname}`]"
                 class="inline-success"
