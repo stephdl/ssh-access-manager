@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { ref } from 'vue'
 import en from '../src/locales/en.json'
 import DeployedUsersTable from '../src/components/DeployedUsersTable.vue'
+
+vi.mock('../src/composables/useAuth.js', () => ({
+  useAuth: () => ({ admin: ref({ username: 'admin', role: 'sysadmin' }) }),
+}))
 
 const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
 
