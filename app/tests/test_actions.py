@@ -991,3 +991,32 @@ def test_actions_update_server_not_found():
         mock_db.query_one.return_value = None
         with pytest.raises(ValueError, match="Server not found"):
             actions.update_server("unknown-server", "10.0.0.1", "lab", "rhel", ADMIN_ID)
+
+
+# ---------------------------------------------------------------------------
+# RBAC — email mandatory and role validation
+# ---------------------------------------------------------------------------
+
+def test_actions_add_admin_empty_email_raises():
+    with patch("actions.db") as mock_db:
+        with pytest.raises(ValueError, match="email required"):
+            actions.add_admin("user", "", "P@ssw0rd1!", None)
+
+
+def test_actions_add_admin_invalid_role_raises():
+    with patch("actions.db") as mock_db:
+        with pytest.raises(ValueError, match="Invalid role"):
+            actions.add_admin("user", "x@x.com", "P@ssw0rd1!", None, role="superadmin")
+
+
+def test_actions_update_admin_empty_email_raises():
+    with patch("actions.db") as mock_db:
+        with pytest.raises(ValueError, match="email required"):
+            actions.update_admin("user", "", "operator", ADMIN_ID)
+
+
+def test_actions_update_admin_invalid_role_raises():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "email": "test@example.com", "role": "operator"}
+        with pytest.raises(ValueError, match="Invalid role"):
+            actions.update_admin("user", "x@x.com", "superadmin", ADMIN_ID)

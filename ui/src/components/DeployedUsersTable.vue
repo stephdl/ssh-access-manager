@@ -35,7 +35,7 @@
             <th>{{ $t('deployedUsers.col_server') }}</th>
             <th>{{ $t('deployedUsers.col_expires') }}</th>
             <th>{{ $t('deployedUsers.col_status') }}</th>
-            <th>{{ $t('deployedUsers.col_actions') }}</th>
+            <th v-if="currentRole !== 'viewer'">{{ $t('deployedUsers.col_actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -61,7 +61,7 @@
                 >{{ $t('deployedUsers.status_active') }}</span
               >
             </td>
-            <td class="actions">
+            <td v-if="currentRole !== 'viewer'" class="actions">
               <button
                 v-if="lockStates[`${user.unix_user}-${user.hostname}`] !== 'USER_LOCKED'"
                 type="button"
@@ -99,7 +99,11 @@
             </td>
           </tr>
           <tr v-if="filteredUsers.length === 0">
-            <td colspan="5" class="empty-filtered" data-testid="empty-filtered">
+            <td
+              :colspan="currentRole !== 'viewer' ? 5 : 4"
+              class="empty-filtered"
+              data-testid="empty-filtered"
+            >
               {{ $t('deployedUsers.no_results') }}
             </td>
           </tr>
@@ -116,8 +120,11 @@
 <script setup>
 import { ref, computed, onMounted, defineExpose } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useAuth } from '../composables/useAuth.js'
 
 const { t } = useI18n()
+const { admin } = useAuth()
+const currentRole = computed(() => admin.value?.role || 'viewer')
 
 const users = ref([])
 const loading = ref(false)

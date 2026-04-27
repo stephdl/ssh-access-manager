@@ -15,7 +15,7 @@ Milestone 1 (Issues 1–4) ✅
 Milestone 2 (Issues 5–13) ✅  
 Milestone 3 (Issues 14–21) ✅  
 Milestone 4 (Issues 22–24) ✅  
-Issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148, 181, 183, 185) ✅
+Issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148, 181, 183, 185, 222) ✅
 
 ## Stack vérifiée et figée
 
@@ -208,14 +208,16 @@ CREATE TABLE servers (
 CREATE TABLE administrators (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username      VARCHAR(100) NOT NULL UNIQUE,
-    email         VARCHAR(255),
-    role          VARCHAR(50) DEFAULT 'sysadmin',
+    email         VARCHAR(255) NOT NULL,
+    role          VARCHAR(50) DEFAULT 'sysadmin'
+                      CHECK (role IN ('sysadmin', 'operator', 'viewer')),
     password_hash VARCHAR(255),
     is_active     BOOLEAN DEFAULT true,
     created_at    TIMESTAMPTZ DEFAULT now()
 );
 
 -- password_hash ajouté via issue #51
+-- role CHECK + email NOT NULL ajoutés via issue #222
 
 CREATE TABLE ssh_keys (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -491,10 +493,27 @@ Authentification gérée par Flask sessions.
 POST /api/auth/login — vérifie password_hash (werkzeug check_password_hash)
                        → session[admin_id], session[username]
 POST /api/auth/logout — clear session
-GET  /api/auth/me    — retourne l'admin courant
+GET  /api/auth/me    — retourne l'admin courant (id, username, email, role)
 
 Décorateur require_auth sur toutes les routes protégées.
 Retourne 401 JSON si session manquante.
+Charge g.admin_id, g.admin_username, g.admin_role à chaque requête.
+
+RBAC — décorateur require_role(*roles) (issue #222) :
+Retourne 403 JSON si g.admin_role ∉ roles.
+
+Rôles :
+- sysadmin : accès complet (seul à gérer les admins)
+- operator : actions SSH (valider, révoquer, déployer, lock/unlock)
+- viewer   : lecture seule
+
+Routes protégées @require_role("sysadmin") :
+  POST   /api/admins
+  PUT    /api/admins/<username>
+  PUT    /api/admins/<username>/disable
+  PUT    /api/admins/<username>/enable
+  DELETE /api/admins/<username>
+Exception : PUT /api/admins/<username>/password autorisé si sysadmin OU username == soi-même.
 
 Validation robustesse mot de passe (issue #62) :
 - 8+ caractères, 1+ majuscule, 1+ minuscule, 1+ chiffre, 1+ spécial
@@ -537,10 +556,10 @@ Validation robustesse mot de passe (issue #62) :
 - delete_server(hostname, db)    ← issue #88 — suppression hard + cascade
 
 ### Administrateurs
-- add_admin(username, email, password, db)
-  ↳ valide robustesse mot de passe, hash avec werkzeug
+- add_admin(username, email, password, admin_id, role='operator')
+  ↳ email obligatoire, valide role ∈ VALID_ROLES, hash mot de passe avec werkzeug
 - update_admin(username, email, role, admin_id)
-  ↳ email est nullable (str | None) — ne peut pas modifier son propre rôle
+  ↳ email obligatoire, valide role ∈ VALID_ROLES, ne peut pas modifier son propre rôle
 - change_password(username, new_password, db)   ← issue #61
 - disable_admin(username, db)
 - enable_admin(username, db)     ← issue #116
@@ -645,15 +664,15 @@ test_web.py :
 ### Tests frontend — Vitest
 
 ui/tests/
-    KeyActions.spec.js    ← modal confirmation révocation (17 tests)
-    ExpiryPicker.spec.js  ← modes exclusifs heures/date (11 tests)
+    KeyActions.spec.js    ← modal confirmation révocation (14 tests)
+    ExpiryPicker.spec.js  ← modes exclusifs heures/date (9 tests)
     ServerTable.spec.js   ← filtres hostname/IP/env, badges statut (15 tests)
     KeyTable.spec.js           ← boutons par statut, owner, expires_at, barre de filtres texte + statut (30 tests)
-    Admins.spec.js             ← modals enable/delete, garde-fous (15 tests)
+    Admins.spec.js             ← modals enable/delete, garde-fous RBAC (25 tests)
     Settings.spec.js           ← chargement, sauvegarde, validation, erreurs (7 tests)
     DeployKeyForm.spec.js      ← formulaire déploiement clé SSH (16 tests)
     UserLockForm.spec.js       ← verrouillage/déverrouillage compte Unix (10 tests)
-    DeployedUsersTable.spec.js ← tableau utilisateurs déployés, filtres (10 tests)
+    DeployedUsersTable.spec.js ← tableau utilisateurs déployés, filtres, RBAC operator/viewer (12 tests)
     Anomalies.spec.js          ← filtres texte + dropdowns type/serveur/conformité, unix_user, badges (20 tests)
 
 ### Ce qui n'est PAS testé unitairement

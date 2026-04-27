@@ -157,7 +157,8 @@
     "info_deploy": "El formulario a continuación despliega una clave SSH en un servidor destino. Si el usuario Unix no existe, se creará automáticamente.",
     "info_no_sudo": "El usuario se crea sin derechos de administración (sin sudo/wheel). Para otorgar privilegios elevados, intervenga manualmente en el servidor.",
     "lock_title": "Bloquear / Desbloquear cuenta Unix",
-    "lock_info": "Bloquea una cuenta Unix para impedir todas las conexiones SSH (incluso con clave válida). Desbloquear para restaurar el acceso."
+    "lock_info": "Bloquea una cuenta Unix para impedir todas las conexiones SSH (incluso con clave válida). Desbloquear para restaurar el acceso.",
+    "readonly_message": "Acceso de solo lectura. Contacte a un administrador para realizar acciones."
   },
   "access_form": {
     "duration_label": "Duración del acceso",
@@ -243,7 +244,12 @@
     "success_enabled": "Administrador {username} activado.",
     "success_deleted": "Administrador {username} eliminado.",
     "error_self_action": "No puede realizar esta acción sobre su propia cuenta.",
-    "error_has_records": "No se puede eliminar: existen registros que hacen referencia a esta cuenta."
+    "error_has_records": "No se puede eliminar: existen registros que hacen referencia a esta cuenta.",
+    "role_sysadmin": "Administrador",
+    "role_operator": "Operador",
+    "role_viewer": "Lector",
+    "section_my_account": "Mi cuenta",
+    "my_account_hint": "Puede cambiar su propia contraseña aquí."
   },
   "anomalies": {
     "title": "Anomalías",

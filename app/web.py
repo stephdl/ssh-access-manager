@@ -35,15 +35,27 @@ def require_auth(f):
         if not admin_id:
             return jsonify({"error": "Unauthorized"}), 401
         admin = db.query_one(
-            "SELECT id, username FROM administrators WHERE id = %s AND is_active = true",
+            "SELECT id, username, role FROM administrators WHERE id = %s AND is_active = true",
             (admin_id,),
         )
         if not admin:
             return jsonify({"error": "Unauthorized"}), 401
         g.admin_id = admin["id"]
         g.admin_username = admin["username"]
+        g.admin_role = admin["role"]
         return f(*args, **kwargs)
     return decorated
+
+
+def require_role(*roles):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if g.admin_role not in roles:
+                return jsonify({"error": "Insufficient permissions"}), 403
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +136,7 @@ def get_server(hostname):
 
 @app.route("/api/servers", methods=["POST"])
 @require_auth
+@require_role("sysadmin")
 def add_server():
     data = request.get_json(force=True) or {}
     try:
@@ -139,6 +152,7 @@ def add_server():
 
 @app.route("/api/servers/<hostname>", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def update_server(hostname):
     data = request.get_json(force=True) or {}
     try:
@@ -154,6 +168,7 @@ def update_server(hostname):
 
 @app.route("/api/servers/<hostname>/disable", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def disable_server(hostname):
     try:
         actions.disable_server(hostname, g.admin_id)
@@ -165,6 +180,7 @@ def disable_server(hostname):
 
 @app.route("/api/servers/<hostname>/enable", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def enable_server(hostname):
     try:
         actions.enable_server(hostname, g.admin_id)
@@ -176,6 +192,7 @@ def enable_server(hostname):
 
 @app.route("/api/servers/<hostname>", methods=["DELETE"])
 @require_auth
+@require_role("sysadmin")
 def delete_server(hostname):
     try:
         actions.delete_server(hostname, g.admin_id)
@@ -187,6 +204,7 @@ def delete_server(hostname):
 
 @app.route("/api/servers/<hostname>/scan", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def scan_server(hostname):
     results = collect_mod.run_scan(hostname=hostname)
     return jsonify(results)
@@ -247,6 +265,7 @@ def get_key(fingerprint):
 
 @app.route("/api/keys/validate/<path:fingerprint>", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def validate_key(fingerprint):
     data = request.get_json(silent=True) or {}
     unix_user = data.get("unix_user") or None
@@ -261,6 +280,7 @@ def validate_key(fingerprint):
 
 @app.route("/api/keys/revoke/<path:fingerprint>", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def revoke_key(fingerprint):
     data = request.get_json(force=True) or {}
     reason = data.get("reason", "Manual revocation via API")
@@ -278,6 +298,7 @@ def revoke_key(fingerprint):
 
 @app.route("/api/keys/assign/<path:fingerprint>", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def assign_key(fingerprint):
     data = request.get_json(force=True) or {}
     try:
@@ -290,6 +311,7 @@ def assign_key(fingerprint):
 
 @app.route("/api/keys/set-expiry/<path:fingerprint>", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def set_key_expiry(fingerprint):
     from datetime import timedelta
     data = request.get_json(force=True) or {}
@@ -308,6 +330,7 @@ def set_key_expiry(fingerprint):
 
 @app.route("/api/keys/remove-expiry/<path:fingerprint>", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def remove_key_expiry(fingerprint):
     try:
         actions.remove_key_expiry(fingerprint)
@@ -345,6 +368,7 @@ def get_access(request_id):
 
 @app.route("/api/access/grant", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def grant_access():
     data = request.get_json(force=True) or {}
     expires_at = _parse_datetime(data.get("expires_at"))
@@ -369,6 +393,7 @@ def grant_access():
 
 @app.route("/api/access/deploy", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def api_deploy_key():
     from datetime import timedelta
     data = request.json or {}
@@ -414,6 +439,7 @@ def api_deploy_key():
 
 @app.route("/api/access/lock-user", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def api_lock_user():
     data = request.json or {}
     unix_user = (data.get("unix_user") or "").strip()
@@ -433,6 +459,7 @@ def api_lock_user():
 
 @app.route("/api/access/unlock-user", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def api_unlock_user():
     data = request.json or {}
     unix_user = (data.get("unix_user") or "").strip()
@@ -485,6 +512,7 @@ def list_deployed_users():
 
 @app.route("/api/access/request", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def request_access():
     data = request.get_json(force=True) or {}
     try:
@@ -517,6 +545,7 @@ def request_access():
 
 @app.route("/api/access/<request_id>/approve", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def approve_request(request_id):
     try:
         actions.approve_request(request_id, g.admin_id)
@@ -528,6 +557,7 @@ def approve_request(request_id):
 
 @app.route("/api/access/<request_id>/reject", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def reject_request(request_id):
     try:
         actions.reject_request(request_id, g.admin_id)
@@ -539,6 +569,7 @@ def reject_request(request_id):
 
 @app.route("/api/access/<request_id>/revoke", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def revoke_request(request_id):
     try:
         actions.revoke_request(request_id, g.admin_id)
@@ -562,10 +593,17 @@ def list_admins():
 
 @app.route("/api/admins", methods=["POST"])
 @require_auth
+@require_role("sysadmin")
 def add_admin():
     data = request.get_json(force=True) or {}
     try:
-        admin = actions.add_admin(data["username"], data.get("email", ""), data["password"], g.admin_id)
+        admin = actions.add_admin(
+            data["username"],
+            data.get("email", ""),
+            data["password"],
+            g.admin_id,
+            role=data.get("role", "operator"),
+        )
         return jsonify(admin), 201
     except (KeyError, Exception) as e:
         logging.exception("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
@@ -574,6 +612,7 @@ def add_admin():
 
 @app.route("/api/admins/<username>", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def update_admin(username):
     data = request.get_json(force=True) or {}
     email = (data.get("email") or "").strip() or None
@@ -594,6 +633,8 @@ def update_admin(username):
 @app.route("/api/admins/<username>/password", methods=["PUT"])
 @require_auth
 def change_admin_password(username):
+    if g.admin_role != "sysadmin" and username != g.admin_username:
+        return jsonify({"error": "Insufficient permissions"}), 403
     data = request.get_json(force=True) or {}
     password = data.get("password", "").strip()
     if not password:
@@ -614,6 +655,7 @@ def get_me():
 
 @app.route("/api/admins/<username>/disable", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def disable_admin(username):
     if username == g.admin_username:
         return jsonify({"error": "Cannot disable your own account"}), 403
@@ -627,6 +669,7 @@ def disable_admin(username):
 
 @app.route("/api/admins/<username>/enable", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def enable_admin(username):
     if username == g.admin_username:
         return jsonify({"error": "Cannot enable your own account"}), 403
@@ -640,6 +683,7 @@ def enable_admin(username):
 
 @app.route("/api/admins/<username>", methods=["DELETE"])
 @require_auth
+@require_role("sysadmin")
 def delete_admin(username):
     if username == g.admin_username:
         return jsonify({"error": "Cannot delete your own account"}), 403
@@ -711,6 +755,7 @@ def system_status():
 
 @app.route("/api/system/scan", methods=["POST"])
 @require_auth
+@require_role("sysadmin", "operator")
 def system_scan():
     results = collect_mod.run_scan()
     return jsonify(results)
@@ -737,6 +782,7 @@ def get_config():
 
 @app.route("/api/system/config", methods=["PUT"])
 @require_auth
+@require_role("sysadmin")
 def update_config():
     data = request.get_json(force=True) or {}
     hours = data.get("scan_interval_hours")

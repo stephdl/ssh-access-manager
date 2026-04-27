@@ -10,17 +10,20 @@ const ACTIVE_ADMIN  = { id: '1', username: 'admin',    email: 'a@b.c', role: 'sy
 const OTHER_ACTIVE  = { id: '2', username: 'alice',    email: 'alice@b.c', role: 'sysadmin', is_active: true,  created_at: null }
 const DISABLED_ADMIN = { id: '3', username: 'bob',    email: 'bob@b.c',   role: 'sysadmin', is_active: false, created_at: null }
 
-function mkFetch(admins, meUsername = 'admin') {
+function mkFetch(admins, meUsername = 'admin', meRole = 'sysadmin') {
   return vi.fn((url) => {
+    if (url === '/api/auth/me') {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: '1', username: meUsername, role: meRole }) })
+    }
     if (url === '/api/admins/me') {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: '1', username: meUsername }) })
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: '1', username: meUsername, role: meRole }) })
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve(admins) })
   })
 }
 
-function mk(admins, meUsername = 'admin') {
-  global.fetch = mkFetch(admins, meUsername)
+function mk(admins, meUsername = 'admin', meRole = 'sysadmin') {
+  global.fetch = mkFetch(admins, meUsername, meRole)
   return mount(Admins, { global: { plugins: [i18n] } })
 }
 
@@ -154,7 +157,7 @@ describe('Admins', () => {
   })
 
   it('appelle PUT /api/admins/<username> à la confirmation Edit', async () => {
-    const fetchMock = mkFetch([OTHER_ACTIVE])
+    const fetchMock = mkFetch([OTHER_ACTIVE], 'admin', 'sysadmin')
     global.fetch = fetchMock
     const w = mount(Admins, { global: { plugins: [i18n] } })
     await flushPromises()
@@ -163,11 +166,113 @@ describe('Admins', () => {
     const editBtn = aliceRow.findAll('button').find(b => b.text().includes('Edit'))
     await editBtn.trigger('click')
     await w.find('#edit-email').setValue('newemail@example.com')
-    await w.find('#edit-role').setValue('newrole')
+    await w.find('#edit-role').setValue('operator')
     const form = w.find('.modal form')
     await form.trigger('submit')
     await flushPromises()
     const calls = fetchMock.mock.calls.map(c => c[0] + '|' + (c[1]?.method || 'GET'))
     expect(calls).toContain('/api/admins/alice|PUT')
+  })
+
+  // RBAC tests
+  it('sysadmin sees Edit button', async () => {
+    const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE], 'admin', 'sysadmin')
+    await flushPromises()
+    const rows = w.findAll('tr')
+    const aliceRow = rows.find(r => r.text().includes('alice'))
+    const editBtn = aliceRow.findAll('button').find(b => b.text().includes('Edit'))
+    expect(editBtn).toBeTruthy()
+  })
+
+  it('operator does not see Edit button', async () => {
+    const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE], 'admin', 'operator')
+    await flushPromises()
+    const rows = w.findAll('tr')
+    const aliceRow = rows.find(r => r.text().includes('alice'))
+    const editBtn = aliceRow.findAll('button').find(b => b.text().includes('Edit'))
+    expect(editBtn).toBeFalsy()
+  })
+
+  it('viewer does not see Edit button', async () => {
+    const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE], 'admin', 'viewer')
+    await flushPromises()
+    const rows = w.findAll('tr')
+    const aliceRow = rows.find(r => r.text().includes('alice'))
+    const editBtn = aliceRow.findAll('button').find(b => b.text().includes('Edit'))
+    expect(editBtn).toBeFalsy()
+  })
+
+  it('operator sees own Password button in my-account section', async () => {
+    const w = mk([{ ...ACTIVE_ADMIN, username: 'operator1', role: 'operator' }], 'operator1', 'operator')
+    await flushPromises()
+    const myAccountSection = w.findAll('section').find(s => s.text().includes('My account'))
+    expect(myAccountSection).toBeTruthy()
+    const pwdBtn = myAccountSection.findAll('button').find(b => b.text().includes('Password'))
+    expect(pwdBtn).toBeTruthy()
+  })
+
+  it('operator does not see Password button in table rows', async () => {
+    const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE], 'admin', 'operator')
+    await flushPromises()
+    const rows = w.findAll('tr')
+    const hasAnyPwdInTable = rows.some(r => r.findAll('button').some(b => b.text().includes('Password')))
+    expect(hasAnyPwdInTable).toBeFalsy()
+  })
+
+  it('add form hidden for operator', async () => {
+    const w = mk([ACTIVE_ADMIN], 'admin', 'operator')
+    await flushPromises()
+    const addSection = w.findAll('section').find(s => s.text().includes('Add an administrator'))
+    expect(addSection).toBeFalsy()
+  })
+
+  it('add form hidden for viewer', async () => {
+    const w = mk([ACTIVE_ADMIN], 'admin', 'viewer')
+    await flushPromises()
+    const addSection = w.findAll('section').find(s => s.text().includes('Add an administrator'))
+    expect(addSection).toBeFalsy()
+  })
+
+  it('add form visible for sysadmin', async () => {
+    const w = mk([ACTIVE_ADMIN], 'admin', 'sysadmin')
+    await flushPromises()
+    const addSection = w.findAll('section').find(s => s.text().includes('Add an administrator'))
+    expect(addSection).toBeTruthy()
+  })
+
+  it('sysadmin sees Disable button for other users', async () => {
+    const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE], 'admin', 'sysadmin')
+    await flushPromises()
+    const rows = w.findAll('tr')
+    const aliceRow = rows.find(r => r.text().includes('alice'))
+    const disableBtn = aliceRow.findAll('button').find(b => b.text().includes('Disable'))
+    expect(disableBtn).toBeTruthy()
+  })
+
+  it('operator does not see Disable button', async () => {
+    const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE], 'admin', 'operator')
+    await flushPromises()
+    const rows = w.findAll('tr')
+    const aliceRow = rows.find(r => r.text().includes('alice'))
+    const disableBtn = aliceRow.findAll('button').find(b => b.text().includes('Disable'))
+    expect(disableBtn).toBeFalsy()
+  })
+
+  it('operator does not see Enable button', async () => {
+    const w = mk([DISABLED_ADMIN], 'admin', 'operator')
+    await flushPromises()
+    const rows = w.findAll('tr')
+    const bobRow = rows.find(r => r.text().includes('bob'))
+    const enableBtn = bobRow.findAll('button').find(b => b.text().includes('Enable'))
+    expect(enableBtn).toBeFalsy()
+  })
+
+  it('operator does not see Delete button', async () => {
+    const w = mk([DISABLED_ADMIN], 'admin', 'operator')
+    await flushPromises()
+    const rows = w.findAll('tr')
+    const bobRow = rows.find(r => r.text().includes('bob'))
+    const deleteBtn = bobRow.findAll('button').find(b => b.text().includes('Delete'))
+    expect(deleteBtn).toBeFalsy()
   })
 })

@@ -24,9 +24,9 @@ const SERVERS = [
   },
 ]
 
-function mountTable(servers = SERVERS) {
+function mountTable(servers = SERVERS, currentRole = 'sysadmin') {
   return mount(ServerTable, {
-    props: { servers },
+    props: { servers, currentRole },
     global: {
       plugins: [i18n],
       stubs: { RouterLink: { template: '<a href="#"><slot /></a>' } },

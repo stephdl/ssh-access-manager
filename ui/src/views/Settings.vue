@@ -14,9 +14,15 @@
             max="24"
             step="1"
             class="input-number"
+            :disabled="currentRole !== 'sysadmin'"
           />
           <span class="unit">{{ $t('settings.hours') }}</span>
-          <button class="btn-primary" :disabled="saving" @click="save">
+          <button
+            v-if="currentRole === 'sysadmin'"
+            class="btn-primary"
+            :disabled="saving"
+            @click="save"
+          >
             {{ $t('settings.save') }}
           </button>
         </div>
@@ -29,7 +35,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useAuth } from '../composables/useAuth.js'
+
+const { admin } = useAuth()
+const currentRole = computed(() => admin.value?.role || 'viewer')
 
 const intervalHours = ref(4)
 const saving = ref(false)

@@ -157,7 +157,8 @@
     "info_deploy": "Das folgende Formular stellt einen SSH-Schlüssel auf einem Zielserver bereit. Falls der Unix-Benutzer nicht existiert, wird er automatisch erstellt.",
     "info_no_sudo": "Der Benutzer wird ohne Administratorrechte erstellt (kein sudo/wheel). Um erhöhte Rechte zu erteilen, greifen Sie manuell auf den Server zu.",
     "lock_title": "Unix-Konto sperren / entsperren",
-    "lock_info": "Sperrt ein Unix-Konto, um alle SSH-Verbindungen zu blockieren (auch mit gültigem Schlüssel). Entsperren, um den Zugang wiederherzustellen."
+    "lock_info": "Sperrt ein Unix-Konto, um alle SSH-Verbindungen zu blockieren (auch mit gültigem Schlüssel). Entsperren, um den Zugang wiederherzustellen.",
+    "readonly_message": "Nur-Lese-Zugriff. Wenden Sie sich an einen Sysadmin, um Aktionen auszuführen."
   },
   "access_form": {
     "duration_label": "Zugriffsdauer",
@@ -243,7 +244,12 @@
     "success_enabled": "Administrator {username} aktiviert.",
     "success_deleted": "Administrator {username} gelöscht.",
     "error_self_action": "Diese Aktion kann nicht auf das eigene Konto angewendet werden.",
-    "error_has_records": "Löschen nicht möglich: Dieses Konto wird noch referenziert."
+    "error_has_records": "Löschen nicht möglich: Dieses Konto wird noch referenziert.",
+    "role_sysadmin": "Administrator",
+    "role_operator": "Operator",
+    "role_viewer": "Betrachter",
+    "section_my_account": "Mein Konto",
+    "my_account_hint": "Sie können hier Ihr eigenes Passwort ändern."
   },
   "anomalies": {
     "title": "Anomalien",

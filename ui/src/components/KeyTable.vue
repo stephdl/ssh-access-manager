@@ -67,35 +67,38 @@
           <td>
             <div class="actions">
               <button
-                v-if="k.status === 'PENDING_REVIEW'"
+                v-if="k.status === 'PENDING_REVIEW' && props.currentRole !== 'viewer'"
                 class="btn-success"
                 @click="$emit('validate', k)"
               >
                 {{ $t('key_table.btn_validate') }}
               </button>
               <button
-                v-if="k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW'"
+                v-if="
+                  (k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW') &&
+                  props.currentRole !== 'viewer'
+                "
                 class="btn-danger"
                 @click="$emit('revoke', k)"
               >
                 {{ $t('key_table.btn_revoke') }}
               </button>
               <button
-                v-if="!k.owner && k.status === 'ACTIVE'"
+                v-if="!k.owner && k.status === 'ACTIVE' && props.currentRole !== 'viewer'"
                 class="btn-primary"
                 @click="$emit('assign', k.fingerprint)"
               >
                 {{ $t('key_table.btn_assign') }}
               </button>
               <button
-                v-if="k.status === 'ACTIVE'"
+                v-if="k.status === 'ACTIVE' && props.currentRole !== 'viewer'"
                 class="btn-warning"
                 @click="$emit('set-expiry', k)"
               >
                 {{ $t('key_table.btn_expiry') }}
               </button>
               <button
-                v-if="k.status === 'ACTIVE' && k.expires_at"
+                v-if="k.status === 'ACTIVE' && k.expires_at && props.currentRole !== 'viewer'"
                 class="btn-unlimited"
                 @click="$emit('remove-expiry', k.fingerprint)"
               >
@@ -114,7 +117,10 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 
-const props = defineProps({ keys: { type: Array, default: () => [] } })
+const props = defineProps({
+  keys: { type: Array, default: () => [] },
+  currentRole: { type: String, default: 'viewer' },
+})
 defineEmits(['validate', 'revoke', 'set-expiry', 'remove-expiry', 'assign'])
 
 const filterText = ref('')
