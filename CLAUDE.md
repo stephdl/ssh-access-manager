@@ -305,10 +305,12 @@ CREATE TABLE audit_log (
                         'SCRIPT_DEPLOYED',
                         'SERVER_ADDED',
                         'SERVER_DISABLED',
+                        'SERVER_UPDATED',
                         'ADMIN_ADDED',
                         'ADMIN_DISABLED',
                         'ADMIN_ENABLED',
                         'ADMIN_DELETED',
+                        'ADMIN_UPDATED',
                         'USER_LOCKED',
                         'USER_UNLOCKED'
                     )),
