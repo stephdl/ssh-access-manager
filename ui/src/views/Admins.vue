@@ -96,10 +96,12 @@
       <!-- My account — password change for non-sysadmin -->
       <section v-if="currentRole !== 'sysadmin'" class="card my-account-card">
         <h2>{{ $t('admins.section_my_account') }}</h2>
-        <p class="my-account-hint">{{ $t('admins.my_account_hint') }}</p>
-        <button class="btn-secondary" @click="openEditPassword(currentUsername)">
-          {{ $t('admins.btn_password') }}
-        </button>
+        <div class="my-account-row">
+          <p class="my-account-hint">{{ $t('admins.my_account_hint') }}</p>
+          <button class="btn-secondary" @click="openEditPassword(currentUsername)">
+            {{ $t('admins.btn_password') }}
+          </button>
+        </div>
       </section>
 
       <!-- Add administrator form -->
@@ -824,9 +826,15 @@ h2 {
   flex-direction: column;
   gap: 0.75rem;
 }
+.my-account-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
 .my-account-hint {
   font-size: 0.875rem;
   color: #555;
+  margin: 0;
 }
 
 .add-form {
