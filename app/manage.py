@@ -476,6 +476,32 @@ def admin_enable(username):
         raise click.ClickException(str(e))
 
 
+@admin.command("update")
+@click.argument("username")
+@click.option("--email", default=None, help="Nouvelle adresse email")
+@click.option("--role", default=None, help="Nouveau role")
+def admin_update(username, email, role):
+    """Mettre a jour un administrateur (email et/ou role)."""
+    if not email and not role:
+        raise click.UsageError("Au moins --email ou --role requis.")
+    performer_id = _require_admin()
+    try:
+        current = db.query_one(
+            "SELECT email, role FROM administrators WHERE username = %s", (username,)
+        )
+        if not current:
+            raise click.ClickException(f"Administrateur introuvable : {username}")
+        actions.update_admin(
+            username,
+            email if email is not None else current["email"],
+            role if role is not None else current["role"],
+            performer_id,
+        )
+        click.echo(f"Administrateur {username} mis a jour.")
+    except ValueError as e:
+        raise click.ClickException(str(e))
+
+
 @admin.command("delete")
 @click.argument("username")
 @click.confirmation_option(prompt="Supprimer definitivement cet administrateur ?")

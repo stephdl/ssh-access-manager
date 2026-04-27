@@ -254,6 +254,7 @@ CREATE TABLE audit_log (
                       'ADMIN_DISABLED',     -- administrateur désactivé
                       'ADMIN_ENABLED',      -- administrateur réactivé
                       'ADMIN_DELETED',      -- administrateur supprimé définitivement
+                      'ADMIN_UPDATED',      -- administrateur modifié (email, rôle)
                       'USER_LOCKED',        -- compte Unix verrouillé (SSH bloqué)
                       'USER_UNLOCKED'       -- compte Unix déverrouillé
                   )),

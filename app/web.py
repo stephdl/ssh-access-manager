@@ -572,6 +572,25 @@ def add_admin():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/admins/<username>", methods=["PUT"])
+@require_auth
+def update_admin(username):
+    data = request.get_json(force=True) or {}
+    email = data.get("email", "").strip()
+    role = data.get("role", "").strip()
+    if not email or not role:
+        return jsonify({"error": "email et role requis"}), 400
+    try:
+        result = actions.update_admin(username, email, role, g.admin_id)
+        return jsonify({"message": "Admin updated"})
+    except ValueError as e:
+        err_msg = str(e)
+        logging.warning("%s", err_msg.replace("\n", "\\n").replace("\r", "\\r"))
+        if "own role" in err_msg:
+            return jsonify({"error": err_msg}), 403
+        return jsonify({"error": err_msg}), 404
+
+
 @app.route("/api/admins/<username>/password", methods=["PUT"])
 @require_auth
 def change_admin_password(username):

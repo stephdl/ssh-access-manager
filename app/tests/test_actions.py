@@ -566,6 +566,48 @@ def test_actions_delete_admin_raises_if_has_references():
 
 
 # ---------------------------------------------------------------------------
+# update_admin
+# ---------------------------------------------------------------------------
+
+def test_actions_update_admin_success():
+    """update_admin met à jour email et role, log ADMIN_UPDATED."""
+    admin = {"id": ADMIN_ID, "email": "old@example.com", "role": "sysadmin"}
+    current_admin = {"username": "admin"}
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [admin, current_admin]
+        result = actions.update_admin("testuser", "new@example.com", "operator", ADMIN_ID)
+        update_sql = mock_db.execute.call_args_list[0][0][0]
+        update_params = mock_db.execute.call_args_list[0][0][1]
+        assert "UPDATE administrators" in update_sql
+        assert "new@example.com" in update_params
+        assert "operator" in update_params
+        assert "testuser" in update_params
+        audit_sql = mock_db.execute.call_args_list[1][0][0]
+        assert "ADMIN_UPDATED" in audit_sql
+        assert result["username"] == "testuser"
+        assert result["email"] == "new@example.com"
+        assert result["role"] == "operator"
+
+
+def test_actions_update_admin_not_found():
+    """update_admin lève ValueError si admin introuvable."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(ValueError, match="Admin not found"):
+            actions.update_admin("ghost", "new@example.com", "operator", ADMIN_ID)
+
+
+def test_actions_update_admin_self_role_change_raises():
+    """update_admin lève ValueError si admin modifie son propre rôle."""
+    admin = {"id": ADMIN_ID, "email": "admin@example.com", "role": "sysadmin"}
+    current_admin = {"username": "admin"}
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [admin, current_admin]
+        with pytest.raises(ValueError, match="Cannot change your own role"):
+            actions.update_admin("admin", "admin@example.com", "operator", ADMIN_ID)
+
+
+# ---------------------------------------------------------------------------
 # deploy_key
 # ---------------------------------------------------------------------------
 

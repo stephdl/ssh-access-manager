@@ -278,6 +278,20 @@ def test_manage_admin_delete(runner):
         mock_actions.delete_admin.assert_called_once_with("someuser", ADMIN_ID)
 
 
+def test_manage_admin_update_command(runner):
+    current = {"email": "old@example.com", "role": "sysadmin"}
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.side_effect = [_admin(), current]
+        result = runner.invoke(manage.cli, [
+            "admin", "update", "testuser",
+            "--email", "new@example.com", "--role", "operator"
+        ])
+        assert result.exit_code == 0
+        mock_actions.update_admin.assert_called_once_with(
+            "testuser", "new@example.com", "operator", ADMIN_ID
+        )
+
+
 # ---------------------------------------------------------------------------
 # audit
 # ---------------------------------------------------------------------------

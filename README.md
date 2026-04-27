@@ -312,6 +312,7 @@ $EXEC access unlock-user --user USER --server HOST
 # Administrateurs
 $EXEC admin list
 $EXEC admin add --username USER --email EMAIL --password PASSWORD
+$EXEC admin update <username> [--email EMAIL] [--role ROLE]
 $EXEC admin disable USERNAME
 $EXEC admin enable USERNAME
 $EXEC admin delete USERNAME

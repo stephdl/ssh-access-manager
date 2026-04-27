@@ -800,6 +800,46 @@ def change_password(username: str, new_password: str) -> None:
     )
 
 
+def update_admin(username: str, email: str, role: str, admin_id: str) -> dict:
+    """Update administrator email and role. Log ADMIN_UPDATED."""
+    admin = db.query_one(
+        "SELECT id, email, role FROM administrators WHERE username = %s", (username,)
+    )
+    if not admin:
+        raise ValueError(f"Admin not found: {username}")
+
+    current_admin = db.query_one(
+        "SELECT username FROM administrators WHERE id = %s", (admin_id,)
+    )
+    if current_admin and current_admin["username"] == username and admin["role"] != role:
+        raise ValueError("Cannot change your own role")
+
+    old_email = admin["email"]
+    old_role = admin["role"]
+
+    db.execute(
+        "UPDATE administrators SET email = %s, role = %s WHERE username = %s",
+        (email, role, username),
+    )
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, details)
+        VALUES ('ADMIN_UPDATED', %s, %s::jsonb)
+        """,
+        (
+            admin_id,
+            json.dumps({
+                "username": username,
+                "old_email": old_email,
+                "new_email": email,
+                "old_role": old_role,
+                "new_role": role,
+            }),
+        ),
+    )
+    return {"username": username, "email": email, "role": role}
+
+
 def disable_admin(username: str, admin_id: str | None = None) -> None:
     """Set is_active=false and log ADMIN_DISABLED."""
     admin = db.query_one(
