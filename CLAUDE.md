@@ -68,6 +68,16 @@ ADMIN_USERNAME=admin  ADMIN_EMAIL  ADMIN_PASSWORD=changeme
 Notes : pas de NGINX_USER/NGINX_PASSWORD (#54). Pas de TZ (UTC en base, conversion navigateur — #228).
 Pas de EXPIRE_WARN_DAYS* (configurables en base via settings — #230).
 
+## Langue du code — English only
+
+**Règle absolue : tout le code est en anglais.**
+- Noms de variables, fonctions, classes, constantes : anglais
+- Commentaires inline et docstrings : anglais
+- Messages CLI (`click.echo`, `ClickException`) : anglais
+- Scripts shell (commentaires `#`) : anglais
+
+Seules exceptions autorisées : fichiers de traduction `ui/src/locales/` (FR/ES/IT/DE) et ce fichier CLAUDE.md.
+
 ## Convention commits — Conventional Commits
 
 Format : `type: description courte`
