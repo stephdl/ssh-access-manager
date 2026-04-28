@@ -31,7 +31,7 @@ def warn_expiring_keys() -> int:
         WHERE ka.status = 'ACTIVE'
           AND ka.expires_at IS NOT NULL
           AND ka.expires_at > now()
-          AND ka.expires_at <= now() + INTERVAL '%s days'
+          AND ka.expires_at <= now() + make_interval(days => %s)
         """,
         (max(warn_days, warn_days_2),),
     )
