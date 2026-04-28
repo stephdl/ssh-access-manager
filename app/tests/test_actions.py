@@ -436,7 +436,7 @@ def test_actions_add_admin_logs_admin_added():
 
 def test_actions_disable_admin_sets_inactive():
     with patch("actions.db") as mock_db:
-        mock_db.query_one.return_value = {"id": ADMIN_ID}
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "role": "operator"}
         actions.disable_admin("someuser", ADMIN_ID)
         update_call = mock_db.execute.call_args_list[0][0][0]
         assert "is_active = false" in update_call
@@ -447,6 +447,29 @@ def test_actions_disable_admin_raises_if_not_found():
         mock_db.query_one.return_value = None
         with pytest.raises(ValueError, match="not found"):
             actions.disable_admin("ghost")
+
+
+def test_actions_disable_admin_prevents_last_sysadmin():
+    """Cannot disable the last active sysadmin."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": ADMIN_ID, "role": "sysadmin"},
+            {"n": 0},
+        ]
+        with pytest.raises(ValueError, match="Cannot disable last active sysadmin"):
+            actions.disable_admin("admin", ADMIN_ID)
+
+
+def test_actions_disable_admin_allows_sysadmin_with_other_active():
+    """Can disable a sysadmin when at least one other active sysadmin exists."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": ADMIN_ID, "role": "sysadmin"},
+            {"n": 1},
+        ]
+        actions.disable_admin("admin", ADMIN_ID)
+        update_call = mock_db.execute.call_args_list[0][0][0]
+        assert "is_active = false" in update_call
 
 
 # ---------------------------------------------------------------------------
@@ -574,7 +597,7 @@ def test_actions_update_admin_success():
     admin = {"id": ADMIN_ID, "email": "old@example.com", "role": "sysadmin"}
     current_admin = {"username": "admin"}
     with patch("actions.db") as mock_db:
-        mock_db.query_one.side_effect = [admin, current_admin]
+        mock_db.query_one.side_effect = [admin, current_admin, {"n": 1}]
         result = actions.update_admin("testuser", "new@example.com", "operator", ADMIN_ID)
         update_sql = mock_db.execute.call_args_list[0][0][0]
         update_params = mock_db.execute.call_args_list[0][0][1]
@@ -605,6 +628,26 @@ def test_actions_update_admin_self_role_change_raises():
         mock_db.query_one.side_effect = [admin, current_admin]
         with pytest.raises(ValueError, match="Cannot change your own role"):
             actions.update_admin("admin", "admin@example.com", "operator", ADMIN_ID)
+
+
+def test_actions_update_admin_prevents_demoting_last_sysadmin():
+    """update_admin lève ValueError si on dégrade le dernier sysadmin actif."""
+    admin = {"id": ADMIN_ID, "email": "admin@example.com", "role": "sysadmin"}
+    current_admin = {"username": "other-admin"}
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [admin, current_admin, {"n": 0}]
+        with pytest.raises(ValueError, match="Cannot demote last active sysadmin"):
+            actions.update_admin("admin", "admin@example.com", "operator", ADMIN_ID)
+
+
+def test_actions_update_admin_allows_demotion_with_other_sysadmin():
+    """update_admin autorise la dégradation si un autre sysadmin actif existe."""
+    admin = {"id": ADMIN_ID, "email": "admin@example.com", "role": "sysadmin"}
+    current_admin = {"username": "other-admin"}
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [admin, current_admin, {"n": 1}]
+        result = actions.update_admin("admin", "admin@example.com", "operator", ADMIN_ID)
+        assert result["role"] == "operator"
 
 
 # ---------------------------------------------------------------------------

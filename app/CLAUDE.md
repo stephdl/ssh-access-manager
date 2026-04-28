@@ -172,7 +172,8 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 ### Administrateurs
 - `add_admin(username, email, password, admin_id, role='operator')` — email obligatoire, valide role, hash werkzeug
 - `update_admin(username, email, role, admin_id)` — ne peut pas modifier son propre rôle
-- `change_password`, `toggle_alerts` (#223), `disable_admin`, `enable_admin` (#116), `delete_admin` (#116 — vérifie FK)
+- `change_password`, `toggle_alerts` (#223), `enable_admin` (#116), `delete_admin` (#116 — vérifie FK)
+- `disable_admin` (#116, #259) — vérifie qu'il reste ≥ 1 autre sysadmin actif ; `update_admin` vérifie de même si dégradation de rôle (#259)
 - `_validate_password_strength(password)` (#62)
 
 ## Matrice RBAC
@@ -205,7 +206,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 - Couverture minimale actions.py : 80%
 - pytest doit passer avant tout commit
 
-Fichiers : conftest.py, test_db.py (7), test_servers.py (9), test_ssh.py (38), test_actions.py (93), test_collect.py (34), test_expire.py (12), test_alerts.py (19), test_web.py (115), test_manage.py (35).
+Fichiers : conftest.py, test_db.py (7), test_servers.py (9), test_ssh.py (41), test_actions.py (97), test_collect.py (34), test_expire.py (12), test_alerts.py (19), test_web.py (115), test_manage.py (35).
 
 Fixtures obligatoires dans conftest.py : `mock_db`, `mock_ssh_client`, `mock_smtp`, `sample_server`, `sample_key`.
 
