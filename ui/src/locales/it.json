@@ -411,5 +411,10 @@
     "export_csv": "Esporta CSV",
     "refresh_error": "Aggiornamento fallito: {error}",
     "load_error": "Impossibile caricare le sessioni: {error}"
+  },
+  "password_banner": {
+    "message": "La password non è mai stata cambiata. Aggiornala per motivi di sicurezza.",
+    "btn_change": "Cambia password",
+    "btn_dismiss": "Chiudi"
   }
 }
