@@ -20,8 +20,8 @@ import db
 import ssh
 
 # ---------------------------------------------------------------------------
-# Rate limiter — protection brute-force sur /api/auth/login
-# Stockage en mémoire : {ip: {"count": N, "banned_until": timestamp}}
+# Rate limiter — brute-force protection on /api/auth/login
+# In-memory storage: {ip: {"count": N, "banned_until": timestamp}}
 # ---------------------------------------------------------------------------
 _login_attempts: dict = {}
 _login_lock = threading.Lock()
@@ -46,7 +46,7 @@ def _load_login_settings() -> tuple[int, int]:
 
 
 def _check_rate_limit(ip: str) -> tuple[bool, int]:
-    """Retourne (is_banned, seconds_remaining)."""
+    """Returns (is_banned, seconds_remaining)."""
     _, ban_seconds = _load_login_settings()
     with _login_lock:
         entry = _login_attempts.get(ip)
@@ -62,7 +62,7 @@ def _check_rate_limit(ip: str) -> tuple[bool, int]:
 
 
 def _record_failure(ip: str, username: str) -> bool:
-    """Incrémente le compteur. Retourne True si l'IP vient d'être bannie."""
+    """Increments counter. Returns True if IP was just banned."""
     max_attempts, ban_seconds = _load_login_settings()
     now = datetime.now(timezone.utc).timestamp()
     with _login_lock:
@@ -81,10 +81,10 @@ def _reset_attempts(ip: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Session timeout — constantes (pas de config DB, pas de UI)
+# Session timeout — constants (no DB config, no UI)
 # ---------------------------------------------------------------------------
-SESSION_SHORT_MINUTES = 30   # sans "remember me"
-SESSION_LONG_HOURS = 8       # avec "remember me"
+SESSION_SHORT_MINUTES = 30   # without "remember me"
+SESSION_LONG_HOURS = 8       # with "remember me"
 
 
 app = Flask(__name__)
@@ -97,7 +97,7 @@ app.secret_key = _flask_secret
 
 
 # ---------------------------------------------------------------------------
-# Authentification par session Flask
+# Flask session authentication
 # ---------------------------------------------------------------------------
 
 def require_auth(f):

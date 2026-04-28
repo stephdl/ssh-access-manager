@@ -17,7 +17,7 @@ import db
 
 def _table(rows: list[dict], columns: list[str]) -> None:
     if not rows:
-        click.echo("(aucun resultat)")
+        click.echo("(no results)")
         return
     widths = {c: len(c) for c in columns}
     for row in rows:
@@ -36,7 +36,7 @@ def _parse_dt(value: str) -> datetime:
             return datetime.strptime(value, fmt).replace(tzinfo=timezone.utc)
         except ValueError:
             continue
-    raise click.BadParameter(f"Format invalide : {value!r} (attendu YYYY-MM-DD HH:MM)")
+    raise click.BadParameter(f"Invalid format: {value!r} (expected YYYY-MM-DD HH:MM)")
 
 
 def _require_admin() -> str:
@@ -47,7 +47,7 @@ def _require_admin() -> str:
         (username,),
     )
     if not admin:
-        raise click.ClickException(f"Administrateur '{username}' introuvable.")
+        raise click.ClickException(f"Administrator '{username}' not found.")
     return admin["id"]
 
 
@@ -57,7 +57,7 @@ def _require_admin() -> str:
 
 @click.group()
 def cli():
-    """ssh-access-manager — gestion des acces SSH."""
+    """ssh-access-manager — SSH access management."""
 
 
 # ---------------------------------------------------------------------------
@@ -66,12 +66,12 @@ def cli():
 
 @cli.group()
 def servers():
-    """Gestion des serveurs SSH."""
+    """SSH server management."""
 
 
 @servers.command("list")
 def servers_list():
-    """Lister tous les serveurs."""
+    """List all servers."""
     rows = db.query("SELECT hostname, ip_address, environment, os_family, is_active, added_at FROM servers ORDER BY hostname")
     _table(rows, ["hostname", "ip_address", "environment", "is_active"])
 
@@ -79,40 +79,40 @@ def servers_list():
 @servers.command("show")
 @click.argument("hostname")
 def servers_show(hostname):
-    """Afficher le detail d'un serveur."""
+    """Display server details."""
     row = db.query_one("SELECT * FROM servers WHERE hostname = %s", (hostname,))
     if not row:
-        raise click.ClickException(f"Serveur introuvable : {hostname}")
+        raise click.ClickException(f"Server not found: {hostname}")
     for k, v in row.items():
         click.echo(f"{k:20}: {v}")
 
 
 @servers.command("add")
-@click.option("--hostname", required=True, help="Nom d'hote")
-@click.option("--ip", required=True, help="Adresse IP")
-@click.option("--env", required=True, type=click.Choice(["production", "staging", "lab"]), help="Environnement")
-@click.option("--os", "os_family", default=None, help="Famille OS")
+@click.option("--hostname", required=True, help="Hostname")
+@click.option("--ip", required=True, help="IP address")
+@click.option("--env", required=True, type=click.Choice(["production", "staging", "lab"]), help="Environment")
+@click.option("--os", "os_family", default=None, help="OS family")
 def servers_add(hostname, ip, env, os_family):
-    """Ajouter un serveur."""
+    """Add a server."""
     admin_id = _require_admin()
     actions.add_server(hostname, ip, env, os_family, admin_id)
-    click.echo(f"Serveur {hostname} ajoute.")
+    click.echo(f"Server {hostname} added.")
 
 
 @servers.command("update")
 @click.argument("hostname")
-@click.option("--ip", default=None, help="Nouvelle adresse IP")
-@click.option("--env", default=None, type=click.Choice(["production", "staging", "lab"]), help="Nouvel environnement")
-@click.option("--os", "os_family", default=None, help="Nouvelle famille OS")
+@click.option("--ip", default=None, help="New IP address")
+@click.option("--env", default=None, type=click.Choice(["production", "staging", "lab"]), help="New environment")
+@click.option("--os", "os_family", default=None, help="New OS family")
 def servers_update(hostname, ip, env, os_family):
-    """Mettre a jour un serveur."""
+    """Update a server."""
     if not any([ip, env, os_family]):
-        raise click.UsageError("Au moins un parametre requis : --ip, --env ou --os")
+        raise click.UsageError("At least one parameter required: --ip, --env or --os")
     admin_id = _require_admin()
     try:
         current = db.query_one("SELECT ip_address, environment, os_family FROM servers WHERE hostname = %s", (hostname,))
         if not current:
-            raise click.ClickException(f"Serveur introuvable : {hostname}")
+            raise click.ClickException(f"Server not found: {hostname}")
         actions.update_server(
             hostname,
             ip or current["ip_address"],
@@ -120,7 +120,7 @@ def servers_update(hostname, ip, env, os_family):
             os_family if os_family is not None else current["os_family"],
             admin_id,
         )
-        click.echo(f"Serveur {hostname} mis a jour.")
+        click.echo(f"Server {hostname} updated.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
@@ -128,19 +128,19 @@ def servers_update(hostname, ip, env, os_family):
 @servers.command("disable")
 @click.argument("hostname")
 def servers_disable(hostname):
-    """Desactiver un serveur."""
+    """Disable a server."""
     admin_id = _require_admin()
     try:
         actions.disable_server(hostname, admin_id)
-        click.echo(f"Serveur {hostname} desactive.")
+        click.echo(f"Server {hostname} disabled.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
 
 @servers.command("scan")
-@click.option("--server", default=None, help="Scanner uniquement ce serveur")
+@click.option("--server", default=None, help="Scan only this server")
 def servers_scan(server):
-    """Lancer un scan SSH."""
+    """Run an SSH scan."""
     results = collect_mod.run_scan(hostname=server)
     for r in results:
         if r["error"]:
@@ -158,14 +158,14 @@ def servers_scan(server):
 
 @cli.group()
 def keys():
-    """Gestion des cles SSH."""
+    """SSH key management."""
 
 
 @keys.command("list")
-@click.option("--status", default=None, help="Filtrer par statut")
-@click.option("--server", default=None, help="Filtrer par serveur")
+@click.option("--status", default=None, help="Filter by status")
+@click.option("--server", default=None, help="Filter by server")
 def keys_list(status, server):
-    """Lister les cles SSH."""
+    """List SSH keys."""
     sql = """
         SELECT sk.fingerprint, sk.key_type, sk.is_compliant, sk.comment,
                ka.status AS auth_status, s.hostname
@@ -189,10 +189,10 @@ def keys_list(status, server):
 @keys.command("show")
 @click.argument("fingerprint")
 def keys_show(fingerprint):
-    """Afficher le detail d'une cle."""
+    """Display key details."""
     row = db.query_one("SELECT * FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not row:
-        raise click.ClickException(f"Cle introuvable : {fingerprint}")
+        raise click.ClickException(f"Key not found: {fingerprint}")
     for k, v in row.items():
         click.echo(f"{k:20}: {v}")
 
@@ -200,57 +200,57 @@ def keys_show(fingerprint):
 @keys.command("validate")
 @click.argument("fingerprint")
 def keys_validate(fingerprint):
-    """Valider une cle (PENDING_REVIEW → ACTIVE)."""
+    """Validate a key (PENDING_REVIEW → ACTIVE)."""
     admin_id = _require_admin()
     try:
         actions.validate_key(fingerprint, admin_id)
-        click.echo(f"Cle {fingerprint} validee.")
+        click.echo(f"Key {fingerprint} validated.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
 
 @keys.command("revoke")
 @click.argument("fingerprint")
-@click.option("--reason", required=True, help="Motif de revocation")
+@click.option("--reason", required=True, help="Revocation reason")
 def keys_revoke(fingerprint, reason):
-    """Revoquer une cle SSH."""
+    """Revoke an SSH key."""
     admin_id = _require_admin()
     try:
         actions.revoke_key(fingerprint, admin_id, reason)
-        click.echo(f"Cle {fingerprint} revoquee.")
+        click.echo(f"Key {fingerprint} revoked.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
 
 @keys.command("assign")
 @click.argument("fingerprint")
-@click.option("--owner", required=True, help="Username du proprietaire")
+@click.option("--owner", required=True, help="Owner username")
 def keys_assign(fingerprint, owner):
-    """Assigner une cle a un administrateur."""
+    """Assign a key to an administrator."""
     try:
         actions.assign_key(fingerprint, owner)
-        click.echo(f"Cle {fingerprint} assignee a {owner}.")
+        click.echo(f"Key {fingerprint} assigned to {owner}.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
 
 @keys.command("set-expiry")
 @click.argument("fingerprint")
-@click.option("--hours", default=None, type=int, help="Duree en heures")
+@click.option("--hours", default=None, type=int, help="Duration in hours")
 @click.option("--date", "date_str", default=None, help="Date YYYY-MM-DD HH:MM")
 def keys_set_expiry(fingerprint, hours, date_str):
-    """Definir l'expiration d'une cle."""
+    """Set key expiration."""
     if hours and date_str:
-        raise click.UsageError("Utilisez --hours OU --date, pas les deux.")
+        raise click.UsageError("Use --hours OR --date, not both.")
     if hours:
         expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=hours)
     elif date_str:
         expires_at = _parse_dt(date_str)
     else:
-        raise click.UsageError("--hours ou --date requis.")
+        raise click.UsageError("--hours or --date required.")
     try:
         actions.set_key_expiry(fingerprint, expires_at)
-        click.echo(f"Expiration definie : {expires_at.isoformat()}")
+        click.echo(f"Expiration set: {expires_at.isoformat()}")
     except ValueError as e:
         raise click.ClickException(str(e))
 
@@ -258,10 +258,10 @@ def keys_set_expiry(fingerprint, hours, date_str):
 @keys.command("remove-expiry")
 @click.argument("fingerprint")
 def keys_remove_expiry(fingerprint):
-    """Supprimer l'expiration d'une cle."""
+    """Remove key expiration."""
     try:
         actions.remove_key_expiry(fingerprint)
-        click.echo(f"Expiration supprimee pour {fingerprint}.")
+        click.echo(f"Expiration removed for {fingerprint}.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
@@ -269,7 +269,7 @@ def keys_remove_expiry(fingerprint):
 @keys.command("search")
 @click.argument("query")
 def keys_search(query):
-    """Rechercher des cles par fingerprint ou commentaire."""
+    """Search keys by fingerprint or comment."""
     rows = db.query(
         "SELECT fingerprint, key_type, comment FROM ssh_keys WHERE fingerprint ILIKE %s OR comment ILIKE %s",
         (f"%{query}%", f"%{query}%"),
@@ -283,13 +283,13 @@ def keys_search(query):
 
 @cli.group()
 def access():
-    """Gestion des acces temporaires."""
+    """Temporary access management."""
 
 
 @access.command("list")
-@click.option("--status", default=None, help="Filtrer par statut")
+@click.option("--status", default=None, help="Filter by status")
 def access_list(status):
-    """Lister les acces temporaires."""
+    """List temporary accesses."""
     sql = "SELECT id, status, justification, requested_at, expires_at FROM access_requests WHERE 1=1"
     params = []
     if status:
@@ -303,45 +303,45 @@ def access_list(status):
 @access.command("show")
 @click.argument("request_id")
 def access_show(request_id):
-    """Afficher le detail d'une demande."""
+    """Display request details."""
     row = db.query_one("SELECT * FROM access_requests WHERE id = %s", (request_id,))
     if not row:
-        raise click.ClickException(f"Demande introuvable : {request_id}")
+        raise click.ClickException(f"Request not found: {request_id}")
     for k, v in row.items():
         click.echo(f"{k:20}: {v}")
 
 
 @access.command("grant")
-@click.option("--key", "key_fp", required=True, help="Fingerprint de la cle")
-@click.option("--server", "hostname", required=True, help="Serveur cible")
-@click.option("--hours", default=None, type=int, help="Duree en heures")
-@click.option("--date", "date_str", default=None, help="Date expiration YYYY-MM-DD HH:MM")
+@click.option("--key", "key_fp", required=True, help="Key fingerprint")
+@click.option("--server", "hostname", required=True, help="Target server")
+@click.option("--hours", default=None, type=int, help="Duration in hours")
+@click.option("--date", "date_str", default=None, help="Expiration date YYYY-MM-DD HH:MM")
 @click.option("--reason", required=True, help="Justification")
 def access_grant(key_fp, hostname, hours, date_str, reason):
-    """Accorder un acces temporaire."""
+    """Grant temporary access."""
     if hours and date_str:
-        raise click.UsageError("Utilisez --hours OU --date, pas les deux.")
+        raise click.UsageError("Use --hours OR --date, not both.")
     if hours:
         expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=hours)
     elif date_str:
         expires_at = _parse_dt(date_str)
     else:
-        raise click.UsageError("--hours ou --date requis.")
+        raise click.UsageError("--hours or --date required.")
     admin_id = _require_admin()
     try:
         actions.grant_access(key_fp, hostname, expires_at, reason, admin_id)
-        click.echo(f"Acces accorde jusqu'au {expires_at.isoformat()}.")
+        click.echo(f"Access granted until {expires_at.isoformat()}.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
 
 @access.command("request")
-@click.option("--key", "key_fp", required=True, help="Fingerprint de la cle")
-@click.option("--server", "hostname", required=True, help="Serveur cible")
-@click.option("--hours", required=True, type=int, help="Duree en heures")
+@click.option("--key", "key_fp", required=True, help="Key fingerprint")
+@click.option("--server", "hostname", required=True, help="Target server")
+@click.option("--hours", required=True, type=int, help="Duration in hours")
 @click.option("--reason", required=True, help="Justification")
 def access_request(key_fp, hostname, hours, reason):
-    """Soumettre une demande d'acces temporaire."""
+    """Submit a temporary access request."""
     admin_id = _require_admin()
     expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=hours)
     db.execute(
@@ -357,17 +357,17 @@ def access_request(key_fp, hostname, hours, reason):
         """,
         (admin_id, key_fp, hostname, hours, reason),
     )
-    click.echo("Demande soumise.")
+    click.echo("Request submitted.")
 
 
 @access.command("approve")
 @click.argument("request_id")
 def access_approve(request_id):
-    """Approuver une demande d'acces."""
+    """Approve an access request."""
     admin_id = _require_admin()
     try:
         actions.approve_request(request_id, admin_id)
-        click.echo(f"Demande {request_id} approuvee.")
+        click.echo(f"Request {request_id} approved.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
@@ -375,11 +375,11 @@ def access_approve(request_id):
 @access.command("reject")
 @click.argument("request_id")
 def access_reject(request_id):
-    """Rejeter une demande d'acces."""
+    """Reject an access request."""
     admin_id = _require_admin()
     try:
         actions.reject_request(request_id, admin_id)
-        click.echo(f"Demande {request_id} rejetee.")
+        click.echo(f"Request {request_id} rejected.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
@@ -387,11 +387,11 @@ def access_reject(request_id):
 @access.command("revoke")
 @click.argument("request_id")
 def access_revoke(request_id):
-    """Revoquer un acces accorde."""
+    """Revoke a granted access."""
     admin_id = _require_admin()
     try:
         actions.revoke_request(request_id, admin_id)
-        click.echo(f"Acces {request_id} revoque.")
+        click.echo(f"Access {request_id} revoked.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
@@ -428,12 +428,12 @@ def access_unlock_user(user, server):
 
 @cli.group()
 def admin():
-    """Gestion des administrateurs."""
+    """Administrator management."""
 
 
 @admin.command("list")
 def admin_list():
-    """Lister les administrateurs."""
+    """List administrators."""
     rows = db.query("SELECT username, email, role, is_active, created_at FROM administrators ORDER BY username")
     _table(rows, ["username", "email", "role", "is_active"])
 
@@ -441,13 +441,13 @@ def admin_list():
 @admin.command("add")
 @click.option("--username", required=True, help="Login")
 @click.option("--email", required=True, help="Email")
-@click.option("--password", required=True, help="Mot de passe")
+@click.option("--password", required=True, help="Password")
 def admin_add(username, email, password):
-    """Ajouter un administrateur."""
+    """Add an administrator."""
     performer_id = _require_admin()
     try:
         actions.add_admin(username, email, password, performer_id)
-        click.echo(f"Administrateur {username} cree.")
+        click.echo(f"Administrator {username} created.")
     except Exception as e:
         raise click.ClickException(str(e))
 
@@ -455,11 +455,11 @@ def admin_add(username, email, password):
 @admin.command("disable")
 @click.argument("username")
 def admin_disable(username):
-    """Desactiver un administrateur."""
+    """Disable an administrator."""
     performer_id = _require_admin()
     try:
         actions.disable_admin(username, performer_id)
-        click.echo(f"Administrateur {username} desactive.")
+        click.echo(f"Administrator {username} disabled.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
@@ -467,50 +467,50 @@ def admin_disable(username):
 @admin.command("enable")
 @click.argument("username")
 def admin_enable(username):
-    """Reactiver un administrateur desactive."""
+    """Re-enable a disabled administrator."""
     performer_id = _require_admin()
     try:
         actions.enable_admin(username, performer_id)
-        click.echo(f"Administrateur {username} reactive.")
+        click.echo(f"Administrator {username} re-enabled.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
 
 @admin.command("update")
 @click.argument("username")
-@click.option("--email", default=None, help="Nouvelle adresse email")
-@click.option("--role", default=None, help="Nouveau role")
+@click.option("--email", default=None, help="New email address")
+@click.option("--role", default=None, help="New role")
 def admin_update(username, email, role):
-    """Mettre a jour un administrateur (email et/ou role)."""
+    """Update an administrator (email and/or role)."""
     if not email and not role:
-        raise click.UsageError("Au moins --email ou --role requis.")
+        raise click.UsageError("At least --email or --role required.")
     performer_id = _require_admin()
     try:
         current = db.query_one(
             "SELECT email, role FROM administrators WHERE username = %s", (username,)
         )
         if not current:
-            raise click.ClickException(f"Administrateur introuvable : {username}")
+            raise click.ClickException(f"Administrator not found: {username}")
         actions.update_admin(
             username,
             email if email is not None else current["email"],
             role if role is not None else current["role"],
             performer_id,
         )
-        click.echo(f"Administrateur {username} mis a jour.")
+        click.echo(f"Administrator {username} updated.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
 
 @admin.command("delete")
 @click.argument("username")
-@click.confirmation_option(prompt="Supprimer definitivement cet administrateur ?")
+@click.confirmation_option(prompt="Permanently delete this administrator?")
 def admin_delete(username):
-    """Supprimer definitivement un administrateur (doit etre desactive, sans references)."""
+    """Permanently delete an administrator (must be disabled, without references)."""
     performer_id = _require_admin()
     try:
         actions.delete_admin(username, performer_id)
-        click.echo(f"Administrateur {username} supprime.")
+        click.echo(f"Administrator {username} deleted.")
     except ValueError as e:
         raise click.ClickException(str(e))
 
@@ -521,15 +521,15 @@ def admin_delete(username):
 
 @cli.group()
 def audit():
-    """Consultation du journal d'audit."""
+    """Audit log consultation."""
 
 
 @audit.command("list")
-@click.option("--server", default=None, help="Filtrer par serveur")
-@click.option("--action", default=None, help="Filtrer par action")
-@click.option("--since", default=None, help="Depuis date YYYY-MM-DD")
+@click.option("--server", default=None, help="Filter by server")
+@click.option("--action", default=None, help="Filter by action")
+@click.option("--since", default=None, help="Since date YYYY-MM-DD")
 def audit_list(server, action, since):
-    """Afficher le journal d'audit."""
+    """Display audit log."""
     sql = """
         SELECT al.action, al.performed_at, s.hostname, sk.fingerprint
         FROM audit_log al
@@ -559,27 +559,27 @@ def audit_list(server, action, since):
 
 @cli.group()
 def system():
-    """Etat du systeme."""
+    """System status."""
 
 
 @system.command("status")
 def system_status():
-    """Afficher le statut global."""
+    """Display global status."""
     servers_n = db.query_one("SELECT COUNT(*) AS n FROM servers WHERE is_active = true")
     pending_n = db.query_one("SELECT COUNT(*) AS n FROM key_authorizations WHERE status = 'PENDING_REVIEW'")
     active_n = db.query_one("SELECT COUNT(*) AS n FROM key_authorizations WHERE status = 'ACTIVE'")
     last_scan = db.query_one(
         "SELECT performed_at FROM audit_log WHERE action = 'SCAN_COMPLETED' ORDER BY performed_at DESC LIMIT 1"
     )
-    click.echo(f"Serveurs actifs    : {servers_n['n'] if servers_n else 0}")
-    click.echo(f"Cles ACTIVE        : {active_n['n'] if active_n else 0}")
-    click.echo(f"Cles PENDING_REVIEW: {pending_n['n'] if pending_n else 0}")
-    click.echo(f"Dernier scan       : {last_scan['performed_at'] if last_scan else 'jamais'}")
+    click.echo(f"Active servers     : {servers_n['n'] if servers_n else 0}")
+    click.echo(f"ACTIVE keys        : {active_n['n'] if active_n else 0}")
+    click.echo(f"PENDING_REVIEW keys: {pending_n['n'] if pending_n else 0}")
+    click.echo(f"Last scan          : {last_scan['performed_at'] if last_scan else 'never'}")
 
 
 @system.command("report")
 def system_report():
-    """Afficher un rapport de securite."""
+    """Display security report."""
     non_compliant = db.query(
         """
         SELECT sk.fingerprint, sk.key_type, sk.key_size_bits, s.hostname
@@ -590,7 +590,7 @@ def system_report():
         ORDER BY s.hostname
         """
     )
-    click.echo(f"\n=== Cles non conformes ACTIVE ({len(non_compliant)}) ===")
+    click.echo(f"\n=== Non-compliant ACTIVE keys ({len(non_compliant)}) ===")
     _table(non_compliant, ["fingerprint", "key_type", "key_size_bits", "hostname"])
 
     anomalies = db.query(
@@ -603,7 +603,7 @@ def system_report():
         ORDER BY al.performed_at DESC
         """
     )
-    click.echo(f"\n=== Anomalies 30 derniers jours ({len(anomalies)}) ===")
+    click.echo(f"\n=== Anomalies last 30 days ({len(anomalies)}) ===")
     _table(anomalies, ["action", "performed_at", "hostname"])
 
 
