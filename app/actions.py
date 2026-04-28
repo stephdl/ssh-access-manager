@@ -823,6 +823,14 @@ def update_admin(username: str, email: str | None, role: str, admin_id: str) -> 
     if current_admin and current_admin["username"] == username and admin["role"] != role:
         raise ValueError("Cannot change your own role")
 
+    if admin["role"] == "sysadmin" and role != "sysadmin":
+        other_sysadmins = db.query_one(
+            "SELECT COUNT(*) AS n FROM administrators WHERE role = 'sysadmin' AND is_active = true AND id != %s",
+            (admin["id"],),
+        )
+        if not other_sysadmins or other_sysadmins["n"] == 0:
+            raise ValueError("Cannot demote last active sysadmin")
+
     old_email = admin["email"]
     old_role = admin["role"]
 
@@ -852,10 +860,17 @@ def update_admin(username: str, email: str | None, role: str, admin_id: str) -> 
 def disable_admin(username: str, admin_id: str | None = None) -> None:
     """Set is_active=false and log ADMIN_DISABLED."""
     admin = db.query_one(
-        "SELECT id FROM administrators WHERE username = %s AND is_active = true", (username,)
+        "SELECT id, role FROM administrators WHERE username = %s AND is_active = true", (username,)
     )
     if not admin:
         raise ValueError(f"Active admin not found: {username}")
+    if admin["role"] == "sysadmin":
+        other_sysadmins = db.query_one(
+            "SELECT COUNT(*) AS n FROM administrators WHERE role = 'sysadmin' AND is_active = true AND id != %s",
+            (admin["id"],),
+        )
+        if not other_sysadmins or other_sysadmins["n"] == 0:
+            raise ValueError("Cannot disable last active sysadmin")
     db.execute("UPDATE administrators SET is_active = false WHERE id = %s", (admin["id"],))
     db.execute(
         """
