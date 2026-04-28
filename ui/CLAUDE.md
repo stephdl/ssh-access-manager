@@ -24,11 +24,16 @@
 | DeployKeyForm.vue | Formulaire déploiement clé SSH |
 | UserLockForm.vue | Verrouillage/déverrouillage compte Unix (#181) |
 | DeployedUsersTable.vue | Utilisateurs Unix déployés + filtres + RBAC operator/viewer |
+| AdminsTable.vue | Tableau administrateurs + filtre texte + pagination + garde-fou self (#250) |
+| AuditTable.vue | Tableau audit + filtres serveur/action/date + pagination (#250) |
+| AnomaliesTable.vue | Tableau anomalies + filtres texte/type/serveur/conformité + pagination (#250) |
+| PaginationBar.vue | Composant pagination réutilisable avec contrôles taille de page |
 
 ## Composables
 
 - `useAuth.js` — authentification session
 - `useFormatDate.js` — `formatDate()` et `formatDateOnly()` avec locale navigateur (#228, UTC→local)
+- `usePagination.js` — pagination côté client réutilisable (10 lignes par défaut, reset auto au changement de filtre)
 
 ## Internationalisation — règle absolue
 
@@ -59,5 +64,8 @@ Détection automatique de la langue du navigateur via vue-i18n v9 (i18n.js).
 | DeployedUsersTable.spec.js | 12 | filtres, RBAC operator/viewer |
 | Anomalies.spec.js | 20 | filtres texte + dropdowns, unix_user, badges |
 | Login.spec.js | 8 | checkbox remember-me, payload remember_me |
+| AdminsTable.spec.js | 13 | filtre texte, pagination, RBAC, garde-fou self, events (#250) |
+| AuditTable.spec.js | 8 | filtres serveur/action/date, pagination, row classes (#250) |
+| AnomaliesTable.spec.js | 14 | filtres texte/type/conformité, pagination, RBAC, events (#250) |
 
 vitest doit passer avant tout commit.

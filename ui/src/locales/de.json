@@ -190,6 +190,13 @@
     "reset_btn": "Zurücksetzen",
     "load_error": "Audit kann nicht geladen werden: {error}"
   },
+  "admins_table": {
+    "search_placeholder": "Administratoren suchen...",
+    "no_results": "Keine übereinstimmenden Administratoren."
+  },
+  "audit_table": {
+    "no_results": "Keine übereinstimmenden Audit-Einträge."
+  },
   "admins": {
     "title": "Administratoren",
     "section_list": "Liste",

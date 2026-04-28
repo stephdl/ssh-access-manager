@@ -190,6 +190,13 @@
     "reset_btn": "Reimposta",
     "load_error": "Impossibile caricare l'audit: {error}"
   },
+  "admins_table": {
+    "search_placeholder": "Cerca amministratori...",
+    "no_results": "Nessun amministratore corrispondente."
+  },
+  "audit_table": {
+    "no_results": "Nessuna voce di audit corrispondente."
+  },
   "admins": {
     "title": "Amministratori",
     "section_list": "Lista",
