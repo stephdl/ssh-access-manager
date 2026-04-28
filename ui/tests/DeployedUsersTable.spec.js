@@ -12,6 +12,8 @@ vi.mock('../src/composables/useAuth.js', () => ({
 
 const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
 
+const RouterLinkStub = { template: '<a :href="to" data-testid="router-link"><slot /></a>', props: ['to'] }
+
 const MOCK_USERS = [
   {
     unix_user: 'alice',
@@ -28,6 +30,10 @@ const MOCK_USERS = [
     fingerprint: 'SHA256:def456',
   },
 ]
+
+const mountOpts = {
+  global: { plugins: [i18n], stubs: { RouterLink: RouterLinkStub } },
+}
 
 beforeEach(() => {
   mockAdmin.value = { username: 'admin', role: 'sysadmin' }
@@ -52,7 +58,7 @@ describe('DeployedUsersTable', () => {
     })
     vi.stubGlobal('fetch', fetchSpy)
 
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     expect(fetchSpy).toHaveBeenCalledWith('/api/access/deployed-users')
@@ -60,7 +66,7 @@ describe('DeployedUsersTable', () => {
   })
 
   it('affiche les lignes avec unix_user et hostname', async () => {
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     const row1 = w.find('[data-testid="row-alice-prod-01"]')
@@ -75,8 +81,37 @@ describe('DeployedUsersTable', () => {
     expect(row2.text()).toContain('staging-01')
   })
 
+  it('le hostname est un lien vers /servers/{hostname}', async () => {
+    const w = mount(DeployedUsersTable, mountOpts)
+    await flushPromises()
+
+    const links = w.findAll('a')
+    const hrefs = links.map((l) => l.attributes('href'))
+    expect(hrefs).toContain('/servers/prod-01')
+    expect(hrefs).toContain('/servers/staging-01')
+  })
+
+  it('affiche la colonne IP avec ip_address', async () => {
+    const w = mount(DeployedUsersTable, mountOpts)
+    await flushPromises()
+
+    expect(w.find('[data-testid="row-alice-prod-01"]').text()).toContain('10.0.0.1')
+    expect(w.find('[data-testid="row-bob-staging-01"]').text()).toContain('10.0.0.2')
+  })
+
+  it('affiche "—" si ip_address est null', async () => {
+    const usersNoIp = [{ ...MOCK_USERS[0], ip_address: null }]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(usersNoIp) }))
+
+    const w = mount(DeployedUsersTable, mountOpts)
+    await flushPromises()
+
+    const row = w.find('[data-testid="row-alice-prod-01"]')
+    expect(row.text()).toContain('—')
+  })
+
   it('affiche "Unlimited" si expires_at null', async () => {
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     const row1 = w.find('[data-testid="row-alice-prod-01"]')
@@ -84,7 +119,7 @@ describe('DeployedUsersTable', () => {
   })
 
   it('affiche la date formatée si expires_at non null', async () => {
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     const row2 = w.find('[data-testid="row-bob-staging-01"]')
@@ -100,7 +135,7 @@ describe('DeployedUsersTable', () => {
       })
     )
 
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     expect(w.find('[data-testid="empty-state"]').exists()).toBe(true)
@@ -133,7 +168,7 @@ describe('DeployedUsersTable', () => {
       }
     })
 
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     await w.find('[data-testid="btn-lock-alice-prod-01"]').trigger('click')
@@ -174,7 +209,7 @@ describe('DeployedUsersTable', () => {
       }
     })
 
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     await w.find('[data-testid="btn-unlock-bob-staging-01"]').trigger('click')
@@ -208,7 +243,7 @@ describe('DeployedUsersTable', () => {
       }
     })
 
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     await w.find('[data-testid="btn-lock-alice-prod-01"]').trigger('click')
@@ -243,7 +278,7 @@ describe('DeployedUsersTable', () => {
       }
     })
 
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     await w.find('[data-testid="btn-unlock-bob-staging-01"]').trigger('click')
@@ -272,7 +307,7 @@ describe('DeployedUsersTable', () => {
       }
     })
 
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     await w.find('[data-testid="btn-lock-alice-prod-01"]').trigger('click')
@@ -285,7 +320,7 @@ describe('DeployedUsersTable', () => {
 
   it('operator voit le bouton Lock', async () => {
     mockAdmin.value = { username: 'operator', role: 'operator' }
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     expect(w.find('[data-testid="btn-lock-alice-prod-01"]').exists()).toBe(true)
@@ -293,7 +328,7 @@ describe('DeployedUsersTable', () => {
 
   it('viewer ne voit pas le bouton Lock ni la colonne Actions', async () => {
     mockAdmin.value = { username: 'viewer', role: 'viewer' }
-    const w = mount(DeployedUsersTable, { global: { plugins: [i18n] } })
+    const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
     expect(w.find('[data-testid="btn-lock-alice-prod-01"]').exists()).toBe(false)

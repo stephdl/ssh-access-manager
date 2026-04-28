@@ -62,7 +62,7 @@ Détection automatique de la langue du navigateur via vue-i18n v9 (i18n.js).
 | Settings.spec.js | 18 | validation champs, SMTP test |
 | DeployKeyForm.spec.js | 16 | formulaire déploiement clé SSH |
 | UserLockForm.spec.js | 10 | lock/unlock compte Unix |
-| DeployedUsersTable.spec.js | 12 | filtres, RBAC operator/viewer |
+| DeployedUsersTable.spec.js | 15 | filtres, RBAC operator/viewer, lien serveur, colonne IP |
 | Anomalies.spec.js | 20 | filtres texte + dropdowns, unix_user, badges |
 | Login.spec.js | 8 | checkbox remember-me, payload remember_me |
 | AdminsTable.spec.js | 13 | filtre texte, pagination, RBAC, garde-fou self, events (#250) |

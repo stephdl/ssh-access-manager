@@ -360,6 +360,7 @@
     "title": "Utenti distribuiti",
     "col_user": "Utente Unix",
     "col_server": "Server",
+    "col_ip": "IP",
     "col_expires": "Scade il",
     "col_status": "Stato",
     "col_actions": "Azioni",

@@ -360,6 +360,7 @@
     "title": "Usuarios desplegados",
     "col_user": "Usuario Unix",
     "col_server": "Servidor",
+    "col_ip": "IP",
     "col_expires": "Expira",
     "col_status": "Estado",
     "col_actions": "Acciones",

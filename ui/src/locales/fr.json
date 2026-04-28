@@ -360,6 +360,7 @@
     "title": "Utilisateurs déployés",
     "col_user": "Utilisateur Unix",
     "col_server": "Serveur",
+    "col_ip": "IP",
     "col_expires": "Expire le",
     "col_status": "Statut",
     "col_actions": "Actions",

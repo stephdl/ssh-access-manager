@@ -33,6 +33,7 @@
           <tr>
             <th>{{ $t('deployedUsers.col_user') }}</th>
             <th>{{ $t('deployedUsers.col_server') }}</th>
+            <th>{{ $t('deployedUsers.col_ip') }}</th>
             <th>{{ $t('deployedUsers.col_expires') }}</th>
             <th>{{ $t('deployedUsers.col_status') }}</th>
             <th v-if="currentRole !== 'viewer'">{{ $t('deployedUsers.col_actions') }}</th>
@@ -45,7 +46,10 @@
             :data-testid="`row-${user.unix_user}-${user.hostname}`"
           >
             <td>{{ user.unix_user }}</td>
-            <td>{{ user.hostname }}</td>
+            <td>
+              <RouterLink :to="`/servers/${user.hostname}`">{{ user.hostname }}</RouterLink>
+            </td>
+            <td>{{ user.ip_address || '—' }}</td>
             <td>{{ formatExpiry(user.expires_at) }}</td>
             <td>
               <span
@@ -100,7 +104,7 @@
           </tr>
           <tr v-if="filteredUsers.length === 0">
             <td
-              :colspan="currentRole !== 'viewer' ? 5 : 4"
+              :colspan="currentRole !== 'viewer' ? 6 : 5"
               class="empty-filtered"
               data-testid="empty-filtered"
             >
@@ -129,6 +133,7 @@
 
 <script setup>
 import { ref, computed, onMounted, defineExpose } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
