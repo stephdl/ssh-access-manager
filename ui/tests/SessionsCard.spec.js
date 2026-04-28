@@ -377,6 +377,85 @@ describe('SessionsCard.vue', () => {
     expect(ipCellRecent.text()).toBe('—')
   })
 
+  it('shows pagination bar when history has data', async () => {
+    const manyRows = Array.from({ length: 25 }, (_, i) => ({
+      unix_user: 'root',
+      tty: 'pts/0',
+      login_ip: '192.168.1.1',
+      login_at: `2026-04-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
+      logout_at: `2026-04-${String(i + 1).padStart(2, '0')}T11:00:00Z`,
+      is_active: false,
+    }))
+
+    fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ active: [], recent: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => manyRows })
+
+    const wrapper = mount(SessionsCard, {
+      props: { hostname: 'server13', currentRole: 'sysadmin' },
+      global: { plugins: [i18n] },
+    })
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    const historyBtn = wrapper.find('[data-testid="sessions-history-btn"]')
+    await historyBtn.trigger('click')
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(wrapper.find('[data-testid="history-pagination"]').exists()).toBe(true)
+    const rows = wrapper.findAll('[data-testid="history-table"] tbody tr')
+    expect(rows).toHaveLength(10)
+  })
+
+  it('shows export CSV button when history has data', async () => {
+    const historyData = [
+      {
+        unix_user: 'root',
+        tty: 'pts/0',
+        login_ip: '192.168.1.1',
+        login_at: '2026-04-28T10:00:00Z',
+        logout_at: '2026-04-28T11:00:00Z',
+        is_active: false,
+      },
+    ]
+
+    fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ active: [], recent: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => historyData })
+
+    const wrapper = mount(SessionsCard, {
+      props: { hostname: 'server14', currentRole: 'sysadmin' },
+      global: { plugins: [i18n] },
+    })
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    const historyBtn = wrapper.find('[data-testid="sessions-history-btn"]')
+    await historyBtn.trigger('click')
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(wrapper.find('[data-testid="history-export-csv"]').exists()).toBe(true)
+  })
+
+  it('does not show export CSV button when history is empty', async () => {
+    fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ active: [], recent: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => [] })
+
+    const wrapper = mount(SessionsCard, {
+      props: { hostname: 'server15', currentRole: 'sysadmin' },
+      global: { plugins: [i18n] },
+    })
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    const historyBtn = wrapper.find('[data-testid="sessions-history-btn"]')
+    await historyBtn.trigger('click')
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(wrapper.find('[data-testid="history-export-csv"]').exists()).toBe(false)
+  })
+
   it('shows error message on load failure', async () => {
     fetch.mockResolvedValueOnce({
       ok: false,

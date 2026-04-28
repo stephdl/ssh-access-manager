@@ -405,6 +405,7 @@
     "filter_user": "Filtrar por usuario…",
     "filter_ip": "Filtrar por IP…",
     "filter_apply": "Aplicar",
+    "export_csv": "Exportar CSV",
     "refresh_error": "Error al actualizar: {error}",
     "load_error": "Error al cargar sesiones: {error}"
   }

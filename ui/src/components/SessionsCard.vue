@@ -93,9 +93,19 @@
       <div class="modal modal-wide">
         <div class="modal-header">
           <h3>{{ $t('sessions.history_title') }}</h3>
-          <button class="modal-close" @click="showHistoryModal = false" aria-label="Close">
-            &#x2715;
-          </button>
+          <div class="modal-header-actions">
+            <button
+              v-if="historyData.length > 0"
+              class="btn-sm btn-secondary"
+              @click="exportCsv"
+              data-testid="history-export-csv"
+            >
+              {{ $t('sessions.export_csv') }}
+            </button>
+            <button class="modal-close" @click="showHistoryModal = false" aria-label="Close">
+              &#x2715;
+            </button>
+          </div>
         </div>
 
         <div class="history-filters">
@@ -141,7 +151,7 @@
           </thead>
           <tbody>
             <tr
-              v-for="(session, idx) in historyData"
+              v-for="(session, idx) in historyPage"
               :key="idx"
               :class="{ 'row-active': session.is_active }"
             >
@@ -166,15 +176,31 @@
           </tbody>
         </table>
 
-        <p v-else class="empty" data-testid="history-no-data">{{ $t('sessions.no_history') }}</p>
+        <PaginationBar
+          v-if="!historyLoading && historyTotalItems > 0"
+          :current-page="historyCurrentPage"
+          :total-pages="historyTotalPages"
+          :total-items="historyTotalItems"
+          :page-size="historyPageSize"
+          :page-sizes="PAGE_SIZES"
+          data-testid="history-pagination"
+          @update:current-page="historyCurrentPage = $event"
+          @update:page-size="historyPageSize = $event"
+        />
+
+        <p v-else-if="!historyLoading" class="empty" data-testid="history-no-data">
+          {{ $t('sessions.no_history') }}
+        </p>
       </div>
     </div>
   </section>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useFormatDate } from '../composables/useFormatDate.js'
+import { usePagination } from '../composables/usePagination.js'
+import PaginationBar from './PaginationBar.vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps({
@@ -205,6 +231,16 @@ const filterSince = ref('')
 const historyLoading = ref(false)
 const historyError = ref('')
 const historyData = ref([])
+
+const historyComputed = computed(() => historyData.value)
+const {
+  pageSize: historyPageSize,
+  currentPage: historyCurrentPage,
+  totalItems: historyTotalItems,
+  totalPages: historyTotalPages,
+  paginatedItems: historyPage,
+  PAGE_SIZES,
+} = usePagination(historyComputed)
 
 async function loadSessions() {
   loading.value = true
@@ -263,6 +299,35 @@ async function loadHistory() {
   } finally {
     historyLoading.value = false
   }
+}
+
+function exportCsv() {
+  const headers = [
+    t('sessions.col_user'),
+    t('sessions.col_tty'),
+    t('sessions.col_ip'),
+    t('sessions.col_login_at'),
+    t('sessions.col_logout_at'),
+    t('sessions.col_status'),
+  ]
+  const rows = historyData.value.map((s) => [
+    s.unix_user,
+    s.tty,
+    s.login_ip || '',
+    s.login_at ? formatDate(s.login_at) : '',
+    s.logout_at ? formatDate(s.logout_at) : '',
+    s.is_active ? t('sessions.status_active') : t('sessions.status_ended'),
+  ])
+  const csv = [headers, ...rows]
+    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `sessions-${props.hostname}-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 watch(showHistoryModal, (val) => {
@@ -439,6 +504,12 @@ td {
 
 .modal-wide {
   width: 800px;
+}
+
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .history-filters {

@@ -405,6 +405,7 @@
     "filter_user": "Nach Benutzer filtern…",
     "filter_ip": "Nach IP filtern…",
     "filter_apply": "Anwenden",
+    "export_csv": "CSV exportieren",
     "refresh_error": "Aktualisierung fehlgeschlagen: {error}",
     "load_error": "Sitzungen konnten nicht geladen werden: {error}"
   }
