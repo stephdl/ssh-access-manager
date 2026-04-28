@@ -233,7 +233,7 @@
     "rule_special": "Ein Sonderzeichen",
     "load_error": "Administratoren können nicht geladen werden: {error}",
     "disable_modal_title": "Administrator deaktivieren",
-    "disable_modal_text": "Deaktivierung von {username} bestätigen? Diese Aktion ist über die Oberfläche nicht rückgängig zu machen.",
+    "disable_modal_text": "Konto '{username}' deaktivieren? Das Konto kann sich nicht mehr anmelden. Sie können es später wieder aktivieren.",
     "btn_disable_confirm": "Deaktivieren",
     "pwd_modal_title": "Passwort ändern — {username}",
     "pwd_new_label": "Neues Passwort",

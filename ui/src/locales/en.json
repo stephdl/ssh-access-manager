@@ -233,7 +233,7 @@
     "rule_special": "One special character",
     "load_error": "Unable to load administrators: {error}",
     "disable_modal_title": "Disable administrator",
-    "disable_modal_text": "Confirm disabling {username}? This action is irreversible from the interface.",
+    "disable_modal_text": "Disable account '{username}'? The account will no longer be able to log in. You can re-enable it later.",
     "btn_disable_confirm": "Disable",
     "pwd_modal_title": "Change password — {username}",
     "pwd_new_label": "New password",

@@ -233,7 +233,7 @@
     "rule_special": "Un carácter especial",
     "load_error": "No se pueden cargar los administradores: {error}",
     "disable_modal_title": "Desactivar administrador",
-    "disable_modal_text": "¿Confirmar la desactivación de {username}? Esta acción es irreversible desde la interfaz.",
+    "disable_modal_text": "¿Desactivar la cuenta '{username}'? La cuenta no podrá iniciar sesión. Puede reactivarla más tarde.",
     "btn_disable_confirm": "Desactivar",
     "pwd_modal_title": "Cambiar contraseña — {username}",
     "pwd_new_label": "Nueva contraseña",
