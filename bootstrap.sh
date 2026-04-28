@@ -37,6 +37,32 @@ generate_msmtprc() {
 }
 
 # ---------------------------------------------------------------------------
+# Vérification des variables d'environnement obligatoires
+# ---------------------------------------------------------------------------
+_fail=0
+if [ -z "${FLASK_SECRET_KEY}" ] || [ "${FLASK_SECRET_KEY}" = "changeme" ]; then
+    echo "================================================================" >&2
+    echo " ERREUR : FLASK_SECRET_KEY est absent ou vaut 'changeme'." >&2
+    echo " Les sessions Flask ne peuvent pas être sécurisées." >&2
+    echo " Générez une clé forte : openssl rand -hex 32" >&2
+    echo " Puis ajoutez-la dans votre fichier .env :" >&2
+    echo "   FLASK_SECRET_KEY=<valeur générée>" >&2
+    echo "================================================================" >&2
+    _fail=1
+fi
+if [ -z "${POSTGRES_PASSWORD}" ] || [ "${POSTGRES_PASSWORD}" = "changeme" ]; then
+    echo "================================================================" >&2
+    echo " ERREUR : POSTGRES_PASSWORD est absent ou vaut 'changeme'." >&2
+    echo " Définissez un mot de passe fort dans votre fichier .env :" >&2
+    echo "   POSTGRES_PASSWORD=<mot de passe fort>" >&2
+    echo "================================================================" >&2
+    _fail=1
+fi
+if [ "${_fail}" = "1" ]; then
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Premier démarrage — détecté par l'absence de /data/pg/PG_VERSION
 # ---------------------------------------------------------------------------
 if [ ! -f /data/pg/PG_VERSION ]; then
