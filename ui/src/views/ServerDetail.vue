@@ -104,7 +104,9 @@
         </div>
         <p class="warn-text" v-html="$t('server_detail.delete_modal_warning', { hostname })"></p>
         <div class="modal-actions">
-          <button @click="showDeleteModal = false">{{ $t('common.cancel') }}</button>
+          <button class="btn-secondary" @click="showDeleteModal = false">
+            {{ $t('common.cancel') }}
+          </button>
           <button class="btn-danger" @click="deleteServer">
             {{ $t('server_detail.delete_confirm') }}
           </button>
@@ -138,7 +140,9 @@
           :placeholder="$t('server_detail.revoke_reason_placeholder')"
         ></textarea>
         <div class="modal-actions">
-          <button @click="revokeTarget = null">{{ $t('common.cancel') }}</button>
+          <button class="btn-secondary" @click="revokeTarget = null">
+            {{ $t('common.cancel') }}
+          </button>
           <button class="btn-danger" :disabled="!revokeReason.trim()" @click="confirmRevoke">
             {{ $t('server_detail.revoke_confirm') }}
           </button>
@@ -168,7 +172,9 @@
           :placeholder="$t('server_detail.assign_username_placeholder')"
         />
         <div class="modal-actions">
-          <button @click="assignTarget = null">{{ $t('common.cancel') }}</button>
+          <button class="btn-secondary" @click="assignTarget = null">
+            {{ $t('common.cancel') }}
+          </button>
           <button class="btn-primary" :disabled="!assignUsername.trim()" @click="confirmAssign">
             {{ $t('server_detail.assign_confirm') }}
           </button>
@@ -207,7 +213,9 @@
         />
         <input v-else v-model="expiryDate" type="datetime-local" />
         <div class="modal-actions">
-          <button @click="expiryTarget = null">{{ $t('common.cancel') }}</button>
+          <button class="btn-secondary" @click="expiryTarget = null">
+            {{ $t('common.cancel') }}
+          </button>
           <button class="btn-primary" :disabled="!expiryValid" @click="confirmExpiry">
             {{ $t('server_detail.expiry_confirm') }}
           </button>

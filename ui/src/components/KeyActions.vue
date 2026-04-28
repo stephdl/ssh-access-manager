@@ -35,7 +35,7 @@
           :placeholder="$t('server_detail.revoke_reason_placeholder')"
         ></textarea>
         <div class="modal-actions">
-          <button data-testid="cancel-revoke" @click="confirming = false">
+          <button data-testid="cancel-revoke" class="btn-secondary" @click="confirming = false">
             {{ $t('common.cancel') }}
           </button>
           <button
