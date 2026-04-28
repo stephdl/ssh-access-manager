@@ -28,6 +28,7 @@
 | AuditTable.vue | Tableau audit + filtres serveur/action/date + pagination (#250) |
 | AnomaliesTable.vue | Tableau anomalies + filtres texte/type/serveur/conformité + pagination (#250) |
 | PaginationBar.vue | Composant pagination réutilisable avec contrôles taille de page |
+| SessionsCard.vue | Sessions SSH actives + modal Full History (filtres user/ip/date, pagination, export CSV) — sysadmin/operator uniquement (#253) |
 
 ## Composables
 
@@ -55,10 +56,10 @@ Détection automatique de la langue du navigateur via vue-i18n v9 (i18n.js).
 |---------|-------|--------------------|
 | KeyActions.spec.js | 14 | modal confirmation révocation |
 | ExpiryPicker.spec.js | 9 | modes exclusifs heures/date |
-| ServerTable.spec.js | 15 | filtres hostname/IP/env, badges statut |
+| ServerTable.spec.js | 16 | filtres hostname/IP/env, badges statut |
 | KeyTable.spec.js | 30 | boutons par statut, owner, expires_at, filtres |
 | Admins.spec.js | 31 | modals enable/delete, RBAC, toggle alerts |
-| Settings.spec.js | 14 | validation champs, SMTP test |
+| Settings.spec.js | 18 | validation champs, SMTP test |
 | DeployKeyForm.spec.js | 16 | formulaire déploiement clé SSH |
 | UserLockForm.spec.js | 10 | lock/unlock compte Unix |
 | DeployedUsersTable.spec.js | 12 | filtres, RBAC operator/viewer |
@@ -66,6 +67,7 @@ Détection automatique de la langue du navigateur via vue-i18n v9 (i18n.js).
 | Login.spec.js | 8 | checkbox remember-me, payload remember_me |
 | AdminsTable.spec.js | 13 | filtre texte, pagination, RBAC, garde-fou self, events (#250) |
 | AuditTable.spec.js | 8 | filtres serveur/action/date, pagination, row classes (#250) |
-| AnomaliesTable.spec.js | 14 | filtres texte/type/conformité, pagination, RBAC, events (#250) |
+| AnomaliesTable.spec.js | 13 | filtres texte/type/conformité, pagination, RBAC, events (#250) |
+| SessionsCard.spec.js | 17 | sessions actives, modal historique, filtres, pagination, CSV export, RBAC (#253) |
 
 vitest doit passer avant tout commit.
