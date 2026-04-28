@@ -63,6 +63,33 @@ if [ "${_fail}" = "1" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Collector key guard — runs on every startup, no-op if key already exists.
+# Protects against partial restores where /data/pg/ is present but /data/keys/
+# is missing: bootstrap would skip first-startup block and leave no key.
+# ---------------------------------------------------------------------------
+if [ ! -f /data/keys/collector_key ]; then
+    echo "[bootstrap] Collector key missing — generating a new ED25519 key pair."
+    mkdir -p /data/keys
+    ssh-keygen -t ed25519 \
+        -f /data/keys/collector_key \
+        -N "" \
+        -C "ssh-access-manager@$(hostname)"
+    chown nobody:nobody /data/keys/collector_key /data/keys/collector_key.pub
+    chmod 600 /data/keys/collector_key
+    touch /data/keys/known_hosts
+    chown nobody:nobody /data/keys/known_hosts
+    chmod 644 /data/keys/known_hosts
+    echo ""
+    echo "================================================================"
+    echo " COLLECTOR PUBLIC KEY — deploy on each remote host"
+    echo " via: bash provision-host.sh \"<content below>\""
+    echo "================================================================"
+    cat /data/keys/collector_key.pub
+    echo "================================================================"
+    echo ""
+fi
+
+# ---------------------------------------------------------------------------
 # First startup — detected by absence of /data/pg/PG_VERSION
 # ---------------------------------------------------------------------------
 if [ ! -f /data/pg/PG_VERSION ]; then
@@ -75,36 +102,25 @@ if [ ! -f /data/pg/PG_VERSION ]; then
     chown postgres:postgres /data/pg
     chmod 700 /data/pg
 
-    # 3. Generate collector ED25519 key pair
-    ssh-keygen -t ed25519 \
-        -f /data/keys/collector_key \
-        -N "" \
-        -C "ssh-access-manager@$(hostname)"
-    chown nobody:nobody /data/keys/collector_key
-    chmod 600 /data/keys/collector_key
+    # 3. Collector key already handled by the guard above
 
-    # 4. Create empty known_hosts
-    touch /data/keys/known_hosts
-    chown nobody:nobody /data/keys/known_hosts
-    chmod 644 /data/keys/known_hosts
-
-    # 5. Initialize PostgreSQL cluster
+    # 4. Initialize PostgreSQL cluster
     su -s /bin/sh postgres -c "initdb -D /data/pg --encoding=UTF8 --locale=C"
 
-    # 6. Start PostgreSQL temporarily (local socket only)
+    # 5. Start PostgreSQL temporarily (local socket only)
     su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' start -w"
 
-    # 7. Create database and user from ENV
+    # 6. Create database and user from ENV
     # CREATE DATABASE cannot run in a transaction: two separate calls
     su -s /bin/sh postgres -c "psql -h /tmp -c \"CREATE USER ${POSTGRES_USER:-ssh_manager} WITH PASSWORD '${POSTGRES_PASSWORD:-changeme}';\""
     su -s /bin/sh postgres -c "psql -h /tmp -c \"CREATE DATABASE ${POSTGRES_DB:-ssh_manager} OWNER ${POSTGRES_USER:-ssh_manager};\""
 
-    # 8. Apply SQL schema
+    # 7. Apply SQL schema
     su -s /bin/sh postgres -c \
         "psql -h /tmp -U ${POSTGRES_USER:-ssh_manager} -d ${POSTGRES_DB:-ssh_manager} \
          -f /app/sql/schema.sql"
 
-    # 9. Insert initial administrator from ENV
+    # 8. Insert initial administrator from ENV
     # Uses Python+psycopg2 to avoid shell interpolation of hash ($...)
     python3 << 'PYEOF'
 import os, psycopg2
@@ -132,27 +148,17 @@ conn.close()
 print("[bootstrap] Initial administrator inserted.")
 PYEOF
 
-    # 10. Stop temporary PostgreSQL
+    # 9. Stop temporary PostgreSQL
     su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' stop -w"
 
-    # 11. Generate msmtprc
+    # 10. Generate msmtprc
     generate_msmtprc
 
-    # 12. Generate nginx.conf
+    # 11. Generate nginx.conf
     generate_nginx_conf
 
-    # 13. Generate crontab from SCAN_INTERVAL_HOURS
+    # 12. Generate crontab
     generate_crontab
-
-    # 14. Display collector public key in logs
-    echo ""
-    echo "================================================================"
-    echo " COLLECTOR PUBLIC KEY — deploy on each remote host"
-    echo " via: bash provision-host.sh \"<content below>\""
-    echo "================================================================"
-    cat /data/keys/collector_key.pub
-    echo "================================================================"
-    echo ""
 
 else
     echo "[bootstrap] Normal startup (existing data)."
