@@ -593,6 +593,18 @@ def test_collect_run_scan_skips_when_should_not_run():
         mock_srv.get_active_servers.assert_not_called()
 
 
+def test_collect_run_scan_bypasses_timer_when_admin_id_provided():
+    """Manual scans (admin_id set) always run regardless of _should_run."""
+    with patch("collect._should_run", return_value=False), \
+         patch("collect.servers_mod") as mock_srv, \
+         patch("collect.scan_server", return_value={"anomalies": [], "new": 0, "disappeared": 0}), \
+         patch("collect.alerts"):
+        mock_srv.get_active_servers.return_value = [{"hostname": "h", "ip": "1.2.3.4"}]
+        result = collect.run_scan(admin_id="some-admin-id")
+        assert result != []
+        mock_srv.get_active_servers.assert_called_once()
+
+
 def test_collect_run_scan_does_not_skip_for_manual_hostname():
     with patch("collect._should_run") as mock_check, \
          patch("collect.servers_mod") as mock_srv, \

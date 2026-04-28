@@ -315,7 +315,7 @@ def delete_server(hostname):
 @require_auth
 @require_role("sysadmin", "operator")
 def scan_server(hostname):
-    results = collect_mod.run_scan(hostname=hostname)
+    results = collect_mod.run_scan(hostname=hostname, admin_id=g.admin_id)
     return jsonify(results)
 
 
@@ -927,10 +927,14 @@ def list_audit():
     action = request.args.get("action")
     since = request.args.get("since")
     sql = """
-        SELECT al.*, sk.fingerprint, s.hostname
+        SELECT al.*,
+               adm.username   AS performed_by_username,
+               s.hostname     AS server_hostname,
+               sk.fingerprint AS key_fingerprint
         FROM audit_log al
-        LEFT JOIN ssh_keys sk ON sk.id = al.target_key
-        LEFT JOIN servers s ON s.id = al.target_server
+        LEFT JOIN administrators adm ON adm.id = al.performed_by
+        LEFT JOIN servers        s   ON s.id   = al.target_server
+        LEFT JOIN ssh_keys       sk  ON sk.id  = al.target_key
         WHERE 1=1
     """
     params = []
@@ -978,7 +982,7 @@ def system_status():
 @require_auth
 @require_role("sysadmin", "operator")
 def system_scan():
-    results = collect_mod.run_scan()
+    results = collect_mod.run_scan(admin_id=g.admin_id)
     return jsonify(results)
 
 

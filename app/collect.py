@@ -75,10 +75,11 @@ def _parse_key_line(line: str) -> dict | None:
     }
 
 
-def scan_server(server: dict) -> dict:
+def scan_server(server: dict, admin_id: str | None = None) -> dict:
     """
     Scan one server: ensure scripts, collect keys, reconcile with DB.
     Returns a result dict with counts and optional error.
+    admin_id is stored in performed_by when the scan is triggered manually.
     """
     hostname = server["hostname"]
     ip = server["ip_address"]
@@ -192,10 +193,11 @@ def scan_server(server: dict) -> dict:
 
     db.execute(
         """
-        INSERT INTO audit_log (action, target_server, details)
-        VALUES ('SCAN_COMPLETED', %s, %s::jsonb)
+        INSERT INTO audit_log (action, performed_by, target_server, details)
+        VALUES ('SCAN_COMPLETED', %s, %s, %s::jsonb)
         """,
         (
+            admin_id,
             server_id,
             json.dumps({
                 "hostname": hostname,
@@ -220,14 +222,14 @@ def _should_run() -> bool:
     return elapsed >= interval_hours * 3600
 
 
-def run_scan(hostname: str | None = None) -> list[dict]:
+def run_scan(hostname: str | None = None, admin_id: str | None = None) -> list[dict]:
     """Scan all active servers (or one). Sends one grouped CRITICAL email if any anomalies."""
-    if hostname is None and not _should_run():
+    if hostname is None and admin_id is None and not _should_run():
         return []
     active_servers = servers_mod.get_active_servers()
     if hostname:
         active_servers = [s for s in active_servers if s["hostname"] == hostname]
-    results = [scan_server(s) for s in active_servers]
+    results = [scan_server(s, admin_id=admin_id) for s in active_servers]
 
     all_anomalies = [a for r in results for a in r.get("anomalies", [])]
     if all_anomalies:
