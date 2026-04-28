@@ -20,5 +20,5 @@ jobs:
 
       - name: Build and push
         run: |
-          docker build -t ghcr.io/stephdl/ssh-access-manager:main .
-          docker push ghcr.io/stephdl/ssh-access-manager:main
+          docker build -t ghcr.io/stephdl/sam-server:main .
+          docker push ghcr.io/stephdl/sam-server:main

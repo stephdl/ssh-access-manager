@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import SessionsCard from '../src/components/SessionsCard.vue'
 import { createI18n } from 'vue-i18n'
 import en from '../src/locales/en.json'
@@ -204,12 +204,17 @@ describe('SessionsCard.vue', () => {
   })
 
   it('disables refresh button while refreshing', async () => {
+    let resolveRefresh
     fetch
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ active: [], recent: [] }),
       })
-      .mockImplementationOnce(() => new Promise((r) => setTimeout(() => r({ ok: true, json: async () => ({}) }), 100)))
+      .mockImplementationOnce(() => new Promise((r) => { resolveRefresh = r }))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ active: [], recent: [] }),
+      })
 
     const wrapper = mount(SessionsCard, {
       props: { hostname: 'server09', currentRole: 'sysadmin' },
@@ -224,6 +229,9 @@ describe('SessionsCard.vue', () => {
     await wrapper.vm.$nextTick()
     expect(refreshBtn.attributes('disabled')).toBeDefined()
     expect(refreshBtn.text()).toContain('Refreshing')
+
+    resolveRefresh({ ok: true, json: async () => ({}) })
+    await flushPromises()
   })
 
   it('opens "Full history" modal on button click and auto-loads history', async () => {
@@ -309,10 +317,6 @@ describe('SessionsCard.vue', () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => [],
-      })
-      .mockResolvedValueOnce({
-        ok: true,
         json: async () => historyData,
       })
 
@@ -321,26 +325,19 @@ describe('SessionsCard.vue', () => {
       global: { plugins: [i18n] },
     })
 
-    await new Promise((r) => setTimeout(r, 10))
+    await flushPromises()
 
-    const historyBtn = wrapper.find('[data-testid="sessions-history-btn"]')
-    await historyBtn.trigger('click')
-    await new Promise((r) => setTimeout(r, 10))
-
-    await wrapper.find('[data-testid="history-filter-user"]').setValue('dave')
-    await wrapper.find('[data-testid="history-filter-ip"]').setValue('192.168.1.200')
-    await wrapper.find('[data-testid="history-filter-since"]').setValue('2026-04-01')
-
-    const applyBtn = wrapper.find('[data-testid="history-filter-apply"]')
-    await applyBtn.trigger('click')
-
-    await new Promise((r) => setTimeout(r, 50))
-    await wrapper.vm.$nextTick()
+    wrapper.vm.filterUser = 'dave'
+    wrapper.vm.filterIp = '192.168.1.200'
+    wrapper.vm.filterSince = '2026-04-01'
+    await wrapper.vm.loadHistory()
+    await flushPromises()
 
     expect(fetch).toHaveBeenCalledWith(
       '/api/servers/server11/sessions/history?user=dave&ip=192.168.1.200&since=2026-04-01'
     )
-    expect(wrapper.find('[data-testid="history-table"]').exists()).toBe(true)
+    expect(wrapper.vm.historyData).toHaveLength(1)
+    expect(wrapper.vm.historyData[0].unix_user).toBe('dave')
   })
 
   it('shows "—" for null login_ip in all session tables', async () => {

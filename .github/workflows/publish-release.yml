@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           TAG="${{ github.ref_name }}"
-          IMAGE="ghcr.io/stephdl/ssh-access-manager"
+          IMAGE="ghcr.io/stephdl/sam-server"
           if [[ "$TAG" == *"-"* ]]; then
             docker build -t "$IMAGE:$TAG" .
             docker push "$IMAGE:$TAG"

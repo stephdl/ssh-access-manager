@@ -1,7 +1,7 @@
 services:
-  ssh-access-manager:
+  sam-server:
     build: .
-    container_name: ssh-access-manager
+    container_name: sam-server
     restart: unless-stopped
     ports:
       - "${NGINX_PORT:-8080}:${NGINX_PORT:-8080}"

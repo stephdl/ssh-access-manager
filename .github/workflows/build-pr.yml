@@ -22,13 +22,13 @@ jobs:
 
       - name: Build and push
         run: |
-          docker build -t ghcr.io/stephdl/ssh-access-manager:pr-${{ github.event.number }} .
-          docker push ghcr.io/stephdl/ssh-access-manager:pr-${{ github.event.number }}
+          docker build -t ghcr.io/stephdl/sam-server:pr-${{ github.event.number }} .
+          docker push ghcr.io/stephdl/sam-server:pr-${{ github.event.number }}
 
       - name: Trivy — scan CVE image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ghcr.io/stephdl/ssh-access-manager:pr-${{ github.event.number }}
+          image-ref: ghcr.io/stephdl/sam-server:pr-${{ github.event.number }}
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
