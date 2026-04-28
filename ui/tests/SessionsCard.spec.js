@@ -216,11 +216,16 @@ describe('SessionsCard.vue', () => {
     expect(refreshBtn.text()).toContain('Refreshing')
   })
 
-  it('opens "Full history" modal on button click', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ active: [], recent: [] }),
-    })
+  it('opens "Full history" modal on button click and auto-loads history', async () => {
+    fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ active: [], recent: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      })
 
     const wrapper = mount(SessionsCard, {
       props: { hostname: 'server10', currentRole: 'sysadmin' },
@@ -231,12 +236,14 @@ describe('SessionsCard.vue', () => {
 
     const historyBtn = wrapper.find('[data-testid="sessions-history-btn"]')
     await historyBtn.trigger('click')
+    await new Promise((r) => setTimeout(r, 10))
 
     expect(wrapper.find('.modal').exists()).toBe(true)
     expect(wrapper.find('.modal h3').text()).toContain('Session History')
+    expect(fetch).toHaveBeenCalledWith('/api/servers/server10/sessions/history')
   })
 
-  it('loads history from GET .../sessions/history with filters', async () => {
+  it('auto-loads history with data when modal is opened', async () => {
     const historyData = [
       {
         unix_user: 'dave',
@@ -259,6 +266,47 @@ describe('SessionsCard.vue', () => {
       })
 
     const wrapper = mount(SessionsCard, {
+      props: { hostname: 'server10b', currentRole: 'sysadmin' },
+      global: { plugins: [i18n] },
+    })
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    const historyBtn = wrapper.find('[data-testid="sessions-history-btn"]')
+    await historyBtn.trigger('click')
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(wrapper.find('[data-testid="history-table"]').exists()).toBe(true)
+    expect(wrapper.html()).toContain('dave')
+  })
+
+  it('loads history from GET .../sessions/history with filters', async () => {
+    const historyData = [
+      {
+        unix_user: 'dave',
+        tty: 'pts/4',
+        login_ip: '192.168.1.200',
+        login_at: '2026-04-26T14:00:00Z',
+        logout_at: null,
+        is_active: true,
+      },
+    ]
+
+    fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ active: [], recent: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => historyData,
+      })
+
+    const wrapper = mount(SessionsCard, {
       props: { hostname: 'server11', currentRole: 'sysadmin' },
       global: { plugins: [i18n] },
     })
@@ -266,6 +314,8 @@ describe('SessionsCard.vue', () => {
     await new Promise((r) => setTimeout(r, 10))
 
     wrapper.vm.showHistoryModal = true
+    await new Promise((r) => setTimeout(r, 10))
+
     wrapper.vm.filterUser = 'dave'
     wrapper.vm.filterIp = '192.168.1.200'
     wrapper.vm.filterSince = '2026-04-01'
@@ -281,6 +331,50 @@ describe('SessionsCard.vue', () => {
       '/api/servers/server11/sessions/history?user=dave&ip=192.168.1.200&since=2026-04-01'
     )
     expect(wrapper.find('[data-testid="history-table"]').exists()).toBe(true)
+  })
+
+  it('shows "—" for null login_ip in all session tables', async () => {
+    const sessionsWithNullIp = [
+      {
+        unix_user: 'root',
+        tty: 'tty1',
+        login_ip: null,
+        login_at: '2026-04-28T08:00:00Z',
+        is_active: true,
+        collected_at: '2026-04-28T12:00:00Z',
+      },
+    ]
+    const recentWithNullIp = [
+      {
+        unix_user: 'root',
+        tty: 'tty2',
+        login_ip: null,
+        login_at: '2026-04-27T08:00:00Z',
+        logout_at: '2026-04-27T09:00:00Z',
+        is_active: false,
+        collected_at: '2026-04-28T12:00:00Z',
+      },
+    ]
+
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ active: sessionsWithNullIp, recent: recentWithNullIp }),
+    })
+
+    const wrapper = mount(SessionsCard, {
+      props: { hostname: 'server11b', currentRole: 'sysadmin' },
+      global: { plugins: [i18n] },
+    })
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    const activeTds = wrapper.findAll('[data-testid="sessions-active-table"] tbody td')
+    const ipCellActive = activeTds[2]
+    expect(ipCellActive.text()).toBe('—')
+
+    const recentTds = wrapper.findAll('[data-testid="sessions-recent-table"] tbody td')
+    const ipCellRecent = recentTds[2]
+    expect(ipCellRecent.text()).toBe('—')
   })
 
   it('shows error message on load failure', async () => {

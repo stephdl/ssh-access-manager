@@ -53,7 +53,7 @@
             <td>
               <code>{{ session.tty }}</code>
             </td>
-            <td>{{ session.login_ip }}</td>
+            <td>{{ session.login_ip || '—' }}</td>
             <td>{{ formatDate(session.login_at) }}</td>
           </tr>
         </tbody>
@@ -81,7 +81,7 @@
             <td>
               <code>{{ session.tty }}</code>
             </td>
-            <td>{{ session.login_ip }}</td>
+            <td>{{ session.login_ip || '—' }}</td>
             <td>{{ formatDate(session.login_at) }}</td>
             <td>{{ formatDate(session.logout_at) }}</td>
           </tr>
@@ -151,7 +151,7 @@
               <td>
                 <code>{{ session.tty }}</code>
               </td>
-              <td>{{ session.login_ip }}</td>
+              <td>{{ session.login_ip || '—' }}</td>
               <td>{{ formatDate(session.login_at) }}</td>
               <td>{{ session.logout_at ? formatDate(session.logout_at) : '—' }}</td>
               <td>
@@ -173,7 +173,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { useI18n } from 'vue-i18n'
 
@@ -264,6 +264,10 @@ async function loadHistory() {
     historyLoading.value = false
   }
 }
+
+watch(showHistoryModal, (val) => {
+  if (val) loadHistory()
+})
 
 onMounted(() => {
   if (props.currentRole !== 'viewer') {
@@ -435,32 +439,6 @@ td {
 
 .modal-wide {
   width: 800px;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #999;
-  padding: 0;
-  line-height: 1;
-}
-
-.modal-close:hover {
-  color: #333;
 }
 
 .history-filters {
