@@ -991,6 +991,58 @@ La détection de langue suit une cascade de priorités :
 Les clés de traduction sont organisées par domaine fonctionnel :
 `key_table.btn_validate`, `dashboard.title`, `common.required`, etc.
 
+### Pagination côté client (issues #248, #250)
+
+Toutes les tables de l'interface sont paginées côté client. Les données sont chargées
+en une seule requête API ; la pagination opère sur la liste déjà en mémoire, sans
+appel supplémentaire au backend.
+
+**Composable `usePagination.js`** — encapsule la logique réutilisable :
+
+```javascript
+export function usePagination(filteredItems) {
+  const PAGE_SIZES = [10, 20, 40, 50, 100]
+  const currentPage = ref(1)
+  const pageSize = ref(10)
+
+  watch(filteredItems, () => { currentPage.value = 1 })  // reset auto sur filtre
+
+  const paginatedItems = computed(() => {
+    const start = (currentPage.value - 1) * pageSize.value
+    return filteredItems.value.slice(start, start + pageSize.value)
+  })
+  // …
+}
+```
+
+Le `watch` sur `filteredItems` garantit le retour en page 1 dès qu'un filtre change —
+évitant d'afficher une page vide si le résultat filtré est plus court que la page
+courante.
+
+**Composant `PaginationBar.vue`** — réutilisé sous chaque table : sélecteur de taille
+(10/20/40/50/100), indicateur traduit "1–10 sur 42", boutons Précédent/Suivant
+désactivés en limite. Traduit dans les 5 langues.
+
+### Architecture des composants table
+
+Par cohérence, chaque table est encapsulée dans un composant dédié. Le composant
+reçoit les données brutes en prop, gère son filtrage et sa pagination en interne,
+et émet des événements pour les actions. La vue parente conserve uniquement le
+fetch API et les modals.
+
+| Composant | Vue parente | Données |
+|-----------|------------|---------|
+| `ServerTable.vue` | `Dashboard.vue` | serveurs |
+| `KeyTable.vue` | `ServerDetail.vue` | clés SSH |
+| `DeployedUsersTable.vue` | `AccessRequests.vue` | utilisateurs déployés |
+| `AdminsTable.vue` | `Admins.vue` | administrateurs |
+| `AuditTable.vue` | `Audit.vue` | historique audit |
+| `AnomaliesTable.vue` | `Anomalies.vue` | anomalies actives |
+
+Le RBAC est appliqué dans chaque composant via la prop `currentRole` : les colonnes
+et boutons d'action sont masqués (`v-if`) selon le rôle. Le défaut `'viewer'`
+garantit le comportement le plus restrictif si la prop est absente.
+
 ---
 
 ## 12. Stratégie de tests

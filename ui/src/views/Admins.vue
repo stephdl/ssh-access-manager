@@ -29,7 +29,7 @@
         <h2>{{ $t('admins.section_my_account') }}</h2>
         <div class="my-account-row">
           <p class="my-account-hint">{{ $t('admins.my_account_hint') }}</p>
-          <button class="btn-secondary" @click="openEditPassword(currentUsername)">
+          <button class="btn-primary" @click="openEditPassword(currentUsername)">
             {{ $t('admins.btn_password') }}
           </button>
         </div>
