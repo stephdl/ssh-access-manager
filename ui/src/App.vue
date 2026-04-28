@@ -300,7 +300,11 @@ button:disabled {
   color: #333;
   background: #f0f0f0;
 }
-.modal-actions button {
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-success,
+.btn-warning {
   min-width: 6rem;
 }
 </style>

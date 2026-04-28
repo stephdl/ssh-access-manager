@@ -301,9 +301,6 @@ h2 {
 .field {
   margin-top: 1rem;
 }
-.field .btn-primary {
-  min-width: 6rem;
-}
 
 .field label {
   display: block;
