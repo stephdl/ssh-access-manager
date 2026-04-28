@@ -200,10 +200,10 @@
         </div>
         <p>{{ $t('admins.disable_modal_text', { username: disableTarget }) }}</p>
         <div class="modal-actions">
+          <button @click="disableTarget = null">{{ $t('common.cancel') }}</button>
           <button class="btn-danger" @click="confirmDisable">
             {{ $t('admins.btn_disable_confirm') }}
           </button>
-          <button @click="disableTarget = null">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
@@ -219,10 +219,10 @@
         </div>
         <p>{{ $t('admins.enable_modal_text', { username: enableTarget }) }}</p>
         <div class="modal-actions">
+          <button @click="enableTarget = null">{{ $t('common.cancel') }}</button>
           <button class="btn-success" @click="confirmEnable">
             {{ $t('admins.btn_enable_confirm') }}
           </button>
-          <button @click="enableTarget = null">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
@@ -238,10 +238,10 @@
         </div>
         <p>{{ $t('admins.delete_modal_text', { username: deleteTarget }) }}</p>
         <div class="modal-actions">
+          <button @click="deleteTarget = null">{{ $t('common.cancel') }}</button>
           <button class="btn-danger" @click="confirmDelete">
             {{ $t('admins.btn_delete_confirm') }}
           </button>
-          <button @click="deleteTarget = null">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
@@ -385,10 +385,10 @@
             </span>
           </div>
           <div class="modal-actions">
+            <button type="button" @click="closeEditPassword">{{ $t('common.cancel') }}</button>
             <button type="submit" class="btn-primary" :disabled="!canSubmitEdit">
               {{ $t('admins.btn_save') }}
             </button>
-            <button type="button" @click="closeEditPassword">{{ $t('common.cancel') }}</button>
           </div>
         </form>
       </div>
@@ -439,10 +439,10 @@
             </span>
           </div>
           <div class="modal-actions">
+            <button type="button" @click="closeEdit">{{ $t('common.cancel') }}</button>
             <button type="submit" class="btn-primary">
               {{ $t('admins.btn_save') }}
             </button>
-            <button type="button" @click="closeEdit">{{ $t('common.cancel') }}</button>
           </div>
         </form>
       </div>

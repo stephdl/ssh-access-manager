@@ -67,10 +67,10 @@
           :placeholder="$t('anomalies.revoke_reason_placeholder')"
         ></textarea>
         <div class="modal-actions">
+          <button @click="revokeTarget = null">{{ $t('common.cancel') }}</button>
           <button class="btn-danger" :disabled="!revokeReason.trim()" @click="confirmRevoke">
             {{ $t('anomalies.btn_revoke_confirm') }}
           </button>
-          <button @click="revokeTarget = null">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
