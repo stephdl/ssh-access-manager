@@ -336,7 +336,7 @@ def get_server_sessions(hostname):
         return jsonify({"error": "Server not found"}), 404
     active = db.query(
         """
-        SELECT unix_user, tty, login_ip::text AS login_ip, login_at, collected_at
+        SELECT unix_user, tty, host(login_ip) AS login_ip, login_at, collected_at
         FROM ssh_sessions
         WHERE server_id = %s AND is_active = true
         ORDER BY login_at DESC
@@ -345,7 +345,7 @@ def get_server_sessions(hostname):
     )
     recent = db.query(
         """
-        SELECT unix_user, tty, login_ip::text AS login_ip, login_at, logout_at, collected_at
+        SELECT unix_user, tty, host(login_ip) AS login_ip, login_at, logout_at, collected_at
         FROM ssh_sessions
         WHERE server_id = %s AND is_active = false
         ORDER BY login_at DESC
@@ -404,7 +404,7 @@ def get_server_sessions_history(hostname):
             pass
     rows = db.query(
         f"""
-        SELECT unix_user, tty, login_ip::text AS login_ip,
+        SELECT unix_user, tty, host(login_ip) AS login_ip,
                login_at, logout_at, is_active, collected_at
         FROM ssh_sessions
         WHERE {' AND '.join(conditions)}

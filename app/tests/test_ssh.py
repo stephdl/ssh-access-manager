@@ -497,6 +497,27 @@ def test_ssh_parse_session_datetime_last_no_year_single_digit_day():
     assert dt.day == 7
 
 
+def test_ssh_parse_session_datetime_past_month_uses_current_year():
+    """A date in a past month of current year stays in current year."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("Mon Mar  2 10:00", now)
+    assert dt is not None
+    assert dt.year == 2026
+    assert dt.month == 3
+
+
+def test_ssh_parse_session_datetime_future_month_uses_previous_year():
+    """A future date (e.g. Dec in April) must be placed in the previous year."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("Mon Dec 31 13:23", now)
+    assert dt is not None
+    assert dt.year == 2025
+    assert dt.month == 12
+    assert dt.day == 31
+
+
 def test_ssh_parse_session_datetime_invalid():
     from datetime import datetime, timezone
     now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)

@@ -188,11 +188,12 @@ who 2>/dev/null | awk '{
     print "A\\t"user"\\t"tty"\\t"ip"\\t"login;
 }'
 
-# Session history from 'last'
-# Local TTY logins have no IP field: 'root tty1   Mon Apr 27 18:38 2026 ...'
-# SSH logins have IP in field 3:    'alice pts/0 192.168.1.10 Mon Apr 27 ...'
+# Session history from 'last -F' (full timestamps including year).
+# Falls back to 'last' if -F is unsupported (busybox targets).
+# Local TTY: 'root tty1   Mon Apr 27 18:38:00 2026 ...'
+# SSH:       'alice pts/0 192.168.1.10 Mon Apr 27 18:38:00 2026 ...'
 # Detect IP by presence of '.' (IPv4) or ':' (IPv6) in field 3.
-last -n 100 2>/dev/null | grep -v "^$\\|^reboot\\|^wtmp\\|^btmp" | awk '{
+{ last -F -n 100 2>/dev/null || last -n 100 2>/dev/null; } | grep -v "^$\\|^reboot\\|^wtmp\\|^btmp" | awk '{
     if(NF<3) next;
     user=$1; tty=$2;
     if($3 ~ /[.:]/) { ip=$3; start=4; } else { ip=""; start=3; }
@@ -377,6 +378,8 @@ def _parse_session_datetime(s: str, now) -> "datetime | None":
             dt = datetime.strptime(s, fmt)
             if dt.year == 1900:
                 dt = dt.replace(year=now.year)
+                if dt.date() > now.date():
+                    dt = dt.replace(year=now.year - 1)
             return dt.replace(tzinfo=timezone.utc)
         except ValueError:
             continue
