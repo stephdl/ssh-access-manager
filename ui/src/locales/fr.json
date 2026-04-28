@@ -253,7 +253,7 @@
     "enable_modal_text": "Confirmer la réactivation de {username} ?",
     "btn_enable_confirm": "Réactiver",
     "delete_modal_title": "Supprimer un administrateur",
-    "delete_modal_text": "Supprimer définitivement {username} ? Action irréversible. Échoue si des enregistrements référencent ce compte.",
+    "delete_modal_text": "Supprimer définitivement {username} ? Cette action est irréversible.",
     "btn_delete_confirm": "Supprimer",
     "success_enabled": "Administrateur {username} réactivé.",
     "success_deleted": "Administrateur {username} supprimé.",

@@ -139,7 +139,7 @@ CREATE TABLE key_authorizations (
     -- Utilisateur Unix propriétaire de la clé sur ce serveur
     unix_user                VARCHAR(100) NOT NULL DEFAULT '',
     -- Administrateur ayant validé l'autorisation (NULL si détection automatique)
-    authorized_by            UUID REFERENCES administrators(id),
+    authorized_by            UUID REFERENCES administrators(id) ON DELETE SET NULL,
     -- Date de première autorisation ou détection
     authorized_at            TIMESTAMPTZ DEFAULT now(),
     -- Date d'expiration programmée (NULL = pas d'expiration)
@@ -156,7 +156,7 @@ CREATE TABLE key_authorizations (
     -- Date effective de révocation
     revoked_at               TIMESTAMPTZ,
     -- Administrateur ayant révoqué (NULL si révocation automatique hors système)
-    revoked_by               UUID REFERENCES administrators(id),
+    revoked_by               UUID REFERENCES administrators(id) ON DELETE SET NULL,
     -- True si révocation déclenchée automatiquement (expiration ou hors système)
     revoked_automatically    BOOLEAN DEFAULT false,
     -- Justification de révocation ou d'anomalie
@@ -187,9 +187,9 @@ CREATE TABLE access_requests (
     -- Identifiant unique généré automatiquement
     id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- Administrateur demandeur
-    requested_by         UUID REFERENCES administrators(id),
+    requested_by         UUID REFERENCES administrators(id) ON DELETE SET NULL,
     -- Administrateur approbateur (NULL tant que non traité)
-    approved_by          UUID REFERENCES administrators(id),
+    approved_by          UUID REFERENCES administrators(id) ON DELETE SET NULL,
     -- Clé SSH pour laquelle l'accès est demandé
     key_id               UUID REFERENCES ssh_keys(id),
     -- Serveur cible de la demande
@@ -264,7 +264,7 @@ CREATE TABLE audit_log (
                       'LOGIN_BANNED'        -- IP bannie après trop de tentatives échouées
                   )),
     -- Administrateur ayant déclenché l'action (NULL si automatique)
-    performed_by  UUID REFERENCES administrators(id),
+    performed_by  UUID REFERENCES administrators(id) ON DELETE SET NULL,
     -- Clé SSH concernée par l'action (NULL si non applicable)
     target_key    UUID REFERENCES ssh_keys(id),
     -- Serveur concerné par l'action (NULL si non applicable)

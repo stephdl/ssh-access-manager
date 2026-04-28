@@ -253,7 +253,7 @@
     "enable_modal_text": "Confirm enabling {username}?",
     "btn_enable_confirm": "Enable",
     "delete_modal_title": "Delete administrator",
-    "delete_modal_text": "Permanently delete {username}? This action is irreversible and will fail if the account has existing records.",
+    "delete_modal_text": "Permanently delete {username}? This action cannot be undone.",
     "btn_delete_confirm": "Delete",
     "success_enabled": "Administrator {username} enabled.",
     "success_deleted": "Administrator {username} deleted.",
