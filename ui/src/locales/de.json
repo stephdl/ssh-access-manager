@@ -323,7 +323,7 @@
     "seconds": "Sekunden",
     "smtp_section": "SMTP-Konfiguration",
     "smtp_hint": "Sendet eine Test-E-Mail an Ihre Adresse, um die SMTP-Konfiguration zu überprüfen.",
-    "smtp_test_btn": "Test-E-Mail senden",
+    "smtp_test_btn": "Senden",
     "smtp_testing": "Wird gesendet…",
     "smtp_sent": "Test-E-Mail wurde an {to} gesendet.",
     "smtp_error": "Senden fehlgeschlagen: {error}"

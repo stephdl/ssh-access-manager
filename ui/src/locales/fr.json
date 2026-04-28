@@ -323,7 +323,7 @@
     "seconds": "secondes",
     "smtp_section": "Configuration SMTP",
     "smtp_hint": "Envoie un email de test à votre adresse pour vérifier la configuration SMTP.",
-    "smtp_test_btn": "Envoyer un email de test",
+    "smtp_test_btn": "Envoyer",
     "smtp_testing": "Envoi en cours…",
     "smtp_sent": "Email de test envoyé à {to}.",
     "smtp_error": "Échec de l'envoi : {error}"
