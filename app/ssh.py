@@ -2,6 +2,7 @@ import hashlib
 import io
 import json
 import os
+import shlex
 
 import paramiko
 
@@ -225,7 +226,7 @@ def _run(client: paramiko.SSHClient, cmd: str) -> tuple[str, str, int]:
 
 
 def _remote_sha256(client: paramiko.SSHClient, remote_path: str) -> str | None:
-    out, _, rc = _run(client, f"sha256sum {remote_path} 2>/dev/null")
+    out, _, rc = _run(client, f"sha256sum {shlex.quote(remote_path)} 2>/dev/null")
     if rc != 0 or not out.strip():
         return None
     return out.split()[0]
@@ -240,8 +241,8 @@ def _deploy_script(
 ) -> None:
     sftp.putfo(io.BytesIO(content), tmp_path)
     sftp.chmod(tmp_path, 0o600)
-    _run(client, f"sudo /usr/bin/install -m 750 -o root -g root {tmp_path} {remote_path}")
-    _run(client, f"rm -f {tmp_path}")
+    _run(client, f"sudo /usr/bin/install -m 750 -o root -g root {shlex.quote(tmp_path)} {shlex.quote(remote_path)}")
+    _run(client, f"rm -f {shlex.quote(tmp_path)}")
 
 
 def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
