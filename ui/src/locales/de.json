@@ -382,5 +382,31 @@
     "showing": "{from}–{to} von {total}",
     "previous": "Zurück",
     "next": "Weiter"
+  },
+  "sessions": {
+    "title": "SSH-Sitzungen",
+    "refresh": "Aktualisieren",
+    "refreshing": "Wird aktualisiert…",
+    "history_btn": "Vollständiger Verlauf →",
+    "history_title": "Sitzungsverlauf",
+    "last_collected": "Zuletzt erfasst: {time}",
+    "active_title": "Aktive Verbindungen",
+    "recent_title": "Kürzlich beendet (letzte 5)",
+    "col_user": "Benutzer",
+    "col_tty": "TTY",
+    "col_ip": "IP",
+    "col_login_at": "Verbunden seit",
+    "col_logout_at": "Getrennt",
+    "col_status": "Status",
+    "status_active": "Aktiv",
+    "status_ended": "Beendet",
+    "no_active": "Keine aktiven SSH-Sitzungen.",
+    "no_history": "Kein Sitzungsverlauf gefunden.",
+    "filter_user": "Nach Benutzer filtern…",
+    "filter_ip": "Nach IP filtern…",
+    "filter_apply": "Anwenden",
+    "export_csv": "CSV exportieren",
+    "refresh_error": "Aktualisierung fehlgeschlagen: {error}",
+    "load_error": "Sitzungen konnten nicht geladen werden: {error}"
   }
 }

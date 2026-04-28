@@ -382,5 +382,31 @@
     "showing": "{from}–{to} of {total}",
     "previous": "Previous",
     "next": "Next"
+  },
+  "sessions": {
+    "title": "SSH Sessions",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "history_btn": "Full history →",
+    "history_title": "Session History",
+    "last_collected": "Last collected: {time}",
+    "active_title": "Active connections",
+    "recent_title": "Recently terminated (last 5)",
+    "col_user": "User",
+    "col_tty": "TTY",
+    "col_ip": "IP",
+    "col_login_at": "Connected since",
+    "col_logout_at": "Disconnected",
+    "col_status": "Status",
+    "status_active": "Active",
+    "status_ended": "Ended",
+    "no_active": "No active SSH sessions.",
+    "no_history": "No session history found.",
+    "filter_user": "Filter by user…",
+    "filter_ip": "Filter by IP…",
+    "filter_apply": "Apply",
+    "export_csv": "Export CSV",
+    "refresh_error": "Refresh failed: {error}",
+    "load_error": "Failed to load sessions: {error}"
   }
 }

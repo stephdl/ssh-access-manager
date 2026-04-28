@@ -60,7 +60,7 @@ Les routes clés sont structurées en `/api/keys/<action>/<fingerprint>` pour é
 
 ## Logique métier — scripts distants (ssh.py)
 
-Cinq constantes Python `bytes` dans ssh.py. Déployées via SFTP si absentes ou hash SHA256 différent.
+Six constantes Python `bytes` dans ssh.py. Déployées via SFTP si absentes ou hash SHA256 différent.
 Tracées dans audit_log (SCRIPT_DEPLOYED).
 
 | Constante | Path distant | Droits | Action |
@@ -70,6 +70,7 @@ Tracées dans audit_log (SCRIPT_DEPLOYED).
 | SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> | root, 755 | Crée user Unix si absent, ajoute clé idempotent (#164) |
 | SAM_LOCK_USER | /usr/local/bin/sam-lock-user \<unix_user\> | root, 755 | `usermod -L -s /sbin/nologin` — bloque mdp ET shell (#181) |
 | SAM_UNLOCK_USER | /usr/local/bin/sam-unlock-user \<unix_user\> | root, 755 | `usermod -U -s /bin/bash` (#181) |
+| SAM_SESSIONS | /usr/local/bin/sam-sessions | root, 755 | Collecte sessions SSH actives (who) + historique (last) → stdout : `A\|H\tuser\ttty\tip\trest` (#253) |
 
 ## Logique métier — known_hosts et connexions SSH
 
@@ -182,6 +183,8 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 | POST /api/servers | ✓ | 403 | 403 |
 | PUT/DELETE /api/servers/\*/disable, enable, DELETE | ✓ | 403 | 403 |
 | POST /api/servers/\*/scan, /api/system/scan | ✓ | ✓ | 403 |
+| GET /api/servers/\*/sessions, /api/servers/\*/sessions/history | ✓ | ✓ | 403 |
+| POST /api/servers/\*/sessions/refresh | ✓ | ✓ | 403 |
 | POST /api/keys/validate, revoke, assign, set-expiry, remove-expiry | ✓ | ✓ | 403 |
 | POST /api/access/grant, deploy, lock-user, unlock-user, request, approve, reject, revoke | ✓ | ✓ | 403 |
 | POST /api/admins | ✓ | 403 | 403 |

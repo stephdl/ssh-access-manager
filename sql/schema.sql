@@ -333,3 +333,26 @@ CREATE INDEX idx_ssh_keys_compliant
 -- Recherche par fingerprint (opération la plus fréquente sur ssh_keys)
 CREATE INDEX idx_ssh_keys_fingerprint
     ON ssh_keys(fingerprint);
+
+-- ---------------------------------------------------------------------------
+-- TABLE : ssh_sessions
+-- Sessions SSH collectées sur les serveurs lors du scan ou à la demande.
+-- Upsert via ON CONFLICT (server_id, unix_user, tty, login_at).
+-- ---------------------------------------------------------------------------
+CREATE TABLE ssh_sessions (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    server_id    UUID NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+    unix_user    VARCHAR(100) NOT NULL,
+    tty          VARCHAR(50) NOT NULL,
+    login_ip     INET,
+    login_at     TIMESTAMPTZ NOT NULL,
+    logout_at    TIMESTAMPTZ,
+    is_active    BOOLEAN NOT NULL DEFAULT true,
+    collected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (server_id, unix_user, tty, login_at)
+);
+
+COMMENT ON TABLE ssh_sessions IS 'Sessions SSH collectées via sam-sessions lors des scans';
+
+CREATE INDEX idx_sessions_server ON ssh_sessions(server_id, is_active, login_at DESC);
+CREATE INDEX idx_sessions_collected ON ssh_sessions(collected_at DESC);

@@ -111,6 +111,7 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
     local_hash_add = ssh._sha256(ssh.SAM_ADD)
     local_hash_lock = ssh._sha256(ssh.SAM_LOCK_USER)
     local_hash_unlock = ssh._sha256(ssh.SAM_UNLOCK_USER)
+    local_hash_sessions = ssh._sha256(ssh.SAM_SESSIONS)
 
     with patch("ssh._connect") as mock_connect, \
          patch("ssh.db") as mock_db:
@@ -120,11 +121,11 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
         client.open_sftp.return_value = sftp
 
         call_count = [0]
-        hashes = [local_hash_collect, local_hash_revoke, local_hash_add, local_hash_lock, local_hash_unlock]
+        hashes = [local_hash_collect, local_hash_revoke, local_hash_add, local_hash_lock, local_hash_unlock, local_hash_sessions]
 
         def exec_side_effect(cmd):
             stdout = MagicMock()
-            h = hashes[call_count[0] % 5]
+            h = hashes[call_count[0] % 6]
             stdout.read.return_value = f"{h}  path\n".encode()
             stdout.channel.recv_exit_status.return_value = 0
             call_count[0] += 1
@@ -283,6 +284,7 @@ def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
             "/usr/local/bin/sam-add",
             "/usr/local/bin/sam-lock-user",
             "/usr/local/bin/sam-unlock-user",
+            "/usr/local/bin/sam-sessions",
         )
         for cmd in install_cmds:
             dest = cmd.split()[-1]
@@ -439,3 +441,163 @@ def test_ssh_unlock_user_on_server_calls_sam_unlock_user(sample_server):
         cmd = client.exec_command.call_args[0][0]
         assert "sam-unlock-user" in cmd
         assert "alice" in cmd
+
+
+# ---------------------------------------------------------------------------
+# SAM_SESSIONS — vérifications de contenu et fonctions
+# ---------------------------------------------------------------------------
+
+def test_ssh_sam_sessions_is_bytes():
+    assert isinstance(ssh.SAM_SESSIONS, bytes)
+
+
+def test_ssh_parse_session_datetime_iso():
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("2026-04-01 10:30", now)
+    assert dt is not None
+    assert dt.year == 2026
+    assert dt.hour == 10
+
+
+def test_ssh_parse_session_datetime_last_f():
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("Mon Apr 27 08:00:01 2026", now)
+    assert dt is not None
+    assert dt.year == 2026
+
+
+def test_ssh_parse_session_datetime_hhmm():
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("10:30", now)
+    assert dt is not None
+    assert dt.hour == 10
+
+
+def test_ssh_parse_session_datetime_last_no_year():
+    """last without -F gives 'Mon Apr 28 13:21' (no year) — must parse correctly."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("Mon Apr 28 13:21", now)
+    assert dt is not None
+    assert dt.year == 2026
+    assert dt.hour == 13
+    assert dt.minute == 21
+
+
+def test_ssh_parse_session_datetime_last_no_year_single_digit_day():
+    """last without -F with day < 10 uses double-space padding: 'Mon Apr  7 08:00'."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("Mon Apr  7 08:00", now)
+    assert dt is not None
+    assert dt.year == 2026
+    assert dt.day == 7
+
+
+def test_ssh_parse_session_datetime_past_month_uses_current_year():
+    """A date in a past month of current year stays in current year."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("Mon Mar  2 10:00", now)
+    assert dt is not None
+    assert dt.year == 2026
+    assert dt.month == 3
+
+
+def test_ssh_parse_session_datetime_future_month_uses_previous_year():
+    """A future date (e.g. Dec in April) must be placed in the previous year."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("Mon Dec 31 13:23", now)
+    assert dt is not None
+    assert dt.year == 2025
+    assert dt.month == 12
+    assert dt.day == 31
+
+
+def test_ssh_parse_session_datetime_invalid():
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("", now)
+    assert dt is None
+
+
+def test_ssh_is_valid_ip_valid():
+    assert ssh._is_valid_ip("192.168.1.10") is True
+    assert ssh._is_valid_ip("::1") is True
+
+
+def test_ssh_is_valid_ip_invalid():
+    assert ssh._is_valid_ip("Mon") is False
+    assert ssh._is_valid_ip("local") is False
+    assert ssh._is_valid_ip("") is False
+
+
+def test_ssh_collect_sessions_calls_sam_sessions(mock_ssh_client):
+    """collect_sessions_on_server runs sam-sessions and upserts results."""
+    from unittest.mock import MagicMock, patch
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
+    mock_stdout.read.return_value = b"A\talice\tpts/0\t192.168.1.50\t2026-04-28 10:00\n"
+    mock_stdout.channel.recv_exit_status.return_value = 0
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b""
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    with patch("ssh._connect", return_value=mock_client), \
+         patch("ssh.db") as mock_db:
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+        assert mock_db.execute.called
+
+
+def test_ssh_collect_sessions_marks_inactive_before_reinserting(mock_ssh_client):
+    """Before inserting active sessions, all existing active rows are marked inactive."""
+    from unittest.mock import MagicMock, patch
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
+    mock_stdout.read.return_value = b"A\talice\tpts/0\t192.168.1.50\t2026-04-28 10:00\n"
+    mock_stdout.channel.recv_exit_status.return_value = 0
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b""
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    with patch("ssh._connect", return_value=mock_client), \
+         patch("ssh.db") as mock_db:
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+
+        first_call = mock_db.execute.call_args_list[0]
+        first_sql = first_call[0][0]
+        assert "UPDATE" in first_sql
+        assert "is_active = false" in first_sql
+        assert first_call[0][1] == ("server-uuid-1",)
+
+
+def test_ssh_collect_sessions_local_tty_no_ip(mock_ssh_client):
+    """Local TTY sessions (no IP in last output) must not fail INET insertion."""
+    from unittest.mock import MagicMock, patch
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
+    # 'root' on tty1 with no IP (Mon is a day abbreviation, not an IP)
+    mock_stdout.read.return_value = (
+        b"H\troot\ttty1\t\tMon Apr 27 18:38 2026   still logged in\n"
+    )
+    mock_stdout.channel.recv_exit_status.return_value = 0
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b""
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    with patch("ssh._connect", return_value=mock_client), \
+         patch("ssh.db") as mock_db:
+        # Must not raise — "Mon" must not reach the INET column
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+        # call_args_list[0] is the UPDATE (mark inactive), [1] is the H line INSERT
+        insert_calls = [
+            c for c in mock_db.execute.call_args_list if "INSERT" in c[0][0]
+        ]
+        if insert_calls:
+            params = insert_calls[0][0][1]
+            # login_ip must be None, not "Mon"
+            assert params[3] is None

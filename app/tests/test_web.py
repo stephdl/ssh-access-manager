@@ -1462,3 +1462,67 @@ def test_web_login_with_remember_me_sets_long_expiry(client):
     now = datetime.now(timezone.utc).timestamp()
     expected = now + web.SESSION_LONG_HOURS * 3600
     assert abs(expires_at - expected) < 5
+
+
+# ---------------------------------------------------------------------------
+# SSH Sessions routes
+# ---------------------------------------------------------------------------
+
+def test_web_get_sessions_operator_200(client):
+    """GET /api/servers/<hostname>/sessions returns 200 for operator."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": ADMIN_ID, "username": "op", "role": "operator"},
+            {"id": SERVER_ID}
+        ]
+        mock_db.query.return_value = []
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        res = client.get("/api/servers/server1/sessions")
+        assert res.status_code == 200
+        data = res.get_json()
+        assert "active" in data
+        assert "recent" in data
+
+
+def test_web_get_sessions_viewer_403(client):
+    """GET /api/servers/<hostname>/sessions returns 403 for viewer."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "viewer", "role": "viewer"}
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        res = client.get("/api/servers/server1/sessions")
+        assert res.status_code == 403
+
+
+def test_web_get_sessions_unauthenticated_401(client):
+    """GET /api/servers/<hostname>/sessions returns 401 when not logged in."""
+    res = client.get("/api/servers/server1/sessions")
+    assert res.status_code == 401
+
+
+def test_web_refresh_sessions_operator_200(client):
+    """POST /api/servers/<hostname>/sessions/refresh returns 200 for operator."""
+    with patch("web.db") as mock_db, patch("web.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": ADMIN_ID, "username": "op", "role": "operator"},
+            {"id": SERVER_ID, "ip_address": "192.168.1.1"}
+        ]
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        res = client.post("/api/servers/server1/sessions/refresh")
+        assert res.status_code == 200
+
+
+def test_web_sessions_history_operator_200(client):
+    """GET /api/servers/<hostname>/sessions/history returns 200 for operator."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": ADMIN_ID, "username": "op", "role": "operator"},
+            {"id": SERVER_ID}
+        ]
+        mock_db.query.return_value = []
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        res = client.get("/api/servers/server1/sessions/history")
+        assert res.status_code == 200
