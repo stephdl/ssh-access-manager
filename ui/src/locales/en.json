@@ -190,6 +190,13 @@
     "reset_btn": "Reset",
     "load_error": "Unable to load audit: {error}"
   },
+  "admins_table": {
+    "search_placeholder": "Search administrators...",
+    "no_results": "No matching administrators."
+  },
+  "audit_table": {
+    "no_results": "No matching audit entries."
+  },
   "admins": {
     "title": "Administrators",
     "section_list": "List",

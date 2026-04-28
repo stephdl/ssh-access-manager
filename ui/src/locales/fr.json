@@ -190,6 +190,13 @@
     "reset_btn": "Réinitialiser",
     "load_error": "Impossible de charger l'audit : {error}"
   },
+  "admins_table": {
+    "search_placeholder": "Rechercher administrateurs...",
+    "no_results": "Aucun administrateur correspondant."
+  },
+  "audit_table": {
+    "no_results": "Aucune entrée d'audit correspondante."
+  },
   "admins": {
     "title": "Administrateurs",
     "section_list": "Liste",

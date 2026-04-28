@@ -8,33 +8,6 @@
     <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
 
     <template v-else>
-      <div v-if="allKeys.length > 0" class="filters" data-testid="anomalies-filters">
-        <input
-          v-model="filterText"
-          type="text"
-          :placeholder="$t('anomalies.filter_placeholder')"
-          class="filter-input"
-          data-testid="anomalies-filter-text"
-        />
-        <select v-model="filterType" class="filter-select" data-testid="anomalies-filter-type">
-          <option value="">{{ $t('anomalies.filter_all_types') }}</option>
-          <option v-for="t in uniqueTypes" :key="t" :value="t">{{ t }}</option>
-        </select>
-        <select v-model="filterServer" class="filter-select" data-testid="anomalies-filter-server">
-          <option value="">{{ $t('anomalies.filter_all_servers') }}</option>
-          <option v-for="s in uniqueServers" :key="s" :value="s">{{ s }}</option>
-        </select>
-        <select
-          v-model="filterCompliant"
-          class="filter-select"
-          data-testid="anomalies-filter-compliant"
-        >
-          <option value="">{{ $t('anomalies.filter_all_compliant') }}</option>
-          <option value="yes">{{ $t('anomalies.filter_compliant') }}</option>
-          <option value="no">{{ $t('anomalies.filter_non_compliant') }}</option>
-        </select>
-      </div>
-
       <!-- PENDING_REVIEW keys -->
       <section class="card">
         <h2>
@@ -43,72 +16,13 @@
             {{ pendingAll.length }}
           </span>
         </h2>
-        <table v-if="pendingFiltered.length">
-          <thead>
-            <tr>
-              <th>{{ $t('anomalies.col_fingerprint') }}</th>
-              <th>{{ $t('anomalies.col_type') }}</th>
-              <th>{{ $t('anomalies.col_server') }}</th>
-              <th>{{ $t('anomalies.col_unix_user') }}</th>
-              <th>{{ $t('anomalies.col_first_seen') }}</th>
-              <th>{{ $t('anomalies.col_compliant') }}</th>
-              <th>{{ $t('anomalies.col_actions') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="k in paginatedPending"
-              :key="k.fingerprint + k.server_hostname"
-              :data-testid="`pending-row-${k.fingerprint}`"
-            >
-              <td class="fp">
-                <code>{{ k.fingerprint }}</code>
-              </td>
-              <td>
-                <code>{{ k.key_type }}</code>
-              </td>
-              <td>
-                <router-link :to="`/servers/${k.server_hostname}`" class="server-link">
-                  {{ k.server_hostname }}
-                </router-link>
-              </td>
-              <td>
-                <code v-if="k.unix_user">{{ k.unix_user }}</code>
-                <span v-else>—</span>
-              </td>
-              <td>{{ formatDate(k.first_seen) }}</td>
-              <td>
-                <span v-if="k.is_compliant" :title="$t('key_table.compliant_ok')">✅</span>
-                <span v-else class="non-compliant" :title="complianceTooltip(k)">⚠️</span>
-              </td>
-              <td>
-                <div v-if="currentRole !== 'viewer'" class="actions">
-                  <button class="btn-success" @click="validate(k)">
-                    {{ $t('anomalies.btn_validate') }}
-                  </button>
-                  <button class="btn-danger" @click="openRevoke(k)">
-                    {{ $t('anomalies.btn_revoke') }}
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-else-if="pendingAll.length === 0" class="empty" data-testid="pending-empty">
-          {{ $t('anomalies.no_pending') }}
-        </p>
-        <p v-else class="empty" data-testid="pending-no-results">
-          {{ $t('anomalies.no_results') }}
-        </p>
-
-        <PaginationBar
-          v-if="pendingFiltered.length > 0"
-          :current-page="pendingCurrentPage"
-          :total-pages="pendingTotalPages"
-          :total-items="pendingTotalItems"
-          :page-size="pendingPageSize"
-          @update:current-page="pendingCurrentPage = $event"
-          @update:page-size="setPendingPageSize"
+        <AnomaliesTable
+          :anomalies="pendingAll"
+          :servers="servers"
+          :current-role="currentRole"
+          type="pending"
+          @validate="validate"
+          @revoke="openRevokeByFingerprint"
         />
       </section>
 
@@ -121,58 +35,11 @@
           </span>
           <span class="subtitle">{{ $t('anomalies.subtitle_revoked') }}</span>
         </h2>
-        <table v-if="outOfSystemFiltered.length">
-          <thead>
-            <tr>
-              <th>{{ $t('anomalies.col_fingerprint') }}</th>
-              <th>{{ $t('anomalies.col_type') }}</th>
-              <th>{{ $t('anomalies.col_server') }}</th>
-              <th>{{ $t('anomalies.col_unix_user') }}</th>
-              <th>{{ $t('anomalies.col_revoked_at') }}</th>
-              <th>{{ $t('anomalies.col_details') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="k in paginatedOutOfSystem"
-              :key="k.fingerprint + k.server_hostname"
-              :data-testid="`revoked-row-${k.fingerprint}`"
-            >
-              <td class="fp">
-                <code>{{ k.fingerprint }}</code>
-              </td>
-              <td>
-                <code>{{ k.key_type }}</code>
-              </td>
-              <td>
-                <router-link :to="`/servers/${k.server_hostname}`" class="server-link">
-                  {{ k.server_hostname }}
-                </router-link>
-              </td>
-              <td>
-                <code v-if="k.unix_user">{{ k.unix_user }}</code>
-                <span v-else>—</span>
-              </td>
-              <td>{{ formatDate(k.revoked_at) }}</td>
-              <td>{{ k.revocation_justification || '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-else-if="outOfSystemAll.length === 0" class="empty" data-testid="revoked-empty">
-          {{ $t('anomalies.no_revoked') }}
-        </p>
-        <p v-else class="empty" data-testid="revoked-no-results">
-          {{ $t('anomalies.no_results') }}
-        </p>
-
-        <PaginationBar
-          v-if="outOfSystemFiltered.length > 0"
-          :current-page="outOfSystemCurrentPage"
-          :total-pages="outOfSystemTotalPages"
-          :total-items="outOfSystemTotalItems"
-          :page-size="outOfSystemPageSize"
-          @update:current-page="outOfSystemCurrentPage = $event"
-          @update:page-size="setOutOfSystemPageSize"
+        <AnomaliesTable
+          :anomalies="outOfSystemAll"
+          :servers="servers"
+          :current-role="currentRole"
+          type="revoked"
         />
       </section>
     </template>
@@ -214,25 +81,19 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth.js'
-import { useFormatDate } from '../composables/useFormatDate.js'
-import { usePagination } from '../composables/usePagination.js'
-import PaginationBar from '../components/PaginationBar.vue'
+import AnomaliesTable from '../components/AnomaliesTable.vue'
 
 const { t } = useI18n()
 const { admin } = useAuth()
-const { formatDate } = useFormatDate()
 const currentRole = computed(() => admin.value?.role || 'viewer')
 
 const allKeys = ref([])
+const servers = ref([])
 const loading = ref(true)
 const error = ref('')
 const message = ref('')
 const revokeTarget = ref(null)
 const revokeReason = ref('')
-const filterText = ref('')
-const filterType = ref('')
-const filterServer = ref('')
-const filterCompliant = ref('')
 
 const pendingAll = computed(() => allKeys.value.filter((k) => k.status === 'PENDING_REVIEW'))
 
@@ -247,54 +108,6 @@ const outOfSystemAll = computed(() => {
       new Date(k.revoked_at) >= cutoff
   )
 })
-
-const uniqueTypes = computed(() => {
-  const all = [...pendingAll.value, ...outOfSystemAll.value]
-  return [...new Set(all.map((k) => k.key_type).filter(Boolean))].sort()
-})
-
-const uniqueServers = computed(() => {
-  const all = [...pendingAll.value, ...outOfSystemAll.value]
-  return [...new Set(all.map((k) => k.server_hostname).filter(Boolean))].sort()
-})
-
-function matchesFilter(k) {
-  const text = filterText.value.trim().toLowerCase()
-  if (text) {
-    const match =
-      k.fingerprint.toLowerCase().includes(text) ||
-      k.key_type.toLowerCase().includes(text) ||
-      (k.server_hostname || '').toLowerCase().includes(text) ||
-      (k.unix_user || '').toLowerCase().includes(text)
-    if (!match) return false
-  }
-  if (filterType.value && k.key_type !== filterType.value) return false
-  if (filterServer.value && k.server_hostname !== filterServer.value) return false
-  if (filterCompliant.value === 'yes' && !k.is_compliant) return false
-  if (filterCompliant.value === 'no' && k.is_compliant) return false
-  return true
-}
-
-const pendingFiltered = computed(() => pendingAll.value.filter(matchesFilter))
-const outOfSystemFiltered = computed(() => outOfSystemAll.value.filter(matchesFilter))
-
-const {
-  pageSize: pendingPageSize,
-  currentPage: pendingCurrentPage,
-  totalItems: pendingTotalItems,
-  totalPages: pendingTotalPages,
-  paginatedItems: paginatedPending,
-  setPageSize: setPendingPageSize,
-} = usePagination(pendingFiltered)
-
-const {
-  pageSize: outOfSystemPageSize,
-  currentPage: outOfSystemCurrentPage,
-  totalItems: outOfSystemTotalItems,
-  totalPages: outOfSystemTotalPages,
-  paginatedItems: paginatedOutOfSystem,
-  setPageSize: setOutOfSystemPageSize,
-} = usePagination(outOfSystemFiltered)
 
 async function load() {
   loading.value = true
@@ -312,17 +125,20 @@ async function load() {
 
 const efp = (fp) => encodeURIComponent(fp)
 
-async function validate(key) {
+async function validate(fingerprint, unix_user, hostname) {
   await apiAction(
-    `/api/keys/validate/${efp(key.fingerprint)}`,
-    { unix_user: key.unix_user || null, hostname: key.server_hostname || null },
+    `/api/keys/validate/${efp(fingerprint)}`,
+    { unix_user: unix_user || null, hostname: hostname || null },
     t('anomalies.key_validated')
   )
 }
 
-function openRevoke(key) {
-  revokeTarget.value = key
-  revokeReason.value = ''
+function openRevokeByFingerprint(fingerprint) {
+  const key = allKeys.value.find((k) => k.fingerprint === fingerprint)
+  if (key) {
+    revokeTarget.value = key
+    revokeReason.value = ''
+  }
 }
 
 async function confirmRevoke() {
@@ -355,14 +171,6 @@ async function apiAction(url, body, successMsg) {
   }
 }
 
-function complianceTooltip(k) {
-  if (k.key_type === 'ssh-rsa') {
-    const bits = k.key_size_bits
-    return bits ? t('key_table.non_compliant_rsa_bits', { bits }) : t('key_table.non_compliant_rsa')
-  }
-  return t('key_table.non_compliant_type')
-}
-
 onMounted(load)
 </script>
 
@@ -377,24 +185,6 @@ h2 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-.non-compliant {
-  cursor: help;
-}
-
-.filters {
-  display: flex;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.filter-input {
-  padding: 0.35rem 0.6rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  flex: 1;
-  max-width: 400px;
 }
 
 .card {
@@ -435,16 +225,12 @@ h2 {
   font-weight: normal;
 }
 
-.fp {
-  font-size: 0.75rem;
-  word-break: break-all;
-  max-width: 240px;
-}
 .fp-display {
   margin: 0.5rem 0 1rem;
   font-size: 0.85rem;
   word-break: break-all;
 }
+
 code {
   background: #f4f4f4;
   padding: 0 3px;
@@ -452,25 +238,6 @@ code {
   font-size: 0.8rem;
 }
 
-.server-link {
-  color: #0d6efd;
-  text-decoration: none;
-  font-weight: 500;
-}
-.server-link:hover {
-  text-decoration: underline;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.empty {
-  color: #888;
-  font-size: 0.9rem;
-  padding: 0.5rem 0;
-}
 .loading {
   text-align: center;
   padding: 2rem;

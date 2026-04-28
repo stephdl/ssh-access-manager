@@ -11,121 +11,16 @@
       <!-- Administrators list -->
       <section class="card">
         <h2>{{ $t('admins.section_list') }}</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>{{ $t('admins.col_username') }}</th>
-              <th>{{ $t('admins.col_email') }}</th>
-              <th>{{ $t('admins.col_role') }}</th>
-              <th>{{ $t('admins.col_active') }}</th>
-              <th>{{ $t('admins.col_created') }}</th>
-              <th v-if="currentRole === 'sysadmin'">{{ $t('admins.col_alerts') }}</th>
-              <th v-if="currentRole === 'sysadmin'">{{ $t('admins.col_actions') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="admins.length === 0">
-              <td :colspan="currentRole === 'sysadmin' ? 7 : 5" class="empty">
-                {{ $t('admins.empty') }}
-              </td>
-            </tr>
-            <tr v-for="a in paginatedAdmins" :key="a.id" :class="{ 'row-inactive': !a.is_active }">
-              <td>
-                <strong>{{ a.username }}</strong>
-              </td>
-              <td>{{ a.email || '—' }}</td>
-              <td>{{ a.role }}</td>
-              <td>
-                <span class="badge" :class="a.is_active ? 'badge-active' : 'badge-revoked'">
-                  {{ a.is_active ? $t('admins.status_active') : $t('admins.status_disabled') }}
-                </span>
-              </td>
-              <td>{{ formatDateOnly(a.created_at) }}</td>
-              <td v-if="currentRole === 'sysadmin'">
-                <div class="alerts-cell">
-                  <span class="badge" :class="a.receive_alerts ? 'badge-active' : 'badge-off'">
-                    {{ a.receive_alerts ? $t('admins.alerts_on') : $t('admins.alerts_off') }}
-                  </span>
-                  <button
-                    v-if="a.receive_alerts"
-                    class="btn-secondary btn-sm"
-                    :data-testid="`btn-alerts-off-${a.username}`"
-                    @click="toggleAlerts(a, false)"
-                  >
-                    {{ $t('admins.btn_alerts_off') }}
-                  </button>
-                  <button
-                    v-else
-                    class="btn-success btn-sm"
-                    :data-testid="`btn-alerts-on-${a.username}`"
-                    @click="toggleAlerts(a, true)"
-                  >
-                    {{ $t('admins.btn_alerts_on') }}
-                  </button>
-                </div>
-              </td>
-              <td v-if="currentRole === 'sysadmin'">
-                <div class="actions-cell">
-                  <template v-if="a.is_active">
-                    <button
-                      v-if="currentRole === 'sysadmin'"
-                      class="btn-secondary btn-sm"
-                      @click="openEdit(a)"
-                    >
-                      {{ $t('admins.btn_edit') }}
-                    </button>
-                    <button
-                      v-if="currentRole === 'sysadmin' || a.username === admin?.username"
-                      class="btn-secondary btn-sm"
-                      @click="openEditPassword(a.username)"
-                    >
-                      {{ $t('admins.btn_password') }}
-                    </button>
-                    <button
-                      v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
-                      class="btn-warning btn-sm"
-                      @click="openDisable(a.username)"
-                    >
-                      {{ $t('admins.btn_disable') }}
-                    </button>
-                    <button
-                      v-if="currentRole === 'sysadmin' && a.username !== currentUsername"
-                      class="btn-danger btn-sm"
-                      @click="openDelete(a.username)"
-                    >
-                      {{ $t('admins.btn_delete') }}
-                    </button>
-                  </template>
-                  <template v-else>
-                    <button
-                      v-if="currentRole === 'sysadmin'"
-                      class="btn-success btn-sm"
-                      @click="openEnable(a.username)"
-                    >
-                      {{ $t('admins.btn_enable') }}
-                    </button>
-                    <button
-                      v-if="currentRole === 'sysadmin'"
-                      class="btn-danger btn-sm"
-                      @click="openDelete(a.username)"
-                    >
-                      {{ $t('admins.btn_delete') }}
-                    </button>
-                  </template>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <PaginationBar
-          v-if="admins.length > 0"
-          :current-page="currentPage"
-          :total-pages="totalPages"
-          :total-items="totalItems"
-          :page-size="pageSize"
-          @update:current-page="currentPage = $event"
-          @update:page-size="setPageSize"
+        <AdminsTable
+          :admins="admins"
+          :current-username="currentUsername"
+          :current-role="currentRole"
+          @enable="openEnable"
+          @disable="openDisable"
+          @delete="openDelete"
+          @change-password="openEditPassword"
+          @toggle-alerts="toggleAlerts"
+          @edit="openEdit"
         />
       </section>
 
@@ -559,13 +454,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth'
-import { useFormatDate } from '../composables/useFormatDate.js'
-import { usePagination } from '../composables/usePagination.js'
-import PaginationBar from '../components/PaginationBar.vue'
+import AdminsTable from '../components/AdminsTable.vue'
 
 const { t } = useI18n()
 const { admin } = useAuth()
-const { formatDateOnly } = useFormatDate()
 
 const currentRole = computed(() => admin.value?.role || 'viewer')
 
@@ -597,15 +489,6 @@ const error = ref('')
 const message = ref('')
 const currentUsername = ref('')
 
-const adminsComputed = computed(() => admins.value)
-const {
-  pageSize,
-  currentPage,
-  totalItems,
-  totalPages,
-  paginatedItems: paginatedAdmins,
-  setPageSize,
-} = usePagination(adminsComputed)
 const newUsername = ref('')
 const newEmail = ref('')
 const newRole = ref('operator')
@@ -701,10 +584,10 @@ function openDelete(username) {
   deleteTarget.value = username
 }
 
-async function toggleAlerts(admin, receive_alerts) {
+async function toggleAlerts(username, receive_alerts) {
   error.value = ''
   try {
-    const res = await fetch(`/api/admins/${admin.username}/alerts`, {
+    const res = await fetch(`/api/admins/${username}/alerts`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ receive_alerts }),
@@ -713,7 +596,10 @@ async function toggleAlerts(admin, receive_alerts) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || `HTTP ${res.status}`)
     }
-    admin.receive_alerts = receive_alerts
+    const adminToUpdate = admins.value.find((a) => a.username === username)
+    if (adminToUpdate) {
+      adminToUpdate.receive_alerts = receive_alerts
+    }
   } catch (e) {
     error.value = t('admins.toggle_alerts_error', { error: e.message })
   }
@@ -867,33 +753,6 @@ h2 {
   border-radius: 6px;
   padding: 1.25rem;
   margin-bottom: 1.25rem;
-}
-
-.row-inactive {
-  opacity: 0.6;
-}
-.text-muted {
-  color: #aaa;
-  font-size: 0.85rem;
-}
-
-.actions-cell {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.alerts-cell {
-  display: flex;
-  gap: 0.4rem;
-  align-items: center;
-  flex-wrap: nowrap;
-}
-
-.badge-off {
-  background: #e9ecef;
-  color: #6c757d;
 }
 
 .my-account-card {
