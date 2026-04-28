@@ -401,7 +401,7 @@ def test_actions_revoke_request_calls_sam_revoke():
 
 def test_actions_add_server_logs_server_added(sample_server):
     with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"):
-        mock_db.query_one.return_value = {"id": SERVER_ID}
+        mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         actions.add_server("new-host", "10.0.0.1", "lab", "rhel", ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
         assert any("SERVER_ADDED" in c for c in calls)
@@ -991,13 +991,9 @@ def test_actions_validate_key_scoped_raises_if_server_not_found(sample_key):
 
 def test_actions_update_server_success():
     """update_server met à jour les champs et log SERVER_UPDATED."""
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel"}
     with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"):
-        mock_db.query_one.return_value = {
-            "id": SERVER_ID,
-            "ip_address": "192.168.1.10",
-            "environment": "lab",
-            "os_family": "rhel",
-        }
+        mock_db.query_one.side_effect = [server, None]
         actions.update_server("server-test-01", "192.168.1.20", "production", "debian", ADMIN_ID)
         update_call = mock_db.execute.call_args_list[0]
         assert "UPDATE servers" in update_call[0][0]
@@ -1010,13 +1006,9 @@ def test_actions_update_server_success():
 
 def test_actions_update_server_ip_change_calls_keyscan():
     """Si l'IP change, add_to_known_hosts est appelé."""
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel"}
     with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts") as mock_keyscan:
-        mock_db.query_one.return_value = {
-            "id": SERVER_ID,
-            "ip_address": "192.168.1.10",
-            "environment": "lab",
-            "os_family": "rhel",
-        }
+        mock_db.query_one.side_effect = [server, None]
         actions.update_server("server-test-01", "192.168.1.99", "lab", "rhel", ADMIN_ID)
         mock_keyscan.assert_called_once_with("192.168.1.99")
 
@@ -1038,6 +1030,21 @@ def test_actions_add_server_rejects_invalid_ip():
 def test_actions_update_server_rejects_invalid_ip():
     with pytest.raises(ValueError, match="Invalid IP"):
         actions.update_server("h", "not-an-ip", "lab", None, ADMIN_ID)
+
+
+def test_actions_add_server_rejects_duplicate_ip():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"hostname": "existing-server"}
+        with pytest.raises(ValueError, match="already used by server"):
+            actions.add_server("new-host", "10.0.0.1", "lab", None, ADMIN_ID)
+
+
+def test_actions_update_server_rejects_duplicate_ip():
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel"}
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [server, {"hostname": "other-server"}]
+        with pytest.raises(ValueError, match="already used by server"):
+            actions.update_server("server-test-01", "10.0.0.2", "lab", None, ADMIN_ID)
 
 
 # ---------------------------------------------------------------------------

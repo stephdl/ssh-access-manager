@@ -334,6 +334,10 @@ CREATE INDEX idx_ssh_keys_compliant
 CREATE INDEX idx_ssh_keys_fingerprint
     ON ssh_keys(fingerprint);
 
+-- Une IP ne peut appartenir qu'à un seul serveur (désactivé = temporaire, pas libéré)
+CREATE UNIQUE INDEX servers_ip_unique
+    ON servers (ip_address);
+
 -- ---------------------------------------------------------------------------
 -- TABLE : ssh_sessions
 -- Sessions SSH collectées sur les serveurs lors du scan ou à la demande.
