@@ -189,11 +189,15 @@ who 2>/dev/null | awk '{
 }'
 
 # Session history from 'last'
+# Local TTY logins have no IP field: 'root tty1   Mon Apr 27 18:38 2026 ...'
+# SSH logins have IP in field 3:    'alice pts/0 192.168.1.10 Mon Apr 27 ...'
+# Detect IP by presence of '.' (IPv4) or ':' (IPv6) in field 3.
 last -n 100 2>/dev/null | grep -v "^$\\|^reboot\\|^wtmp\\|^btmp" | awk '{
     if(NF<3) next;
-    user=$1; tty=$2; ip=$3;
+    user=$1; tty=$2;
+    if($3 ~ /[.:]/) { ip=$3; start=4; } else { ip=""; start=3; }
     rest="";
-    for(i=4;i<=NF;i++) rest=rest$i(i<NF?" ":"");
+    for(i=start;i<=NF;i++) rest=rest$i(i<NF?" ":"");
     print "H\\t"user"\\t"tty"\\t"ip"\\t"rest;
 }'
 """
@@ -383,6 +387,16 @@ def _parse_session_datetime(s: str, now) -> "datetime | None":
     return None
 
 
+def _is_valid_ip(s: str) -> bool:
+    """Return True if s is a valid IPv4 or IPv6 address."""
+    import ipaddress
+    try:
+        ipaddress.ip_address(s)
+        return True
+    except ValueError:
+        return False
+
+
 def collect_sessions_on_server(hostname: str, server_id: str, ip: str) -> None:
     """Collect SSH sessions via sam-sessions and upsert into ssh_sessions table."""
     from datetime import datetime, timezone
@@ -402,7 +416,7 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str) -> None:
             raw_ip = parts[3].strip()
             if not unix_user or unix_user in ('USER', 'user', ''):
                 continue
-            login_ip = raw_ip if raw_ip and raw_ip not in ('local', '') else None
+            login_ip = raw_ip if _is_valid_ip(raw_ip) else None
             if session_type == 'A':
                 login_at_str = parts[4].strip() if len(parts) > 4 else ''
                 login_at = _parse_session_datetime(login_at_str, now)

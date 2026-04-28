@@ -483,6 +483,17 @@ def test_ssh_parse_session_datetime_invalid():
     assert dt is None
 
 
+def test_ssh_is_valid_ip_valid():
+    assert ssh._is_valid_ip("192.168.1.10") is True
+    assert ssh._is_valid_ip("::1") is True
+
+
+def test_ssh_is_valid_ip_invalid():
+    assert ssh._is_valid_ip("Mon") is False
+    assert ssh._is_valid_ip("local") is False
+    assert ssh._is_valid_ip("") is False
+
+
 def test_ssh_collect_sessions_calls_sam_sessions(mock_ssh_client):
     """collect_sessions_on_server runs sam-sessions and upserts results."""
     from unittest.mock import MagicMock, patch
@@ -498,3 +509,28 @@ def test_ssh_collect_sessions_calls_sam_sessions(mock_ssh_client):
          patch("ssh.db") as mock_db:
         ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
         assert mock_db.execute.called
+
+
+def test_ssh_collect_sessions_local_tty_no_ip(mock_ssh_client):
+    """Local TTY sessions (no IP in last output) must not fail INET insertion."""
+    from unittest.mock import MagicMock, patch
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
+    # 'root' on tty1 with no IP (Mon is a day abbreviation, not an IP)
+    mock_stdout.read.return_value = (
+        b"H\troot\ttty1\t\tMon Apr 27 18:38 2026   still logged in\n"
+    )
+    mock_stdout.channel.recv_exit_status.return_value = 0
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b""
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    with patch("ssh._connect", return_value=mock_client), \
+         patch("ssh.db") as mock_db:
+        # Must not raise — "Mon" must not reach the INET column
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+        if mock_db.execute.called:
+            call_args = mock_db.execute.call_args_list[0]
+            params = call_args[0][1]
+            # login_ip must be None, not "Mon"
+            assert params[3] is None
