@@ -6,9 +6,9 @@ Projet "ssh-access-manager" — audit et gestion des accès SSH dans un containe
 VAE RNCP41330 "Expert en développement logiciel" Niveau 7 — C.1.6.
 Développeur : Stéphane de Labrusse.
 
-## État du projet — toutes issues fermées (48/48)
+## État du projet — toutes issues fermées (49/49)
 
-Milestone 1–4 + issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148, 181, 183, 185, 222, 223, 228, 230, 236, 239) ✅
+Milestone 1–4 + issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148, 181, 183, 185, 222, 223, 228, 230, 236, 239, 253) ✅
 
 ## Stack vérifiée et figée
 
