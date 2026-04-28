@@ -392,3 +392,39 @@ def test_manage_access_unlock_user(runner):
         ])
         assert result.exit_code == 0
         assert "unlocked" in result.output
+
+
+# ---------------------------------------------------------------------------
+# admin reset-password
+# ---------------------------------------------------------------------------
+
+def test_manage_admin_reset_password_success(runner):
+    with patch("manage.actions") as mock_actions:
+        result = runner.invoke(manage.cli, [
+            "admin", "reset-password", "alice",
+            "--password", "N3wStr0ng#Pass!"
+        ])
+        assert result.exit_code == 0
+        assert "reset" in result.output
+        mock_actions.reset_password.assert_called_once_with("alice", "N3wStr0ng#Pass!")
+
+
+def test_manage_admin_reset_password_unknown_user(runner):
+    with patch("manage.actions") as mock_actions:
+        mock_actions.reset_password.side_effect = ValueError("Admin not found: ghost")
+        result = runner.invoke(manage.cli, [
+            "admin", "reset-password", "ghost",
+            "--password", "N3wStr0ng#Pass!"
+        ])
+        assert result.exit_code != 0
+        assert "Admin not found" in result.output
+
+
+def test_manage_admin_reset_password_weak_password(runner):
+    with patch("manage.actions") as mock_actions:
+        mock_actions.reset_password.side_effect = ValueError("Password must be at least 8 characters")
+        result = runner.invoke(manage.cli, [
+            "admin", "reset-password", "alice",
+            "--password", "weak"
+        ])
+        assert result.exit_code != 0

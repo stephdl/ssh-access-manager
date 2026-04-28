@@ -502,6 +502,18 @@ def admin_update(username, email, role):
         raise click.ClickException(str(e))
 
 
+@admin.command("reset-password")
+@click.argument("username")
+@click.option("--password", required=True, help="New password")
+def admin_reset_password(username, password):
+    """Reset an administrator's password (emergency use, no login required)."""
+    try:
+        actions.reset_password(username, password)
+        click.echo(f"Password for {username} has been reset.")
+    except ValueError as e:
+        raise click.ClickException(str(e))
+
+
 @admin.command("delete")
 @click.argument("username")
 @click.confirmation_option(prompt="Permanently delete this administrator?")
