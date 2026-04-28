@@ -913,31 +913,12 @@ def toggle_alerts(username: str, receive_alerts: bool) -> dict:
 
 
 def delete_admin(username: str, admin_id: str | None = None) -> None:
-    """Permanently delete an admin if no FK references exist. Log ADMIN_DELETED."""
+    """Permanently delete an admin. FK references in audit tables are set to NULL. Log ADMIN_DELETED."""
     admin = db.query_one(
         "SELECT id FROM administrators WHERE username = %s", (username,)
     )
     if not admin:
         raise ValueError(f"Admin not found: {username}")
-    ref = db.query_one(
-        """
-        SELECT 1 FROM (
-            SELECT performed_by AS ref_id FROM audit_log WHERE performed_by = %s
-            UNION ALL
-            SELECT authorized_by FROM key_authorizations WHERE authorized_by = %s
-            UNION ALL
-            SELECT revoked_by    FROM key_authorizations WHERE revoked_by    = %s
-            UNION ALL
-            SELECT requested_by  FROM access_requests    WHERE requested_by  = %s
-            UNION ALL
-            SELECT approved_by   FROM access_requests    WHERE approved_by   = %s
-        ) refs
-        LIMIT 1
-        """,
-        (admin["id"],) * 5,
-    )
-    if ref:
-        raise ValueError(f"Cannot delete admin '{username}': existing audit records reference this account")
     db.execute(
         """
         INSERT INTO audit_log (action, performed_by, details)

@@ -253,7 +253,7 @@
     "enable_modal_text": "¿Confirmar la activación de {username}?",
     "btn_enable_confirm": "Activar",
     "delete_modal_title": "Eliminar administrador",
-    "delete_modal_text": "¿Eliminar definitivamente a {username}? Esta acción es irreversible y fallará si existen registros asociados.",
+    "delete_modal_text": "¿Eliminar definitivamente a {username}? Esta acción no se puede deshacer.",
     "btn_delete_confirm": "Eliminar",
     "success_enabled": "Administrador {username} activado.",
     "success_deleted": "Administrador {username} eliminado.",

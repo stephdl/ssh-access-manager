@@ -560,7 +560,7 @@ def test_actions_enable_admin_raises_if_not_found():
 
 def test_actions_delete_admin_removes_row():
     with patch("actions.db") as mock_db:
-        mock_db.query_one.side_effect = [{"id": ADMIN_ID}, None]
+        mock_db.query_one.return_value = {"id": ADMIN_ID}
         actions.delete_admin("someuser", ADMIN_ID)
         sqls = [c[0][0] for c in mock_db.execute.call_args_list]
         assert any("DELETE FROM administrators" in s for s in sqls)
@@ -568,7 +568,7 @@ def test_actions_delete_admin_removes_row():
 
 def test_actions_delete_admin_logs_admin_deleted():
     with patch("actions.db") as mock_db:
-        mock_db.query_one.side_effect = [{"id": ADMIN_ID}, None]
+        mock_db.query_one.return_value = {"id": ADMIN_ID}
         actions.delete_admin("someuser", ADMIN_ID)
         sqls = [c[0][0] for c in mock_db.execute.call_args_list]
         assert any("ADMIN_DELETED" in s for s in sqls)
@@ -579,13 +579,6 @@ def test_actions_delete_admin_raises_if_not_found():
         mock_db.query_one.return_value = None
         with pytest.raises(ValueError, match="Admin not found"):
             actions.delete_admin("ghost")
-
-
-def test_actions_delete_admin_raises_if_has_references():
-    with patch("actions.db") as mock_db:
-        mock_db.query_one.side_effect = [{"id": ADMIN_ID}, {"1": 1}]
-        with pytest.raises(ValueError, match="existing audit records"):
-            actions.delete_admin("someuser")
 
 
 # ---------------------------------------------------------------------------

@@ -253,7 +253,7 @@
     "enable_modal_text": "Confermare la riattivazione di {username}?",
     "btn_enable_confirm": "Riattiva",
     "delete_modal_title": "Elimina amministratore",
-    "delete_modal_text": "Eliminare definitivamente {username}? Azione irreversibile. Fallisce se l'account ha record associati.",
+    "delete_modal_text": "Eliminare definitivamente {username}? Questa azione non può essere annullata.",
     "btn_delete_confirm": "Elimina",
     "success_enabled": "Amministratore {username} riattivato.",
     "success_deleted": "Amministratore {username} eliminato.",
