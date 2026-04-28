@@ -49,6 +49,7 @@ Détection automatique de la langue du navigateur via vue-i18n v9 (i18n.js).
 - **Serveurs désactivés** (#91) : ligne grisée dans ServerTable + bandeau rouge en haut dans ServerDetail
 - **Backend** : uniquement les routes `/api/` définies dans app/CLAUDE.md — ne jamais appeler autre chose
 - Les timestamps sont stockés UTC en base, affichés dans le fuseau du navigateur via useFormatDate.js
+- **Validation IP dans Dashboard.vue** (#271) : `isValidIp()` (format IPv4/IPv6) + `isIpDuplicate()` (unicité globale contre `servers.value` — actifs ET désactivés). Bouton désactivé + message `.field-error` inline si invalide ou doublon.
 
 ## Tests Vitest (ui/tests/)
 

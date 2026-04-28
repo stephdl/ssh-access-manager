@@ -41,6 +41,7 @@ Schéma complet dans sql/schema.sql. Points non-évidents :
 - `key_authorizations` PK = **(key_id, server_id, unix_user)** — même clé déployable pour plusieurs users Unix sur même serveur (#185)
 - `key_authorizations.unix_user` DEFAULT '' — champ obligatoire dans toutes les requêtes
 - Table `settings` : lire en DB, jamais depuis ENV. Clés : `scan_interval_hours` (4), `expire_warn_days` (7), `expire_warn_days_2` (2), `login_max_attempts` (10), `login_ban_seconds` (300)
+- `servers.ip_address` : index unique global (`servers_ip_unique`) — une IP ne peut appartenir qu'à un seul serveur, actif ou désactivé. Désactivation = maintenance temporaire, le serveur peut revenir. Seule la suppression libère l'IP.
 
 ## Logique métier — fingerprint SHA256
 
