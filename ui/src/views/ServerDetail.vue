@@ -75,6 +75,9 @@
         </dl>
       </section>
 
+      <!-- SSH Sessions -->
+      <SessionsCard :hostname="hostname" :current-role="currentRole" />
+
       <!-- SSH Keys -->
       <section class="card">
         <h2>{{ $t('server_detail.section_keys') }}</h2>
@@ -88,9 +91,6 @@
           @assign="openAssign"
         />
       </section>
-
-      <!-- SSH Sessions -->
-      <SessionsCard :hostname="hostname" :current-role="currentRole" />
     </template>
 
     <!-- Delete modal -->
