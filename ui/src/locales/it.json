@@ -233,7 +233,7 @@
     "rule_special": "Un carattere speciale",
     "load_error": "Impossibile caricare gli amministratori: {error}",
     "disable_modal_title": "Disabilita amministratore",
-    "disable_modal_text": "Confermare la disabilitazione di {username}? Questa azione è irreversibile dall'interfaccia.",
+    "disable_modal_text": "Disabilitare l'account '{username}'? L'account non potrà più accedere. È possibile riabilitarlo in seguito.",
     "btn_disable_confirm": "Disabilita",
     "pwd_modal_title": "Cambia password — {username}",
     "pwd_new_label": "Nuova password",

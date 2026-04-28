@@ -233,7 +233,7 @@
     "rule_special": "Un caractère spécial",
     "load_error": "Impossible de charger les administrateurs : {error}",
     "disable_modal_title": "Désactiver l'administrateur",
-    "disable_modal_text": "Confirmer la désactivation de {username} ? Cette action est irréversible depuis l'interface.",
+    "disable_modal_text": "Désactiver le compte '{username}' ? Le compte ne pourra plus se connecter. Vous pourrez le réactiver ultérieurement.",
     "btn_disable_confirm": "Désactiver",
     "pwd_modal_title": "Changer le mot de passe — {username}",
     "pwd_new_label": "Nouveau mot de passe",
