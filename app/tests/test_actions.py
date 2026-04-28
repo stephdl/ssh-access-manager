@@ -676,7 +676,7 @@ def test_actions_deploy_key_invalid_key_type(sample_server):
         mock_db.query_one.return_value = {
             "id": sample_server["id"], "ip_address": sample_server["ip_address"]
         }
-        with pytest.raises(ValueError, match="Type de clé non supporté"):
+        with pytest.raises(ValueError, match="Unsupported key type"):
             actions.deploy_key(
                 public_key="ssh-dss AAAA test",
                 unix_user="alice",

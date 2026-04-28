@@ -1,6 +1,6 @@
 #!/bin/sh
-# Usage : bash provision-host.sh "<contenu collector_key.pub>"
-# Prépare un hôte distant pour la collecte SSH par audit-collector.
+# Usage: bash provision-host.sh "<collector_key.pub content>"
+# Prepares a remote host for SSH collection by audit-collector.
 set -e
 
 COLLECTOR_PUBKEY="${1}"
@@ -8,20 +8,20 @@ COLLECTOR_USER="${2:-audit-collector}"
 SUDOERS_FILE="/etc/sudoers.d/${COLLECTOR_USER}"
 
 if [ -z "${COLLECTOR_PUBKEY}" ]; then
-    echo "Usage : $0 \"<contenu collector_key.pub>\"" >&2
+    echo "Usage: $0 \"<collector_key.pub content>\"" >&2
     exit 1
 fi
 
-# 1. Créer l'utilisateur système (sans shell interactif)
+# 1. Create system user (without interactive shell)
 if ! id "${COLLECTOR_USER}" >/dev/null 2>&1; then
     useradd -r -m -s /bin/bash "${COLLECTOR_USER}"
-    echo "[provision] Utilisateur ${COLLECTOR_USER} créé."
+    echo "[provision] User ${COLLECTOR_USER} created."
 else
-    echo "[provision] Utilisateur ${COLLECTOR_USER} existe déjà."
+    echo "[provision] User ${COLLECTOR_USER} already exists."
 fi
 chmod 700 "/home/${COLLECTOR_USER}"
 
-# 2. Configurer le répertoire SSH
+# 2. Configure SSH directory
 SSH_DIR="/home/${COLLECTOR_USER}/.ssh"
 AUTH_KEYS="${SSH_DIR}/authorized_keys"
 
@@ -29,18 +29,18 @@ mkdir -p "${SSH_DIR}"
 chmod 700 "${SSH_DIR}"
 chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "${SSH_DIR}"
 
-# 3. Déployer la clé publique (ajout si absente, ne pas écraser les clés existantes)
+# 3. Deploy public key (append if absent, do not overwrite existing keys)
 touch "${AUTH_KEYS}"
 if ! grep -qF "${COLLECTOR_PUBKEY}" "${AUTH_KEYS}" 2>/dev/null; then
     echo "${COLLECTOR_PUBKEY}" >> "${AUTH_KEYS}"
 fi
 chmod 600 "${AUTH_KEYS}"
 chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "${AUTH_KEYS}"
-echo "[provision] Clé publique déployée dans ${AUTH_KEYS}."
+echo "[provision] Public key deployed in ${AUTH_KEYS}."
 
-# 4. Créer le fichier sudoers
-# printf avec \n explicite : résistant au \r\n introduit par sudo PTY lors d'un pipe
-printf "# ssh-access-manager — droits sudo pour ${COLLECTOR_USER}\n" > "${SUDOERS_FILE}"
+# 4. Create sudoers file
+# printf with explicit \n: resistant to \r\n introduced by sudo PTY during pipe
+printf "# ssh-access-manager — sudo rights for ${COLLECTOR_USER}\n" > "${SUDOERS_FILE}"
 printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-collect\n" >> "${SUDOERS_FILE}"
 printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke\n" >> "${SUDOERS_FILE}"
 printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-add\n" >> "${SUDOERS_FILE}"
@@ -55,6 +55,6 @@ printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -
 printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-sessions /usr/local/bin/sam-sessions\n" >> "${SUDOERS_FILE}"
 
 chmod 440 "${SUDOERS_FILE}"
-echo "[provision] Sudoers configuré dans ${SUDOERS_FILE}."
+echo "[provision] Sudoers configured in ${SUDOERS_FILE}."
 
-echo "[provision] Hôte prêt pour la collecte SSH par ${COLLECTOR_USER}."
+echo "[provision] Host ready for SSH collection by ${COLLECTOR_USER}."

@@ -99,13 +99,13 @@ def revoke_key(
     unix_user: str = None,
 ) -> None:
     """
-    Scenario 1 — revocation via le systeme.
+    Scenario 1 — revocation via system.
 
-    Si hostname ET unix_user sont fournis : révocation ciblée — supprime la clé
-    uniquement du authorized_keys de cet utilisateur Unix sur ce serveur.
+    If hostname AND unix_user are provided: targeted revocation — removes key
+    only from this Unix user's authorized_keys on this server.
 
-    Sinon : révocation globale — supprime la clé sur tous les serveurs et pour
-    tous les utilisateurs Unix (comportement historique).
+    Otherwise: global revocation — removes key from all servers and for
+    all Unix users (historical behavior).
     """
     _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
@@ -113,7 +113,7 @@ def revoke_key(
         raise ValueError(f"Key not found: {fingerprint}")
 
     if hostname and unix_user:
-        # --- Révocation ciblée (un user sur un serveur) ---
+        # --- Targeted revocation (one user on one server) ---
         server = db.query_one(
             "SELECT id, ip_address FROM servers WHERE hostname = %s",
             (hostname,),
@@ -158,7 +158,7 @@ def revoke_key(
             ),
         )
     else:
-        # --- Révocation globale (tous les serveurs, tous les users) ---
+        # --- Global revocation (all servers, all users) ---
         active_auths = db.query(
             """
             SELECT DISTINCT ka.server_id, s.hostname, s.ip_address
@@ -460,7 +460,7 @@ def deploy_key(
 
     valid_types = ("ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256")
     if key_type not in valid_types:
-        raise ValueError(f"Type de clé non supporté: {key_type}")
+        raise ValueError(f"Unsupported key type: {key_type}")
 
     import base64, hashlib
     raw = base64.b64decode(key_b64)
@@ -650,7 +650,7 @@ def add_server(
     try:
         servers_mod.add_to_known_hosts(ip)
     except Exception as e:
-        raise ValueError(f"Impossible de joindre {hostname} ({ip}) pour le keyscan : {e}") from e
+        raise ValueError(f"Cannot reach {hostname} ({ip}) for keyscan: {e}") from e
     db.execute(
         "INSERT INTO servers (hostname, ip_address, environment, os_family) VALUES (%s, %s, %s, %s)",
         (hostname, ip, env, os_family),
@@ -712,7 +712,7 @@ def update_server(
         try:
             servers_mod.add_to_known_hosts(new_ip)
         except Exception as e:
-            raise ValueError(f"Impossible de joindre {hostname} ({new_ip}) pour le keyscan : {e}") from e
+            raise ValueError(f"Cannot reach {hostname} ({new_ip}) for keyscan: {e}") from e
 
     db.execute(
         "UPDATE servers SET ip_address = %s, environment = %s, os_family = %s WHERE hostname = %s",
@@ -775,17 +775,17 @@ def _validate_password_strength(password: str) -> None:
     import re
     errors = []
     if len(password) < 8:
-        errors.append("au moins 8 caractères")
+        errors.append("at least 8 characters")
     if not re.search(r"[A-Z]", password):
-        errors.append("au moins une majuscule")
+        errors.append("at least one uppercase letter")
     if not re.search(r"[a-z]", password):
-        errors.append("au moins une minuscule")
+        errors.append("at least one lowercase letter")
     if not re.search(r"\d", password):
-        errors.append("au moins un chiffre")
+        errors.append("at least one digit")
     if not re.search(r"[!@#$%^&*()\-_=+\[\]{}|;:'\",.<>?/\\`~]", password):
-        errors.append("au moins un caractère spécial")
+        errors.append("at least one special character")
     if errors:
-        raise ValueError("Mot de passe insuffisant : " + ", ".join(errors))
+        raise ValueError("Insufficient password: " + ", ".join(errors))
 
 
 def add_admin(username: str, email: str, password: str, admin_id: str | None = None, role: str = "operator") -> dict:

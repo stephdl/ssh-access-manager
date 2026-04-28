@@ -18,11 +18,11 @@ def _compute_fingerprint(key_b64: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Fixture : mock connexion psycopg2
+# Fixture: mock psycopg2 connection
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def mock_db():
-    """Retourne un mock de connexion psycopg2 avec cursor et helpers."""
+    """Returns a mock psycopg2 connection with cursor and helpers."""
     conn = MagicMock()
     cursor = MagicMock()
     conn.cursor.return_value.__enter__ = MagicMock(return_value=cursor)
@@ -34,11 +34,11 @@ def mock_db():
 
 
 # ---------------------------------------------------------------------------
-# Fixture : mock paramiko.SSHClient avec RejectPolicy
+# Fixture: mock paramiko.SSHClient with RejectPolicy
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def mock_ssh_client():
-    """Retourne un mock paramiko.SSHClient configuré avec RejectPolicy."""
+    """Returns a mock paramiko.SSHClient configured with RejectPolicy."""
     with patch("paramiko.SSHClient") as mock_cls:
         client = MagicMock()
         mock_cls.return_value = client
@@ -52,22 +52,22 @@ def mock_ssh_client():
 
 
 # ---------------------------------------------------------------------------
-# Fixture : mock subprocess pour msmtp
+# Fixture: mock subprocess for msmtp
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def mock_smtp():
-    """Retourne un mock subprocess pour msmtp — aucun email réel envoyé."""
+    """Returns a mock subprocess for msmtp — no real email sent."""
     with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         yield mock_run
 
 
 # ---------------------------------------------------------------------------
-# Fixture : serveur de test standard
+# Fixture: standard test server
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def sample_server():
-    """Retourne un dict représentant un serveur de test standard."""
+    """Returns a dict representing a standard test server."""
     return {
         "id": str(uuid.uuid4()),
         "hostname": "server-test-01",
@@ -81,12 +81,12 @@ def sample_server():
 
 
 # ---------------------------------------------------------------------------
-# Fixture : clé SSH ED25519 de test avec fingerprint calculé
+# Fixture: test ED25519 SSH key with computed fingerprint
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def sample_key():
-    """Retourne un dict clé SSH ED25519 de test avec fingerprint SHA256."""
-    # Clé publique ED25519 synthétique (base64 valide, non fonctionnelle)
+    """Returns a dict test ED25519 SSH key with SHA256 fingerprint."""
+    # Synthetic ED25519 public key (valid base64, non-functional)
     key_b64 = (
         "AAAAC3NzaC1lZDI1NTE5AAAAIBqGBCEpGAhHTB0s"
         "klNmFpRGoXv7K3p9iFaQJoWqYmcX"

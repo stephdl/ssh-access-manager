@@ -325,7 +325,7 @@ def test_manage_system_status(runner):
         ]
         result = runner.invoke(manage.cli, ["system", "status"])
         assert result.exit_code == 0
-        assert "Serveurs actifs" in result.output
+        assert "Active servers" in result.output
 
 
 def test_manage_system_report(runner):
@@ -333,7 +333,7 @@ def test_manage_system_report(runner):
         mock_db.query.return_value = []
         result = runner.invoke(manage.cli, ["system", "report"])
         assert result.exit_code == 0
-        assert "conformes" in result.output
+        assert "compliant" in result.output
 
 
 # ---------------------------------------------------------------------------
