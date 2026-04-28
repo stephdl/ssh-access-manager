@@ -67,7 +67,10 @@
           </td>
           <td v-if="props.currentRole !== 'viewer' && type === 'pending'">
             <div class="actions">
-              <button class="btn-success" @click="$emit('validate', k.fingerprint, k.unix_user, k.server_hostname)">
+              <button
+                class="btn-success"
+                @click="$emit('validate', k.fingerprint, k.unix_user, k.server_hostname)"
+              >
                 {{ $t('anomalies.btn_validate') }}
               </button>
               <button class="btn-danger" @click="$emit('revoke', k.fingerprint)">
@@ -155,9 +158,7 @@ const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSi
   usePagination(filtered)
 
 const colDate = computed(() => {
-  return props.type === 'pending'
-    ? t('anomalies.col_first_seen')
-    : t('anomalies.col_revoked_at')
+  return props.type === 'pending' ? t('anomalies.col_first_seen') : t('anomalies.col_revoked_at')
 })
 
 const dateField = computed(() => {
@@ -171,9 +172,7 @@ const emptyMessage = computed(() => {
 function complianceTooltip(k) {
   if (k.key_type === 'ssh-rsa') {
     const bits = k.key_size_bits
-    return bits
-      ? t('key_table.non_compliant_rsa_bits', { bits })
-      : t('key_table.non_compliant_rsa')
+    return bits ? t('key_table.non_compliant_rsa_bits', { bits }) : t('key_table.non_compliant_rsa')
   }
   return t('key_table.non_compliant_type')
 }
