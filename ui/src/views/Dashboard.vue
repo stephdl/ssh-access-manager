@@ -239,9 +239,7 @@ function isValidIp(ip) {
 
 function isIpDuplicate(ip, excludeHostname = null) {
   const normalized = ip.trim()
-  return servers.value.some(
-    (s) => s.ip_address === normalized && s.hostname !== excludeHostname
-  )
+  return servers.value.some((s) => s.ip_address === normalized && s.hostname !== excludeHostname)
 }
 
 const addIpError = computed(() => {
