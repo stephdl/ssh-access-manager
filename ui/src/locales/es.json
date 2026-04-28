@@ -411,5 +411,9 @@
     "export_csv": "Exportar CSV",
     "refresh_error": "Error al actualizar: {error}",
     "load_error": "Error al cargar sesiones: {error}"
+  },
+  "password_banner": {
+    "message": "Su contraseña nunca ha sido cambiada. Por favor, actualícela por seguridad.",
+    "btn_change": "Cambiar contraseña"
   }
 }

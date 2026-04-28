@@ -19,6 +19,12 @@
       <span class="nav-user">{{ admin.username }}</span>
       <button class="btn-logout" @click="handleLogout">{{ $t('nav.logout') }}</button>
     </nav>
+    <div v-if="admin?.must_change_password" class="password-banner">
+      <span>{{ $t('password_banner.message') }}</span>
+      <button class="btn-banner-action" @click="goChangePassword">
+        {{ $t('password_banner.btn_change') }}
+      </button>
+    </div>
     <main class="content">
       <router-view />
     </main>
@@ -33,6 +39,10 @@ import { useAuth } from './composables/useAuth.js'
 const router = useRouter()
 const { admin, logout } = useAuth()
 const { locale } = useI18n()
+
+function goChangePassword() {
+  router.push('/admins?changePassword=true')
+}
 
 async function handleLogout() {
   await logout()
@@ -119,6 +129,33 @@ body {
 .lang-select option {
   color: #000;
   background: #fff;
+}
+
+.password-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1.5rem;
+  background: #fff3cd;
+  color: #856404;
+  border-bottom: 1px solid #ffc107;
+  font-size: 0.9rem;
+}
+.password-banner span {
+  flex: 1;
+}
+.btn-banner-action {
+  background: #ffc107;
+  color: #000;
+  border: none;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-banner-action:hover {
+  background: #e0a800;
 }
 
 .content {

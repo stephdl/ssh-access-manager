@@ -204,12 +204,14 @@ def auth_me():
     if not admin_id:
         return jsonify({"error": "Unauthorized"}), 401
     admin = db.query_one(
-        "SELECT username, email, role FROM administrators WHERE id = %s AND is_active = true",
+        "SELECT username, email, role, password_changed_at FROM administrators WHERE id = %s AND is_active = true",
         (admin_id,),
     )
     if not admin:
         return jsonify({"error": "Unauthorized"}), 401
-    return jsonify(dict(admin)), 200
+    data = dict(admin)
+    data["must_change_password"] = data.pop("password_changed_at") is None
+    return jsonify(data), 200
 
 
 def _parse_datetime(value: str | None) -> datetime | None:

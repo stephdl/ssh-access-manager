@@ -411,5 +411,9 @@
     "export_csv": "Exporter CSV",
     "refresh_error": "Actualisation échouée : {error}",
     "load_error": "Impossible de charger les sessions : {error}"
+  },
+  "password_banner": {
+    "message": "Votre mot de passe n'a jamais été changé. Veuillez le mettre à jour pour votre sécurité.",
+    "btn_change": "Changer le mot de passe"
   }
 }

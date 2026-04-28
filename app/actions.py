@@ -822,7 +822,7 @@ def change_password(username: str, new_password: str) -> None:
     if not admin:
         raise ValueError(f"Active admin not found: {username}")
     db.execute(
-        "UPDATE administrators SET password_hash = %s WHERE id = %s",
+        "UPDATE administrators SET password_hash = %s, password_changed_at = now() WHERE id = %s",
         (generate_password_hash(new_password), admin["id"]),
     )
 
@@ -836,7 +836,7 @@ def reset_password(username: str, new_password: str) -> None:
     if not admin:
         raise ValueError(f"Admin not found: {username}")
     db.execute(
-        "UPDATE administrators SET password_hash = %s WHERE id = %s",
+        "UPDATE administrators SET password_hash = %s, password_changed_at = now() WHERE id = %s",
         (generate_password_hash(new_password), admin["id"]),
     )
     db.execute(

@@ -64,7 +64,9 @@ CREATE TABLE administrators (
     -- Reçoit les emails d'alerte CRITICAL/WARNING
     receive_alerts BOOLEAN DEFAULT true NOT NULL,
     -- Date de création du compte
-    created_at    TIMESTAMPTZ DEFAULT now()
+    created_at    TIMESTAMPTZ DEFAULT now(),
+    -- NULL = password never changed since account creation
+    password_changed_at TIMESTAMPTZ
 );
 
 COMMENT ON TABLE administrators IS 'Utilisateurs autorisés à gérer les accès SSH';

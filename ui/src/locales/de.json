@@ -411,5 +411,9 @@
     "export_csv": "CSV exportieren",
     "refresh_error": "Aktualisierung fehlgeschlagen: {error}",
     "load_error": "Sitzungen konnten nicht geladen werden: {error}"
+  },
+  "password_banner": {
+    "message": "Ihr Passwort wurde noch nie geändert. Bitte aktualisieren Sie es aus Sicherheitsgründen.",
+    "btn_change": "Passwort ändern"
   }
 }
