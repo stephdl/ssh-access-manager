@@ -364,17 +364,17 @@ def get_server_sessions(hostname):
 @require_role("sysadmin", "operator")
 def refresh_server_sessions(hostname):
     server = db.query_one(
-        "SELECT id, ip_address::text AS ip_address FROM servers WHERE hostname = %s AND is_active = true",
+        "SELECT id, host(ip_address) AS ip_address FROM servers WHERE hostname = %s AND is_active = true",
         (hostname,),
     )
     if not server:
         return jsonify({"error": "Server not found or inactive"}), 404
+    ip = str(server["ip_address"])
     try:
-        ssh.ensure_scripts(hostname, server["id"], server["ip_address"])
-        ssh.collect_sessions_on_server(hostname, server["id"], server["ip_address"])
+        ssh.collect_sessions_on_server(hostname, server["id"], ip)
         return jsonify({"status": "refreshed"})
     except Exception as e:
-        logging.exception("collect_sessions_on_server failed")
+        logging.exception("collect_sessions_on_server failed on %s (%s)", hostname, ip)
         return jsonify({"error": str(e) or repr(e)}), 502
 
 
