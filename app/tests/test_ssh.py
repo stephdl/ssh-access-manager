@@ -476,6 +476,27 @@ def test_ssh_parse_session_datetime_hhmm():
     assert dt.hour == 10
 
 
+def test_ssh_parse_session_datetime_last_no_year():
+    """last without -F gives 'Mon Apr 28 13:21' (no year) — must parse correctly."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("Mon Apr 28 13:21", now)
+    assert dt is not None
+    assert dt.year == 2026
+    assert dt.hour == 13
+    assert dt.minute == 21
+
+
+def test_ssh_parse_session_datetime_last_no_year_single_digit_day():
+    """last without -F with day < 10 uses double-space padding: 'Mon Apr  7 08:00'."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("Mon Apr  7 08:00", now)
+    assert dt is not None
+    assert dt.year == 2026
+    assert dt.day == 7
+
+
 def test_ssh_parse_session_datetime_invalid():
     from datetime import datetime, timezone
     now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
@@ -511,6 +532,28 @@ def test_ssh_collect_sessions_calls_sam_sessions(mock_ssh_client):
         assert mock_db.execute.called
 
 
+def test_ssh_collect_sessions_marks_inactive_before_reinserting(mock_ssh_client):
+    """Before inserting active sessions, all existing active rows are marked inactive."""
+    from unittest.mock import MagicMock, patch
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
+    mock_stdout.read.return_value = b"A\talice\tpts/0\t192.168.1.50\t2026-04-28 10:00\n"
+    mock_stdout.channel.recv_exit_status.return_value = 0
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b""
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    with patch("ssh._connect", return_value=mock_client), \
+         patch("ssh.db") as mock_db:
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+
+        first_call = mock_db.execute.call_args_list[0]
+        first_sql = first_call[0][0]
+        assert "UPDATE" in first_sql
+        assert "is_active = false" in first_sql
+        assert first_call[0][1] == ("server-uuid-1",)
+
+
 def test_ssh_collect_sessions_local_tty_no_ip(mock_ssh_client):
     """Local TTY sessions (no IP in last output) must not fail INET insertion."""
     from unittest.mock import MagicMock, patch
@@ -529,8 +572,11 @@ def test_ssh_collect_sessions_local_tty_no_ip(mock_ssh_client):
          patch("ssh.db") as mock_db:
         # Must not raise — "Mon" must not reach the INET column
         ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
-        if mock_db.execute.called:
-            call_args = mock_db.execute.call_args_list[0]
-            params = call_args[0][1]
+        # call_args_list[0] is the UPDATE (mark inactive), [1] is the H line INSERT
+        insert_calls = [
+            c for c in mock_db.execute.call_args_list if "INSERT" in c[0][0]
+        ]
+        if insert_calls:
+            params = insert_calls[0][0][1]
             # login_ip must be None, not "Mon"
             assert params[3] is None

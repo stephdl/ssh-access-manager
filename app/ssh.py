@@ -366,6 +366,8 @@ def _parse_session_datetime(s: str, now) -> "datetime | None":
         "%a %b  %d %H:%M:%S %Y",
         "%a %b %d %H:%M %Y",
         "%a %b  %d %H:%M %Y",
+        "%a %b %d %H:%M",
+        "%a %b  %d %H:%M",
         "%Y-%m-%d %H:%M",
         "%b %d %H:%M",
         "%b  %d %H:%M",
@@ -406,6 +408,10 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str) -> None:
         if rc != 0:
             return
         now = datetime.now(timezone.utc)
+        db.execute(
+            "UPDATE ssh_sessions SET is_active = false WHERE server_id = %s AND is_active = true",
+            (server_id,),
+        )
         for line in out.splitlines():
             parts = line.split('\t')
             if len(parts) < 4:
