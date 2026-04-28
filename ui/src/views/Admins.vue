@@ -696,6 +696,9 @@ async function confirmEditPassword() {
       throw new Error(data.error || `HTTP ${res.status}`)
     }
     message.value = t('admins.success_pwd', { username })
+    if (username === currentUsername.value && admin.value) {
+      admin.value.must_change_password = false
+    }
   } catch (e) {
     error.value = e.message
   }
