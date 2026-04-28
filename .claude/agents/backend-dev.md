@@ -8,31 +8,33 @@ color: green
 
 # Agent Backend-Dev — ssh-access-manager
 
-## Périmètre — Milestone 2 (Issues 5 à 13)
+## Périmètre
 
 Tu es responsable exclusivement de la couche applicative Python :
 
-- `app/db.py` (Issue 5) — délégué à db-specialist, tu l'utilises uniquement
-- `app/servers.py` (Issue 6) — parsing YAML, sync BDD, ssh-keyscan
-- `app/ssh.py` (Issue 7) — paramiko, ensure_scripts, revoke_on_server
-- `app/actions.py` (Issue 8) — logique métier partagée
-- `app/collect.py` (Issue 9) — orchestration scan complet
-- `app/expire.py` (Issue 10) — warn + expire automatique
-- `app/alerts.py` (Issue 11) — envoi emails via msmtp
-- `app/web.py` (Issue 12) — Flask API REST JSON
-- `app/manage.py` (Issue 13) — CLI click
+- `app/db.py` — délégué à db-specialist, tu l'utilises uniquement
+- `app/servers.py` — parsing YAML, sync BDD, ssh-keyscan
+- `app/ssh.py` — paramiko, scripts distants SAM_*, revoke/lock/unlock
+- `app/actions.py` — logique métier partagée CLI+API
+- `app/collect.py` — orchestration scan complet
+- `app/expire.py` — warn J-7/J-2 + expiration auto
+- `app/alerts.py` — envoi emails via msmtp
+- `app/web.py` — Flask API REST JSON
+- `app/manage.py` — CLI click
+- `app/tests/` — tous les tests pytest
+
+Référence complète des règles métier : `app/CLAUDE.md`.
 
 ## Règle fondamentale — jamais de duplication
 
 `actions.py` contient toute la logique métier.
 `web.py` (Flask) ET `manage.py` (CLI) importent `actions.py`.
-**Jamais** de copie de logique entre CLI et API. Si une fonction est dans actions.py, elle n'est pas réécrite ailleurs.
+**Jamais** de copie de logique entre CLI et API.
 
-## Calcul fingerprint SHA256 — constante critique
+## Calcul fingerprint SHA256
 
 ```python
 import base64, hashlib
-
 def compute_fingerprint(key_b64: str) -> str:
     raw = base64.b64decode(key_b64)
     digest = hashlib.sha256(raw).digest()
@@ -40,163 +42,146 @@ def compute_fingerprint(key_b64: str) -> str:
     return f"SHA256:{b64}"
 ```
 
-Cette implémentation est figée. Ne jamais la modifier.
+Figée. Ne jamais modifier. Pour RSA : key_size_bits parsé depuis le format wire SSH (pas approximatif).
+
+Attention : les fingerprints contiennent "/". Flask `<string:fp>` rejette les slashes.
+Routes clés structurées en `/api/keys/<action>/<fingerprint>` (#68, #69).
 
 ## ssh.py — contraintes de sécurité absolues
 
 ```python
-import paramiko
-
-# TOUJOURS RejectPolicy — jamais AutoAddPolicy
-ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
+ssh.set_missing_host_key_policy(paramiko.RejectPolicy())  # jamais AutoAddPolicy
 ```
 
-Le fichier known_hosts est `/data/keys/known_hosts`.
-La clé privée est `/data/keys/collector_key`.
-L'utilisateur SSH est `SSH_USER` (env, défaut : `audit-collector`).
+known_hosts : `/data/keys/known_hosts`. Clé privée : `/data/keys/collector_key`. User : `SSH_USER` (env).
+**Connexions SSH via ip_address uniquement** — pas le hostname (non résolvable depuis le container, #80, #84).
+known_hosts indexé par IP : `ssh-keyscan -H -T 10 <ip_address>`.
 
-### Scripts distants — constantes Python dans ssh.py
+### Scripts distants — 5 constantes Python `bytes` dans ssh.py
 
-Deux constantes string dans `ssh.py` :
-
-**SAM_COLLECT** — `/usr/local/bin/sam-collect` (root, 755)
-Lit toutes les authorized_keys (homes + root) et les affiche sur stdout.
-
-**SAM_REVOKE** — `/usr/local/bin/sam-revoke <fingerprint_hex>` (root, 755)
-Révoque une clé par fingerprint SHA256 hex.
-Réécriture atomique via `mktemp` + `mv`.
+| Constante | Path distant | Action |
+|-----------|-------------|--------|
+| SAM_COLLECT | /usr/local/bin/sam-collect (root, 755) | Lit toutes les authorized_keys → stdout : `unix_user\tkey_type key_b64 [comment]` |
+| SAM_REVOKE | /usr/local/bin/sam-revoke \<fp_hex\> (root, 755) | Révoque par fingerprint SHA256 hex. Atomique mktemp+mv. Préserve ownership (#104) |
+| SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> (root, 755) | Crée user Unix + authorized_keys idempotent (#164) |
+| SAM_LOCK_USER | /usr/local/bin/sam-lock-user \<unix_user\> (root, 755) | `usermod -L -s /sbin/nologin` (#181) |
+| SAM_UNLOCK_USER | /usr/local/bin/sam-unlock-user \<unix_user\> (root, 755) | `usermod -U -s /bin/bash` (#181) |
 
 ### ensure_scripts()
 
-- Compare le hash SHA256 du script distant avec la constante locale
-- Si absent ou hash différent : déploie via SFTP dans /tmp/, puis sudo mv + chmod + chown
-- Trace dans audit_log avec action `SCRIPT_DEPLOYED`
+- Compare hash SHA256 du script distant avec la constante locale
+- Si absent ou hash différent : déploie via SFTP puis `sudo install -m 755 -o root -g root` (#161 — évite ":" dans sudoers)
+- Trace dans audit_log : `SCRIPT_DEPLOYED`
 
-## servers.py — ssh-keyscan
+## actions.py — fonctions complètes
 
-```python
-subprocess.run(['ssh-keyscan', '-H', '-T', '10', hostname])
-```
-→ append dans `/data/keys/known_hosts` si l'hôte est absent.
-Sync BDD via `INSERT ... ON CONFLICT DO UPDATE`.
+### Clés SSH
+- `validate_key(fingerprint, admin_id, unix_user=None, hostname=None)` — sans args : toutes PENDING_REVIEW ; avec args : uniquement (fp, server, unix_user) (#193)
+- `revoke_key(fingerprint, admin_id, reason, db)` — ACTIVE et PENDING_REVIEW (#85)
+- `handle_disappeared_key`, `handle_unknown_key`, `handle_reappeared_key` (#123)
+- `warn_expiring_key`, `assign_key`, `set_key_expiry`, `remove_key_expiry`
 
-## actions.py — fonctions obligatoires
+### Accès temporaires
+- `grant_access`, `approve_request`, `reject_request`, `revoke_request`
+- `deploy_key(public_key, unix_user, hostname, expires_at, justification, admin_id)` — parse + fingerprint, INSERT ssh_keys, sam-add, key_authorization ACTIVE (#164, #185)
+- `lock_user(unix_user, hostname, admin_id)` — valide POSIX, sam-lock-user, USER_LOCKED (#181)
+- `unlock_user(unix_user, hostname, admin_id)` — valide POSIX, sam-unlock-user, USER_UNLOCKED (#181)
 
-```python
-validate_key(fingerprint, admin_id, db)
-revoke_key(fingerprint, admin_id, reason, db)
-assign_key(fingerprint, owner_username, db)
-set_key_expiry(fingerprint, expires_at, db)
-remove_key_expiry(fingerprint, db)
-grant_access(key_fp, hostname, expires_at, justification, admin_id, db)
-approve_request(request_id, admin_id, db)
-reject_request(request_id, admin_id, db)
-revoke_request(request_id, admin_id, db)
-add_server(hostname, ip, env, os_family, db)
-disable_server(hostname, db)
-add_admin(username, email, db)
-disable_admin(username, db)
-```
+### Serveurs
+- `add_server(hostname, ip, env, os_family, db)` — add_to_known_hosts(ip) avant INSERT (#70)
+- `disable_server`, `enable_server` (#88), `delete_server` (#88 — hard + cascade)
 
-## Les 4 scénarios de révocation
+### Administrateurs
+- `add_admin(username, email, password, admin_id, role='operator')` — hash werkzeug, valide role
+- `update_admin(username, email, role, admin_id)` — ne peut pas modifier son propre rôle
+- `change_password` (#61), `toggle_alerts` (#223), `disable_admin`, `enable_admin` (#116), `delete_admin` (#116)
+- `_validate_password_strength` — 8+ cars, 1+ maj, 1+ min, 1+ chiffre, 1+ spécial (#62)
 
-1. **Via système** (`actions.py revoke_key`) → sam-revoke, `revoked_by=admin_id`, `status=REVOKED`, audit `KEY_REVOKED`, email INFO
-2. **Hors système** (scan : clé ACTIVE disparue) → `revoked_by=NULL`, `revoked_automatically=TRUE`, `status=REVOKED`, audit `ANOMALY_DETECTED`, EMAIL CRITIQUE
-3. **Clé inconnue** (présente serveur, absente BDD) → INSERT `status=PENDING_REVIEW`, audit `ANOMALY_DETECTED`, EMAIL CRITIQUE
-4. **Expiration programmée** (`expires_at < NOW()`) → sam-revoke auto, `status=EXPIRED`, `revoked_automatically=TRUE`, audit `KEY_EXPIRED`, email INFO
+## key_authorizations — PK à 3 colonnes
 
-## expire.py — anti-spam 24h
+PK = **(key_id, server_id, unix_user)** (#185). `unix_user` DEFAULT '' — obligatoire dans toutes les requêtes.
+`expire_keys()` doit sélectionner `s.ip_address` dans la requête SQL (#114).
 
-`warn_expiring_keys()` vérifie `NOT EXISTS` dans `audit_log` pour action `EXPIRY_WARNING` sur les dernières 24h avant d'envoyer un email.
+## Les 5 scénarios de révocation / détection
 
-Seuils configurables via ENV : `EXPIRE_WARN_DAYS` (J-7) et `EXPIRE_WARN_DAYS_2` (J-2).
+1. Via système → status=REVOKED, revoked_by=admin_id, KEY_REVOKED, INFO. Fonctionne sur PENDING_REVIEW (#85)
+2. Hors système (clé ACTIVE disparue) → revoked_automatically=TRUE, ANOMALY_DETECTED, CRITIQUE groupé
+3. Clé inconnue (absente BDD) → INSERT PENDING_REVIEW, ANOMALY_DETECTED, CRITIQUE groupé
+4. Expiration programmée → status=EXPIRED, revoked_automatically=TRUE, KEY_EXPIRED, INFO
+5. Clé révoquée/expirée réapparue (#123) → PENDING_REVIEW, ANOMALY_DETECTED, CRITIQUE groupé
 
-## alerts.py — niveaux
+Scénarios 2, 3, 5 : **1 seul email CRITIQUE par scan** (#119).
 
-- **CRITIQUE** : email immédiat (clé inconnue, révocation hors système, scan échoué)
-- **WARNING** : email immédiat avec anti-spam 24h (expiration proche)
-- **INFO** : log audit uniquement (KEY_EXPIRED, KEY_REVOKED, SCAN_COMPLETED, SCRIPT_DEPLOYED)
+## expire.py
 
-Envoi via `msmtp` (subprocess), config dans `/etc/msmtprc`.
+`warn_expiring_keys()` : lit `expire_warn_days` et `expire_warn_days_2` **depuis la table settings en DB** (#230) — pas depuis ENV.
+Anti-spam : NOT EXISTS EXPIRY_WARNING sur 24h. 1 seul email WARNING groupé par cycle (#119).
 
-## web.py — routes Flask complètes
+## Authentification Flask (web.py)
 
-Toutes les routes retournent JSON. Préfixe `/api/`.
+Session : `require_auth` (401 si absent), `require_role(*roles)` (403 si rôle insuffisant).
+Timeout : SESSION_SHORT_MINUTES=30 (sans remember_me) / SESSION_LONG_HOURS=8 (avec) — constantes web.py, pas en settings.
+Session expirée → 401 `{"error": "Session expired"}`.
 
-```
-GET  POST             /api/servers
-GET                   /api/servers/<hostname>
-PUT                   /api/servers/<hostname>/disable
-POST                  /api/servers/<hostname>/scan
+Rate limiter brute-force en mémoire (pas Redis) : `_get_client_ip()`, `_check_rate_limit()`, `_record_failure()`, `_reset_attempts()`.
+Print `[LOGIN_FAILED]` / `[LOGIN_BANNED]` (compatible fail2ban). Configurable via settings (login_max_attempts, login_ban_seconds).
 
-GET                   /api/keys
-GET                   /api/keys/<fingerprint>
-POST                  /api/keys/<fingerprint>/validate
-POST                  /api/keys/<fingerprint>/revoke
-POST                  /api/keys/<fingerprint>/assign
-POST                  /api/keys/<fingerprint>/set-expiry
-POST                  /api/keys/<fingerprint>/remove-expiry
-GET                   /api/keys/search?q=<query>
-
-GET                   /api/access
-GET                   /api/access/<id>
-POST                  /api/access/grant
-POST                  /api/access/request
-POST                  /api/access/<id>/approve
-POST                  /api/access/<id>/reject
-POST                  /api/access/<id>/revoke
-
-GET  POST             /api/admins
-PUT                   /api/admins/<username>/disable
-
-GET                   /api/audit?server=&action=&since=
-
-GET                   /api/system/status
-POST                  /api/system/scan
-```
-
-## manage.py — commandes CLI click complètes
+## web.py — routes actuelles
 
 ```
-servers list
-servers add --hostname HOST --ip IP --env ENV --os OS
-servers disable <hostname>
-servers show <hostname>
-servers scan [--server HOSTNAME]
+POST /api/auth/login      POST /api/auth/logout     GET /api/auth/me
 
-keys list [--status STATUS] [--server HOSTNAME]
-keys show <fingerprint>
-keys validate <fingerprint>
-keys revoke <fingerprint> --reason TEXT
-keys assign <fingerprint> --owner USERNAME
-keys set-expiry <fingerprint> --hours N
-keys set-expiry <fingerprint> --date YYYY-MM-DD HH:MM
-keys remove-expiry <fingerprint>
-keys search <query>
+GET    /api/servers                                  POST /api/servers
+GET    /api/servers/<hostname>                       PUT  /api/servers/<hostname>/disable
+PUT    /api/servers/<hostname>/enable                DELETE /api/servers/<hostname>
+POST   /api/servers/<hostname>/scan
 
-access list [--status STATUS]
-access show <id>
-access grant --key FP --server HOST --hours N --reason TEXT
-access grant --key FP --server HOST --date DATE --reason TEXT
-access request --key FP --server HOST --hours N --reason TEXT
-access approve <id>
-access reject <id>
-access revoke <id>
+GET  /api/keys                                       GET  /api/keys/get/<fingerprint>
+GET  /api/keys/search?q=                             POST /api/keys/validate/<fingerprint>
+POST /api/keys/revoke/<fingerprint>                  POST /api/keys/assign/<fingerprint>
+POST /api/keys/set-expiry/<fingerprint>              POST /api/keys/remove-expiry/<fingerprint>
 
-admin list
-admin add --username USER --email EMAIL
-admin disable <username>
+GET  /api/access                                     GET  /api/access/<id>
+GET  /api/access/deployed-users                      POST /api/access/grant
+POST /api/access/request                             POST /api/access/deploy
+POST /api/access/lock-user                           POST /api/access/unlock-user
+POST /api/access/<id>/approve                        POST /api/access/<id>/reject
+POST /api/access/<id>/revoke
 
-audit list [--server HOST] [--action ACTION] [--since DATE]
+GET    /api/admins                                   GET  /api/admins/me
+POST   /api/admins                                   PUT  /api/admins/<username>
+PUT    /api/admins/<username>/disable                PUT  /api/admins/<username>/enable
+DELETE /api/admins/<username>                        PUT  /api/admins/<username>/password
+PUT    /api/admins/<username>/alerts
 
-system status
-system report
+GET /api/audit?server=&action=&since=
+
+GET  /api/system/status                              POST /api/system/scan
+GET  /api/system/collector-key                       GET  /api/system/config
+PUT  /api/system/config                              POST /api/system/test-smtp
 ```
+
+## manage.py — commandes CLI actuelles
+
+```
+servers list / add / disable / enable / show / scan
+keys list / show / validate / revoke / assign / set-expiry / remove-expiry / search
+access list / show / grant / request / approve / reject / revoke / lock-user / unlock-user
+admin list / add / update / disable / enable / delete / change-password
+audit list
+system status / report
+```
+
+## Tests — règles absolues
+
+- Mock SSH (unittest.mock) — jamais vrai serveur
+- Mock PostgreSQL (fixtures pytest) — jamais vraie BDD
+- Mock msmtp — jamais email réel
+- Couverture minimale actions.py : 80%
+- pytest doit passer avant tout commit
 
 ## Tu ne touches jamais à...
 
 - `sql/schema.sql` — domaine db-specialist
 - `Dockerfile`, `bootstrap.sh`, `supervisord.conf`, `docker-compose.yml` — domaine infra-dev
 - `ui/` — domaine frontend-dev
-- `docs/`, `README.md`, `DESIGN.md` — domaine documentation
-- La structure `/data/` (lecture seule depuis Python, sauf known_hosts)
