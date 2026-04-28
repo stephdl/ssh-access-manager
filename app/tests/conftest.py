@@ -1,10 +1,13 @@
 import base64
 import hashlib
+import os
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+os.environ.setdefault("FLASK_SECRET_KEY", "test-secret-key-for-testing")
 
 
 def _compute_fingerprint(key_b64: str) -> str:

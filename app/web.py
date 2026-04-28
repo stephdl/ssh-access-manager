@@ -89,10 +89,10 @@ SESSION_LONG_HOURS = 8       # avec "remember me"
 
 app = Flask(__name__)
 _flask_secret = os.environ.get("FLASK_SECRET_KEY")
-if not _flask_secret:
-    import warnings
-    warnings.warn("FLASK_SECRET_KEY not set — sessions are insecure", RuntimeWarning, stacklevel=1)
-    _flask_secret = "changeme"
+if not _flask_secret or _flask_secret == "changeme":
+    raise RuntimeError(
+        "FLASK_SECRET_KEY must be set to a strong secret (not 'changeme')"
+    )
 app.secret_key = _flask_secret
 
 
