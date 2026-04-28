@@ -300,4 +300,7 @@ button:disabled {
   color: #333;
   background: #f0f0f0;
 }
+.modal-actions button {
+  min-width: 6rem;
+}
 </style>
