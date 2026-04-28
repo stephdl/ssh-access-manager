@@ -293,6 +293,31 @@ def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
             )
 
 
+def test_ssh_ensure_scripts_install_uses_mode_750(sample_server):
+    """sudo install doit utiliser -m 750 pour interdire la lecture aux autres utilisateurs."""
+    wrong_hash = "0" * 64
+    with patch("ssh._connect") as mock_connect, patch("ssh.db"):
+        client = MagicMock()
+        sftp = MagicMock()
+        mock_connect.return_value = client
+        client.open_sftp.return_value = sftp
+        stdout_wrong = MagicMock()
+        stdout_wrong.read.return_value = f"{wrong_hash}  /usr/local/bin/sam-collect\n".encode()
+        stdout_wrong.channel.recv_exit_status.return_value = 0
+        client.exec_command.return_value = (
+            MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b""))
+        )
+
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
+
+        commands = [c[0][0] for c in client.exec_command.call_args_list]
+        install_cmds = [c for c in commands if "/usr/bin/install" in c]
+        assert install_cmds, "Aucune commande install trouvée"
+        for cmd in install_cmds:
+            assert "-m 750" in cmd, f"install doit utiliser -m 750, pas -m 755 : {cmd}"
+            assert "-m 755" not in cmd
+
+
 def test_ssh_deploy_script_sets_staging_permissions(sample_server):
     """Le fichier staging doit être chmod 600 avant sudo install."""
     wrong_hash = "0" * 64

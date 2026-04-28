@@ -240,7 +240,7 @@ def _deploy_script(
 ) -> None:
     sftp.putfo(io.BytesIO(content), tmp_path)
     sftp.chmod(tmp_path, 0o600)
-    _run(client, f"sudo /usr/bin/install -m 755 -o root -g root {tmp_path} {remote_path}")
+    _run(client, f"sudo /usr/bin/install -m 750 -o root -g root {tmp_path} {remote_path}")
     _run(client, f"rm -f {tmp_path}")
 
 

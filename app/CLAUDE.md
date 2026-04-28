@@ -206,7 +206,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 - Couverture minimale actions.py : 80%
 - pytest doit passer avant tout commit
 
-Fichiers : conftest.py, test_db.py (7), test_servers.py (9), test_ssh.py (40), test_actions.py (97), test_collect.py (34), test_expire.py (12), test_alerts.py (19), test_web.py (115), test_manage.py (35).
+Fichiers : conftest.py, test_db.py (7), test_servers.py (9), test_ssh.py (41), test_actions.py (97), test_collect.py (34), test_expire.py (12), test_alerts.py (19), test_web.py (115), test_manage.py (35).
 
 Fixtures obligatoires dans conftest.py : `mock_db`, `mock_ssh_client`, `mock_smtp`, `sample_server`, `sample_key`.
 
