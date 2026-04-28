@@ -25,18 +25,18 @@ cp .env.example .env
 ### 2. Construire l'image
 
 ```bash
-podman build -t ssh-access-manager .
+podman build -t sam-server .
 ```
 
 ### 3. Premier démarrage
 
 ```bash
 podman run -d \
-  --name ssh-access-manager \
+  --name sam-server \
   --env-file .env \
   -v ssh_data:/data \
   -p 8080:8080 \
-  ssh-access-manager
+  sam-server
 ```
 
 Au premier démarrage, le container :
@@ -47,7 +47,7 @@ Au premier démarrage, le container :
 
 ```bash
 # Récupérer la clé publique du collecteur depuis les logs
-podman logs ssh-access-manager | grep -A1 "collector_key.pub"
+podman logs sam-server | grep -A1 "collector_key.pub"
 ```
 
 La clé publique est également visible directement dans l'interface web : **Dashboard > Clé publique collecteur**.
@@ -144,8 +144,8 @@ Sur chaque serveur à auditer, depuis la machine hébergeant le container.
 `<user>` peut être `root` ou tout utilisateur avec `sudo ALL` — c'est le `sudo bash -s` qui élève les privilèges :
 
 ```bash
-ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)'" \
-    < <(podman exec ssh-access-manager cat /app/provision-host.sh)
+ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec sam-server cat /data/keys/collector_key.pub)'" \
+    < <(podman exec sam-server cat /app/provision-host.sh)
 ```
 
 Cette commande est **identique** pour un premier provisionnement ou une mise à jour (ex. après un rebuild ou un changement des règles sudoers). Le script est **idempotent** : il crée l'utilisateur `audit-collector` (réutilise s'il existe), ajoute la clé publique dans `authorized_keys` si elle est absente, et écrase `/etc/sudoers.d/audit-collector` avec les règles courantes.
@@ -157,7 +157,7 @@ Cette commande est **identique** pour un premier provisionnement ou une mise à 
 **Via la CLI** :
 
 ```bash
-podman exec ssh-access-manager python3 /app/app/manage.py servers add \
+podman exec sam-server python3 /app/app/manage.py servers add \
   --hostname server-prod-01 --ip 192.168.1.10 --env production --os rhel
 ```
 
@@ -192,7 +192,7 @@ Depuis la vue détail d'un serveur (**Dashboard > clic sur hostname**) :
 
 ```bash
 # Scan de tous les serveurs actifs
-podman exec ssh-access-manager python3 /app/app/manage.py servers scan
+podman exec sam-server python3 /app/app/manage.py servers scan
 
 # Ou via l'interface web : Dashboard > "Scanner maintenant"
 # Ou via la vue détail d'un serveur : bouton "Scanner"
@@ -226,13 +226,13 @@ La colonne **Conforme** indique la conformité de chaque clé :
 
 ```bash
 # Lister les clés en attente
-podman exec ssh-access-manager python3 /app/app/manage.py keys list --status PENDING_REVIEW
+podman exec sam-server python3 /app/app/manage.py keys list --status PENDING_REVIEW
 
 # Valider une clé
-podman exec ssh-access-manager python3 /app/app/manage.py keys validate SHA256:...
+podman exec sam-server python3 /app/app/manage.py keys validate SHA256:...
 
 # Révoquer une clé
-podman exec ssh-access-manager python3 /app/app/manage.py keys revoke SHA256:... --reason "Clé orpheline"
+podman exec sam-server python3 /app/app/manage.py keys revoke SHA256:... --reason "Clé orpheline"
 ```
 
 ---
@@ -352,7 +352,7 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 ## Commandes CLI — référence rapide
 
 ```bash
-EXEC="podman exec ssh-access-manager python3 /app/app/manage.py"
+EXEC="podman exec sam-server python3 /app/app/manage.py"
 
 # Serveurs
 $EXEC servers list
