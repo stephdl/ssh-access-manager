@@ -300,4 +300,11 @@ button:disabled {
   color: #333;
   background: #f0f0f0;
 }
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-success,
+.btn-warning {
+  min-width: 6rem;
+}
 </style>

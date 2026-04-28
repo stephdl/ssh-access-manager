@@ -35,6 +35,9 @@
           :placeholder="$t('server_detail.revoke_reason_placeholder')"
         ></textarea>
         <div class="modal-actions">
+          <button data-testid="cancel-revoke" class="btn-secondary" @click="confirming = false">
+            {{ $t('common.cancel') }}
+          </button>
           <button
             class="btn-danger"
             :disabled="!reason.trim()"
@@ -42,9 +45,6 @@
             @click="confirmRevoke"
           >
             {{ $t('server_detail.revoke_confirm') }}
-          </button>
-          <button data-testid="cancel-revoke" @click="confirming = false">
-            {{ $t('common.cancel') }}
           </button>
         </div>
       </div>

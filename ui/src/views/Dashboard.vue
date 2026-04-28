@@ -104,6 +104,7 @@
           />
 
           <div class="modal-actions">
+            <button class="btn-secondary" @click="closeAddServer">{{ $t('common.cancel') }}</button>
             <button
               class="btn-primary"
               :disabled="!addFormValid || adding"
@@ -111,7 +112,6 @@
             >
               {{ adding ? $t('add_server.submitting') : $t('add_server.submit') }}
             </button>
-            <button @click="closeAddServer">{{ $t('common.cancel') }}</button>
           </div>
         </template>
 
@@ -179,6 +179,7 @@
         />
 
         <div class="modal-actions">
+          <button class="btn-secondary" @click="closeEditServer">{{ $t('common.cancel') }}</button>
           <button
             class="btn-primary"
             :disabled="!editFormValid || editing"
@@ -186,7 +187,6 @@
           >
             {{ editing ? $t('edit_server.submitting') : $t('edit_server.submit') }}
           </button>
-          <button @click="closeEditServer">{{ $t('common.cancel') }}</button>
         </div>
       </div>
     </div>
