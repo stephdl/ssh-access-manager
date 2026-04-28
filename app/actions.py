@@ -642,10 +642,10 @@ def add_server(
     """Insert a new server, run ssh-keyscan, and log SERVER_ADDED."""
     ip = _validate_ip(ip)
     existing = db.query_one(
-        "SELECT hostname FROM servers WHERE ip_address = %s AND is_active = true", (ip,)
+        "SELECT hostname FROM servers WHERE ip_address = %s", (ip,)
     )
     if existing:
-        raise ValueError(f"IP {ip} is already used by active server '{existing['hostname']}'")
+        raise ValueError(f"IP {ip} is already used by server '{existing['hostname']}'")
     import servers as servers_mod
     try:
         servers_mod.add_to_known_hosts(ip)
@@ -698,11 +698,11 @@ def update_server(
         raise ValueError(f"Server not found: {hostname}")
 
     existing = db.query_one(
-        "SELECT hostname FROM servers WHERE ip_address = %s AND is_active = true AND hostname != %s",
+        "SELECT hostname FROM servers WHERE ip_address = %s AND hostname != %s",
         (new_ip, hostname),
     )
     if existing:
-        raise ValueError(f"IP {new_ip} is already used by active server '{existing['hostname']}'")
+        raise ValueError(f"IP {new_ip} is already used by server '{existing['hostname']}'")
 
     old_ip = server["ip_address"]
     old_env = server["environment"]

@@ -240,7 +240,7 @@ function isValidIp(ip) {
 function isIpDuplicate(ip, excludeHostname = null) {
   const normalized = ip.trim()
   return servers.value.some(
-    (s) => s.is_active && s.ip_address === normalized && s.hostname !== excludeHostname
+    (s) => s.ip_address === normalized && s.hostname !== excludeHostname
   )
 }
 

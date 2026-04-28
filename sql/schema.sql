@@ -334,10 +334,9 @@ CREATE INDEX idx_ssh_keys_compliant
 CREATE INDEX idx_ssh_keys_fingerprint
     ON ssh_keys(fingerprint);
 
--- Une seule IP par serveur actif (les serveurs désactivés peuvent partager une IP)
-CREATE UNIQUE INDEX servers_ip_unique_active
-    ON servers (ip_address)
-    WHERE is_active = true;
+-- Une IP ne peut appartenir qu'à un seul serveur (désactivé = temporaire, pas libéré)
+CREATE UNIQUE INDEX servers_ip_unique
+    ON servers (ip_address);
 
 -- ---------------------------------------------------------------------------
 -- TABLE : ssh_sessions

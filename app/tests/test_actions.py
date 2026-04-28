@@ -1035,7 +1035,7 @@ def test_actions_update_server_rejects_invalid_ip():
 def test_actions_add_server_rejects_duplicate_ip():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"hostname": "existing-server"}
-        with pytest.raises(ValueError, match="already used by active server"):
+        with pytest.raises(ValueError, match="already used by server"):
             actions.add_server("new-host", "10.0.0.1", "lab", None, ADMIN_ID)
 
 
@@ -1043,7 +1043,7 @@ def test_actions_update_server_rejects_duplicate_ip():
     server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel"}
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [server, {"hostname": "other-server"}]
-        with pytest.raises(ValueError, match="already used by active server"):
+        with pytest.raises(ValueError, match="already used by server"):
             actions.update_server("server-test-01", "10.0.0.2", "lab", None, ADMIN_ID)
 
 
