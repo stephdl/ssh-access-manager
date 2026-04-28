@@ -360,6 +360,7 @@
     "title": "Bereitgestellte Benutzer",
     "col_user": "Unix-Benutzer",
     "col_server": "Server",
+    "col_ip": "IP",
     "col_expires": "Läuft ab",
     "col_status": "Status",
     "col_actions": "Aktionen",

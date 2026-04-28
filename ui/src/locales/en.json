@@ -360,6 +360,7 @@
     "title": "Deployed Users",
     "col_user": "Unix User",
     "col_server": "Server",
+    "col_ip": "IP",
     "col_expires": "Expires",
     "col_status": "Status",
     "col_actions": "Actions",
