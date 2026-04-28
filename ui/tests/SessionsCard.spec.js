@@ -146,11 +146,16 @@ describe('SessionsCard.vue', () => {
     expect(wrapper.find('[data-testid="sessions-no-active"]').text()).toContain('No active SSH sessions.')
   })
 
-  it('shows recent sessions section when recent list is not empty', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ active: [], recent: recentSessions }),
-    })
+  it('recent sessions are fetched but not shown in main card (visible in history modal)', async () => {
+    fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ active: [], recent: recentSessions }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => recentSessions,
+      })
 
     const wrapper = mount(SessionsCard, {
       props: { hostname: 'server07', currentRole: 'sysadmin' },
@@ -159,7 +164,12 @@ describe('SessionsCard.vue', () => {
 
     await new Promise((r) => setTimeout(r, 10))
 
-    expect(wrapper.find('[data-testid="sessions-recent-table"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sessions-recent-table"]').exists()).toBe(false)
+
+    const historyBtn = wrapper.find('[data-testid="sessions-history-btn"]')
+    await historyBtn.trigger('click')
+    await new Promise((r) => setTimeout(r, 10))
+
     expect(wrapper.html()).toContain('charlie')
   })
 
@@ -313,19 +323,19 @@ describe('SessionsCard.vue', () => {
 
     await new Promise((r) => setTimeout(r, 10))
 
-    wrapper.vm.showHistoryModal = true
+    const historyBtn = wrapper.find('[data-testid="sessions-history-btn"]')
+    await historyBtn.trigger('click')
     await new Promise((r) => setTimeout(r, 10))
 
-    wrapper.vm.filterUser = 'dave'
-    wrapper.vm.filterIp = '192.168.1.200'
-    wrapper.vm.filterSince = '2026-04-01'
-
-    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="history-filter-user"]').setValue('dave')
+    await wrapper.find('[data-testid="history-filter-ip"]').setValue('192.168.1.200')
+    await wrapper.find('[data-testid="history-filter-since"]').setValue('2026-04-01')
 
     const applyBtn = wrapper.find('[data-testid="history-filter-apply"]')
     await applyBtn.trigger('click')
 
-    await new Promise((r) => setTimeout(r, 10))
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
 
     expect(fetch).toHaveBeenCalledWith(
       '/api/servers/server11/sessions/history?user=dave&ip=192.168.1.200&since=2026-04-01'
@@ -372,9 +382,7 @@ describe('SessionsCard.vue', () => {
     const ipCellActive = activeTds[2]
     expect(ipCellActive.text()).toBe('—')
 
-    const recentTds = wrapper.findAll('[data-testid="sessions-recent-table"] tbody td')
-    const ipCellRecent = recentTds[2]
-    expect(ipCellRecent.text()).toBe('—')
+    expect(wrapper.find('[data-testid="sessions-recent-table"]').exists()).toBe(false)
   })
 
   it('shows pagination bar when history has data', async () => {

@@ -50,36 +50,33 @@
     <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
 
     <template v-else>
-      <!-- Top row: Info + Sessions side by side -->
-      <div class="top-row">
-        <section class="card info-card">
-          <h2>{{ $t('server_detail.section_info') }}</h2>
-          <dl class="info-grid">
-            <dt>{{ $t('server_detail.field_hostname') }}</dt>
-            <dd>{{ server.hostname }}</dd>
-            <dt>{{ $t('server_detail.field_ip') }}</dt>
-            <dd>{{ server.ip_address }}</dd>
-            <dt>{{ $t('server_detail.field_environment') }}</dt>
-            <dd>
-              <span class="badge" :class="envBadge(server.environment)">{{
-                server.environment
-              }}</span>
-            </dd>
-            <dt>{{ $t('server_detail.field_os') }}</dt>
-            <dd>{{ server.os_family || '—' }} {{ server.os_version || '' }}</dd>
-            <dt>{{ $t('server_detail.field_active') }}</dt>
-            <dd>
-              {{
-                server.is_active ? $t('server_detail.active_yes') : $t('server_detail.active_no')
-              }}
-            </dd>
-            <dt>{{ $t('server_detail.field_added') }}</dt>
-            <dd>{{ formatDate(server.added_at) }}</dd>
-          </dl>
-        </section>
+      <!-- Server info -->
+      <section class="card">
+        <h2>{{ $t('server_detail.section_info') }}</h2>
+        <dl class="info-grid">
+          <dt>{{ $t('server_detail.field_hostname') }}</dt>
+          <dd>{{ server.hostname }}</dd>
+          <dt>{{ $t('server_detail.field_ip') }}</dt>
+          <dd>{{ server.ip_address }}</dd>
+          <dt>{{ $t('server_detail.field_environment') }}</dt>
+          <dd>
+            <span class="badge" :class="envBadge(server.environment)">{{
+              server.environment
+            }}</span>
+          </dd>
+          <dt>{{ $t('server_detail.field_os') }}</dt>
+          <dd>{{ server.os_family || '—' }} {{ server.os_version || '' }}</dd>
+          <dt>{{ $t('server_detail.field_active') }}</dt>
+          <dd>
+            {{ server.is_active ? $t('server_detail.active_yes') : $t('server_detail.active_no') }}
+          </dd>
+          <dt>{{ $t('server_detail.field_added') }}</dt>
+          <dd>{{ formatDate(server.added_at) }}</dd>
+        </dl>
+      </section>
 
-        <SessionsCard :hostname="hostname" :current-role="currentRole" class="sessions-col" />
-      </div>
+      <!-- SSH Sessions -->
+      <SessionsCard :hostname="hostname" :current-role="currentRole" />
 
       <!-- SSH Keys -->
       <section class="card">
@@ -466,24 +463,6 @@ h2 {
   padding: 0.25rem 0.6rem;
   border-radius: 4px;
   font-size: 0.85rem;
-}
-
-.top-row {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 1.25rem;
-  align-items: start;
-  margin-bottom: 1.25rem;
-}
-
-.top-row > * {
-  margin-bottom: 0;
-}
-
-@media (max-width: 768px) {
-  .top-row {
-    grid-template-columns: 1fr;
-  }
 }
 
 .card {

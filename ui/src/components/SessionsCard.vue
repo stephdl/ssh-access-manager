@@ -59,34 +59,6 @@
         </tbody>
       </table>
       <p v-else class="empty" data-testid="sessions-no-active">{{ $t('sessions.no_active') }}</p>
-
-      <div v-if="recentSessions.length > 0" class="section-title recent-title">
-        {{ $t('sessions.recent_title') }}
-      </div>
-      <table v-if="recentSessions.length > 0" data-testid="sessions-recent-table">
-        <thead>
-          <tr>
-            <th>{{ $t('sessions.col_user') }}</th>
-            <th>{{ $t('sessions.col_tty') }}</th>
-            <th>{{ $t('sessions.col_ip') }}</th>
-            <th>{{ $t('sessions.col_login_at') }}</th>
-            <th>{{ $t('sessions.col_logout_at') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(session, idx) in recentSessions" :key="idx">
-            <td>
-              <code>{{ session.unix_user }}</code>
-            </td>
-            <td>
-              <code>{{ session.tty }}</code>
-            </td>
-            <td>{{ session.login_ip || '—' }}</td>
-            <td>{{ formatDate(session.login_at) }}</td>
-            <td>{{ formatDate(session.logout_at) }}</td>
-          </tr>
-        </tbody>
-      </table>
     </template>
 
     <div v-if="showHistoryModal" class="modal-overlay" @click.self="showHistoryModal = false">
