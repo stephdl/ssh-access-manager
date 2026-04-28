@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import SessionsCard from '../src/components/SessionsCard.vue'
 import { createI18n } from 'vue-i18n'
 import en from '../src/locales/en.json'
@@ -334,8 +334,7 @@ describe('SessionsCard.vue', () => {
     const applyBtn = wrapper.find('[data-testid="history-filter-apply"]')
     await applyBtn.trigger('click')
 
-    await new Promise((r) => setTimeout(r, 50))
-    await wrapper.vm.$nextTick()
+    await flushPromises()
 
     expect(fetch).toHaveBeenCalledWith(
       '/api/servers/server11/sessions/history?user=dave&ip=192.168.1.200&since=2026-04-01'
