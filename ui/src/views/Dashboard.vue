@@ -237,23 +237,44 @@ function isValidIp(ip) {
   return v6.test(ip.trim()) && ip.includes(':')
 }
 
-const addIpError = computed(() =>
-  addForm.value.ip.trim() && !isValidIp(addForm.value.ip) ? t('add_server.error_invalid_ip') : ''
-)
-const editIpError = computed(() =>
-  editForm.value.ip.trim() && !isValidIp(editForm.value.ip) ? t('add_server.error_invalid_ip') : ''
-)
+function isIpDuplicate(ip, excludeHostname = null) {
+  const normalized = ip.trim()
+  return servers.value.some(
+    (s) => s.is_active && s.ip_address === normalized && s.hostname !== excludeHostname
+  )
+}
+
+const addIpError = computed(() => {
+  const ip = addForm.value.ip.trim()
+  if (!ip) return ''
+  if (!isValidIp(ip)) return t('add_server.error_invalid_ip')
+  if (isIpDuplicate(ip)) return t('add_server.error_duplicate_ip')
+  return ''
+})
+
+const editIpError = computed(() => {
+  const ip = editForm.value.ip.trim()
+  if (!ip) return ''
+  if (!isValidIp(ip)) return t('add_server.error_invalid_ip')
+  if (isIpDuplicate(ip, editForm.value.hostname)) return t('add_server.error_duplicate_ip')
+  return ''
+})
 
 const addFormValid = computed(
   () =>
     addForm.value.hostname.trim() &&
     addForm.value.ip.trim() &&
     isValidIp(addForm.value.ip) &&
+    !isIpDuplicate(addForm.value.ip.trim()) &&
     addForm.value.environment
 )
 
 const editFormValid = computed(
-  () => editForm.value.ip.trim() && isValidIp(editForm.value.ip) && editForm.value.environment
+  () =>
+    editForm.value.ip.trim() &&
+    isValidIp(editForm.value.ip) &&
+    !isIpDuplicate(editForm.value.ip.trim(), editForm.value.hostname) &&
+    editForm.value.environment
 )
 
 async function loadCollectorKey() {
