@@ -224,7 +224,7 @@ def _should_run() -> bool:
 
 def run_scan(hostname: str | None = None, admin_id: str | None = None) -> list[dict]:
     """Scan all active servers (or one). Sends one grouped CRITICAL email if any anomalies."""
-    if hostname is None and not _should_run():
+    if hostname is None and admin_id is None and not _should_run():
         return []
     active_servers = servers_mod.get_active_servers()
     if hostname:
