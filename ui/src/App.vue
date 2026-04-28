@@ -19,17 +19,10 @@
       <span class="nav-user">{{ admin.username }}</span>
       <button class="btn-logout" @click="handleLogout">{{ $t('nav.logout') }}</button>
     </nav>
-    <div v-if="admin?.must_change_password && !bannerDismissed" class="password-banner">
+    <div v-if="admin?.must_change_password" class="password-banner">
       <span>{{ $t('password_banner.message') }}</span>
       <button class="btn-banner-action" @click="goChangePassword">
         {{ $t('password_banner.btn_change') }}
-      </button>
-      <button
-        class="btn-banner-dismiss"
-        @click="bannerDismissed = true"
-        :aria-label="$t('password_banner.btn_dismiss')"
-      >
-        ✕
       </button>
     </div>
     <main class="content">
@@ -39,7 +32,6 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from './composables/useAuth.js'
@@ -47,10 +39,9 @@ import { useAuth } from './composables/useAuth.js'
 const router = useRouter()
 const { admin, logout } = useAuth()
 const { locale } = useI18n()
-const bannerDismissed = ref(false)
 
 function goChangePassword() {
-  router.push('/admins')
+  router.push('/admins?changePassword=true')
 }
 
 async function handleLogout() {
@@ -165,18 +156,6 @@ body {
 }
 .btn-banner-action:hover {
   background: #e0a800;
-}
-.btn-banner-dismiss {
-  background: none;
-  border: none;
-  color: #856404;
-  font-size: 1rem;
-  cursor: pointer;
-  padding: 0 0.25rem;
-  line-height: 1;
-}
-.btn-banner-dismiss:hover {
-  color: #533f03;
 }
 
 .content {

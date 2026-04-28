@@ -414,7 +414,6 @@
   },
   "password_banner": {
     "message": "Ihr Passwort wurde noch nie geändert. Bitte aktualisieren Sie es aus Sicherheitsgründen.",
-    "btn_change": "Passwort ändern",
-    "btn_dismiss": "Schließen"
+    "btn_change": "Passwort ändern"
   }
 }

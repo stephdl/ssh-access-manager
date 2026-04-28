@@ -414,7 +414,6 @@
   },
   "password_banner": {
     "message": "Votre mot de passe n'a jamais été changé. Veuillez le mettre à jour pour votre sécurité.",
-    "btn_change": "Changer le mot de passe",
-    "btn_dismiss": "Ignorer"
+    "btn_change": "Changer le mot de passe"
   }
 }

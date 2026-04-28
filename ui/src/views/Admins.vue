@@ -453,11 +453,14 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import AdminsTable from '../components/AdminsTable.vue'
 
 const { t } = useI18n()
 const { admin } = useAuth()
+const route = useRoute()
+const router = useRouter()
 
 const currentRole = computed(() => admin.value?.role || 'viewer')
 
@@ -734,7 +737,13 @@ async function confirmEdit() {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  if (route?.query?.changePassword === 'true' && currentUsername.value) {
+    openEditPassword(currentUsername.value)
+    router.replace({ path: '/admins' })
+  }
+})
 </script>
 
 <style scoped>
