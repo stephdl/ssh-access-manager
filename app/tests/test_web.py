@@ -400,6 +400,18 @@ def test_web_get_audit_returns_200(auth_client):
         assert resp.status_code == 200
 
 
+def test_web_get_audit_query_aliases(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = []
+        auth_client.get("/api/audit")
+        sql = mock_db.query.call_args[0][0]
+        assert "performed_by_username" in sql
+        assert "server_hostname" in sql
+        assert "key_fingerprint" in sql
+        assert "administrators" in sql
+
+
 def test_web_get_audit_filters_by_action(auth_client):
     with patch("web.db") as mock_db:
         mock_db.query_one.return_value = _admin_row()

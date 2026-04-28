@@ -927,10 +927,14 @@ def list_audit():
     action = request.args.get("action")
     since = request.args.get("since")
     sql = """
-        SELECT al.*, sk.fingerprint, s.hostname
+        SELECT al.*,
+               adm.username   AS performed_by_username,
+               s.hostname     AS server_hostname,
+               sk.fingerprint AS key_fingerprint
         FROM audit_log al
-        LEFT JOIN ssh_keys sk ON sk.id = al.target_key
-        LEFT JOIN servers s ON s.id = al.target_server
+        LEFT JOIN administrators adm ON adm.id = al.performed_by
+        LEFT JOIN servers        s   ON s.id   = al.target_server
+        LEFT JOIN ssh_keys       sk  ON sk.id  = al.target_key
         WHERE 1=1
     """
     params = []
