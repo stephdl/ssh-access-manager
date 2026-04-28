@@ -25,7 +25,7 @@
         <tr v-if="filtered.length === 0">
           <td colspan="7" class="empty">{{ $t('server_table.empty') }}</td>
         </tr>
-        <tr v-for="s in filtered" :key="s.id" :class="rowClass(s)">
+        <tr v-for="s in paginatedItems" :key="s.id" :class="rowClass(s)">
           <td>{{ statusIcon(s) }}</td>
           <td>
             <router-link
@@ -68,12 +68,24 @@
         </tr>
       </tbody>
     </table>
+
+    <PaginationBar
+      v-if="filtered.length > 0"
+      :current-page="currentPage"
+      :total-pages="totalPages"
+      :total-items="totalItems"
+      :page-size="pageSize"
+      @update:current-page="currentPage = $event"
+      @update:page-size="setPageSize"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import { useFormatDate } from '../composables/useFormatDate.js'
+import { usePagination } from '../composables/usePagination.js'
+import PaginationBar from './PaginationBar.vue'
 
 const { formatDateOnly } = useFormatDate()
 
@@ -96,6 +108,9 @@ const filtered = computed(() => {
       (s.os_family || '').toLowerCase().includes(q)
   )
 })
+
+const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
+  usePagination(filtered)
 
 function statusIcon(s) {
   if (!s.is_active) return '🔴'

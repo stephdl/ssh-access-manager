@@ -369,5 +369,11 @@
     "unlock_success": "Account '{user}' sbloccato su {server}.",
     "lock_error": "Blocco fallito: {error}",
     "unlock_error": "Sblocco fallito: {error}"
+  },
+  "pagination": {
+    "rowsPerPage": "Righe per pagina",
+    "showing": "{from}–{to} di {total}",
+    "previous": "Precedente",
+    "next": "Successivo"
   }
 }

@@ -43,7 +43,7 @@
             {{ $t('key_table.no_results') }}
           </td>
         </tr>
-        <tr v-for="k in filteredKeys" :key="k.fingerprint + '|' + (k.unix_user || '')">
+        <tr v-for="k in paginatedItems" :key="k.fingerprint + '|' + (k.unix_user || '')">
           <td>
             <span class="badge" :class="statusBadge(k.status)">{{ k.status }}</span>
           </td>
@@ -109,6 +109,16 @@
         </tr>
       </tbody>
     </table>
+
+    <PaginationBar
+      v-if="filteredKeys.length > 0"
+      :current-page="currentPage"
+      :total-pages="totalPages"
+      :total-items="totalItems"
+      :page-size="pageSize"
+      @update:current-page="currentPage = $event"
+      @update:page-size="setPageSize"
+    />
   </div>
 </template>
 
@@ -116,6 +126,8 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormatDate } from '../composables/useFormatDate.js'
+import { usePagination } from '../composables/usePagination.js'
+import PaginationBar from './PaginationBar.vue'
 
 const { t } = useI18n()
 const { formatDate } = useFormatDate()
@@ -142,6 +154,9 @@ const filteredKeys = computed(() => {
     )
   })
 })
+
+const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
+  usePagination(filteredKeys)
 
 function complianceTooltip(k) {
   if (k.key_type === 'ssh-rsa') {

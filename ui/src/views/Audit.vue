@@ -44,7 +44,7 @@
           <tr v-if="entries.length === 0">
             <td colspan="6" class="empty">{{ $t('audit.empty') }}</td>
           </tr>
-          <tr v-for="e in entries" :key="e.id" :class="rowClass(e.action)">
+          <tr v-for="e in paginatedItems" :key="e.id" :class="rowClass(e.action)">
             <td class="date">{{ formatDate(e.performed_at) }}</td>
             <td>
               <span class="badge" :class="actionBadge(e.action)">{{ e.action }}</span>
@@ -59,14 +59,26 @@
           </tr>
         </tbody>
       </table>
+
+      <PaginationBar
+        v-if="entries.length > 0"
+        :current-page="currentPage"
+        :total-pages="totalPages"
+        :total-items="totalItems"
+        :page-size="pageSize"
+        @update:current-page="currentPage = $event"
+        @update:page-size="setPageSize"
+      />
     </section>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormatDate } from '../composables/useFormatDate.js'
+import { usePagination } from '../composables/usePagination.js'
+import PaginationBar from '../components/PaginationBar.vue'
 
 const { t } = useI18n()
 const { formatDate } = useFormatDate()
@@ -96,6 +108,10 @@ const loading = ref(true)
 const error = ref('')
 
 const filters = ref({ server: '', action: '', since: '' })
+
+const entriesComputed = computed(() => entries.value)
+const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
+  usePagination(entriesComputed)
 
 async function load() {
   loading.value = true

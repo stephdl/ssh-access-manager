@@ -369,5 +369,11 @@
     "unlock_success": "Account '{user}' unlocked on {server}.",
     "lock_error": "Lock failed: {error}",
     "unlock_error": "Unlock failed: {error}"
+  },
+  "pagination": {
+    "rowsPerPage": "Rows per page",
+    "showing": "{from}–{to} of {total}",
+    "previous": "Previous",
+    "next": "Next"
   }
 }

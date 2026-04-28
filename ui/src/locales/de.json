@@ -369,5 +369,11 @@
     "unlock_success": "Konto '{user}' entsperrt auf {server}.",
     "lock_error": "Sperrung fehlgeschlagen: {error}",
     "unlock_error": "Entsperrung fehlgeschlagen: {error}"
+  },
+  "pagination": {
+    "rowsPerPage": "Zeilen pro Seite",
+    "showing": "{from}–{to} von {total}",
+    "previous": "Zurück",
+    "next": "Weiter"
   }
 }
