@@ -7,9 +7,9 @@
   "packageRules": [
     {
       "matchManagers": ["npm"],
-      "matchPackagePatterns": ["*"],
       "groupName": "npm dependencies",
-      "automerge": false
+      "automerge": false,
+      "matchPackageNames": ["*"]
     },
     {
       "matchManagers": ["npm"],
@@ -28,6 +28,6 @@
     }
   ],
   "pip_requirements": {
-    "fileMatch": ["requirements-test\\.txt$"]
+    "managerFilePatterns": ["/requirements-test\\.txt$/"]
   }
 }
