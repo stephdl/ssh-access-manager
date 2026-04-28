@@ -315,7 +315,7 @@ def delete_server(hostname):
 @require_auth
 @require_role("sysadmin", "operator")
 def scan_server(hostname):
-    results = collect_mod.run_scan(hostname=hostname)
+    results = collect_mod.run_scan(hostname=hostname, admin_id=g.admin_id)
     return jsonify(results)
 
 
@@ -982,7 +982,7 @@ def system_status():
 @require_auth
 @require_role("sysadmin", "operator")
 def system_scan():
-    results = collect_mod.run_scan()
+    results = collect_mod.run_scan(admin_id=g.admin_id)
     return jsonify(results)
 
 

@@ -24,6 +24,14 @@
 
     <section class="card">
       <table>
+        <colgroup>
+          <col style="width: 130px" />
+          <col style="width: 160px" />
+          <col style="width: 90px" />
+          <col style="width: 140px" />
+          <col style="width: 190px" />
+          <col />
+        </colgroup>
         <thead>
           <tr>
             <th>{{ $t('audit.col_date') }}</th>
@@ -201,16 +209,21 @@ select {
   font-size: 0.82rem;
 }
 
+table {
+  table-layout: fixed;
+  width: 100%;
+}
+
 .fp {
   font-size: 0.72rem;
   word-break: break-all;
-  max-width: 200px;
 }
 
 .details {
   font-size: 0.8rem;
   color: #555;
-  max-width: 220px;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 code {
