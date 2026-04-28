@@ -96,7 +96,7 @@
           <div class="modal-header-actions">
             <button
               v-if="historyData.length > 0"
-              class="btn-sm btn-secondary"
+              class="btn-sm btn-primary"
               @click="exportCsv"
               data-testid="history-export-csv"
             >
