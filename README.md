@@ -391,6 +391,7 @@ $EXEC admin update <username> [--email EMAIL] [--role ROLE]
 $EXEC admin disable USERNAME
 $EXEC admin enable USERNAME
 $EXEC admin delete USERNAME
+$EXEC admin reset-password USERNAME --password NEW_PASSWORD
 
 # Audit
 $EXEC audit list --action ANOMALY_DETECTED --since 2025-01-01
@@ -400,6 +401,25 @@ $EXEC audit list --server HOST
 $EXEC system status
 $EXEC system report
 ```
+
+---
+
+## Récupération de mot de passe administrateur
+
+Si un administrateur a perdu son mot de passe, un sysadmin ayant accès au container peut le réinitialiser via la CLI sans connexion préalable :
+
+```bash
+# Docker
+docker exec -it ssh-access-manager python3 /app/app/manage.py admin reset-password <username> --password <new_password>
+
+# Podman
+podman exec -it sam-server python3 /app/app/manage.py admin reset-password <username> --password <new_password>
+```
+
+Contraintes :
+- Le mot de passe doit respecter la politique de sécurité (8+ caractères, majuscule, minuscule, chiffre, caractère spécial)
+- Fonctionne même si le compte est désactivé
+- L'opération est tracée dans l'audit log (`PASSWORD_RESET`, `performed_by=NULL`)
 
 ---
 

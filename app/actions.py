@@ -827,6 +827,24 @@ def change_password(username: str, new_password: str) -> None:
     )
 
 
+def reset_password(username: str, new_password: str) -> None:
+    """Reset password for any administrator (active or disabled). CLI use only."""
+    from werkzeug.security import generate_password_hash
+
+    _validate_password_strength(new_password)
+    admin = db.query_one("SELECT id FROM administrators WHERE username = %s", (username,))
+    if not admin:
+        raise ValueError(f"Admin not found: {username}")
+    db.execute(
+        "UPDATE administrators SET password_hash = %s WHERE id = %s",
+        (generate_password_hash(new_password), admin["id"]),
+    )
+    db.execute(
+        "INSERT INTO audit_log (action, performed_by, details) VALUES ('PASSWORD_RESET', NULL, %s::jsonb)",
+        (json.dumps({"username": username, "method": "cli"}),),
+    )
+
+
 def update_admin(username: str, email: str | None, role: str, admin_id: str) -> dict:
     """Update administrator email and role. Log ADMIN_UPDATED."""
     if not email or not email.strip():

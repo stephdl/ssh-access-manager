@@ -1106,3 +1106,46 @@ def test_actions_toggle_alerts_unknown_admin_raises():
         mock_db.query_one.return_value = None
         with pytest.raises(ValueError, match="Active admin not found"):
             actions.toggle_alerts("ghost", True)
+
+
+# ---------------------------------------------------------------------------
+# reset_password
+# ---------------------------------------------------------------------------
+
+def test_actions_reset_password_updates_hash():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID}
+        actions.reset_password("alice", "N3wStr0ng#Pass!")
+        sql = mock_db.execute.call_args_list[0][0][0]
+        assert "password_hash" in sql
+
+
+def test_actions_reset_password_writes_audit_log():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID}
+        actions.reset_password("alice", "N3wStr0ng#Pass!")
+        audit_sql = mock_db.execute.call_args_list[1][0][0]
+        assert "PASSWORD_RESET" in audit_sql
+
+
+def test_actions_reset_password_works_for_disabled_admin():
+    """reset_password does not filter by is_active — works on disabled admins."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID}
+        actions.reset_password("disabled_user", "N3wStr0ng#Pass!")
+        sql = mock_db.query_one.call_args[0][0]
+        assert "is_active" not in sql
+
+
+def test_actions_reset_password_raises_if_not_found():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(ValueError, match="Admin not found"):
+            actions.reset_password("ghost", "N3wStr0ng#Pass!")
+
+
+def test_actions_reset_password_rejects_weak_password():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID}
+        with pytest.raises(ValueError):
+            actions.reset_password("alice", "weak")
