@@ -370,11 +370,12 @@ def refresh_server_sessions(hostname):
     if not server:
         return jsonify({"error": "Server not found or inactive"}), 404
     try:
+        ssh.ensure_scripts(hostname, server["id"], server["ip_address"])
         ssh.collect_sessions_on_server(hostname, server["id"], server["ip_address"])
         return jsonify({"status": "refreshed"})
     except Exception as e:
         logging.exception("collect_sessions_on_server failed")
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": str(e) or repr(e)}), 502
 
 
 @app.route("/api/servers/<hostname>/sessions/history", methods=["GET"])

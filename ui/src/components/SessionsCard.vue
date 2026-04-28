@@ -232,7 +232,8 @@ async function refreshSessions() {
   try {
     const res = await fetch(`/api/servers/${props.hostname}/sessions/refresh`, { method: 'POST' })
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`)
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
     }
     await loadSessions()
   } catch (e) {
