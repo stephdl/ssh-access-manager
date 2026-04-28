@@ -83,6 +83,7 @@
             <span class="required">{{ $t('common.required') }}</span></label
           >
           <input v-model="addForm.ip" type="text" :placeholder="$t('add_server.ip_placeholder')" />
+          <span v-if="addIpError" class="field-error">{{ addIpError }}</span>
 
           <label
             >{{ $t('add_server.environment') }}
@@ -157,6 +158,7 @@
           <span class="required">{{ $t('common.required') }}</span></label
         >
         <input v-model="editForm.ip" type="text" :placeholder="$t('edit_server.ip_placeholder')" />
+        <span v-if="editIpError" class="field-error">{{ editIpError }}</span>
 
         <label
           >{{ $t('edit_server.environment') }}
@@ -227,11 +229,32 @@ const counts = computed(() => ({
   danger: servers.value.filter((s) => !s.is_active).length,
 }))
 
-const addFormValid = computed(
-  () => addForm.value.hostname.trim() && addForm.value.ip.trim() && addForm.value.environment
+function isValidIp(ip) {
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+  const m = v4.exec(ip.trim())
+  if (m) return m.slice(1).every((n) => +n <= 255)
+  const v6 = /^[0-9a-fA-F:]+$/
+  return v6.test(ip.trim()) && ip.includes(':')
+}
+
+const addIpError = computed(() =>
+  addForm.value.ip.trim() && !isValidIp(addForm.value.ip) ? t('add_server.error_invalid_ip') : ''
+)
+const editIpError = computed(() =>
+  editForm.value.ip.trim() && !isValidIp(editForm.value.ip) ? t('add_server.error_invalid_ip') : ''
 )
 
-const editFormValid = computed(() => editForm.value.ip.trim() && editForm.value.environment)
+const addFormValid = computed(
+  () =>
+    addForm.value.hostname.trim() &&
+    addForm.value.ip.trim() &&
+    isValidIp(addForm.value.ip) &&
+    addForm.value.environment
+)
+
+const editFormValid = computed(
+  () => editForm.value.ip.trim() && isValidIp(editForm.value.ip) && editForm.value.environment
+)
 
 async function loadCollectorKey() {
   try {
@@ -488,6 +511,12 @@ h1 {
   padding: 0.6rem 1rem;
   border-radius: 4px;
   margin-bottom: 1rem;
+}
+.field-error {
+  font-size: 0.8rem;
+  color: #c00;
+  margin-top: 0.2rem;
+  display: block;
 }
 .alert-info {
   background: #d4edda;

@@ -1029,6 +1029,17 @@ def test_actions_update_server_not_found():
             actions.update_server("unknown-server", "10.0.0.1", "lab", "rhel", ADMIN_ID)
 
 
+def test_actions_add_server_rejects_invalid_ip():
+    for bad in ["notanip", "999.1.1.1", "192.168.1", "hello world"]:
+        with pytest.raises(ValueError, match="Invalid IP"):
+            actions.add_server("h", bad, "lab", None, ADMIN_ID)
+
+
+def test_actions_update_server_rejects_invalid_ip():
+    with pytest.raises(ValueError, match="Invalid IP"):
+        actions.update_server("h", "not-an-ip", "lab", None, ADMIN_ID)
+
+
 # ---------------------------------------------------------------------------
 # RBAC — email mandatory and role validation
 # ---------------------------------------------------------------------------

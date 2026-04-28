@@ -2,6 +2,7 @@
 actions.py — logique metier partagee entre web.py (API) et manage.py (CLI).
 Jamais de duplication entre les deux consommateurs.
 """
+import ipaddress
 import json
 import re
 from datetime import datetime, timedelta, timezone
@@ -13,6 +14,13 @@ import ssh
 _FP_RE = re.compile(r"^SHA256:[A-Za-z0-9+/=]+$")
 _UNIX_USER_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 VALID_ROLES = {"sysadmin", "operator", "viewer"}
+
+
+def _validate_ip(ip: str) -> str:
+    try:
+        return str(ipaddress.ip_address(ip.strip()))
+    except ValueError:
+        raise ValueError(f"Invalid IP address: {ip!r} (expected IPv4 or IPv6)")
 
 
 def _check_fingerprint(fp: str) -> None:
@@ -632,6 +640,7 @@ def add_server(
     admin_id: str | None = None,
 ) -> dict:
     """Insert a new server, run ssh-keyscan, and log SERVER_ADDED."""
+    ip = _validate_ip(ip)
     import servers as servers_mod
     try:
         servers_mod.add_to_known_hosts(ip)
@@ -674,6 +683,7 @@ def update_server(
     admin_id: str | None = None,
 ) -> dict:
     """Update server IP, environment, OS. If IP changes, run ssh-keyscan."""
+    new_ip = _validate_ip(new_ip)
     import servers as servers_mod
     server = db.query_one(
         "SELECT id, ip_address, environment, os_family FROM servers WHERE hostname = %s",

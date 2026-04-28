@@ -50,6 +50,7 @@
     "env_placeholder": "— Elegir —",
     "os_family": "Familia OS",
     "os_placeholder": "ej: rhel, debian (opcional)",
+    "error_invalid_ip": "Dirección IP no válida (se esperaba IPv4 o IPv6).",
     "submitting": "Añadiendo…",
     "submit": "Añadir",
     "success_title": "Servidor añadido",

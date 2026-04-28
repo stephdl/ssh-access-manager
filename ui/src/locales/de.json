@@ -50,6 +50,7 @@
     "env_placeholder": "— Wählen —",
     "os_family": "OS-Familie",
     "os_placeholder": "z.B.: rhel, debian (optional)",
+    "error_invalid_ip": "Ungültige IP-Adresse (IPv4 oder IPv6 erwartet).",
     "submitting": "Hinzufügen…",
     "submit": "Hinzufügen",
     "success_title": "Server hinzugefügt",
