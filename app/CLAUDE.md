@@ -65,12 +65,12 @@ Tracées dans audit_log (SCRIPT_DEPLOYED).
 
 | Constante | Path distant | Droits | Action |
 |-----------|-------------|--------|--------|
-| SAM_COLLECT | /usr/local/bin/sam-collect | root, 755 | Lit toutes les authorized_keys → stdout : `unix_user\tkey_type key_b64 [comment]` |
-| SAM_REVOKE | /usr/local/bin/sam-revoke \<fp_hex\> | root, 755 | Révoque par fingerprint SHA256 hex. Réécriture atomique mktemp+mv. Préserve ownership (#104) |
-| SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> | root, 755 | Crée user Unix si absent, ajoute clé idempotent (#164) |
-| SAM_LOCK_USER | /usr/local/bin/sam-lock-user \<unix_user\> | root, 755 | `usermod -L -s /sbin/nologin` — bloque mdp ET shell (#181) |
-| SAM_UNLOCK_USER | /usr/local/bin/sam-unlock-user \<unix_user\> | root, 755 | `usermod -U -s /bin/bash` (#181) |
-| SAM_SESSIONS | /usr/local/bin/sam-sessions | root, 755 | Collecte sessions SSH actives (who) + historique (last) → stdout : `A\|H\tuser\ttty\tip\trest` (#253) |
+| SAM_COLLECT | /usr/local/bin/sam-collect | root, 750 | Lit toutes les authorized_keys → stdout : `unix_user\tkey_type key_b64 [comment]` |
+| SAM_REVOKE | /usr/local/bin/sam-revoke \<fp_hex\> | root, 750 | Révoque par fingerprint SHA256 hex. Réécriture atomique mktemp+mv. Préserve ownership (#104) |
+| SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> | root, 750 | Crée user Unix si absent, ajoute clé idempotent (#164) |
+| SAM_LOCK_USER | /usr/local/bin/sam-lock-user \<unix_user\> | root, 750 | `usermod -L -s /sbin/nologin` — bloque mdp ET shell (#181) |
+| SAM_UNLOCK_USER | /usr/local/bin/sam-unlock-user \<unix_user\> | root, 750 | `usermod -U -s /bin/bash` (#181) |
+| SAM_SESSIONS | /usr/local/bin/sam-sessions | root, 750 | Collecte sessions SSH actives (who) + historique (last) → stdout : `A\|H\tuser\ttty\tip\trest` (#253) |
 
 ## Logique métier — known_hosts et connexions SSH
 
@@ -231,3 +231,8 @@ ssh <user>@<ip> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/c
 ```
 
 Actions : crée l'utilisateur collector, déploie la clé publique (append, chown collector — #86), crée sudoers dynamique avec ${COLLECTOR_USER}.
+
+Permissions appliquées (#260) :
+- `chmod 700 /home/${COLLECTOR_USER}` — home non listable par les autres utilisateurs
+- Scripts SAM déployés avec `-m 750` (root:root) — non lisibles/exécutables par les non-root
+- Sudoers hardcode `-m 750` : si cette valeur change dans `ssh.py`, il faut re-provisionner les serveurs
