@@ -132,4 +132,20 @@ describe('ServerTable', () => {
     expect(w.emitted('edit')).toBeTruthy()
     expect(w.emitted('edit')[0][0]).toEqual(SERVERS[0])
   })
+
+  it('affiche seulement 10 items par défaut sur la première page', () => {
+    const manyServers = Array.from({ length: 25 }, (_, i) => ({
+      id: String(i + 1),
+      hostname: `server-${i + 1}`,
+      ip_address: `10.0.0.${i + 1}`,
+      environment: 'production',
+      os_family: 'rhel',
+      added_at: null,
+      is_active: true,
+      has_anomalies: false,
+    }))
+    const w = mountTable(manyServers)
+    const rows = w.findAll('tbody tr').filter((r) => !r.classes('empty'))
+    expect(rows.length).toBe(10)
+  })
 })

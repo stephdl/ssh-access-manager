@@ -57,7 +57,7 @@
           </thead>
           <tbody>
             <tr
-              v-for="k in pendingFiltered"
+              v-for="k in paginatedPending"
               :key="k.fingerprint + k.server_hostname"
               :data-testid="`pending-row-${k.fingerprint}`"
             >
@@ -100,6 +100,16 @@
         <p v-else class="empty" data-testid="pending-no-results">
           {{ $t('anomalies.no_results') }}
         </p>
+
+        <PaginationBar
+          v-if="pendingFiltered.length > 0"
+          :current-page="pendingCurrentPage"
+          :total-pages="pendingTotalPages"
+          :total-items="pendingTotalItems"
+          :page-size="pendingPageSize"
+          @update:current-page="pendingCurrentPage = $event"
+          @update:page-size="setPendingPageSize"
+        />
       </section>
 
       <!-- Out-of-system revocations (last 30 days) -->
@@ -124,7 +134,7 @@
           </thead>
           <tbody>
             <tr
-              v-for="k in outOfSystemFiltered"
+              v-for="k in paginatedOutOfSystem"
               :key="k.fingerprint + k.server_hostname"
               :data-testid="`revoked-row-${k.fingerprint}`"
             >
@@ -154,6 +164,16 @@
         <p v-else class="empty" data-testid="revoked-no-results">
           {{ $t('anomalies.no_results') }}
         </p>
+
+        <PaginationBar
+          v-if="outOfSystemFiltered.length > 0"
+          :current-page="outOfSystemCurrentPage"
+          :total-pages="outOfSystemTotalPages"
+          :total-items="outOfSystemTotalItems"
+          :page-size="outOfSystemPageSize"
+          @update:current-page="outOfSystemCurrentPage = $event"
+          @update:page-size="setOutOfSystemPageSize"
+        />
       </section>
     </template>
 
@@ -195,6 +215,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
+import { usePagination } from '../composables/usePagination.js'
+import PaginationBar from '../components/PaginationBar.vue'
 
 const { t } = useI18n()
 const { admin } = useAuth()
@@ -255,6 +277,24 @@ function matchesFilter(k) {
 
 const pendingFiltered = computed(() => pendingAll.value.filter(matchesFilter))
 const outOfSystemFiltered = computed(() => outOfSystemAll.value.filter(matchesFilter))
+
+const {
+  pageSize: pendingPageSize,
+  currentPage: pendingCurrentPage,
+  totalItems: pendingTotalItems,
+  totalPages: pendingTotalPages,
+  paginatedItems: paginatedPending,
+  setPageSize: setPendingPageSize,
+} = usePagination(pendingFiltered)
+
+const {
+  pageSize: outOfSystemPageSize,
+  currentPage: outOfSystemCurrentPage,
+  totalItems: outOfSystemTotalItems,
+  totalPages: outOfSystemTotalPages,
+  paginatedItems: paginatedOutOfSystem,
+  setPageSize: setOutOfSystemPageSize,
+} = usePagination(outOfSystemFiltered)
 
 async function load() {
   loading.value = true

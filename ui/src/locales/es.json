@@ -369,5 +369,11 @@
     "unlock_success": "Cuenta '{user}' desbloqueada en {server}.",
     "lock_error": "Fallo al bloquear: {error}",
     "unlock_error": "Fallo al desbloquear: {error}"
+  },
+  "pagination": {
+    "rowsPerPage": "Filas por página",
+    "showing": "{from}–{to} de {total}",
+    "previous": "Anterior",
+    "next": "Siguiente"
   }
 }

@@ -369,5 +369,11 @@
     "unlock_success": "Compte '{user}' déverrouillé sur {server}.",
     "lock_error": "Échec du verrouillage : {error}",
     "unlock_error": "Échec du déverrouillage : {error}"
+  },
+  "pagination": {
+    "rowsPerPage": "Lignes par page",
+    "showing": "{from}–{to} sur {total}",
+    "previous": "Précédent",
+    "next": "Suivant"
   }
 }

@@ -29,7 +29,7 @@
                 {{ $t('admins.empty') }}
               </td>
             </tr>
-            <tr v-for="a in admins" :key="a.id" :class="{ 'row-inactive': !a.is_active }">
+            <tr v-for="a in paginatedAdmins" :key="a.id" :class="{ 'row-inactive': !a.is_active }">
               <td>
                 <strong>{{ a.username }}</strong>
               </td>
@@ -117,6 +117,16 @@
             </tr>
           </tbody>
         </table>
+
+        <PaginationBar
+          v-if="admins.length > 0"
+          :current-page="currentPage"
+          :total-pages="totalPages"
+          :total-items="totalItems"
+          :page-size="pageSize"
+          @update:current-page="currentPage = $event"
+          @update:page-size="setPageSize"
+        />
       </section>
 
       <!-- My account — password change for non-sysadmin -->
@@ -550,6 +560,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth'
 import { useFormatDate } from '../composables/useFormatDate.js'
+import { usePagination } from '../composables/usePagination.js'
+import PaginationBar from '../components/PaginationBar.vue'
 
 const { t } = useI18n()
 const { admin } = useAuth()
@@ -584,6 +596,16 @@ const loading = ref(true)
 const error = ref('')
 const message = ref('')
 const currentUsername = ref('')
+
+const adminsComputed = computed(() => admins.value)
+const {
+  pageSize,
+  currentPage,
+  totalItems,
+  totalPages,
+  paginatedItems: paginatedAdmins,
+  setPageSize,
+} = usePagination(adminsComputed)
 const newUsername = ref('')
 const newEmail = ref('')
 const newRole = ref('operator')

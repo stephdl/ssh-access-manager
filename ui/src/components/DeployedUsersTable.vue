@@ -40,7 +40,7 @@
         </thead>
         <tbody>
           <tr
-            v-for="user in filteredUsers"
+            v-for="user in paginatedItems"
             :key="`${user.unix_user}-${user.hostname}`"
             :data-testid="`row-${user.unix_user}-${user.hostname}`"
           >
@@ -109,6 +109,16 @@
           </tr>
         </tbody>
       </table>
+
+      <PaginationBar
+        v-if="filteredUsers.length > 0"
+        :current-page="currentPage"
+        :total-pages="totalPages"
+        :total-items="totalItems"
+        :page-size="pageSize"
+        @update:current-page="currentPage = $event"
+        @update:page-size="setPageSize"
+      />
     </template>
 
     <div v-else class="empty-state" data-testid="empty-state">
@@ -122,6 +132,8 @@ import { ref, computed, onMounted, defineExpose } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
+import { usePagination } from '../composables/usePagination.js'
+import PaginationBar from './PaginationBar.vue'
 
 const { t } = useI18n()
 const { admin } = useAuth()
@@ -154,6 +166,9 @@ const filteredUsers = computed(() => {
     return true
   })
 })
+
+const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
+  usePagination(filteredUsers)
 
 onMounted(async () => {
   await loadUsers()
