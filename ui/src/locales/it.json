@@ -382,5 +382,30 @@
     "showing": "{from}–{to} di {total}",
     "previous": "Precedente",
     "next": "Successivo"
+  },
+  "sessions": {
+    "title": "Sessioni SSH",
+    "refresh": "Aggiorna",
+    "refreshing": "Aggiornamento…",
+    "history_btn": "Storico completo →",
+    "history_title": "Storico sessioni",
+    "last_collected": "Ultima raccolta: {time}",
+    "active_title": "Connessioni attive",
+    "recent_title": "Terminate di recente (ultime 5)",
+    "col_user": "Utente",
+    "col_tty": "TTY",
+    "col_ip": "IP",
+    "col_login_at": "Connesso da",
+    "col_logout_at": "Disconnesso",
+    "col_status": "Stato",
+    "status_active": "Attivo",
+    "status_ended": "Terminato",
+    "no_active": "Nessuna sessione SSH attiva.",
+    "no_history": "Nessuno storico di sessioni trovato.",
+    "filter_user": "Filtra per utente…",
+    "filter_ip": "Filtra per IP…",
+    "filter_apply": "Applica",
+    "refresh_error": "Aggiornamento fallito: {error}",
+    "load_error": "Impossibile caricare le sessioni: {error}"
   }
 }

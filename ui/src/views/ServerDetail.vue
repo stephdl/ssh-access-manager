@@ -88,6 +88,9 @@
           @assign="openAssign"
         />
       </section>
+
+      <!-- SSH Sessions -->
+      <SessionsCard :hostname="hostname" :current-role="currentRole" />
     </template>
 
     <!-- Delete modal -->
@@ -221,6 +224,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import KeyTable from '../components/KeyTable.vue'
+import SessionsCard from '../components/SessionsCard.vue'
 
 const { t } = useI18n()
 const { admin } = useAuth()

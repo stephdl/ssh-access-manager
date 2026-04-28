@@ -111,6 +111,7 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
     local_hash_add = ssh._sha256(ssh.SAM_ADD)
     local_hash_lock = ssh._sha256(ssh.SAM_LOCK_USER)
     local_hash_unlock = ssh._sha256(ssh.SAM_UNLOCK_USER)
+    local_hash_sessions = ssh._sha256(ssh.SAM_SESSIONS)
 
     with patch("ssh._connect") as mock_connect, \
          patch("ssh.db") as mock_db:
@@ -120,11 +121,11 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
         client.open_sftp.return_value = sftp
 
         call_count = [0]
-        hashes = [local_hash_collect, local_hash_revoke, local_hash_add, local_hash_lock, local_hash_unlock]
+        hashes = [local_hash_collect, local_hash_revoke, local_hash_add, local_hash_lock, local_hash_unlock, local_hash_sessions]
 
         def exec_side_effect(cmd):
             stdout = MagicMock()
-            h = hashes[call_count[0] % 5]
+            h = hashes[call_count[0] % 6]
             stdout.read.return_value = f"{h}  path\n".encode()
             stdout.channel.recv_exit_status.return_value = 0
             call_count[0] += 1
@@ -283,6 +284,7 @@ def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
             "/usr/local/bin/sam-add",
             "/usr/local/bin/sam-lock-user",
             "/usr/local/bin/sam-unlock-user",
+            "/usr/local/bin/sam-sessions",
         )
         for cmd in install_cmds:
             dest = cmd.split()[-1]
@@ -439,3 +441,60 @@ def test_ssh_unlock_user_on_server_calls_sam_unlock_user(sample_server):
         cmd = client.exec_command.call_args[0][0]
         assert "sam-unlock-user" in cmd
         assert "alice" in cmd
+
+
+# ---------------------------------------------------------------------------
+# SAM_SESSIONS — vérifications de contenu et fonctions
+# ---------------------------------------------------------------------------
+
+def test_ssh_sam_sessions_is_bytes():
+    assert isinstance(ssh.SAM_SESSIONS, bytes)
+
+
+def test_ssh_parse_session_datetime_iso():
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("2026-04-01 10:30", now)
+    assert dt is not None
+    assert dt.year == 2026
+    assert dt.hour == 10
+
+
+def test_ssh_parse_session_datetime_last_f():
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("Mon Apr 27 08:00:01 2026", now)
+    assert dt is not None
+    assert dt.year == 2026
+
+
+def test_ssh_parse_session_datetime_hhmm():
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("10:30", now)
+    assert dt is not None
+    assert dt.hour == 10
+
+
+def test_ssh_parse_session_datetime_invalid():
+    from datetime import datetime, timezone
+    now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("", now)
+    assert dt is None
+
+
+def test_ssh_collect_sessions_calls_sam_sessions(mock_ssh_client):
+    """collect_sessions_on_server runs sam-sessions and upserts results."""
+    from unittest.mock import MagicMock, patch
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
+    mock_stdout.read.return_value = b"A\talice\tpts/0\t192.168.1.50\t2026-04-28 10:00\n"
+    mock_stdout.channel.recv_exit_status.return_value = 0
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b""
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    with patch("ssh._connect", return_value=mock_client), \
+         patch("ssh.db") as mock_db:
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+        assert mock_db.execute.called

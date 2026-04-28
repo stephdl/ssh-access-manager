@@ -163,6 +163,41 @@ fi
 usermod -s /bin/bash "$USER"
 """
 
+SAM_SESSIONS_PATH = "/usr/local/bin/sam-sessions"
+
+SAM_SESSIONS = b"""#!/bin/sh
+# sam-sessions - collect SSH session data
+# Outputs tab-separated lines:
+#   A\\tuser\\ttty\\tip\\tlogin_str   (active, from 'who')
+#   H\\tuser\\ttty\\tip\\trest        (history, from 'last')
+set -e
+
+# Active sessions from 'who'
+# GNU who: alice pts/0 2024-03-01 10:00 (192.168.1.10)
+# busybox who: alice pts/0 Mar  1 10:00
+who 2>/dev/null | awk '{
+    user=$1; tty=$2;
+    if($3 ~ /^[0-9]{4}-/) {
+        login=$3" "$4;
+        ip=$5; gsub(/[()]/,"",ip);
+    } else {
+        login=$3" "$4" "$5;
+        ip="";
+    }
+    if(ip=="" || ip==user) ip="local";
+    print "A\\t"user"\\t"tty"\\t"ip"\\t"login;
+}'
+
+# Session history from 'last'
+last -n 100 2>/dev/null | grep -v "^$\\|^reboot\\|^wtmp\\|^btmp" | awk '{
+    if(NF<3) next;
+    user=$1; tty=$2; ip=$3;
+    rest="";
+    for(i=4;i<=NF;i++) rest=rest$i(i<NF?" ":"");
+    print "H\\t"user"\\t"tty"\\t"ip"\\t"rest;
+}'
+"""
+
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -216,6 +251,7 @@ def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
             (SAM_ADD, SAM_ADD_PATH),
             (SAM_LOCK_USER, SAM_LOCK_USER_PATH),
             (SAM_UNLOCK_USER, SAM_UNLOCK_USER_PATH),
+            (SAM_SESSIONS, SAM_SESSIONS_PATH),
         ):
             local_hash = _sha256(content)
             remote_hash = _remote_sha256(client, remote_path)
@@ -310,5 +346,103 @@ def unlock_user_on_server(hostname: str, unix_user: str, ip: str) -> None:
         )
         if rc != 0:
             raise RuntimeError(f"sam-unlock-user failed on {hostname} (rc={rc}): {err}")
+    finally:
+        client.close()
+
+
+def _parse_session_datetime(s: str, now) -> "datetime | None":
+    """Parse various date formats from who/last output. Returns UTC datetime or None."""
+    import re
+    from datetime import datetime, timezone
+    s = s.strip()
+    if not s:
+        return None
+    formats = [
+        "%a %b %d %H:%M:%S %Y",
+        "%a %b  %d %H:%M:%S %Y",
+        "%a %b %d %H:%M %Y",
+        "%a %b  %d %H:%M %Y",
+        "%Y-%m-%d %H:%M",
+        "%b %d %H:%M",
+        "%b  %d %H:%M",
+    ]
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(s, fmt)
+            if dt.year == 1900:
+                dt = dt.replace(year=now.year)
+            return dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    if re.match(r'^\d{1,2}:\d{2}$', s):
+        try:
+            t = datetime.strptime(s, "%H:%M")
+            return now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
+        except ValueError:
+            pass
+    return None
+
+
+def collect_sessions_on_server(hostname: str, server_id: str, ip: str) -> None:
+    """Collect SSH sessions via sam-sessions and upsert into ssh_sessions table."""
+    from datetime import datetime, timezone
+    client = _connect(ip)
+    try:
+        out, _, rc = _run(client, f"sudo {SAM_SESSIONS_PATH}")
+        if rc != 0:
+            return
+        now = datetime.now(timezone.utc)
+        for line in out.splitlines():
+            parts = line.split('\t')
+            if len(parts) < 4:
+                continue
+            session_type = parts[0]
+            unix_user = parts[1].strip()
+            tty = parts[2].strip()
+            raw_ip = parts[3].strip()
+            if not unix_user or unix_user in ('USER', 'user', ''):
+                continue
+            login_ip = raw_ip if raw_ip and raw_ip not in ('local', '') else None
+            if session_type == 'A':
+                login_at_str = parts[4].strip() if len(parts) > 4 else ''
+                login_at = _parse_session_datetime(login_at_str, now)
+                if not login_at:
+                    continue
+                db.execute(
+                    """
+                    INSERT INTO ssh_sessions (server_id, unix_user, tty, login_ip, login_at, is_active)
+                    VALUES (%s, %s, %s, %s, %s, true)
+                    ON CONFLICT (server_id, unix_user, tty, login_at)
+                    DO UPDATE SET is_active = true, collected_at = now()
+                    """,
+                    (server_id, unix_user, tty, login_ip, login_at),
+                )
+            elif session_type == 'H':
+                rest = parts[4].strip() if len(parts) > 4 else ''
+                is_still_active = 'still' in rest.lower()
+                if ' - ' in rest:
+                    login_str, logout_str = rest.split(' - ', 1)
+                else:
+                    login_str = rest.split('  still')[0].strip() if is_still_active else rest
+                    logout_str = ''
+                login_at = _parse_session_datetime(login_str.strip(), now)
+                if not login_at:
+                    continue
+                logout_at = None
+                if not is_still_active and logout_str.strip():
+                    logout_at = _parse_session_datetime(logout_str.split('(')[0].strip(), now)
+                db.execute(
+                    """
+                    INSERT INTO ssh_sessions
+                        (server_id, unix_user, tty, login_ip, login_at, logout_at, is_active)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (server_id, unix_user, tty, login_at)
+                    DO UPDATE SET
+                        logout_at = EXCLUDED.logout_at,
+                        is_active = EXCLUDED.is_active,
+                        collected_at = now()
+                    """,
+                    (server_id, unix_user, tty, login_ip, login_at, logout_at, is_still_active),
+                )
     finally:
         client.close()

@@ -319,6 +319,102 @@ def scan_server(hostname):
     return jsonify(results)
 
 
+def _serialize_session(row) -> dict:
+    d = dict(row)
+    for k in ('login_at', 'logout_at', 'collected_at'):
+        if d.get(k):
+            d[k] = d[k].isoformat()
+    return d
+
+
+@app.route("/api/servers/<hostname>/sessions", methods=["GET"])
+@require_auth
+@require_role("sysadmin", "operator")
+def get_server_sessions(hostname):
+    server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
+    if not server:
+        return jsonify({"error": "Server not found"}), 404
+    active = db.query(
+        """
+        SELECT unix_user, tty, login_ip::text AS login_ip, login_at, collected_at
+        FROM ssh_sessions
+        WHERE server_id = %s AND is_active = true
+        ORDER BY login_at DESC
+        """,
+        (server["id"],),
+    )
+    recent = db.query(
+        """
+        SELECT unix_user, tty, login_ip::text AS login_ip, login_at, logout_at, collected_at
+        FROM ssh_sessions
+        WHERE server_id = %s AND is_active = false
+        ORDER BY login_at DESC
+        LIMIT 5
+        """,
+        (server["id"],),
+    )
+    return jsonify({
+        "active": [_serialize_session(r) for r in active],
+        "recent": [_serialize_session(r) for r in recent],
+    })
+
+
+@app.route("/api/servers/<hostname>/sessions/refresh", methods=["POST"])
+@require_auth
+@require_role("sysadmin", "operator")
+def refresh_server_sessions(hostname):
+    server = db.query_one(
+        "SELECT id, ip_address::text AS ip_address FROM servers WHERE hostname = %s AND is_active = true",
+        (hostname,),
+    )
+    if not server:
+        return jsonify({"error": "Server not found or inactive"}), 404
+    try:
+        ssh.collect_sessions_on_server(hostname, server["id"], server["ip_address"])
+        return jsonify({"status": "refreshed"})
+    except Exception as e:
+        logging.exception("collect_sessions_on_server failed")
+        return jsonify({"error": str(e)}), 502
+
+
+@app.route("/api/servers/<hostname>/sessions/history", methods=["GET"])
+@require_auth
+@require_role("sysadmin", "operator")
+def get_server_sessions_history(hostname):
+    server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
+    if not server:
+        return jsonify({"error": "Server not found"}), 404
+    unix_user = request.args.get("user", "").strip()
+    login_ip = request.args.get("ip", "").strip()
+    since = request.args.get("since", "").strip()
+    conditions = ["server_id = %s"]
+    params = [server["id"]]
+    if unix_user:
+        conditions.append("unix_user ILIKE %s")
+        params.append(f"%{unix_user}%")
+    if login_ip:
+        conditions.append("login_ip::text ILIKE %s")
+        params.append(f"%{login_ip}%")
+    if since:
+        try:
+            params.append(datetime.fromisoformat(since).replace(tzinfo=timezone.utc))
+            conditions.append("login_at >= %s")
+        except ValueError:
+            pass
+    rows = db.query(
+        f"""
+        SELECT unix_user, tty, login_ip::text AS login_ip,
+               login_at, logout_at, is_active, collected_at
+        FROM ssh_sessions
+        WHERE {' AND '.join(conditions)}
+        ORDER BY login_at DESC
+        LIMIT 200
+        """,
+        params,
+    )
+    return jsonify([_serialize_session(r) for r in rows])
+
+
 # ---------------------------------------------------------------------------
 # Cles SSH
 # ---------------------------------------------------------------------------

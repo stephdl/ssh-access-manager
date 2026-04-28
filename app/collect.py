@@ -184,6 +184,12 @@ def scan_server(server: dict) -> dict:
             result["anomalies"].append(info)
             result["disappeared"] += 1
 
+    # Collect SSH sessions (non-fatal)
+    try:
+        ssh.collect_sessions_on_server(hostname, server_id, ip=ip)
+    except Exception:
+        pass
+
     db.execute(
         """
         INSERT INTO audit_log (action, target_server, details)
