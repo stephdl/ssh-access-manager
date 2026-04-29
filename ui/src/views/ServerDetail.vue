@@ -256,7 +256,47 @@
         <label
           >{{ $t('server_detail.reprovision_ssh_password') }} <span class="required">*</span></label
         >
-        <input v-model="reprovisionForm.sshPassword" type="password" />
+        <div class="password-wrapper">
+          <input
+            v-model="reprovisionForm.sshPassword"
+            :type="showReprovisionPassword ? 'text' : 'password'"
+          />
+          <button
+            type="button"
+            class="btn-eye"
+            @click="showReprovisionPassword = !showReprovisionPassword"
+            :aria-label="showReprovisionPassword ? 'Hide password' : 'Show password'"
+          >
+            <svg
+              v-if="!showReprovisionPassword"
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            <svg
+              v-else
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+              />
+              <line x1="1" y1="1" x2="23" y2="23" />
+            </svg>
+          </button>
+        </div>
 
         <label>{{ $t('server_detail.reprovision_ssh_port') }}</label>
         <input v-model.number="reprovisionForm.sshPort" type="number" min="1" max="65535" />
@@ -312,6 +352,7 @@ const showReprovisionModal = ref(false)
 const reprovisioning = ref(false)
 const reprovisionError = ref('')
 const reprovisionForm = ref({ sshUser: 'root', sshPassword: '', sshPort: 22 })
+const showReprovisionPassword = ref(false)
 
 const revokeTarget = ref(null)
 const revokeReason = ref('')
@@ -690,6 +731,29 @@ dd {
   font-size: 0.85rem;
   color: #555;
   margin: 0 0 0.75rem;
+}
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.password-wrapper input {
+  flex: 1;
+  padding-right: 2.2rem;
+}
+.btn-eye {
+  position: absolute;
+  right: 0.4rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  padding: 0.2rem;
+  display: flex;
+  align-items: center;
+}
+.btn-eye:hover {
+  color: #333;
 }
 .spinner {
   width: 14px;
