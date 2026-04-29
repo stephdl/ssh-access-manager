@@ -211,42 +211,56 @@
         </div>
         <div v-if="editError" class="alert-error">{{ editError }}</div>
 
-        <label>{{ $t('edit_server.hostname') }}</label>
-        <input v-model="editForm.hostname" type="text" disabled class="input-readonly" />
+        <div class="form-grid">
+          <!-- Hostname (readonly) + IP -->
+          <div class="form-field">
+            <label>{{ $t('edit_server.hostname') }}</label>
+            <input v-model="editForm.hostname" type="text" disabled class="input-readonly" />
+          </div>
+          <div class="form-field">
+            <label
+              >{{ $t('edit_server.ip') }}
+              <span class="required">{{ $t('common.required') }}</span></label
+            >
+            <input
+              v-model="editForm.ip"
+              type="text"
+              :placeholder="$t('edit_server.ip_placeholder')"
+            />
+            <span v-if="editIpError" class="field-error">{{ editIpError }}</span>
+          </div>
 
-        <label
-          >{{ $t('edit_server.ip') }}
-          <span class="required">{{ $t('common.required') }}</span></label
-        >
-        <input v-model="editForm.ip" type="text" :placeholder="$t('edit_server.ip_placeholder')" />
-        <span v-if="editIpError" class="field-error">{{ editIpError }}</span>
+          <!-- Environment + OS Family -->
+          <div class="form-field">
+            <label>{{ $t('edit_server.environment') }}</label>
+            <select v-model="editForm.environment">
+              <option value="">{{ $t('edit_server.env_placeholder') }}</option>
+              <option value="production">production</option>
+              <option value="staging">staging</option>
+              <option value="lab">lab</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>{{ $t('edit_server.os_family') }}</label>
+            <input
+              v-model="editForm.os_family"
+              type="text"
+              :placeholder="$t('edit_server.os_placeholder')"
+            />
+          </div>
 
-        <label
-          >{{ $t('edit_server.environment') }}
-          <span class="required">{{ $t('common.required') }}</span></label
-        >
-        <select v-model="editForm.environment">
-          <option value="">{{ $t('edit_server.env_placeholder') }}</option>
-          <option value="production">production</option>
-          <option value="staging">staging</option>
-          <option value="lab">lab</option>
-        </select>
-
-        <label>{{ $t('edit_server.os_family') }}</label>
-        <input
-          v-model="editForm.os_family"
-          type="text"
-          :placeholder="$t('edit_server.os_placeholder')"
-        />
-
-        <label>{{ $t('edit_server.ssh_port_label') }}</label>
-        <input
-          v-model.number="editForm.ssh_port"
-          type="number"
-          min="1"
-          max="65535"
-          placeholder="22"
-        />
+          <!-- Port SSH (half width) -->
+          <div class="form-field">
+            <label>{{ $t('edit_server.ssh_port_label') }}</label>
+            <input
+              v-model.number="editForm.ssh_port"
+              type="number"
+              min="1"
+              max="65535"
+              placeholder="22"
+            />
+          </div>
+        </div>
 
         <div class="modal-actions">
           <button class="btn-secondary" @click="closeEditServer">{{ $t('common.cancel') }}</button>
