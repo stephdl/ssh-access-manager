@@ -65,6 +65,7 @@
     "ssh_port_label": "SSH-Port",
     "ssh_password_label": "SSH-Passwort",
     "ssh_password_placeholder": "Leer lassen für manuelle Bereitstellung",
+    "ssh_password_disclaimer": "Das SSH-Passwort wird nur für diesen Bereitstellungsschritt verwendet und niemals gespeichert.",
     "provision_connecting": "Verbindung zum Server…",
     "provision_success": "✅ Server bereitgestellt — Collector-Schlüssel automatisch deployed.",
     "provision_error": "Bereitstellung fehlgeschlagen: {error}"

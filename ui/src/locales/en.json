@@ -65,6 +65,7 @@
     "ssh_port_label": "SSH Port",
     "ssh_password_label": "SSH Password",
     "ssh_password_placeholder": "Leave empty to provision manually",
+    "ssh_password_disclaimer": "The SSH password is used only for this provisioning step and is never stored.",
     "provision_connecting": "Connecting to server…",
     "provision_success": "✅ Server provisioned — collector key deployed automatically.",
     "provision_error": "Provisioning failed: {error}"

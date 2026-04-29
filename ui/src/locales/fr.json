@@ -65,6 +65,7 @@
     "ssh_port_label": "Port SSH",
     "ssh_password_label": "Mot de passe SSH",
     "ssh_password_placeholder": "Laisser vide pour provisionner manuellement",
+    "ssh_password_disclaimer": "Le mot de passe SSH est utilisé uniquement pour cette étape de provisionnement et n'est jamais stocké.",
     "provision_connecting": "Connexion au serveur…",
     "provision_success": "✅ Serveur provisionné — clé collecteur déployée automatiquement.",
     "provision_error": "Provisionnement échoué : {error}"

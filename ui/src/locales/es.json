@@ -65,6 +65,7 @@
     "ssh_port_label": "Puerto SSH",
     "ssh_password_label": "Contraseña SSH",
     "ssh_password_placeholder": "Dejar vacío para aprovisionar manualmente",
+    "ssh_password_disclaimer": "La contraseña SSH se usa únicamente para este paso de aprovisionamiento y nunca se almacena.",
     "provision_connecting": "Conectando al servidor…",
     "provision_success": "✅ Servidor aprovisionado — clave del colector desplegada automáticamente.",
     "provision_error": "Error de aprovisionamiento: {error}"

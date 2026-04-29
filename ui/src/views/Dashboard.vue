@@ -118,6 +118,7 @@
               type="password"
               :placeholder="$t('add_server.ssh_password_placeholder')"
             />
+            <p class="password-disclaimer">🔒 {{ $t('add_server.ssh_password_disclaimer') }}</p>
           </div>
 
           <div class="modal-actions">
@@ -735,6 +736,11 @@ h1 {
   margin: 0 0 0.75rem 0;
   font-size: 0.8rem;
   color: #666;
+}
+.password-disclaimer {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: #555;
 }
 
 .provision-status {
