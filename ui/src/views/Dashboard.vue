@@ -66,104 +66,128 @@
         </div>
         <div v-if="addError" class="alert-error">{{ addError }}</div>
 
-        <label
-          >{{ $t('add_server.hostname') }}
-          <span class="required">{{ $t('common.required') }}</span></label
-        >
-        <input
-          v-model="addForm.hostname"
-          type="text"
-          :placeholder="$t('add_server.hostname_placeholder')"
-        />
+        <div class="form-grid">
+          <!-- Hostname + IP -->
+          <div class="form-field">
+            <label
+              >{{ $t('add_server.hostname') }}
+              <span class="required">{{ $t('common.required') }}</span></label
+            >
+            <input
+              v-model="addForm.hostname"
+              type="text"
+              :placeholder="$t('add_server.hostname_placeholder')"
+            />
+            <span v-if="addHostnameError" class="field-error">{{ addHostnameError }}</span>
+          </div>
+          <div class="form-field">
+            <label
+              >{{ $t('add_server.ip') }}
+              <span class="required">{{ $t('common.required') }}</span></label
+            >
+            <input
+              v-model="addForm.ip"
+              type="text"
+              :placeholder="$t('add_server.ip_placeholder')"
+            />
+            <span v-if="addIpError" class="field-error">{{ addIpError }}</span>
+          </div>
 
-        <label
-          >{{ $t('add_server.ip') }}
-          <span class="required">{{ $t('common.required') }}</span></label
-        >
-        <input v-model="addForm.ip" type="text" :placeholder="$t('add_server.ip_placeholder')" />
-        <span v-if="addIpError" class="field-error">{{ addIpError }}</span>
+          <!-- Environment + OS Family -->
+          <div class="form-field">
+            <label>{{ $t('add_server.environment') }}</label>
+            <select v-model="addForm.environment">
+              <option value="">{{ $t('add_server.env_placeholder') }}</option>
+              <option value="production">production</option>
+              <option value="staging">staging</option>
+              <option value="lab">lab</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>{{ $t('add_server.os_family') }}</label>
+            <input
+              v-model="addForm.os_family"
+              type="text"
+              :placeholder="$t('add_server.os_placeholder')"
+            />
+          </div>
 
-        <label>{{ $t('add_server.environment') }}</label>
-        <select v-model="addForm.environment">
-          <option value="">{{ $t('add_server.env_placeholder') }}</option>
-          <option value="production">production</option>
-          <option value="staging">staging</option>
-          <option value="lab">lab</option>
-        </select>
-
-        <label>{{ $t('add_server.os_family') }}</label>
-        <input
-          v-model="addForm.os_family"
-          type="text"
-          :placeholder="$t('add_server.os_placeholder')"
-        />
-
-        <label
-          >{{ $t('add_server.ssh_port_label') }}
-          <span class="required">{{ $t('common.required') }}</span></label
-        >
-        <input
-          v-model.number="addForm.sshPort"
-          type="number"
-          min="1"
-          max="65535"
-          placeholder="22"
-        />
+          <!-- Port SSH (half width) -->
+          <div class="form-field">
+            <label
+              >{{ $t('add_server.ssh_port_label') }}
+              <span class="required">{{ $t('common.required') }}</span></label
+            >
+            <input
+              v-model.number="addForm.sshPort"
+              type="number"
+              min="1"
+              max="65535"
+              placeholder="22"
+            />
+          </div>
+        </div>
 
         <div class="provision-section">
           <h4>{{ $t('add_server.provision_title') }}</h4>
           <p class="hint">{{ $t('add_server.provision_hint') }}</p>
-          <label
-            >{{ $t('add_server.ssh_user_label') }}
-            <span class="required">{{ $t('common.required') }}</span></label
-          >
-          <input v-model="addForm.sshUser" type="text" placeholder="root" />
-
-          <label
-            >{{ $t('add_server.ssh_password_label') }}
-            <span class="required">{{ $t('common.required') }}</span></label
-          >
-          <div class="password-wrapper">
-            <input
-              v-model="addForm.sshPassword"
-              :type="showAddPassword ? 'text' : 'password'"
-              :placeholder="$t('add_server.ssh_password_placeholder')"
-            />
-            <button
-              type="button"
-              class="btn-eye"
-              @click="showAddPassword = !showAddPassword"
-              :aria-label="showAddPassword ? 'Hide password' : 'Show password'"
-            >
-              <svg
-                v-if="!showAddPassword"
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
+          <div class="form-grid">
+            <!-- SSH User + Password -->
+            <div class="form-field">
+              <label
+                >{{ $t('add_server.ssh_user_label') }}
+                <span class="required">{{ $t('common.required') }}</span></label
               >
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              <svg
-                v-else
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
+              <input v-model="addForm.sshUser" type="text" placeholder="root" />
+            </div>
+            <div class="form-field">
+              <label
+                >{{ $t('add_server.ssh_password_label') }}
+                <span class="required">{{ $t('common.required') }}</span></label
               >
-                <path
-                  d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+              <div class="password-wrapper">
+                <input
+                  v-model="addForm.sshPassword"
+                  :type="showAddPassword ? 'text' : 'password'"
+                  :placeholder="$t('add_server.ssh_password_placeholder')"
                 />
-                <line x1="1" y1="1" x2="23" y2="23" />
-              </svg>
-            </button>
+                <button
+                  type="button"
+                  class="btn-eye"
+                  @click="showAddPassword = !showAddPassword"
+                  :aria-label="showAddPassword ? 'Hide password' : 'Show password'"
+                >
+                  <svg
+                    v-if="!showAddPassword"
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  <svg
+                    v-else
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+                    />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
           <p class="password-disclaimer">🔒 {{ $t('add_server.ssh_password_disclaimer') }}</p>
         </div>
@@ -187,42 +211,56 @@
         </div>
         <div v-if="editError" class="alert-error">{{ editError }}</div>
 
-        <label>{{ $t('edit_server.hostname') }}</label>
-        <input v-model="editForm.hostname" type="text" disabled class="input-readonly" />
+        <div class="form-grid">
+          <!-- Hostname (readonly) + IP -->
+          <div class="form-field">
+            <label>{{ $t('edit_server.hostname') }}</label>
+            <input v-model="editForm.hostname" type="text" disabled class="input-readonly" />
+          </div>
+          <div class="form-field">
+            <label
+              >{{ $t('edit_server.ip') }}
+              <span class="required">{{ $t('common.required') }}</span></label
+            >
+            <input
+              v-model="editForm.ip"
+              type="text"
+              :placeholder="$t('edit_server.ip_placeholder')"
+            />
+            <span v-if="editIpError" class="field-error">{{ editIpError }}</span>
+          </div>
 
-        <label
-          >{{ $t('edit_server.ip') }}
-          <span class="required">{{ $t('common.required') }}</span></label
-        >
-        <input v-model="editForm.ip" type="text" :placeholder="$t('edit_server.ip_placeholder')" />
-        <span v-if="editIpError" class="field-error">{{ editIpError }}</span>
+          <!-- Environment + OS Family -->
+          <div class="form-field">
+            <label>{{ $t('edit_server.environment') }}</label>
+            <select v-model="editForm.environment">
+              <option value="">{{ $t('edit_server.env_placeholder') }}</option>
+              <option value="production">production</option>
+              <option value="staging">staging</option>
+              <option value="lab">lab</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>{{ $t('edit_server.os_family') }}</label>
+            <input
+              v-model="editForm.os_family"
+              type="text"
+              :placeholder="$t('edit_server.os_placeholder')"
+            />
+          </div>
 
-        <label
-          >{{ $t('edit_server.environment') }}
-          <span class="required">{{ $t('common.required') }}</span></label
-        >
-        <select v-model="editForm.environment">
-          <option value="">{{ $t('edit_server.env_placeholder') }}</option>
-          <option value="production">production</option>
-          <option value="staging">staging</option>
-          <option value="lab">lab</option>
-        </select>
-
-        <label>{{ $t('edit_server.os_family') }}</label>
-        <input
-          v-model="editForm.os_family"
-          type="text"
-          :placeholder="$t('edit_server.os_placeholder')"
-        />
-
-        <label>{{ $t('edit_server.ssh_port_label') }}</label>
-        <input
-          v-model.number="editForm.ssh_port"
-          type="number"
-          min="1"
-          max="65535"
-          placeholder="22"
-        />
+          <!-- Port SSH (half width) -->
+          <div class="form-field">
+            <label>{{ $t('edit_server.ssh_port_label') }}</label>
+            <input
+              v-model.number="editForm.ssh_port"
+              type="number"
+              min="1"
+              max="65535"
+              placeholder="22"
+            />
+          </div>
+        </div>
 
         <div class="modal-actions">
           <button class="btn-secondary" @click="closeEditServer">{{ $t('common.cancel') }}</button>
@@ -291,10 +329,22 @@ function isValidIp(ip) {
   return v6.test(ip.trim()) && ip.includes(':')
 }
 
+function isValidHostname(hostname) {
+  if (!hostname || hostname.length > 253) return false
+  return /^[a-zA-Z0-9]([a-zA-Z0-9\-.]*[a-zA-Z0-9])?$/.test(hostname)
+}
+
 function isIpDuplicate(ip, excludeHostname = null) {
   const normalized = ip.trim()
   return servers.value.some((s) => s.ip_address === normalized && s.hostname !== excludeHostname)
 }
+
+const addHostnameError = computed(() => {
+  const h = addForm.value.hostname.trim()
+  if (!h) return ''
+  if (!isValidHostname(h)) return t('add_server.error_invalid_hostname')
+  return ''
+})
 
 const addIpError = computed(() => {
   const ip = addForm.value.ip.trim()
@@ -315,6 +365,7 @@ const editIpError = computed(() => {
 const addFormValid = computed(
   () =>
     addForm.value.hostname.trim() &&
+    isValidHostname(addForm.value.hostname.trim()) &&
     addForm.value.ip.trim() &&
     isValidIp(addForm.value.ip) &&
     !isIpDuplicate(addForm.value.ip.trim()) &&
@@ -724,6 +775,21 @@ h1 {
 }
 .btn-eye:hover {
   color: #333;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem 1rem;
+  margin-bottom: 0.5rem;
+}
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.form-field label {
+  margin-bottom: 0;
 }
 
 .provision-section {
