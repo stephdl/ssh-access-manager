@@ -60,7 +60,16 @@
     "ssh_port_label": "Port SSH",
     "ssh_password_label": "Mot de passe SSH",
     "ssh_password_placeholder": "Mot de passe SSH",
-    "ssh_password_disclaimer": "Le mot de passe SSH est utilisé uniquement pour cette étape de provisionnement et n'est jamais stocké."
+    "ssh_password_disclaimer": "Le mot de passe SSH est utilisé uniquement pour cette étape de provisionnement et n'est jamais stocké.",
+    "errors": {
+      "SSH_AUTH_FAILED": "Authentification échouée — vérifiez l'utilisateur et le mot de passe.",
+      "SSH_TIMEOUT": "Connexion expirée — le serveur ne répond pas.",
+      "SSH_UNREACHABLE": "Serveur inaccessible — vérifiez l'adresse IP et que SSH fonctionne.",
+      "SSH_PORT_REFUSED": "Port SSH refusé — vérifiez que SSH tourne sur ce port.",
+      "SSH_SUDO_FAILED": "Provisionnement échoué — vérifiez que l'utilisateur a les droits sudo.",
+      "SSH_SCRIPT_FAILED": "Le script de provisionnement a échoué — consultez les logs du serveur.",
+      "SSH_FAILED": "Erreur SSH lors du provisionnement."
+    }
   },
   "edit_server": {
     "title": "Éditer le serveur",

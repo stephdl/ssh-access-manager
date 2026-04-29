@@ -207,7 +207,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth.js'
 import ServerTable from '../components/ServerTable.vue'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const { admin } = useAuth()
 const currentRole = computed(() => admin.value?.role || 'viewer')
 
@@ -348,7 +348,12 @@ async function confirmAddServer() {
       }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+    if (!res.ok) {
+      const i18nKey = `add_server.errors.${data.error_code}`
+      throw new Error(
+        data.error_code && te(i18nKey) ? t(i18nKey) : data.error || `HTTP ${res.status}`
+      )
+    }
     await loadServers()
     closeAddServer()
   } catch (e) {

@@ -225,6 +225,22 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return None
 
 
+def _ssh_error_code(msg: str) -> str:
+    if "Authentication failed" in msg:
+        return "SSH_AUTH_FAILED"
+    if "timed out" in msg:
+        return "SSH_TIMEOUT"
+    if "unreachable" in msg or "could not get host key" in msg:
+        return "SSH_UNREACHABLE"
+    if "refused" in msg:
+        return "SSH_PORT_REFUSED"
+    if "sudo privileges" in msg:
+        return "SSH_SUDO_FAILED"
+    if "Provisioning script failed" in msg:
+        return "SSH_SCRIPT_FAILED"
+    return "SSH_FAILED"
+
+
 # ---------------------------------------------------------------------------
 # Serveurs
 # ---------------------------------------------------------------------------
@@ -275,7 +291,7 @@ def add_server():
         return jsonify({"error": str(e)}), 400
     except RuntimeError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": str(e)}), 422
+        return jsonify({"error": str(e), "error_code": _ssh_error_code(str(e))}), 422
 
 
 @app.route("/api/servers/<hostname>/provision", methods=["POST"])
@@ -299,7 +315,7 @@ def provision_server_route(hostname):
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
     except RuntimeError as exc:
-        return jsonify({"error": str(exc)}), 422
+        return jsonify({"error": str(exc), "error_code": _ssh_error_code(str(exc))}), 422
 
 
 @app.route("/api/servers/<hostname>", methods=["PUT"])
