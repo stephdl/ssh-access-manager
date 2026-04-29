@@ -30,7 +30,7 @@
         </button>
         <button
           v-if="server.is_active && currentRole === 'sysadmin'"
-          class="btn-secondary"
+          class="btn-purple"
           @click="openReprovision"
         >
           {{ $t('server_detail.reprovision') }}
