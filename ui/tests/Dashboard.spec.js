@@ -266,4 +266,64 @@ describe('Dashboard - Add Server Modal', () => {
 
     expect(w.find('.modal').exists()).toBe(false)
   })
+
+  it('disables submit when hostname is invalid', async () => {
+    const router = createMockRouter()
+    const w = mount(Dashboard, { global: { plugins: [i18n, router] } })
+    await flushPromises()
+
+    await w.find('button.btn-secondary').trigger('click')
+    await flushPromises()
+
+    w.vm.addForm = {
+      hostname: '-invalid',
+      ip: '192.168.1.50',
+      environment: '',
+      os_family: '',
+      sshUser: 'root',
+      sshPort: 22,
+      sshPassword: 'mypassword',
+    }
+    await w.vm.$nextTick()
+
+    const submitBtn = w.findAll('button.btn-primary').find((b) => b.text().includes('Add'))
+    expect(submitBtn.attributes('disabled')).toBeDefined()
+  })
+
+  it('shows error message for invalid hostname', async () => {
+    const router = createMockRouter()
+    const w = mount(Dashboard, { global: { plugins: [i18n, router] } })
+    await flushPromises()
+
+    await w.find('button.btn-secondary').trigger('click')
+    await flushPromises()
+
+    w.vm.addForm.hostname = 'bad hostname!'
+    await w.vm.$nextTick()
+
+    expect(w.find('.field-error').exists()).toBe(true)
+  })
+
+  it('accepts valid hostnames — simple label and FQDN', async () => {
+    const router = createMockRouter()
+    const w = mount(Dashboard, { global: { plugins: [i18n, router] } })
+    await flushPromises()
+
+    await w.find('button.btn-secondary').trigger('click')
+    await flushPromises()
+
+    for (const h of ['pve', 'server-01', 'web.prod.example.com']) {
+      w.vm.addForm = {
+        hostname: h,
+        ip: '192.168.1.50',
+        environment: '',
+        os_family: '',
+        sshUser: 'root',
+        sshPort: 22,
+        sshPassword: 'mypassword',
+      }
+      await w.vm.$nextTick()
+      expect(w.vm.addHostnameError).toBe('')
+    }
+  })
 })

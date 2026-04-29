@@ -50,6 +50,7 @@
     "env_placeholder": "— Scegliere —",
     "os_family": "Famiglia OS",
     "os_placeholder": "es: rhel, debian (opzionale)",
+    "error_invalid_hostname": "Hostname non valido (solo lettere, cifre, trattini e punti; non può iniziare o terminare con un trattino o un punto).",
     "error_invalid_ip": "Indirizzo IP non valido (atteso IPv4 o IPv6).",
     "error_duplicate_ip": "Questo indirizzo IP è già utilizzato da un altro server attivo.",
     "submitting": "Aggiunta…",

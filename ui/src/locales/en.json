@@ -50,6 +50,7 @@
     "env_placeholder": "— Choose —",
     "os_family": "OS Family",
     "os_placeholder": "e.g.: rhel, debian (optional)",
+    "error_invalid_hostname": "Invalid hostname (letters, digits, hyphens and dots only; cannot start or end with a hyphen or dot).",
     "error_invalid_ip": "Invalid IP address (expected IPv4 or IPv6).",
     "error_duplicate_ip": "This IP address is already used by another active server.",
     "submitting": "Adding…",

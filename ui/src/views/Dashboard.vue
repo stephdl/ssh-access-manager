@@ -75,6 +75,7 @@
           type="text"
           :placeholder="$t('add_server.hostname_placeholder')"
         />
+        <span v-if="addHostnameError" class="field-error">{{ addHostnameError }}</span>
 
         <label
           >{{ $t('add_server.ip') }}
@@ -291,10 +292,22 @@ function isValidIp(ip) {
   return v6.test(ip.trim()) && ip.includes(':')
 }
 
+function isValidHostname(hostname) {
+  if (!hostname || hostname.length > 253) return false
+  return /^[a-zA-Z0-9]([a-zA-Z0-9\-.]*[a-zA-Z0-9])?$/.test(hostname)
+}
+
 function isIpDuplicate(ip, excludeHostname = null) {
   const normalized = ip.trim()
   return servers.value.some((s) => s.ip_address === normalized && s.hostname !== excludeHostname)
 }
+
+const addHostnameError = computed(() => {
+  const h = addForm.value.hostname.trim()
+  if (!h) return ''
+  if (!isValidHostname(h)) return t('add_server.error_invalid_hostname')
+  return ''
+})
 
 const addIpError = computed(() => {
   const ip = addForm.value.ip.trim()
@@ -315,6 +328,7 @@ const editIpError = computed(() => {
 const addFormValid = computed(
   () =>
     addForm.value.hostname.trim() &&
+    isValidHostname(addForm.value.hostname.trim()) &&
     addForm.value.ip.trim() &&
     isValidIp(addForm.value.ip) &&
     !isIpDuplicate(addForm.value.ip.trim()) &&
