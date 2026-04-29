@@ -12,11 +12,46 @@
     <table>
       <thead>
         <tr>
-          <th>{{ $t('server_table.col_status') }}</th>
-          <th>{{ $t('server_table.col_hostname') }}</th>
-          <th>{{ $t('server_table.col_ip') }}</th>
-          <th>{{ $t('server_table.col_environment') }}</th>
-          <th>{{ $t('server_table.col_os') }}</th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'is_active' }"
+            @click="toggleSort('is_active')"
+          >
+            {{ $t('server_table.col_status') }}
+            <span class="sort-indicator">{{ sortIndicator('is_active') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'hostname' }"
+            @click="toggleSort('hostname')"
+          >
+            {{ $t('server_table.col_hostname') }}
+            <span class="sort-indicator">{{ sortIndicator('hostname') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'ip_address' }"
+            @click="toggleSort('ip_address')"
+          >
+            {{ $t('server_table.col_ip') }}
+            <span class="sort-indicator">{{ sortIndicator('ip_address') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'environment' }"
+            @click="toggleSort('environment')"
+          >
+            {{ $t('server_table.col_environment') }}
+            <span class="sort-indicator">{{ sortIndicator('environment') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'os_family' }"
+            @click="toggleSort('os_family')"
+          >
+            {{ $t('server_table.col_os') }}
+            <span class="sort-indicator">{{ sortIndicator('os_family') }}</span>
+          </th>
           <th>{{ $t('server_table.col_added') }}</th>
           <th>{{ $t('server_table.col_actions') }}</th>
         </tr>
@@ -85,9 +120,11 @@
 import { ref, computed } from 'vue'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
+import { useSort } from '../composables/useSort.js'
 import PaginationBar from './PaginationBar.vue'
 
 const { formatDateOnly } = useFormatDate()
+const { sortKey, toggleSort, sorted, sortIndicator } = useSort()
 
 const props = defineProps({
   servers: { type: Array, default: () => [] },
@@ -110,7 +147,7 @@ const filtered = computed(() => {
 })
 
 const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
-  usePagination(filtered)
+  usePagination(computed(() => sorted(filtered.value)))
 
 function statusIcon(s) {
   if (!s.is_active) return '🔴'

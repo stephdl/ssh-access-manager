@@ -349,4 +349,23 @@ button:disabled {
 .btn-purple {
   min-width: 6rem;
 }
+
+.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.th-sortable:hover {
+  color: #2563eb;
+}
+.sort-indicator {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.7em;
+  opacity: 0.6;
+}
+.th-sortable.active .sort-indicator {
+  opacity: 1;
+  color: #2563eb;
+}
 </style>

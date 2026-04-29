@@ -31,10 +31,38 @@
       <thead>
         <tr>
           <th>{{ $t('anomalies.col_fingerprint') }}</th>
-          <th>{{ $t('anomalies.col_type') }}</th>
-          <th>{{ $t('anomalies.col_server') }}</th>
-          <th>{{ $t('anomalies.col_unix_user') }}</th>
-          <th>{{ colDate }}</th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'key_type' }"
+            @click="toggleSort('key_type')"
+          >
+            {{ $t('anomalies.col_type') }}
+            <span class="sort-indicator">{{ sortIndicator('key_type') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'server_hostname' }"
+            @click="toggleSort('server_hostname')"
+          >
+            {{ $t('anomalies.col_server') }}
+            <span class="sort-indicator">{{ sortIndicator('server_hostname') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'unix_user' }"
+            @click="toggleSort('unix_user')"
+          >
+            {{ $t('anomalies.col_unix_user') }}
+            <span class="sort-indicator">{{ sortIndicator('unix_user') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === dateField }"
+            @click="toggleSort(dateField)"
+          >
+            {{ colDate }}
+            <span class="sort-indicator">{{ sortIndicator(dateField) }}</span>
+          </th>
           <th>{{ $t('anomalies.col_compliant') }}</th>
           <th v-if="props.currentRole !== 'viewer'">{{ $t('anomalies.col_actions') }}</th>
         </tr>
@@ -108,10 +136,12 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
+import { useSort } from '../composables/useSort.js'
 import PaginationBar from './PaginationBar.vue'
 
 const { t } = useI18n()
 const { formatDate } = useFormatDate()
+const { sortKey, toggleSort, sorted, sortIndicator } = useSort()
 
 const props = defineProps({
   anomalies: { type: Array, default: () => [] },
@@ -155,7 +185,7 @@ const filtered = computed(() => {
 })
 
 const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
-  usePagination(filtered)
+  usePagination(computed(() => sorted(filtered.value)))
 
 const colDate = computed(() => {
   return props.type === 'pending' ? t('anomalies.col_first_seen') : t('anomalies.col_revoked_at')

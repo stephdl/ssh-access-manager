@@ -34,10 +34,38 @@
         </colgroup>
         <thead>
           <tr>
-            <th>{{ $t('audit.col_date') }}</th>
-            <th>{{ $t('audit.col_action') }}</th>
-            <th>{{ $t('audit.col_by') }}</th>
-            <th>{{ $t('audit.col_server') }}</th>
+            <th
+              class="th-sortable"
+              :class="{ active: sortKey === 'performed_at' }"
+              @click="toggleSort('performed_at')"
+            >
+              {{ $t('audit.col_date') }}
+              <span class="sort-indicator">{{ sortIndicator('performed_at') }}</span>
+            </th>
+            <th
+              class="th-sortable"
+              :class="{ active: sortKey === 'action' }"
+              @click="toggleSort('action')"
+            >
+              {{ $t('audit.col_action') }}
+              <span class="sort-indicator">{{ sortIndicator('action') }}</span>
+            </th>
+            <th
+              class="th-sortable"
+              :class="{ active: sortKey === 'performed_by_username' }"
+              @click="toggleSort('performed_by_username')"
+            >
+              {{ $t('audit.col_by') }}
+              <span class="sort-indicator">{{ sortIndicator('performed_by_username') }}</span>
+            </th>
+            <th
+              class="th-sortable"
+              :class="{ active: sortKey === 'server_hostname' }"
+              @click="toggleSort('server_hostname')"
+            >
+              {{ $t('audit.col_server') }}
+              <span class="sort-indicator">{{ sortIndicator('server_hostname') }}</span>
+            </th>
             <th>{{ $t('audit.col_key') }}</th>
             <th>{{ $t('audit.col_details') }}</th>
           </tr>
@@ -81,9 +109,11 @@
 import { ref, computed } from 'vue'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
+import { useSort } from '../composables/useSort.js'
 import PaginationBar from './PaginationBar.vue'
 
 const { formatDate } = useFormatDate()
+const { sortKey, toggleSort, sorted, sortIndicator } = useSort()
 
 const props = defineProps({
   logs: { type: Array, default: () => [] },
@@ -130,7 +160,7 @@ const filtered = computed(() => {
 })
 
 const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
-  usePagination(filtered)
+  usePagination(computed(() => sorted(filtered.value)))
 
 function rowClass(action) {
   if (CRITICAL_ACTIONS.has(action)) return 'row-danger'

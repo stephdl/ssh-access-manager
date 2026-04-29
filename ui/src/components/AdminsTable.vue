@@ -13,10 +13,38 @@
     <table>
       <thead>
         <tr>
-          <th>{{ $t('admins.col_username') }}</th>
-          <th>{{ $t('admins.col_email') }}</th>
-          <th>{{ $t('admins.col_role') }}</th>
-          <th>{{ $t('admins.col_active') }}</th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'username' }"
+            @click="toggleSort('username')"
+          >
+            {{ $t('admins.col_username') }}
+            <span class="sort-indicator">{{ sortIndicator('username') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'email' }"
+            @click="toggleSort('email')"
+          >
+            {{ $t('admins.col_email') }}
+            <span class="sort-indicator">{{ sortIndicator('email') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'role' }"
+            @click="toggleSort('role')"
+          >
+            {{ $t('admins.col_role') }}
+            <span class="sort-indicator">{{ sortIndicator('role') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'is_active' }"
+            @click="toggleSort('is_active')"
+          >
+            {{ $t('admins.col_active') }}
+            <span class="sort-indicator">{{ sortIndicator('is_active') }}</span>
+          </th>
           <th>{{ $t('admins.col_created') }}</th>
           <th v-if="props.currentRole === 'sysadmin'">{{ $t('admins.col_alerts') }}</th>
           <th v-if="props.currentRole === 'sysadmin'">{{ $t('admins.col_actions') }}</th>
@@ -135,9 +163,11 @@
 import { ref, computed } from 'vue'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
+import { useSort } from '../composables/useSort.js'
 import PaginationBar from './PaginationBar.vue'
 
 const { formatDateOnly } = useFormatDate()
+const { sortKey, toggleSort, sorted, sortIndicator } = useSort()
 
 const props = defineProps({
   admins: { type: Array, default: () => [] },
@@ -161,7 +191,7 @@ const filtered = computed(() => {
 })
 
 const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
-  usePagination(filtered)
+  usePagination(computed(() => sorted(filtered.value)))
 </script>
 
 <style scoped>
