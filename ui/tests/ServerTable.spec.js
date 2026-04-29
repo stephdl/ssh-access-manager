@@ -148,4 +148,73 @@ describe('ServerTable', () => {
     const rows = w.findAll('tbody tr').filter((r) => !r.classes('empty'))
     expect(rows.length).toBe(10)
   })
+
+  it('sorts by hostname ascending on first click', async () => {
+    const servers = [
+      { ...SERVERS[0], hostname: 'zulu' },
+      { ...SERVERS[1], hostname: 'alpha' },
+      { ...SERVERS[2], hostname: 'bravo' },
+    ]
+    const w = mountTable(servers)
+    const hostnameHeader = w.findAll('th.th-sortable').find((th) => th.text().includes('Hostname'))
+    await hostnameHeader.trigger('click')
+    const rows = w.findAll('tbody tr').filter((r) => !r.classes('empty'))
+    expect(rows[0].text()).toContain('alpha')
+    expect(rows[1].text()).toContain('bravo')
+    expect(rows[2].text()).toContain('zulu')
+  })
+
+  it('sorts by hostname descending on second click', async () => {
+    const servers = [
+      { ...SERVERS[0], hostname: 'zulu' },
+      { ...SERVERS[1], hostname: 'alpha' },
+      { ...SERVERS[2], hostname: 'bravo' },
+    ]
+    const w = mountTable(servers)
+    const hostnameHeader = w.findAll('th.th-sortable').find((th) => th.text().includes('Hostname'))
+    await hostnameHeader.trigger('click')
+    await hostnameHeader.trigger('click')
+    const rows = w.findAll('tbody tr').filter((r) => !r.classes('empty'))
+    expect(rows[0].text()).toContain('zulu')
+    expect(rows[1].text()).toContain('bravo')
+    expect(rows[2].text()).toContain('alpha')
+  })
+
+  it('returns to unsorted on third click', async () => {
+    const servers = [
+      { ...SERVERS[0], hostname: 'zulu' },
+      { ...SERVERS[1], hostname: 'alpha' },
+      { ...SERVERS[2], hostname: 'bravo' },
+    ]
+    const w = mountTable(servers)
+    const hostnameHeader = w.findAll('th.th-sortable').find((th) => th.text().includes('Hostname'))
+    await hostnameHeader.trigger('click')
+    await hostnameHeader.trigger('click')
+    await hostnameHeader.trigger('click')
+    const rows = w.findAll('tbody tr').filter((r) => !r.classes('empty'))
+    expect(rows[0].text()).toContain('zulu')
+    expect(rows[1].text()).toContain('alpha')
+    expect(rows[2].text()).toContain('bravo')
+  })
+
+  it('displays sort indicator ▲ when sorted ascending', async () => {
+    const w = mountTable()
+    const hostnameHeader = w.findAll('th.th-sortable').find((th) => th.text().includes('Hostname'))
+    await hostnameHeader.trigger('click')
+    expect(hostnameHeader.text()).toContain('▲')
+  })
+
+  it('displays sort indicator ▼ when sorted descending', async () => {
+    const w = mountTable()
+    const hostnameHeader = w.findAll('th.th-sortable').find((th) => th.text().includes('Hostname'))
+    await hostnameHeader.trigger('click')
+    await hostnameHeader.trigger('click')
+    expect(hostnameHeader.text()).toContain('▼')
+  })
+
+  it('displays sort indicator ↕ when unsorted', () => {
+    const w = mountTable()
+    const hostnameHeader = w.findAll('th.th-sortable').find((th) => th.text().includes('Hostname'))
+    expect(hostnameHeader.text()).toContain('↕')
+  })
 })
