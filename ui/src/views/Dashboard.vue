@@ -104,7 +104,13 @@
           />
 
           <label>{{ $t('add_server.ssh_port_label') }}</label>
-          <input v-model.number="addForm.sshPort" type="number" min="1" max="65535" placeholder="22" />
+          <input
+            v-model.number="addForm.sshPort"
+            type="number"
+            min="1"
+            max="65535"
+            placeholder="22"
+          />
 
           <div class="provision-section">
             <h4>{{ $t('add_server.provision_title') }}</h4>
@@ -216,7 +222,13 @@
         />
 
         <label>{{ $t('edit_server.ssh_port_label') }}</label>
-        <input v-model.number="editForm.ssh_port" type="number" min="1" max="65535" placeholder="22" />
+        <input
+          v-model.number="editForm.ssh_port"
+          type="number"
+          min="1"
+          max="65535"
+          placeholder="22"
+        />
 
         <div class="modal-actions">
           <button class="btn-secondary" @click="closeEditServer">{{ $t('common.cancel') }}</button>
