@@ -54,21 +54,22 @@
     "error_duplicate_ip": "Diese IP-Adresse wird bereits von einem anderen aktiven Server verwendet.",
     "submitting": "Hinzufügen…",
     "submit": "Hinzufügen",
-    "success_title": "Server hinzugefügt",
-    "success_msg": "✅ {hostname} wurde hinzugefügt.",
-    "deploy_hint": "Stellen Sie jetzt den Collector-Schlüssel auf diesem Server in `/home/{sshUser}/.ssh/authorized_keys` bereit:",
-    "deploy_hint2": "Oder führen Sie `provision-host.sh` mit diesem Schlüssel aus.",
-    "close": "Schließen",
-    "provision_title": "Automatische Bereitstellung (optional)",
-    "provision_hint": "Falls angegeben, wird der Collector-Schlüssel automatisch via SSH bereitgestellt.",
+    "provision_title": "SSH-Bereitstellung",
+    "provision_hint": "Das SSH-Passwort ist erforderlich, um den Server bereitzustellen. Für manuelles Onboarding verwenden Sie das Skript provision-host.sh.",
     "ssh_user_label": "SSH-Benutzer",
     "ssh_port_label": "SSH-Port",
     "ssh_password_label": "SSH-Passwort",
-    "ssh_password_placeholder": "Leer lassen für manuelle Bereitstellung",
+    "ssh_password_placeholder": "SSH-Passwort",
     "ssh_password_disclaimer": "Das SSH-Passwort wird nur für diesen Bereitstellungsschritt verwendet und niemals gespeichert.",
-    "provision_connecting": "Verbindung zum Server…",
-    "provision_success": "✅ Server bereitgestellt — Collector-Schlüssel automatisch deployed.",
-    "provision_error": "Bereitstellung fehlgeschlagen: {error}"
+    "errors": {
+      "SSH_AUTH_FAILED": "Authentifizierung fehlgeschlagen — Benutzername und Passwort prüfen.",
+      "SSH_TIMEOUT": "Verbindungszeitüberschreitung — der Server antwortet nicht.",
+      "SSH_UNREACHABLE": "Server nicht erreichbar — IP-Adresse und SSH-Dienst prüfen.",
+      "SSH_PORT_REFUSED": "SSH-Port abgelehnt — prüfen Sie, ob SSH auf diesem Port läuft.",
+      "SSH_SUDO_FAILED": "Bereitstellung fehlgeschlagen — prüfen Sie die sudo-Rechte des Benutzers.",
+      "SSH_SCRIPT_FAILED": "Bereitstellungsskript fehlgeschlagen — Server-Logs prüfen.",
+      "SSH_FAILED": "SSH-Fehler während der Bereitstellung."
+    }
   },
   "edit_server": {
     "title": "Server bearbeiten",
@@ -141,7 +142,16 @@
     "key_revoked": "Schlüssel widerrufen.",
     "key_assigned": "Schlüssel {username} zugewiesen.",
     "expiry_set": "Ablauf festgelegt.",
-    "expiry_removed": "Ablauf entfernt — Schlüssel unbegrenzt."
+    "expiry_removed": "Ablauf entfernt — Schlüssel unbegrenzt.",
+    "reprovision": "Neu bereitstellen",
+    "reprovision_modal_title": "Server neu bereitstellen",
+    "reprovision_hint": "Führt das Bereitstellungsskript erneut auf dem Server aus. Nützlich, wenn der Audit-Benutzer gelöscht wurde oder die sudo-Rechte geändert wurden.",
+    "reprovision_ssh_user": "SSH-Benutzer",
+    "reprovision_ssh_password": "SSH-Passwort",
+    "reprovision_ssh_port": "SSH-Port",
+    "reprovision_submit": "Neu bereitstellen",
+    "reprovision_submitting": "Verbindung…",
+    "reprovision_success": "Server erfolgreich neu bereitgestellt."
   },
   "key_table": {
     "col_status": "Status",

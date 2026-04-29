@@ -298,6 +298,13 @@ button:disabled {
 .btn-warning:hover:not(:disabled) {
   background: #e0a800;
 }
+.btn-purple {
+  background: #7c3aed;
+  color: #fff;
+}
+.btn-purple:hover:not(:disabled) {
+  background: #6d28d9;
+}
 
 .modal-header {
   display: flex;
@@ -338,7 +345,8 @@ button:disabled {
 .btn-secondary,
 .btn-danger,
 .btn-success,
-.btn-warning {
+.btn-warning,
+.btn-purple {
   min-width: 6rem;
 }
 </style>

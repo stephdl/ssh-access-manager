@@ -54,21 +54,22 @@
     "error_duplicate_ip": "This IP address is already used by another active server.",
     "submitting": "Adding…",
     "submit": "Add",
-    "success_title": "Server added",
-    "success_msg": "✅ {hostname} has been added.",
-    "deploy_hint": "Now deploy the collector key on this server in `/home/{sshUser}/.ssh/authorized_keys`:",
-    "deploy_hint2": "Or run `provision-host.sh` with this key.",
-    "close": "Close",
-    "provision_title": "Automatic provisioning (optional)",
-    "provision_hint": "If provided, the collector key will be deployed automatically via SSH.",
+    "provision_title": "SSH Provisioning",
+    "provision_hint": "The SSH password is required to provision the server. If you prefer manual onboarding, use the provision-host.sh script.",
     "ssh_user_label": "SSH User",
     "ssh_port_label": "SSH Port",
     "ssh_password_label": "SSH Password",
-    "ssh_password_placeholder": "Leave empty to provision manually",
+    "ssh_password_placeholder": "SSH password",
     "ssh_password_disclaimer": "The SSH password is used only for this provisioning step and is never stored.",
-    "provision_connecting": "Connecting to server…",
-    "provision_success": "✅ Server provisioned — collector key deployed automatically.",
-    "provision_error": "Provisioning failed: {error}"
+    "errors": {
+      "SSH_AUTH_FAILED": "Authentication failed — check your username and password.",
+      "SSH_TIMEOUT": "Connection timed out — the server did not respond.",
+      "SSH_UNREACHABLE": "Server unreachable — check the IP address and that SSH is running.",
+      "SSH_PORT_REFUSED": "SSH port refused — check that SSH is running on this port.",
+      "SSH_SUDO_FAILED": "Provisioning failed — check that the user has sudo privileges.",
+      "SSH_SCRIPT_FAILED": "Provisioning script failed — check the server logs.",
+      "SSH_FAILED": "SSH error during provisioning."
+    }
   },
   "edit_server": {
     "title": "Edit server",
@@ -141,7 +142,16 @@
     "key_revoked": "Key revoked.",
     "key_assigned": "Key assigned to {username}.",
     "expiry_set": "Expiry set.",
-    "expiry_removed": "Expiry removed — key is now unlimited."
+    "expiry_removed": "Expiry removed — key is now unlimited.",
+    "reprovision": "Re-provision",
+    "reprovision_modal_title": "Re-provision server",
+    "reprovision_hint": "Re-runs the provisioning script on the server. Useful if the audit user was deleted or sudo rights changed.",
+    "reprovision_ssh_user": "SSH User",
+    "reprovision_ssh_password": "SSH Password",
+    "reprovision_ssh_port": "SSH Port",
+    "reprovision_submit": "Re-provision",
+    "reprovision_submitting": "Connecting…",
+    "reprovision_success": "Server re-provisioned successfully."
   },
   "key_table": {
     "col_status": "Status",

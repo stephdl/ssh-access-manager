@@ -90,13 +90,21 @@ def servers_show(hostname):
 @servers.command("add")
 @click.option("--hostname", required=True, help="Hostname")
 @click.option("--ip", required=True, help="IP address")
-@click.option("--env", required=True, type=click.Choice(["production", "staging", "lab"]), help="Environment")
+@click.option("--ssh-user", default="root", show_default=True, help="SSH user for provisioning")
+@click.option("--ssh-password", default=None, help="SSH password for provisioning")
+@click.option("--env", default=None, type=click.Choice(["production", "staging", "lab"]), help="Environment (optional)")
 @click.option("--os", "os_family", default=None, help="OS family")
-def servers_add(hostname, ip, env, os_family):
-    """Add a server."""
+@click.option("--port", "ssh_port", default=22, show_default=True, type=int, help="SSH port")
+def servers_add(hostname, ip, ssh_user, ssh_password, env, os_family, ssh_port):
+    """Add and provision a server via SSH. Only created in DB on success."""
     admin_id = _require_admin()
-    actions.add_server(hostname, ip, env, os_family, admin_id)
-    click.echo(f"Server {hostname} added.")
+    if not ssh_password:
+        ssh_password = click.prompt("SSH password", hide_input=True)
+    try:
+        actions.add_server(hostname, ip, ssh_user, ssh_password, env, os_family, ssh_port, admin_id)
+        click.echo(f"Server {hostname} added and provisioned successfully.")
+    except (ValueError, RuntimeError) as e:
+        raise click.ClickException(str(e))
 
 
 @servers.command("update")

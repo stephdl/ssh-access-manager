@@ -307,9 +307,48 @@ def test_web_add_server_returns_201(auth_client):
         mock_actions.add_server.return_value = {"id": SERVER_ID}
         resp = auth_client.post(
             "/api/servers",
-            json={"hostname": "new-srv", "ip": "10.0.0.1", "environment": "lab"},
+            json={"hostname": "new-srv", "ip": "10.0.0.1", "environment": "lab",
+                  "ssh_user": "root", "ssh_password": "Str0ng#Pass!"},
         )
         assert resp.status_code == 201
+
+
+def test_web_add_server_missing_password_returns_400(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            "/api/servers",
+            json={"hostname": "new-srv", "ip": "10.0.0.1"},
+        )
+        assert resp.status_code == 400
+        assert "ssh_password" in resp.json["error"]
+
+
+def test_web_add_server_ssh_failure_returns_422(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.add_server.side_effect = RuntimeError("Authentication failed")
+        resp = auth_client.post(
+            "/api/servers",
+            json={"hostname": "new-srv", "ip": "10.0.0.1",
+                  "ssh_user": "root", "ssh_password": "wrong"},
+        )
+        assert resp.status_code == 422
+
+
+def test_web_add_server_env_optional(auth_client):
+    """environment field is optional — server can be created without it."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.add_server.return_value = {"id": SERVER_ID}
+        resp = auth_client.post(
+            "/api/servers",
+            json={"hostname": "new-srv", "ip": "10.0.0.1",
+                  "ssh_user": "root", "ssh_password": "Str0ng#Pass!"},
+        )
+        assert resp.status_code == 201
+        call_args = mock_actions.add_server.call_args
+        assert call_args[0][4] is None
 
 
 # ---------------------------------------------------------------------------

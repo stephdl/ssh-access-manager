@@ -60,127 +60,121 @@
     <!-- Add server modal -->
     <div v-if="showAddServer" class="modal-overlay" @click.self="closeAddServer">
       <div class="modal">
-        <!-- Step 1: form -->
-        <template v-if="!addSuccess">
-          <div class="modal-header">
-            <h3>{{ $t('add_server.title') }}</h3>
-            <button class="modal-close" @click="closeAddServer" aria-label="Close">&#x2715;</button>
-          </div>
-          <div v-if="addError" class="alert-error">{{ addError }}</div>
+        <div class="modal-header">
+          <h3>{{ $t('add_server.title') }}</h3>
+          <button class="modal-close" @click="closeAddServer" aria-label="Close">&#x2715;</button>
+        </div>
+        <div v-if="addError" class="alert-error">{{ addError }}</div>
 
+        <label
+          >{{ $t('add_server.hostname') }}
+          <span class="required">{{ $t('common.required') }}</span></label
+        >
+        <input
+          v-model="addForm.hostname"
+          type="text"
+          :placeholder="$t('add_server.hostname_placeholder')"
+        />
+
+        <label
+          >{{ $t('add_server.ip') }}
+          <span class="required">{{ $t('common.required') }}</span></label
+        >
+        <input v-model="addForm.ip" type="text" :placeholder="$t('add_server.ip_placeholder')" />
+        <span v-if="addIpError" class="field-error">{{ addIpError }}</span>
+
+        <label>{{ $t('add_server.environment') }}</label>
+        <select v-model="addForm.environment">
+          <option value="">{{ $t('add_server.env_placeholder') }}</option>
+          <option value="production">production</option>
+          <option value="staging">staging</option>
+          <option value="lab">lab</option>
+        </select>
+
+        <label>{{ $t('add_server.os_family') }}</label>
+        <input
+          v-model="addForm.os_family"
+          type="text"
+          :placeholder="$t('add_server.os_placeholder')"
+        />
+
+        <label
+          >{{ $t('add_server.ssh_port_label') }}
+          <span class="required">{{ $t('common.required') }}</span></label
+        >
+        <input
+          v-model.number="addForm.sshPort"
+          type="number"
+          min="1"
+          max="65535"
+          placeholder="22"
+        />
+
+        <div class="provision-section">
+          <h4>{{ $t('add_server.provision_title') }}</h4>
+          <p class="hint">{{ $t('add_server.provision_hint') }}</p>
           <label
-            >{{ $t('add_server.hostname') }}
+            >{{ $t('add_server.ssh_user_label') }}
             <span class="required">{{ $t('common.required') }}</span></label
           >
-          <input
-            v-model="addForm.hostname"
-            type="text"
-            :placeholder="$t('add_server.hostname_placeholder')"
-          />
+          <input v-model="addForm.sshUser" type="text" placeholder="root" />
 
           <label
-            >{{ $t('add_server.ip') }}
+            >{{ $t('add_server.ssh_password_label') }}
             <span class="required">{{ $t('common.required') }}</span></label
           >
-          <input v-model="addForm.ip" type="text" :placeholder="$t('add_server.ip_placeholder')" />
-          <span v-if="addIpError" class="field-error">{{ addIpError }}</span>
-
-          <label
-            >{{ $t('add_server.environment') }}
-            <span class="required">{{ $t('common.required') }}</span></label
-          >
-          <select v-model="addForm.environment">
-            <option value="">{{ $t('add_server.env_placeholder') }}</option>
-            <option value="production">production</option>
-            <option value="staging">staging</option>
-            <option value="lab">lab</option>
-          </select>
-
-          <label>{{ $t('add_server.os_family') }}</label>
-          <input
-            v-model="addForm.os_family"
-            type="text"
-            :placeholder="$t('add_server.os_placeholder')"
-          />
-
-          <label>{{ $t('add_server.ssh_port_label') }}</label>
-          <input
-            v-model.number="addForm.sshPort"
-            type="number"
-            min="1"
-            max="65535"
-            placeholder="22"
-          />
-
-          <div class="provision-section">
-            <h4>{{ $t('add_server.provision_title') }}</h4>
-            <p class="hint">{{ $t('add_server.provision_hint') }}</p>
-            <label>{{ $t('add_server.ssh_user_label') }}</label>
-            <input v-model="addForm.sshUser" type="text" placeholder="root" />
-
-            <label>{{ $t('add_server.ssh_password_label') }}</label>
+          <div class="password-wrapper">
             <input
               v-model="addForm.sshPassword"
-              type="password"
+              :type="showAddPassword ? 'text' : 'password'"
               :placeholder="$t('add_server.ssh_password_placeholder')"
             />
-            <p class="password-disclaimer">🔒 {{ $t('add_server.ssh_password_disclaimer') }}</p>
-          </div>
-
-          <div class="modal-actions">
-            <button class="btn-secondary" @click="closeAddServer">{{ $t('common.cancel') }}</button>
             <button
-              class="btn-primary"
-              :disabled="!addFormValid || adding"
-              @click="confirmAddServer"
+              type="button"
+              class="btn-eye"
+              @click="showAddPassword = !showAddPassword"
+              :aria-label="showAddPassword ? 'Hide password' : 'Show password'"
             >
-              {{ adding ? $t('add_server.submitting') : $t('add_server.submit') }}
+              <svg
+                v-if="!showAddPassword"
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              <svg
+                v-else
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+                />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
             </button>
           </div>
-        </template>
+          <p class="password-disclaimer">🔒 {{ $t('add_server.ssh_password_disclaimer') }}</p>
+        </div>
 
-        <!-- Step 2: success + provisioning or manual key display -->
-        <template v-else>
-          <div class="modal-header">
-            <h3>{{ $t('add_server.success_title') }}</h3>
-            <button class="modal-close" @click="closeAddServer" aria-label="Close">&#x2715;</button>
-          </div>
-          <p class="success-msg">
-            {{ $t('add_server.success_msg', { hostname: addForm.hostname }) }}
-          </p>
-
-          <!-- Automatic provisioning status -->
-          <div v-if="provisionStatus !== null">
-            <div v-if="provisionStatus === 'connecting'" class="provision-status">
-              <div class="spinner"></div>
-              <span>{{ $t('add_server.provision_connecting') }}</span>
-            </div>
-            <div v-else-if="provisionStatus === 'success'" class="provision-status success">
-              <span>{{ $t('add_server.provision_success') }}</span>
-            </div>
-            <div v-else-if="provisionStatus === 'error'" class="provision-status error">
-              <span>{{ $t('add_server.provision_error', { error: provisionError }) }}</span>
-            </div>
-          </div>
-
-          <!-- Manual provisioning (when no password provided) -->
-          <template v-else>
-            <p class="deploy-hint">{{ $t('add_server.deploy_hint', { sshUser }) }}</p>
-            <div class="key-display">
-              <code>{{ collectorKey || $t('common.loading') }}</code>
-              <button class="btn-copy" @click="copyKey(collectorKey, 'modal')">
-                {{ copied === 'modal' ? $t('dashboard.copied') : $t('dashboard.copy') }}
-              </button>
-            </div>
-            <p class="deploy-hint small">{{ $t('add_server.deploy_hint2') }}</p>
-          </template>
-
-          <div class="modal-actions">
-            <button class="btn-primary" @click="closeAddServer">
-              {{ $t('add_server.close') }}
-            </button>
-          </div>
-        </template>
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="closeAddServer">{{ $t('common.cancel') }}</button>
+          <button class="btn-primary" :disabled="!addFormValid || adding" @click="confirmAddServer">
+            <span v-if="adding" class="spinner btn-spinner"></span>
+            {{ adding ? $t('add_server.submitting') : $t('add_server.submit') }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -251,7 +245,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth.js'
 import ServerTable from '../components/ServerTable.vue'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const { admin } = useAuth()
 const currentRole = computed(() => admin.value?.role || 'viewer')
 
@@ -267,7 +261,7 @@ const copied = ref('')
 const showAddServer = ref(false)
 const adding = ref(false)
 const addError = ref('')
-const addSuccess = ref(false)
+const showAddPassword = ref(false)
 const addForm = ref({
   hostname: '',
   ip: '',
@@ -277,8 +271,6 @@ const addForm = ref({
   sshPort: 22,
   sshPassword: '',
 })
-const provisionStatus = ref(null)
-const provisionError = ref('')
 
 const showEditServer = ref(false)
 const editing = ref(false)
@@ -326,15 +318,15 @@ const addFormValid = computed(
     addForm.value.ip.trim() &&
     isValidIp(addForm.value.ip) &&
     !isIpDuplicate(addForm.value.ip.trim()) &&
-    addForm.value.environment
+    addForm.value.sshUser.trim() &&
+    addForm.value.sshPassword.trim()
 )
 
 const editFormValid = computed(
   () =>
     editForm.value.ip.trim() &&
     isValidIp(editForm.value.ip) &&
-    !isIpDuplicate(editForm.value.ip.trim(), editForm.value.hostname) &&
-    editForm.value.environment
+    !isIpDuplicate(editForm.value.ip.trim(), editForm.value.hostname)
 )
 
 async function loadCollectorKey() {
@@ -370,9 +362,6 @@ function openAddServer() {
     sshPassword: '',
   }
   addError.value = ''
-  addSuccess.value = false
-  provisionStatus.value = null
-  provisionError.value = ''
   showAddServer.value = true
 }
 
@@ -390,41 +379,22 @@ async function confirmAddServer() {
       body: JSON.stringify({
         hostname: addForm.value.hostname.trim(),
         ip: addForm.value.ip.trim(),
-        environment: addForm.value.environment,
+        environment: addForm.value.environment || null,
         os_family: addForm.value.os_family.trim() || null,
         ssh_port: addForm.value.sshPort || 22,
+        ssh_user: addForm.value.sshUser || 'root',
+        ssh_password: addForm.value.sshPassword,
       }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-    addSuccess.value = true
-    await loadServers()
-
-    // Automatic provisioning if password is provided
-    if (addForm.value.sshPassword.trim()) {
-      provisionStatus.value = 'connecting'
-      try {
-        const provRes = await fetch(`/api/servers/${addForm.value.hostname.trim()}/provision`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ssh_user: addForm.value.sshUser || 'root',
-            ssh_port: addForm.value.sshPort || 22,
-            ssh_password: addForm.value.sshPassword,
-          }),
-        })
-        if (provRes.ok) {
-          provisionStatus.value = 'success'
-        } else {
-          const errData = await provRes.json().catch(() => ({}))
-          provisionStatus.value = 'error'
-          provisionError.value = errData.error || `HTTP ${provRes.status}`
-        }
-      } catch (e) {
-        provisionStatus.value = 'error'
-        provisionError.value = e.message
-      }
+    if (!res.ok) {
+      const i18nKey = `add_server.errors.${data.error_code}`
+      throw new Error(
+        data.error_code && te(i18nKey) ? t(i18nKey) : data.error || `HTTP ${res.status}`
+      )
     }
+    await loadServers()
+    closeAddServer()
   } catch (e) {
     addError.value = e.message
   } finally {
@@ -732,6 +702,30 @@ h1 {
   min-width: 0;
 }
 
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.password-wrapper input {
+  flex: 1;
+  padding-right: 2.2rem;
+}
+.btn-eye {
+  position: absolute;
+  right: 0.4rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  padding: 0.2rem;
+  display: flex;
+  align-items: center;
+}
+.btn-eye:hover {
+  color: #333;
+}
+
 .provision-section {
   margin-top: 1.5rem;
   padding-top: 1rem;
@@ -785,6 +779,14 @@ h1 {
   border-top-color: #0d6efd;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+.btn-spinner {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.3);
+  border-top-color: rgba(255, 255, 255, 0.9);
 }
 
 @keyframes spin {

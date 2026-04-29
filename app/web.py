@@ -225,6 +225,22 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return None
 
 
+def _ssh_error_code(msg: str) -> str:
+    if "Authentication failed" in msg:
+        return "SSH_AUTH_FAILED"
+    if "timed out" in msg:
+        return "SSH_TIMEOUT"
+    if "unreachable" in msg or "could not get host key" in msg:
+        return "SSH_UNREACHABLE"
+    if "refused" in msg:
+        return "SSH_PORT_REFUSED"
+    if "sudo privileges" in msg:
+        return "SSH_SUDO_FAILED"
+    if "Provisioning script failed" in msg:
+        return "SSH_SCRIPT_FAILED"
+    return "SSH_FAILED"
+
+
 # ---------------------------------------------------------------------------
 # Serveurs
 # ---------------------------------------------------------------------------
@@ -250,15 +266,32 @@ def get_server(hostname):
 @require_role("sysadmin")
 def add_server():
     data = request.get_json(force=True) or {}
+    ssh_user = data.get("ssh_user", "root") or "root"
+    ssh_password = data.get("ssh_password", "")
+    if not ssh_password:
+        return jsonify({"error": "ssh_password is required"}), 400
+    try:
+        ssh_port = int(data.get("ssh_port", 22))
+    except (TypeError, ValueError):
+        return jsonify({"error": "ssh_port must be an integer"}), 400
+    if not (1 <= ssh_port <= 65535):
+        return jsonify({"error": "ssh_port must be between 1 and 65535"}), 400
     try:
         server = actions.add_server(
-            data["hostname"], data["ip"], data["environment"],
-            data.get("os_family"), data.get("ssh_port", 22), g.admin_id,
+            data["hostname"], data["ip"], ssh_user, ssh_password,
+            data.get("environment") or None,
+            data.get("os_family") or None,
+            ssh_port, g.admin_id,
         )
         return jsonify(server), 201
-    except (KeyError, ValueError) as e:
+    except KeyError as e:
+        return jsonify({"error": f"Missing field: {e}"}), 400
+    except ValueError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
+    except RuntimeError as e:
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+        return jsonify({"error": str(e), "error_code": _ssh_error_code(str(e))}), 422
 
 
 @app.route("/api/servers/<hostname>/provision", methods=["POST"])
@@ -282,7 +315,7 @@ def provision_server_route(hostname):
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
     except RuntimeError as exc:
-        return jsonify({"error": str(exc)}), 422
+        return jsonify({"error": str(exc), "error_code": _ssh_error_code(str(exc))}), 422
 
 
 @app.route("/api/servers/<hostname>", methods=["PUT"])
