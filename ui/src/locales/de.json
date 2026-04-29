@@ -415,5 +415,8 @@
   "password_banner": {
     "message": "Ihr Passwort wurde noch nie geändert. Bitte aktualisieren Sie es aus Sicherheitsgründen.",
     "btn_change": "Passwort ändern"
+  },
+  "smtp_banner": {
+    "message": "E-Mail-Benachrichtigungen sind deaktiviert — konfigurieren Sie die SMTP-Einstellungen, um Benachrichtigungen zu aktivieren."
   }
 }
