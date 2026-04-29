@@ -1142,13 +1142,15 @@ coûteuse en temps).
 
 | Module | Tests | Couverture |
 |---|---|---|
-| `actions.py` | 62+ | ≥ 80 % (imposé CI) |
-| `test_ssh.py` | 15 | RejectPolicy, ensure_scripts (5 scripts), revoke, lock/unlock, SAM bytes |
-| `test_web.py` | 50+ | Toutes les routes critiques, auth 401/200, lock/unlock routes |
-| `test_manage.py` | 42+ | Toutes les commandes CLI, lock/unlock |
-| `test_collect.py` | 15 | 4 scénarios détection, RSA parsing |
+| `test_actions.py` | 114 | ≥ 80 % (imposé CI) — provision-first, password non stocké, scénarios révocation |
+| `test_ssh.py` | 49 | RejectPolicy, ensure_scripts (6 scripts), revoke, lock/unlock, SAM bytes |
+| `test_web.py` | 130 | Toutes les routes critiques, auth 401/200, lock/unlock, provision endpoint, error_code |
+| `test_rbac.py` | 54 | Couverture complète de la matrice RBAC (sysadmin/operator/viewer) |
+| `test_manage.py` | 38 | Toutes les commandes CLI, lock/unlock, servers add avec SSH creds |
+| `test_collect.py` | 35 | 4 scénarios détection, RSA parsing |
 | `test_expire.py` | 12 | Anti-spam 24h, expiration auto |
-| Vue.js specs | 137 | KeyActions, ExpiryPicker, KeyTable, ServerTable, UserLockForm, Anomalies, DeployedUsersTable |
+| `test_alerts.py` | 23 | Niveaux CRITICAL/WARNING/INFO, anti-spam |
+| Vue.js specs | 262 | 18 fichiers : Dashboard (provisionnement, validation hostname), ServerDetail (re-provision), KeyTable, ServerTable, Admins, SessionsCard, et tous composants |
 
 ---
 
@@ -1354,6 +1356,9 @@ permet de modifier `NGINX_PORT` ou `SMTP_HOST` sans reconstruire l'image — un
 | vue-i18n 5 langues | Accessibilité internationale | 5 fichiers JSON à synchroniser |
 | `freeze_time` tests | Déterminisme des tests d'expiration | Dépendance à `freezegun` |
 | Tag semver sans `v` | Uniformité git tag = Docker tag | Convention moins répandue |
+| Provisionnement atomique (provision-first) | Aucun serveur zombie en DB — INSERT uniquement si SSH réussit | SSH obligatoire à l'ajout (pas de déclaration purement déclarative via UI) |
+| SSH password non stocké | Sécurité : credential éphémère, jamais en base ni en audit | Pas de re-connexion automatique — re-provisionnement via bouton UI si nécessaire |
+| `error_code` API + traduction frontend | Messages d'erreur SSH dans la langue du navigateur sans hard-coder les traductions côté serveur | 7 codes à maintenir synchronisés entre backend et fichiers i18n |
 
 ---
 
@@ -1370,7 +1375,7 @@ d'ingénierie logicielle niveau 7 :
 - **Idempotence** : sync YAML, keyscan, bootstrap, déploiement de scripts.
 - **Traçabilité complète** : les 4 scénarios de révocation sont distingués par des
   colonnes dédiées et des entrées `audit_log` de types différents.
-- **Qualité mesurée** : couverture ≥ 80 % imposée par CI, 226 tests (156 Python +
-  70 Vue.js), isolation totale.
+- **Qualité mesurée** : couverture ≥ 80 % imposée par CI, 733 tests (471 Python +
+  262 Vue.js), isolation totale.
 - **Déploiement continu** : 5 workflows GitHub Actions (tests, build PR, build main,
   publication semver, nettoyage GHCR).

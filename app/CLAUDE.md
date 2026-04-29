@@ -167,7 +167,8 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 - `unlock_user(unix_user, hostname, admin_id)` — valide username POSIX, sam-unlock-user, USER_UNLOCKED (#181)
 
 ### Serveurs
-- `add_server(hostname, ip, env, os_family, db)` — appelle add_to_known_hosts(ip) avant INSERT (#70)
+- `add_server(hostname, ip, ssh_user, ssh_password, env=None, os_family=None, ssh_port=22, admin_id=None)` — provisionnement atomique : `add_to_known_hosts(ip)` → `ssh.provision_server()` → INSERT servers → audit SERVER_ADDED + SERVER_PROVISIONED. Si le SSH échoue, aucune donnée n'est écrite (#299, #301). Le SSH password n'est jamais stocké.
+- `provision_server(hostname, ip, ssh_user, ssh_password, ssh_port)` — re-provisionne un serveur existant (#302). Même garantie : ssh password non stocké.
 - `disable_server`, `enable_server` (#88), `delete_server` (#88 — hard delete + cascade)
 
 ### Administrateurs
@@ -183,6 +184,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 |-------|----------|----------|--------|
 | GET /api/servers, /api/keys, /api/access, /api/admins, /api/audit, /api/system/status, /api/system/config, /api/system/collector-key | ✓ | ✓ | ✓ |
 | POST /api/servers | ✓ | 403 | 403 |
+| POST /api/servers/\*/provision | ✓ | 403 | 403 |
 | PUT/DELETE /api/servers/\*/disable, enable, DELETE | ✓ | 403 | 403 |
 | POST /api/servers/\*/scan, /api/system/scan | ✓ | ✓ | 403 |
 | GET /api/servers/\*/sessions, /api/servers/\*/sessions/history | ✓ | ✓ | 403 |
@@ -207,7 +209,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 - Couverture minimale actions.py : 80%
 - pytest doit passer avant tout commit
 
-Fichiers : conftest.py, test_db.py (7), test_servers.py (9), test_ssh.py (41), test_actions.py (97), test_collect.py (34), test_expire.py (12), test_alerts.py (19), test_web.py (115), test_manage.py (35).
+Fichiers : conftest.py, test_db.py (7), test_servers.py (9), test_ssh.py (49), test_actions.py (114), test_collect.py (35), test_expire.py (12), test_alerts.py (23), test_web.py (130), test_manage.py (38), test_rbac.py (54).
 
 Fixtures obligatoires dans conftest.py : `mock_db`, `mock_ssh_client`, `mock_smtp`, `sample_server`, `sample_key`.
 
