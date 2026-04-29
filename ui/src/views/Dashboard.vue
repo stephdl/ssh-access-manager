@@ -134,6 +134,7 @@
         <div class="modal-actions">
           <button class="btn-secondary" @click="closeAddServer">{{ $t('common.cancel') }}</button>
           <button class="btn-primary" :disabled="!addFormValid || adding" @click="confirmAddServer">
+            <span v-if="adding" class="spinner btn-spinner"></span>
             {{ adding ? $t('add_server.submitting') : $t('add_server.submit') }}
           </button>
         </div>
@@ -716,6 +717,14 @@ h1 {
   border-top-color: #0d6efd;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+.btn-spinner {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.3);
+  border-top-color: rgba(255, 255, 255, 0.9);
 }
 
 @keyframes spin {

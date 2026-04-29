@@ -142,7 +142,16 @@
     "key_revoked": "Schlüssel widerrufen.",
     "key_assigned": "Schlüssel {username} zugewiesen.",
     "expiry_set": "Ablauf festgelegt.",
-    "expiry_removed": "Ablauf entfernt — Schlüssel unbegrenzt."
+    "expiry_removed": "Ablauf entfernt — Schlüssel unbegrenzt.",
+    "reprovision": "Neu bereitstellen",
+    "reprovision_modal_title": "Server neu bereitstellen",
+    "reprovision_hint": "Führt das Bereitstellungsskript erneut auf dem Server aus. Nützlich, wenn der Audit-Benutzer gelöscht wurde oder die sudo-Rechte geändert wurden.",
+    "reprovision_ssh_user": "SSH-Benutzer",
+    "reprovision_ssh_password": "SSH-Passwort",
+    "reprovision_ssh_port": "SSH-Port",
+    "reprovision_submit": "Neu bereitstellen",
+    "reprovision_submitting": "Verbindung…",
+    "reprovision_success": "Server erfolgreich neu bereitgestellt."
   },
   "key_table": {
     "col_status": "Status",

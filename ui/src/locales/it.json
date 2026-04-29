@@ -142,7 +142,16 @@
     "key_revoked": "Chiave revocata.",
     "key_assigned": "Chiave assegnata a {username}.",
     "expiry_set": "Scadenza impostata.",
-    "expiry_removed": "Scadenza rimossa — chiave illimitata."
+    "expiry_removed": "Scadenza rimossa — chiave illimitata.",
+    "reprovision": "Re-provisioning",
+    "reprovision_modal_title": "Re-provisioning del server",
+    "reprovision_hint": "Riesegue lo script di provisioning sul server. Utile se l'utente di audit è stato eliminato o i diritti sudo sono cambiati.",
+    "reprovision_ssh_user": "Utente SSH",
+    "reprovision_ssh_password": "Password SSH",
+    "reprovision_ssh_port": "Porta SSH",
+    "reprovision_submit": "Re-provisioning",
+    "reprovision_submitting": "Connessione…",
+    "reprovision_success": "Server re-provisionato con successo."
   },
   "key_table": {
     "col_status": "Stato",

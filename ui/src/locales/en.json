@@ -142,7 +142,16 @@
     "key_revoked": "Key revoked.",
     "key_assigned": "Key assigned to {username}.",
     "expiry_set": "Expiry set.",
-    "expiry_removed": "Expiry removed — key is now unlimited."
+    "expiry_removed": "Expiry removed — key is now unlimited.",
+    "reprovision": "Re-provision",
+    "reprovision_modal_title": "Re-provision server",
+    "reprovision_hint": "Re-runs the provisioning script on the server. Useful if the audit user was deleted or sudo rights changed.",
+    "reprovision_ssh_user": "SSH User",
+    "reprovision_ssh_password": "SSH Password",
+    "reprovision_ssh_port": "SSH Port",
+    "reprovision_submit": "Re-provision",
+    "reprovision_submitting": "Connecting…",
+    "reprovision_success": "Server re-provisioned successfully."
   },
   "key_table": {
     "col_status": "Status",

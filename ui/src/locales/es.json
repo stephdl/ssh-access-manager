@@ -142,7 +142,16 @@
     "key_revoked": "Clave revocada.",
     "key_assigned": "Clave asignada a {username}.",
     "expiry_set": "Expiración establecida.",
-    "expiry_removed": "Expiración eliminada — clave ilimitada."
+    "expiry_removed": "Expiración eliminada — clave ilimitada.",
+    "reprovision": "Re-aprovisionar",
+    "reprovision_modal_title": "Re-aprovisionar servidor",
+    "reprovision_hint": "Vuelve a ejecutar el script de aprovisionamiento en el servidor. Útil si el usuario de auditoría fue eliminado o cambiaron los derechos sudo.",
+    "reprovision_ssh_user": "Usuario SSH",
+    "reprovision_ssh_password": "Contraseña SSH",
+    "reprovision_ssh_port": "Puerto SSH",
+    "reprovision_submit": "Re-aprovisionar",
+    "reprovision_submitting": "Conectando…",
+    "reprovision_success": "Servidor re-aprovisionado correctamente."
   },
   "key_table": {
     "col_status": "Estado",

@@ -29,6 +29,13 @@
           {{ $t('server_detail.reactivate') }}
         </button>
         <button
+          v-if="server.is_active && currentRole === 'sysadmin'"
+          class="btn-secondary"
+          @click="openReprovision"
+        >
+          {{ $t('server_detail.reprovision') }}
+        </button>
+        <button
           v-if="currentRole === 'sysadmin'"
           class="btn-danger"
           @click="showDeleteModal = true"
@@ -224,6 +231,55 @@
         </div>
       </div>
     </div>
+
+    <!-- Re-provision modal -->
+    <div
+      v-if="showReprovisionModal"
+      class="modal-overlay"
+      @click.self="showReprovisionModal = false"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h3>{{ $t('server_detail.reprovision_modal_title') }}</h3>
+          <button class="modal-close" @click="showReprovisionModal = false" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
+        <div v-if="reprovisionError" class="alert-error">{{ reprovisionError }}</div>
+        <p class="hint">{{ $t('server_detail.reprovision_hint') }}</p>
+
+        <label
+          >{{ $t('server_detail.reprovision_ssh_user') }} <span class="required">*</span></label
+        >
+        <input v-model="reprovisionForm.sshUser" type="text" placeholder="root" />
+
+        <label
+          >{{ $t('server_detail.reprovision_ssh_password') }} <span class="required">*</span></label
+        >
+        <input v-model="reprovisionForm.sshPassword" type="password" />
+
+        <label>{{ $t('server_detail.reprovision_ssh_port') }}</label>
+        <input v-model.number="reprovisionForm.sshPort" type="number" min="1" max="65535" />
+
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="showReprovisionModal = false">
+            {{ $t('common.cancel') }}
+          </button>
+          <button
+            class="btn-primary"
+            :disabled="!reprovisionForm.sshPassword.trim() || reprovisioning"
+            @click="confirmReprovision"
+          >
+            <span v-if="reprovisioning" class="spinner btn-spinner"></span>
+            {{
+              reprovisioning
+                ? $t('server_detail.reprovision_submitting')
+                : $t('server_detail.reprovision_submit')
+            }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -236,7 +292,7 @@ import { useFormatDate } from '../composables/useFormatDate.js'
 import KeyTable from '../components/KeyTable.vue'
 import SessionsCard from '../components/SessionsCard.vue'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const { admin } = useAuth()
 const { formatDate } = useFormatDate()
 const currentRole = computed(() => admin.value?.role || 'viewer')
@@ -252,6 +308,10 @@ const error = ref('')
 const message = ref('')
 
 const showDeleteModal = ref(false)
+const showReprovisionModal = ref(false)
+const reprovisioning = ref(false)
+const reprovisionError = ref('')
+const reprovisionForm = ref({ sshUser: 'root', sshPassword: '', sshPort: 22 })
 
 const revokeTarget = ref(null)
 const revokeReason = ref('')
@@ -426,6 +486,41 @@ async function apiAction(url, body, method = 'POST', successMsg) {
   }
 }
 
+function openReprovision() {
+  reprovisionForm.value = { sshUser: 'root', sshPassword: '', sshPort: server.value.ssh_port || 22 }
+  reprovisionError.value = ''
+  showReprovisionModal.value = true
+}
+
+async function confirmReprovision() {
+  reprovisioning.value = true
+  reprovisionError.value = ''
+  try {
+    const res = await fetch(`/api/servers/${hostname}/provision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ssh_user: reprovisionForm.value.sshUser || 'root',
+        ssh_password: reprovisionForm.value.sshPassword,
+        ssh_port: reprovisionForm.value.sshPort || 22,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const i18nKey = `add_server.errors.${data.error_code}`
+      throw new Error(
+        data.error_code && te(i18nKey) ? t(i18nKey) : data.error || `HTTP ${res.status}`
+      )
+    }
+    showReprovisionModal.value = false
+    message.value = t('server_detail.reprovision_success')
+  } catch (e) {
+    reprovisionError.value = e.message
+  } finally {
+    reprovisioning.value = false
+  }
+}
+
 function envBadge(env) {
   return (
     { production: 'badge-critical', staging: 'badge-pending', lab: 'badge-active' }[env] ||
@@ -590,5 +685,31 @@ dd {
   display: flex;
   gap: 0.75rem;
   justify-content: flex-end;
+}
+.hint {
+  font-size: 0.85rem;
+  color: #555;
+  margin: 0 0 0.75rem;
+}
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.btn-spinner {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
 }
 </style>
