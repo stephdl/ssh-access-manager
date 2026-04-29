@@ -710,6 +710,7 @@ dd {
 .modal textarea,
 .modal input[type='text'],
 .modal input[type='number'],
+.modal input[type='password'],
 .modal input[type='datetime-local'] {
   width: 100%;
   padding: 0.4rem 0.6rem;
@@ -736,6 +737,7 @@ dd {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 .password-wrapper input {
   flex: 1;
