@@ -267,7 +267,8 @@ CREATE TABLE audit_log (
                       'USER_UNLOCKED',      -- compte Unix déverrouillé
                       'LOGIN_FAILED',       -- tentative de connexion échouée (mauvais mot de passe)
                       'LOGIN_BANNED',       -- IP bannie après trop de tentatives échouées
-                      'PASSWORD_RESET'      -- réinitialisation de mot de passe via CLI
+                      'PASSWORD_RESET',     -- réinitialisation de mot de passe via CLI
+                      'SERVER_PROVISIONED'  -- provisionnement automatique via SSH password
                   )),
     -- Administrateur ayant déclenché l'action (NULL si automatique)
     performed_by  UUID REFERENCES administrators(id) ON DELETE SET NULL,

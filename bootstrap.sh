@@ -202,10 +202,30 @@ else
     generate_msmtprc
     generate_crontab
 
-    # Idempotent schema migration: add ssh_port column if missing
+    # Idempotent schema migrations
     su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' start -w"
     su -s /bin/sh postgres -c "psql -h /tmp -U ${POSTGRES_USER:-ssh_manager} -d ${POSTGRES_DB:-ssh_manager} \
         -c \"ALTER TABLE servers ADD COLUMN IF NOT EXISTS ssh_port INTEGER NOT NULL DEFAULT 22;\""
+    # Add SERVER_PROVISIONED to audit_log action check constraint if missing
+    su -s /bin/sh postgres -c "psql -h /tmp -U ${POSTGRES_USER:-ssh_manager} -d ${POSTGRES_DB:-ssh_manager} -c \
+        \"DO \\\$\\\$ BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'audit_log_action_check_v2'
+            ) THEN
+                ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check;
+                ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check_v2 CHECK (action IN (
+                    'KEY_ADDED','KEY_REVOKED','KEY_EXPIRED','EXPIRY_WARNING',
+                    'REQUEST_APPROVED','REQUEST_REJECTED','ANOMALY_DETECTED',
+                    'SCAN_COMPLETED','SCAN_FAILED','SCRIPT_DEPLOYED',
+                    'SERVER_ADDED','SERVER_DISABLED','SERVER_UPDATED',
+                    'ADMIN_ADDED','ADMIN_DISABLED','ADMIN_ENABLED','ADMIN_DELETED','ADMIN_UPDATED',
+                    'USER_LOCKED','USER_UNLOCKED',
+                    'LOGIN_FAILED','LOGIN_BANNED','PASSWORD_RESET',
+                    'SERVER_PROVISIONED'
+                ));
+            END IF;
+        END \\\$\\\$;\""
     su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' stop -w"
 fi
 
