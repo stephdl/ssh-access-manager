@@ -175,7 +175,7 @@ cur.execute(
     (
         os.environ.get("ADMIN_USERNAME", "admin"),
         os.environ.get("ADMIN_EMAIL", "admin@example.com"),
-        generate_password_hash(os.environ.get("ADMIN_PASSWORD", "changeme")),
+        generate_password_hash(os.environ.get("ADMIN_PASSWORD", "admin")),
     ),
 )
 conn.close()
