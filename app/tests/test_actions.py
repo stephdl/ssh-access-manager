@@ -56,18 +56,18 @@ def test_actions_validate_key_raises_if_no_pending(sample_key):
 # ---------------------------------------------------------------------------
 
 def test_actions_revoke_key_scenario1_calls_sam_revoke(sample_key):
-    auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10"}
+    auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10", "ssh_port": 22}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = {"id": KEY_ID}
         mock_db.query.return_value = [auth]
         actions.revoke_key(sample_key["fingerprint"], ADMIN_ID, "test reason")
         mock_ssh.revoke_on_server.assert_called_once_with(
-            "server-test-01", sample_key["fingerprint"], ip="192.168.1.10"
+            "server-test-01", sample_key["fingerprint"], ip="192.168.1.10", port=22
         )
 
 
 def test_actions_revoke_key_scenario1_sets_revoked_by_admin(sample_key):
-    auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10"}
+    auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10", "ssh_port": 22}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = {"id": KEY_ID}
         mock_db.query.return_value = [auth]
@@ -78,7 +78,7 @@ def test_actions_revoke_key_scenario1_sets_revoked_by_admin(sample_key):
 
 
 def test_actions_revoke_key_scenario1_logs_key_revoked(sample_key):
-    auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10"}
+    auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10", "ssh_port": 22}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = {"id": KEY_ID}
         mock_db.query.return_value = [auth]
@@ -96,7 +96,7 @@ def test_actions_revoke_key_raises_if_key_not_found(sample_key):
 
 def test_actions_revoke_key_scoped_calls_sam_revoke_with_unix_user(sample_key):
     """Revocation ciblée (hostname + unix_user) appelle revoke_on_server avec unix_user."""
-    server = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22}
     auth = {"status": "ACTIVE"}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.side_effect = [{"id": KEY_ID}, server, auth]
@@ -106,13 +106,13 @@ def test_actions_revoke_key_scoped_calls_sam_revoke_with_unix_user(sample_key):
         )
         mock_ssh.revoke_on_server.assert_called_once_with(
             "server-test-01", sample_key["fingerprint"],
-            ip="192.168.1.10", unix_user="alice",
+            ip="192.168.1.10", unix_user="alice", port=22,
         )
 
 
 def test_actions_revoke_key_scoped_sets_revoked_for_unix_user_only(sample_key):
     """Revocation ciblée — l'UPDATE inclut unix_user dans le WHERE."""
-    server = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22}
     auth = {"status": "ACTIVE"}
     with patch("actions.db") as mock_db, patch("actions.ssh"):
         mock_db.query_one.side_effect = [{"id": KEY_ID}, server, auth]
@@ -387,11 +387,11 @@ def test_actions_revoke_request_calls_sam_revoke():
         mock_db.query_one.side_effect = [
             req,
             {"fingerprint": "SHA256:abc"},
-            {"hostname": "server-test-01", "ip_address": "192.168.1.10"},
+            {"hostname": "server-test-01", "ip_address": "192.168.1.10", "ssh_port": 22},
         ]
         actions.revoke_request(REQUEST_ID, ADMIN_ID)
         mock_ssh.revoke_on_server.assert_called_once_with(
-            "server-test-01", "SHA256:abc", ip="192.168.1.10"
+            "server-test-01", "SHA256:abc", ip="192.168.1.10", port=22
         )
 
 
@@ -402,7 +402,7 @@ def test_actions_revoke_request_calls_sam_revoke():
 def test_actions_add_server_logs_server_added(sample_server):
     with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"):
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
-        actions.add_server("new-host", "10.0.0.1", "lab", "rhel", ADMIN_ID)
+        actions.add_server("new-host", "10.0.0.1", "lab", "rhel", 22, ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
         assert any("SERVER_ADDED" in c for c in calls)
 
@@ -420,6 +420,48 @@ def test_actions_disable_server_raises_if_not_found():
         mock_db.query_one.return_value = None
         with pytest.raises(ValueError, match="not found"):
             actions.disable_server("ghost")
+
+
+# ---------------------------------------------------------------------------
+# provision_server
+# ---------------------------------------------------------------------------
+
+def test_actions_provision_server_calls_ssh_provision(sample_server):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+        actions.provision_server("server-test-01", "root", "password123", 22, ADMIN_ID)
+        mock_ssh.provision_server.assert_called_once_with("192.168.1.10", "root", "password123", 22)
+
+
+def test_actions_provision_server_logs_provisioned(sample_server):
+    with patch("actions.db") as mock_db, patch("actions.ssh"):
+        mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+        actions.provision_server("server-test-01", "root", "password123", 22, ADMIN_ID)
+        calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("SERVER_PROVISIONED" in c for c in calls)
+
+
+def test_actions_provision_server_password_not_logged(sample_server):
+    """Password must never appear in audit_log."""
+    secret_password = "SuperSecret123!"
+    with patch("actions.db") as mock_db, patch("actions.ssh"):
+        mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+        actions.provision_server("server-test-01", "root", secret_password, 22, ADMIN_ID)
+
+        # Check all db.execute calls
+        for call_args in mock_db.execute.call_args_list:
+            sql = call_args[0][0] if call_args[0] else ""
+            params = call_args[0][1] if len(call_args[0]) > 1 else ()
+            for param in params:
+                if isinstance(param, str) and secret_password in param:
+                    raise AssertionError(f"Password found in audit_log: {param}")
+
+
+def test_actions_provision_server_raises_if_not_found():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(ValueError, match="not found"):
+            actions.provision_server("ghost", "root", "password", 22, ADMIN_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -650,7 +692,7 @@ def test_actions_update_admin_allows_demotion_with_other_sysadmin():
 def test_actions_deploy_key_success(sample_server, sample_key):
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.side_effect = [
-            {"id": sample_server["id"], "ip_address": sample_server["ip_address"]},
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
             {"id": sample_key["id"]},
         ]
         mock_db.execute.return_value = None
@@ -674,7 +716,7 @@ def test_actions_deploy_key_success(sample_server, sample_key):
 def test_actions_deploy_key_invalid_key_type(sample_server):
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {
-            "id": sample_server["id"], "ip_address": sample_server["ip_address"]
+            "id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22
         }
         with pytest.raises(ValueError, match="Unsupported key type"):
             actions.deploy_key(
@@ -796,10 +838,10 @@ def test_actions_fingerprint_valid_format_passes_check():
 
 def test_actions_lock_user_success():
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
-        mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+        mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22}
         result = actions.lock_user("alice", "server-test-01", ADMIN_ID)
-        mock_ssh.ensure_scripts.assert_called_once_with("server-test-01", SERVER_ID, "192.168.1.10")
-        mock_ssh.lock_user_on_server.assert_called_once_with("server-test-01", "alice", "192.168.1.10")
+        mock_ssh.ensure_scripts.assert_called_once_with("server-test-01", SERVER_ID, "192.168.1.10", port=22)
+        mock_ssh.lock_user_on_server.assert_called_once_with("server-test-01", "alice", "192.168.1.10", port=22)
         assert result["unix_user"] == "alice"
         assert result["hostname"] == "server-test-01"
         assert result["status"] == "locked"
@@ -821,10 +863,10 @@ def test_actions_lock_user_server_not_found():
 
 def test_actions_unlock_user_success():
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
-        mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
+        mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22}
         result = actions.unlock_user("alice", "server-test-01", ADMIN_ID)
-        mock_ssh.ensure_scripts.assert_called_once_with("server-test-01", SERVER_ID, "192.168.1.10")
-        mock_ssh.unlock_user_on_server.assert_called_once_with("server-test-01", "alice", "192.168.1.10")
+        mock_ssh.ensure_scripts.assert_called_once_with("server-test-01", SERVER_ID, "192.168.1.10", port=22)
+        mock_ssh.unlock_user_on_server.assert_called_once_with("server-test-01", "alice", "192.168.1.10", port=22)
         assert result["unix_user"] == "alice"
         assert result["hostname"] == "server-test-01"
         assert result["status"] == "unlocked"
@@ -859,7 +901,7 @@ def test_actions_deploy_key_includes_unix_user_in_key_authorization(sample_serve
     """deploy_key insère unix_user dans key_authorizations."""
     with patch("actions.db") as mock_db, patch("actions.ssh"):
         mock_db.query_one.side_effect = [
-            {"id": sample_server["id"], "ip_address": sample_server["ip_address"]},
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
             {"id": sample_key["id"]},
         ]
         actions.deploy_key(
@@ -881,7 +923,7 @@ def test_actions_deploy_key_on_conflict_uses_three_column_pk(sample_server, samp
     """Le ON CONFLICT doit référencer (key_id, server_id, unix_user)."""
     with patch("actions.db") as mock_db, patch("actions.ssh"):
         mock_db.query_one.side_effect = [
-            {"id": sample_server["id"], "ip_address": sample_server["ip_address"]},
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
             {"id": sample_key["id"]},
         ]
         actions.deploy_key(
@@ -991,10 +1033,10 @@ def test_actions_validate_key_scoped_raises_if_server_not_found(sample_key):
 
 def test_actions_update_server_success():
     """update_server met à jour les champs et log SERVER_UPDATED."""
-    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel"}
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22}
     with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"):
         mock_db.query_one.side_effect = [server, None]
-        actions.update_server("server-test-01", "192.168.1.20", "production", "debian", ADMIN_ID)
+        actions.update_server("server-test-01", "192.168.1.20", "production", "debian", 22, ADMIN_ID)
         update_call = mock_db.execute.call_args_list[0]
         assert "UPDATE servers" in update_call[0][0]
         assert "192.168.1.20" in update_call[0][1]
@@ -1006,10 +1048,10 @@ def test_actions_update_server_success():
 
 def test_actions_update_server_ip_change_calls_keyscan():
     """Si l'IP change, add_to_known_hosts est appelé."""
-    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel"}
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22}
     with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts") as mock_keyscan:
         mock_db.query_one.side_effect = [server, None]
-        actions.update_server("server-test-01", "192.168.1.99", "lab", "rhel", ADMIN_ID)
+        actions.update_server("server-test-01", "192.168.1.99", "lab", "rhel", 22, ADMIN_ID)
         mock_keyscan.assert_called_once_with("192.168.1.99")
 
 
@@ -1040,11 +1082,11 @@ def test_actions_add_server_rejects_duplicate_ip():
 
 
 def test_actions_update_server_rejects_duplicate_ip():
-    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel"}
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22}
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [server, {"hostname": "other-server"}]
         with pytest.raises(ValueError, match="already used by server"):
-            actions.update_server("server-test-01", "10.0.0.2", "lab", None, ADMIN_ID)
+            actions.update_server("server-test-01", "10.0.0.2", "lab", None, 22, ADMIN_ID)
 
 
 # ---------------------------------------------------------------------------

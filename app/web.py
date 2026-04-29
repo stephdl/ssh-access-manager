@@ -253,12 +253,36 @@ def add_server():
     try:
         server = actions.add_server(
             data["hostname"], data["ip"], data["environment"],
-            data.get("os_family"), g.admin_id,
+            data.get("os_family"), data.get("ssh_port", 22), g.admin_id,
         )
         return jsonify(server), 201
     except (KeyError, ValueError) as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/servers/<hostname>/provision", methods=["POST"])
+@require_auth
+@require_role("sysadmin", "operator")
+def provision_server_route(hostname):
+    data = request.get_json(force=True) or {}
+    ssh_user = data.get("ssh_user", "root") or "root"
+    ssh_password = data.get("ssh_password", "")
+    try:
+        ssh_port = int(data.get("ssh_port", 22))
+    except (TypeError, ValueError):
+        return jsonify({"error": "ssh_port must be an integer"}), 400
+    if not ssh_password:
+        return jsonify({"error": "ssh_password is required"}), 400
+    if not (1 <= ssh_port <= 65535):
+        return jsonify({"error": "ssh_port must be between 1 and 65535"}), 400
+    try:
+        actions.provision_server(hostname, ssh_user, ssh_password, ssh_port, g.admin_id)
+        return jsonify({"message": "Server provisioned successfully"})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 422
 
 
 @app.route("/api/servers/<hostname>", methods=["PUT"])
@@ -269,7 +293,7 @@ def update_server(hostname):
     try:
         actions.update_server(
             hostname, data["ip"], data["environment"],
-            data.get("os_family"), g.admin_id,
+            data.get("os_family"), data.get("ssh_port", 22), g.admin_id,
         )
         return jsonify({"message": "Server updated"})
     except (KeyError, ValueError) as e:

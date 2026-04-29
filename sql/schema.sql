@@ -17,6 +17,8 @@ CREATE TABLE servers (
     hostname    VARCHAR(255) NOT NULL UNIQUE,
     -- Adresse IP au format INET (supporte IPv4 et IPv6)
     ip_address  INET NOT NULL,
+    -- Port SSH du serveur (défaut 22)
+    ssh_port    INTEGER NOT NULL DEFAULT 22,
     -- Famille d'OS : rhel, debian, alpine, etc.
     os_family   VARCHAR(50),
     -- Version précise de l'OS (ex: "RHEL 9.3", "Debian 12")
@@ -37,6 +39,7 @@ COMMENT ON TABLE servers IS 'Inventaire des serveurs SSH surveillés, alimenté 
 COMMENT ON COLUMN servers.id IS 'UUID généré automatiquement';
 COMMENT ON COLUMN servers.hostname IS 'Nom d''hôte unique, clé de réconciliation avec servers.yml';
 COMMENT ON COLUMN servers.ip_address IS 'Adresse IP (INET, supporte IPv4 et IPv6)';
+COMMENT ON COLUMN servers.ssh_port IS 'Port SSH du serveur (défaut 22)';
 COMMENT ON COLUMN servers.os_family IS 'Famille d''OS : rhel, debian, alpine...';
 COMMENT ON COLUMN servers.os_version IS 'Version précise de l''OS';
 COMMENT ON COLUMN servers.environment IS 'Environnement : production, staging ou lab';
@@ -264,7 +267,8 @@ CREATE TABLE audit_log (
                       'USER_UNLOCKED',      -- compte Unix déverrouillé
                       'LOGIN_FAILED',       -- tentative de connexion échouée (mauvais mot de passe)
                       'LOGIN_BANNED',       -- IP bannie après trop de tentatives échouées
-                      'PASSWORD_RESET'      -- réinitialisation de mot de passe via CLI
+                      'PASSWORD_RESET',     -- réinitialisation de mot de passe via CLI
+                      'SERVER_PROVISIONED'  -- provisionnement automatique via SSH password
                   )),
     -- Administrateur ayant déclenché l'action (NULL si automatique)
     performed_by  UUID REFERENCES administrators(id) ON DELETE SET NULL,

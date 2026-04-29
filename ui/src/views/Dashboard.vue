@@ -103,6 +103,30 @@
             :placeholder="$t('add_server.os_placeholder')"
           />
 
+          <label>{{ $t('add_server.ssh_port_label') }}</label>
+          <input
+            v-model.number="addForm.sshPort"
+            type="number"
+            min="1"
+            max="65535"
+            placeholder="22"
+          />
+
+          <div class="provision-section">
+            <h4>{{ $t('add_server.provision_title') }}</h4>
+            <p class="hint">{{ $t('add_server.provision_hint') }}</p>
+            <label>{{ $t('add_server.ssh_user_label') }}</label>
+            <input v-model="addForm.sshUser" type="text" placeholder="root" />
+
+            <label>{{ $t('add_server.ssh_password_label') }}</label>
+            <input
+              v-model="addForm.sshPassword"
+              type="password"
+              :placeholder="$t('add_server.ssh_password_placeholder')"
+            />
+            <p class="password-disclaimer">🔒 {{ $t('add_server.ssh_password_disclaimer') }}</p>
+          </div>
+
           <div class="modal-actions">
             <button class="btn-secondary" @click="closeAddServer">{{ $t('common.cancel') }}</button>
             <button
@@ -115,7 +139,7 @@
           </div>
         </template>
 
-        <!-- Step 2: success + key display -->
+        <!-- Step 2: success + provisioning or manual key display -->
         <template v-else>
           <div class="modal-header">
             <h3>{{ $t('add_server.success_title') }}</h3>
@@ -124,14 +148,33 @@
           <p class="success-msg">
             {{ $t('add_server.success_msg', { hostname: addForm.hostname }) }}
           </p>
-          <p class="deploy-hint">{{ $t('add_server.deploy_hint', { sshUser }) }}</p>
-          <div class="key-display">
-            <code>{{ collectorKey || $t('common.loading') }}</code>
-            <button class="btn-copy" @click="copyKey(collectorKey, 'modal')">
-              {{ copied === 'modal' ? $t('dashboard.copied') : $t('dashboard.copy') }}
-            </button>
+
+          <!-- Automatic provisioning status -->
+          <div v-if="provisionStatus !== null">
+            <div v-if="provisionStatus === 'connecting'" class="provision-status">
+              <div class="spinner"></div>
+              <span>{{ $t('add_server.provision_connecting') }}</span>
+            </div>
+            <div v-else-if="provisionStatus === 'success'" class="provision-status success">
+              <span>{{ $t('add_server.provision_success') }}</span>
+            </div>
+            <div v-else-if="provisionStatus === 'error'" class="provision-status error">
+              <span>{{ $t('add_server.provision_error', { error: provisionError }) }}</span>
+            </div>
           </div>
-          <p class="deploy-hint small">{{ $t('add_server.deploy_hint2') }}</p>
+
+          <!-- Manual provisioning (when no password provided) -->
+          <template v-else>
+            <p class="deploy-hint">{{ $t('add_server.deploy_hint', { sshUser }) }}</p>
+            <div class="key-display">
+              <code>{{ collectorKey || $t('common.loading') }}</code>
+              <button class="btn-copy" @click="copyKey(collectorKey, 'modal')">
+                {{ copied === 'modal' ? $t('dashboard.copied') : $t('dashboard.copy') }}
+              </button>
+            </div>
+            <p class="deploy-hint small">{{ $t('add_server.deploy_hint2') }}</p>
+          </template>
+
           <div class="modal-actions">
             <button class="btn-primary" @click="closeAddServer">
               {{ $t('add_server.close') }}
@@ -178,6 +221,15 @@
           :placeholder="$t('edit_server.os_placeholder')"
         />
 
+        <label>{{ $t('edit_server.ssh_port_label') }}</label>
+        <input
+          v-model.number="editForm.ssh_port"
+          type="number"
+          min="1"
+          max="65535"
+          placeholder="22"
+        />
+
         <div class="modal-actions">
           <button class="btn-secondary" @click="closeEditServer">{{ $t('common.cancel') }}</button>
           <button
@@ -216,12 +268,22 @@ const showAddServer = ref(false)
 const adding = ref(false)
 const addError = ref('')
 const addSuccess = ref(false)
-const addForm = ref({ hostname: '', ip: '', environment: '', os_family: '' })
+const addForm = ref({
+  hostname: '',
+  ip: '',
+  environment: '',
+  os_family: '',
+  sshUser: 'root',
+  sshPort: 22,
+  sshPassword: '',
+})
+const provisionStatus = ref(null)
+const provisionError = ref('')
 
 const showEditServer = ref(false)
 const editing = ref(false)
 const editError = ref('')
-const editForm = ref({ hostname: '', ip: '', environment: '', os_family: '' })
+const editForm = ref({ hostname: '', ip: '', environment: '', os_family: '', ssh_port: 22 })
 
 const counts = computed(() => ({
   ok: servers.value.filter((s) => s.is_active && !s.has_anomalies).length,
@@ -298,9 +360,19 @@ async function copyKey(key, context) {
 }
 
 function openAddServer() {
-  addForm.value = { hostname: '', ip: '', environment: '', os_family: '' }
+  addForm.value = {
+    hostname: '',
+    ip: '',
+    environment: '',
+    os_family: '',
+    sshUser: 'root',
+    sshPort: 22,
+    sshPassword: '',
+  }
   addError.value = ''
   addSuccess.value = false
+  provisionStatus.value = null
+  provisionError.value = ''
   showAddServer.value = true
 }
 
@@ -320,12 +392,39 @@ async function confirmAddServer() {
         ip: addForm.value.ip.trim(),
         environment: addForm.value.environment,
         os_family: addForm.value.os_family.trim() || null,
+        ssh_port: addForm.value.sshPort || 22,
       }),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
     addSuccess.value = true
     await loadServers()
+
+    // Automatic provisioning if password is provided
+    if (addForm.value.sshPassword.trim()) {
+      provisionStatus.value = 'connecting'
+      try {
+        const provRes = await fetch(`/api/servers/${addForm.value.hostname.trim()}/provision`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ssh_user: addForm.value.sshUser || 'root',
+            ssh_port: addForm.value.sshPort || 22,
+            ssh_password: addForm.value.sshPassword,
+          }),
+        })
+        if (provRes.ok) {
+          provisionStatus.value = 'success'
+        } else {
+          const errData = await provRes.json().catch(() => ({}))
+          provisionStatus.value = 'error'
+          provisionError.value = errData.error || `HTTP ${provRes.status}`
+        }
+      } catch (e) {
+        provisionStatus.value = 'error'
+        provisionError.value = e.message
+      }
+    }
   } catch (e) {
     addError.value = e.message
   } finally {
@@ -379,6 +478,7 @@ function openEditServer(server) {
     ip: server.ip_address,
     environment: server.environment,
     os_family: server.os_family || '',
+    ssh_port: server.ssh_port || 22,
   }
   editError.value = ''
   showEditServer.value = true
@@ -399,6 +499,7 @@ async function confirmEditServer() {
         ip: editForm.value.ip.trim(),
         environment: editForm.value.environment,
         os_family: editForm.value.os_family.trim() || null,
+        ssh_port: editForm.value.ssh_port || 22,
       }),
     })
     const data = await res.json().catch(() => ({}))
@@ -575,6 +676,8 @@ h1 {
 }
 
 .modal input[type='text'],
+.modal input[type='number'],
+.modal input[type='password'],
 .modal select {
   width: 100%;
   padding: 0.4rem 0.6rem;
@@ -627,5 +730,66 @@ h1 {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.provision-section {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.provision-section h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.provision-section .hint {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.8rem;
+  color: #666;
+}
+.password-disclaimer {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: #555;
+}
+
+.provision-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin: 1rem 0;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+}
+
+.provision-status.success {
+  background: #d4edda;
+  border-color: #c3e6cb;
+  color: #155724;
+}
+
+.provision-status.error {
+  background: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ccc;
+  border-top-color: #0d6efd;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

@@ -72,6 +72,7 @@ def sample_server():
         "id": str(uuid.uuid4()),
         "hostname": "server-test-01",
         "ip_address": "192.168.1.10",
+        "ssh_port": 22,
         "os_family": "rhel",
         "os_version": "RHEL 9.3",
         "environment": "lab",

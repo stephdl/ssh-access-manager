@@ -58,7 +58,17 @@
     "success_msg": "✅ {hostname} è stato aggiunto.",
     "deploy_hint": "Distribuisci ora la chiave collector su questo server in `/home/{sshUser}/.ssh/authorized_keys`:",
     "deploy_hint2": "Oppure esegui `provision-host.sh` con questa chiave.",
-    "close": "Chiudi"
+    "close": "Chiudi",
+    "provision_title": "Provisioning automatico (opzionale)",
+    "provision_hint": "Se fornita, la chiave collector verrà distribuita automaticamente via SSH.",
+    "ssh_user_label": "Utente SSH",
+    "ssh_port_label": "Porta SSH",
+    "ssh_password_label": "Password SSH",
+    "ssh_password_placeholder": "Lasciare vuoto per provisioning manuale",
+    "ssh_password_disclaimer": "La password SSH viene utilizzata solo per questa fase di provisioning e non viene mai memorizzata.",
+    "provision_connecting": "Connessione al server…",
+    "provision_success": "✅ Server provisionato — chiave collector distribuita automaticamente.",
+    "provision_error": "Provisioning fallito: {error}"
   },
   "edit_server": {
     "title": "Modifica server",
@@ -69,6 +79,7 @@
     "env_placeholder": "— Scegliere —",
     "os_family": "Famiglia OS",
     "os_placeholder": "es: rhel, debian (opzionale)",
+    "ssh_port_label": "Porta SSH",
     "submitting": "Salvataggio…",
     "submit": "Salva"
   },
@@ -96,6 +107,7 @@
     "section_info": "Informazioni",
     "field_hostname": "Hostname",
     "field_ip": "IP",
+    "field_ssh_port": "Porta SSH",
     "field_environment": "Ambiente",
     "field_os": "OS",
     "field_active": "Attivo",

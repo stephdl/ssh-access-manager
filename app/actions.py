@@ -115,7 +115,7 @@ def revoke_key(
     if hostname and unix_user:
         # --- Targeted revocation (one user on one server) ---
         server = db.query_one(
-            "SELECT id, ip_address FROM servers WHERE hostname = %s",
+            "SELECT id, ip_address, ssh_port FROM servers WHERE hostname = %s",
             (hostname,),
         )
         if not server:
@@ -132,7 +132,7 @@ def revoke_key(
             raise ValueError(
                 f"No active authorization for {fingerprint} / user {unix_user} on {hostname}"
             )
-        ssh.revoke_on_server(hostname, fingerprint, ip=server["ip_address"], unix_user=unix_user)
+        ssh.revoke_on_server(hostname, fingerprint, ip=server["ip_address"], unix_user=unix_user, port=server["ssh_port"])
         db.execute(
             """
             UPDATE key_authorizations
@@ -161,7 +161,7 @@ def revoke_key(
         # --- Global revocation (all servers, all users) ---
         active_auths = db.query(
             """
-            SELECT DISTINCT ka.server_id, s.hostname, s.ip_address
+            SELECT DISTINCT ka.server_id, s.hostname, s.ip_address, s.ssh_port
             FROM key_authorizations ka
             JOIN servers s ON s.id = ka.server_id
             WHERE ka.key_id = %s AND ka.status IN ('ACTIVE', 'PENDING_REVIEW')
@@ -169,7 +169,7 @@ def revoke_key(
             (key["id"],),
         )
         for auth in active_auths:
-            ssh.revoke_on_server(auth["hostname"], fingerprint, ip=auth["ip_address"])
+            ssh.revoke_on_server(auth["hostname"], fingerprint, ip=auth["ip_address"], port=auth["ssh_port"])
             db.execute(
                 """
                 UPDATE key_authorizations
@@ -481,7 +481,7 @@ def deploy_key(
         key_size_bits = int.from_bytes(field, "big").bit_length()
 
     server = db.query_one(
-        "SELECT id, ip_address FROM servers WHERE hostname = %s AND is_active = true",
+        "SELECT id, ip_address, ssh_port FROM servers WHERE hostname = %s AND is_active = true",
         (hostname,),
     )
     if not server:
@@ -499,8 +499,8 @@ def deploy_key(
     )
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
 
-    ssh.ensure_scripts(hostname, server["id"], server["ip_address"])
-    ssh.add_key_on_server(hostname, unix_user, public_key.strip(), server["ip_address"])
+    ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"])
+    ssh.add_key_on_server(hostname, unix_user, public_key.strip(), server["ip_address"], port=server["ssh_port"])
 
     db.execute(
         """
@@ -613,9 +613,9 @@ def revoke_request(request_id: str, admin_id: str) -> None:
 
     key = db.query_one("SELECT fingerprint FROM ssh_keys WHERE id = %s", (req["key_id"],))
     if key:
-        server = db.query_one("SELECT hostname, ip_address FROM servers WHERE id = %s", (req["server_id"],))
+        server = db.query_one("SELECT hostname, ip_address, ssh_port FROM servers WHERE id = %s", (req["server_id"],))
         if server:
-            ssh.revoke_on_server(server["hostname"], key["fingerprint"], ip=server["ip_address"])
+            ssh.revoke_on_server(server["hostname"], key["fingerprint"], ip=server["ip_address"], port=server["ssh_port"])
 
     db.execute(
         """
@@ -637,7 +637,7 @@ def revoke_request(request_id: str, admin_id: str) -> None:
 
 def add_server(
     hostname: str, ip: str, env: str, os_family: str | None = None,
-    admin_id: str | None = None,
+    ssh_port: int = 22, admin_id: str | None = None,
 ) -> dict:
     """Insert a new server, run ssh-keyscan, and log SERVER_ADDED."""
     ip = _validate_ip(ip)
@@ -652,8 +652,8 @@ def add_server(
     except Exception as e:
         raise ValueError(f"Cannot reach {hostname} ({ip}) for keyscan: {e}") from e
     db.execute(
-        "INSERT INTO servers (hostname, ip_address, environment, os_family) VALUES (%s, %s, %s, %s)",
-        (hostname, ip, env, os_family),
+        "INSERT INTO servers (hostname, ip_address, environment, os_family, ssh_port) VALUES (%s, %s, %s, %s, %s)",
+        (hostname, ip, env, os_family, ssh_port),
     )
     server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
     db.execute(
@@ -661,9 +661,36 @@ def add_server(
         INSERT INTO audit_log (action, performed_by, target_server, details)
         VALUES ('SERVER_ADDED', %s, %s, %s::jsonb)
         """,
-        (admin_id, server["id"], json.dumps({"hostname": hostname, "ip": ip, "environment": env})),
+        (admin_id, server["id"], json.dumps({"hostname": hostname, "ip": ip, "environment": env, "ssh_port": ssh_port})),
     )
     return server
+
+
+def provision_server(hostname: str, ssh_user: str, ssh_password: str, ssh_port: int, admin_id: str) -> None:
+    """Provision a remote server via SSH password auth. Never stores the password."""
+    server = db.query_one(
+        "SELECT id, ip_address FROM servers WHERE hostname = %s AND is_active = true",
+        (hostname,),
+    )
+    if not server:
+        raise ValueError(f"Server not found or inactive: {hostname}")
+    ssh.provision_server(server["ip_address"], ssh_user, ssh_password, ssh_port)
+    # Update ssh_port in DB after successful provisioning
+    db.execute(
+        "UPDATE servers SET ssh_port = %s WHERE id = %s",
+        (ssh_port, server["id"]),
+    )
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, target_server, details)
+        VALUES ('SERVER_PROVISIONED', %s, %s, %s::jsonb)
+        """,
+        (
+            admin_id,
+            server["id"],
+            json.dumps({"hostname": hostname, "ssh_user": ssh_user, "ssh_port": ssh_port}),
+        ),
+    )
 
 
 def disable_server(hostname: str, admin_id: str | None = None) -> None:
@@ -685,13 +712,13 @@ def disable_server(hostname: str, admin_id: str | None = None) -> None:
 
 def update_server(
     hostname: str, new_ip: str, new_env: str, new_os_family: str | None,
-    admin_id: str | None = None,
+    ssh_port: int = 22, admin_id: str | None = None,
 ) -> dict:
-    """Update server IP, environment, OS. If IP changes, run ssh-keyscan."""
+    """Update server IP, environment, OS, SSH port. If IP changes, run ssh-keyscan."""
     new_ip = _validate_ip(new_ip)
     import servers as servers_mod
     server = db.query_one(
-        "SELECT id, ip_address, environment, os_family FROM servers WHERE hostname = %s",
+        "SELECT id, ip_address, environment, os_family, ssh_port FROM servers WHERE hostname = %s",
         (hostname,),
     )
     if not server:
@@ -707,6 +734,7 @@ def update_server(
     old_ip = server["ip_address"]
     old_env = server["environment"]
     old_os = server["os_family"]
+    old_port = server["ssh_port"]
 
     if new_ip != old_ip:
         try:
@@ -715,8 +743,8 @@ def update_server(
             raise ValueError(f"Cannot reach {hostname} ({new_ip}) for keyscan: {e}") from e
 
     db.execute(
-        "UPDATE servers SET ip_address = %s, environment = %s, os_family = %s WHERE hostname = %s",
-        (new_ip, new_env, new_os_family, hostname),
+        "UPDATE servers SET ip_address = %s, environment = %s, os_family = %s, ssh_port = %s WHERE hostname = %s",
+        (new_ip, new_env, new_os_family, ssh_port, hostname),
     )
     db.execute(
         """
@@ -731,6 +759,7 @@ def update_server(
                 "old_ip": old_ip, "new_ip": new_ip,
                 "old_env": old_env, "new_env": new_env,
                 "old_os": old_os, "new_os": new_os_family,
+                "old_port": old_port, "new_port": ssh_port,
             }),
         ),
     )
@@ -980,13 +1009,13 @@ def lock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
     if not _UNIX_USER_RE.match(unix_user):
         raise ValueError(f"Invalid Unix username: '{unix_user}'")
     server = db.query_one(
-        "SELECT id, ip_address FROM servers WHERE hostname = %s AND is_active = true",
+        "SELECT id, ip_address, ssh_port FROM servers WHERE hostname = %s AND is_active = true",
         (hostname,)
     )
     if not server:
         raise ValueError(f"Server not found or inactive: {hostname}")
-    ssh.ensure_scripts(hostname, server["id"], server["ip_address"])
-    ssh.lock_user_on_server(hostname, unix_user, server["ip_address"])
+    ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"])
+    ssh.lock_user_on_server(hostname, unix_user, server["ip_address"], port=server["ssh_port"])
     db.execute(
         """INSERT INTO audit_log (action, performed_by, target_server, details)
            VALUES ('USER_LOCKED', %s, %s, %s::jsonb)""",
@@ -1002,13 +1031,13 @@ def unlock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
     if not _UNIX_USER_RE.match(unix_user):
         raise ValueError(f"Invalid Unix username: '{unix_user}'")
     server = db.query_one(
-        "SELECT id, ip_address FROM servers WHERE hostname = %s AND is_active = true",
+        "SELECT id, ip_address, ssh_port FROM servers WHERE hostname = %s AND is_active = true",
         (hostname,)
     )
     if not server:
         raise ValueError(f"Server not found or inactive: {hostname}")
-    ssh.ensure_scripts(hostname, server["id"], server["ip_address"])
-    ssh.unlock_user_on_server(hostname, unix_user, server["ip_address"])
+    ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"])
+    ssh.unlock_user_on_server(hostname, unix_user, server["ip_address"], port=server["ssh_port"])
     db.execute(
         """INSERT INTO audit_log (action, performed_by, target_server, details)
            VALUES ('USER_UNLOCKED', %s, %s, %s::jsonb)""",
