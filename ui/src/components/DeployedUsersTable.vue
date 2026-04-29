@@ -31,11 +31,46 @@
       <table data-testid="table-deployed-users">
         <thead>
           <tr>
-            <th>{{ $t('deployedUsers.col_user') }}</th>
-            <th>{{ $t('deployedUsers.col_server') }}</th>
-            <th>{{ $t('deployedUsers.col_ip') }}</th>
-            <th>{{ $t('deployedUsers.col_expires') }}</th>
-            <th>{{ $t('deployedUsers.col_status') }}</th>
+            <th
+              class="th-sortable"
+              :class="{ active: sortKey === 'unix_user' }"
+              @click="toggleSort('unix_user')"
+            >
+              {{ $t('deployedUsers.col_user') }}
+              <span class="sort-indicator">{{ sortIndicator('unix_user') }}</span>
+            </th>
+            <th
+              class="th-sortable"
+              :class="{ active: sortKey === 'hostname' }"
+              @click="toggleSort('hostname')"
+            >
+              {{ $t('deployedUsers.col_server') }}
+              <span class="sort-indicator">{{ sortIndicator('hostname') }}</span>
+            </th>
+            <th
+              class="th-sortable"
+              :class="{ active: sortKey === 'ip_address' }"
+              @click="toggleSort('ip_address')"
+            >
+              {{ $t('deployedUsers.col_ip') }}
+              <span class="sort-indicator">{{ sortIndicator('ip_address') }}</span>
+            </th>
+            <th
+              class="th-sortable"
+              :class="{ active: sortKey === 'expires_at' }"
+              @click="toggleSort('expires_at')"
+            >
+              {{ $t('deployedUsers.col_expires') }}
+              <span class="sort-indicator">{{ sortIndicator('expires_at') }}</span>
+            </th>
+            <th
+              class="th-sortable"
+              :class="{ active: sortKey === 'lock_status' }"
+              @click="toggleSort('lock_status')"
+            >
+              {{ $t('deployedUsers.col_status') }}
+              <span class="sort-indicator">{{ sortIndicator('lock_status') }}</span>
+            </th>
             <th v-if="currentRole !== 'viewer'">{{ $t('deployedUsers.col_actions') }}</th>
           </tr>
         </thead>
@@ -138,11 +173,13 @@ import { useI18n } from 'vue-i18n'
 import { useAuth } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
+import { useSort } from '../composables/useSort.js'
 import PaginationBar from './PaginationBar.vue'
 
 const { t } = useI18n()
 const { admin } = useAuth()
 const { formatDate } = useFormatDate()
+const { sortKey, toggleSort, sorted, sortIndicator } = useSort()
 const currentRole = computed(() => admin.value?.role || 'viewer')
 
 const users = ref([])
@@ -173,7 +210,7 @@ const filteredUsers = computed(() => {
 })
 
 const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
-  usePagination(filteredUsers)
+  usePagination(computed(() => sorted(filteredUsers.value)))
 
 onMounted(async () => {
   await loadUsers()

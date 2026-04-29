@@ -21,14 +21,63 @@
     <table>
       <thead>
         <tr>
-          <th>{{ $t('key_table.col_status') }}</th>
-          <th>{{ $t('key_table.col_type') }}</th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'status' }"
+            @click="toggleSort('status')"
+          >
+            {{ $t('key_table.col_status') }}
+            <span class="sort-indicator">{{ sortIndicator('status') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'key_type' }"
+            @click="toggleSort('key_type')"
+          >
+            {{ $t('key_table.col_type') }}
+            <span class="sort-indicator">{{ sortIndicator('key_type') }}</span>
+          </th>
           <th>{{ $t('key_table.col_fingerprint') }}</th>
-          <th>{{ $t('key_table.col_unix_user') }}</th>
-          <th>{{ $t('key_table.col_comment') }}</th>
-          <th>{{ $t('key_table.col_owner') }}</th>
-          <th>{{ $t('key_table.col_expires') }}</th>
-          <th>{{ $t('key_table.col_compliant') }}</th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'unix_user' }"
+            @click="toggleSort('unix_user')"
+          >
+            {{ $t('key_table.col_unix_user') }}
+            <span class="sort-indicator">{{ sortIndicator('unix_user') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'comment' }"
+            @click="toggleSort('comment')"
+          >
+            {{ $t('key_table.col_comment') }}
+            <span class="sort-indicator">{{ sortIndicator('comment') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'owner' }"
+            @click="toggleSort('owner')"
+          >
+            {{ $t('key_table.col_owner') }}
+            <span class="sort-indicator">{{ sortIndicator('owner') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'expires_at' }"
+            @click="toggleSort('expires_at')"
+          >
+            {{ $t('key_table.col_expires') }}
+            <span class="sort-indicator">{{ sortIndicator('expires_at') }}</span>
+          </th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'is_compliant' }"
+            @click="toggleSort('is_compliant')"
+          >
+            {{ $t('key_table.col_compliant') }}
+            <span class="sort-indicator">{{ sortIndicator('is_compliant') }}</span>
+          </th>
           <th>{{ $t('key_table.col_actions') }}</th>
         </tr>
       </thead>
@@ -127,10 +176,12 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
+import { useSort } from '../composables/useSort.js'
 import PaginationBar from './PaginationBar.vue'
 
 const { t } = useI18n()
 const { formatDate } = useFormatDate()
+const { sortKey, toggleSort, sorted, sortIndicator } = useSort()
 
 const props = defineProps({
   keys: { type: Array, default: () => [] },
@@ -156,7 +207,7 @@ const filteredKeys = computed(() => {
 })
 
 const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
-  usePagination(filteredKeys)
+  usePagination(computed(() => sorted(filteredKeys.value)))
 
 function complianceTooltip(k) {
   if (k.key_type === 'ssh-rsa') {
