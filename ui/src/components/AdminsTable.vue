@@ -45,7 +45,14 @@
             {{ $t('admins.col_active') }}
             <span class="sort-indicator">{{ sortIndicator('is_active') }}</span>
           </th>
-          <th>{{ $t('admins.col_created') }}</th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'created_at' }"
+            @click="toggleSort('created_at')"
+          >
+            {{ $t('admins.col_created') }}
+            <span class="sort-indicator">{{ sortIndicator('created_at') }}</span>
+          </th>
           <th v-if="props.currentRole === 'sysadmin'">{{ $t('admins.col_alerts') }}</th>
           <th v-if="props.currentRole === 'sysadmin'">{{ $t('admins.col_actions') }}</th>
         </tr>

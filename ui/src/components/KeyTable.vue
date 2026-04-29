@@ -38,7 +38,14 @@
             <span class="sort-indicator">{{ sortIndicator('key_type') }}</span>
           </th>
           <th>{{ $t('key_table.col_fingerprint') }}</th>
-          <th>{{ $t('key_table.col_unix_user') }}</th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'unix_user' }"
+            @click="toggleSort('unix_user')"
+          >
+            {{ $t('key_table.col_unix_user') }}
+            <span class="sort-indicator">{{ sortIndicator('unix_user') }}</span>
+          </th>
           <th
             class="th-sortable"
             :class="{ active: sortKey === 'comment' }"
@@ -63,7 +70,14 @@
             {{ $t('key_table.col_expires') }}
             <span class="sort-indicator">{{ sortIndicator('expires_at') }}</span>
           </th>
-          <th>{{ $t('key_table.col_compliant') }}</th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'is_compliant' }"
+            @click="toggleSort('is_compliant')"
+          >
+            {{ $t('key_table.col_compliant') }}
+            <span class="sort-indicator">{{ sortIndicator('is_compliant') }}</span>
+          </th>
           <th>{{ $t('key_table.col_actions') }}</th>
         </tr>
       </thead>

@@ -63,7 +63,14 @@
             {{ colDate }}
             <span class="sort-indicator">{{ sortIndicator(dateField) }}</span>
           </th>
-          <th>{{ $t('anomalies.col_compliant') }}</th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'is_compliant' }"
+            @click="toggleSort('is_compliant')"
+          >
+            {{ $t('anomalies.col_compliant') }}
+            <span class="sort-indicator">{{ sortIndicator('is_compliant') }}</span>
+          </th>
           <th v-if="props.currentRole !== 'viewer'">{{ $t('anomalies.col_actions') }}</th>
         </tr>
       </thead>

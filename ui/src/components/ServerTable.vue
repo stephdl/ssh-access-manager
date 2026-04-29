@@ -52,7 +52,14 @@
             {{ $t('server_table.col_os') }}
             <span class="sort-indicator">{{ sortIndicator('os_family') }}</span>
           </th>
-          <th>{{ $t('server_table.col_added') }}</th>
+          <th
+            class="th-sortable"
+            :class="{ active: sortKey === 'added_at' }"
+            @click="toggleSort('added_at')"
+          >
+            {{ $t('server_table.col_added') }}
+            <span class="sort-indicator">{{ sortIndicator('added_at') }}</span>
+          </th>
           <th>{{ $t('server_table.col_actions') }}</th>
         </tr>
       </thead>
