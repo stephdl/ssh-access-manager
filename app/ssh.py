@@ -209,11 +209,11 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _connect(ip: str) -> paramiko.SSHClient:
+def _connect(ip: str, port: int = 22) -> paramiko.SSHClient:
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.RejectPolicy())
     client.load_host_keys(KNOWN_HOSTS)
-    client.connect(hostname=ip, username=SSH_USER, key_filename=COLLECTOR_KEY, timeout=15)
+    client.connect(hostname=ip, port=port, username=SSH_USER, key_filename=COLLECTOR_KEY, timeout=15)
     return client
 
 
@@ -245,12 +245,12 @@ def _deploy_script(
     _run(client, f"rm -f {shlex.quote(tmp_path)}")
 
 
-def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
+def ensure_scripts(hostname: str, server_id: str, ip: str, port: int = 22) -> None:
     """
     Deploy SAM_COLLECT, SAM_REVOKE, SAM_ADD, SAM_LOCK_USER, and SAM_UNLOCK_USER on the remote host if absent or outdated.
     Logs SCRIPT_DEPLOYED to audit_log for each script actually deployed.
     """
-    client = _connect(ip)
+    client = _connect(ip, port)
     try:
         sftp = client.open_sftp()
         for content, remote_path in (
@@ -284,13 +284,13 @@ def ensure_scripts(hostname: str, server_id: str, ip: str) -> None:
         client.close()
 
 
-def revoke_on_server(hostname: str, fingerprint: str, ip: str, unix_user: str = None) -> None:
+def revoke_on_server(hostname: str, fingerprint: str, ip: str, unix_user: str = None, port: int = 22) -> None:
     """Run sam-revoke on the remote host.
     If unix_user is given, revokes only from that user's authorized_keys.
     Otherwise revokes globally (all users on the server).
     """
     import shlex
-    client = _connect(ip)
+    client = _connect(ip, port)
     try:
         cmd = f"sudo {SAM_REVOKE_PATH} {shlex.quote(fingerprint)}"
         if unix_user:
@@ -304,9 +304,9 @@ def revoke_on_server(hostname: str, fingerprint: str, ip: str, unix_user: str = 
         client.close()
 
 
-def collect_keys(hostname: str, ip: str) -> list[str]:
+def collect_keys(hostname: str, ip: str, port: int = 22) -> list[str]:
     """Run sam-collect on the remote host and return raw output lines."""
-    client = _connect(ip)
+    client = _connect(ip, port)
     try:
         out, _, rc = _run(client, f"sudo {SAM_COLLECT_PATH}")
         if rc != 0:
@@ -316,10 +316,10 @@ def collect_keys(hostname: str, ip: str) -> list[str]:
         client.close()
 
 
-def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str) -> None:
+def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str, port: int = 22) -> None:
     """Run sam-add on the remote host to deploy a public key for the given Unix user."""
     import shlex
-    client = _connect(ip)
+    client = _connect(ip, port)
     try:
         _, err, rc = _run(
             client, f"sudo {SAM_ADD_PATH} {shlex.quote(unix_user)} {shlex.quote(public_key)}"
@@ -330,10 +330,10 @@ def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str) -
         client.close()
 
 
-def lock_user_on_server(hostname: str, unix_user: str, ip: str) -> None:
+def lock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22) -> None:
     """Run sam-lock-user on the remote host to lock a Unix user account."""
     import shlex
-    client = _connect(ip)
+    client = _connect(ip, port)
     try:
         _, err, rc = _run(
             client, f"sudo {SAM_LOCK_USER_PATH} {shlex.quote(unix_user)}"
@@ -344,10 +344,10 @@ def lock_user_on_server(hostname: str, unix_user: str, ip: str) -> None:
         client.close()
 
 
-def unlock_user_on_server(hostname: str, unix_user: str, ip: str) -> None:
+def unlock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22) -> None:
     """Run sam-unlock-user on the remote host to unlock a Unix user account."""
     import shlex
-    client = _connect(ip)
+    client = _connect(ip, port)
     try:
         _, err, rc = _run(
             client, f"sudo {SAM_UNLOCK_USER_PATH} {shlex.quote(unix_user)}"
@@ -405,10 +405,10 @@ def _is_valid_ip(s: str) -> bool:
         return False
 
 
-def collect_sessions_on_server(hostname: str, server_id: str, ip: str) -> None:
+def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int = 22) -> None:
     """Collect SSH sessions via sam-sessions and upsert into ssh_sessions table."""
     from datetime import datetime, timezone
-    client = _connect(ip)
+    client = _connect(ip, port)
     try:
         out, _, rc = _run(client, f"sudo {SAM_SESSIONS_PATH}")
         if rc != 0:
@@ -470,5 +470,106 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str) -> None:
                     """,
                     (server_id, unix_user, tty, login_ip, login_at, logout_at, is_still_active),
                 )
+    finally:
+        client.close()
+
+
+def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 22) -> None:
+    """Connect with password auth and run provision-host.sh on the remote host."""
+    import socket
+    import subprocess as _sp
+
+    # Step 1 — ssh-keyscan on provision port to populate known_hosts
+    try:
+        result = _sp.run(
+            ["ssh-keyscan", "-H", "-T", "10", "-p", str(ssh_port), ip],
+            capture_output=True, text=True, timeout=15,
+        )
+    except _sp.TimeoutExpired:
+        raise RuntimeError(
+            f"Connection timed out — server did not respond within 15 seconds on port {ssh_port}"
+        )
+
+    if not result.stdout.strip():
+        raise RuntimeError(
+            f"Server unreachable — could not get host key on port {ssh_port}. "
+            "Check the IP address and that SSH is running."
+        )
+
+    # Append to known_hosts (dedup: only if not already present)
+    with open(KNOWN_HOSTS, "a") as fh:
+        fh.write(result.stdout)
+
+    # Step 2 — connect with password auth
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.RejectPolicy())
+    client.load_host_keys(KNOWN_HOSTS)
+
+    try:
+        client.connect(
+            hostname=ip,
+            port=ssh_port,
+            username=ssh_user,
+            password=ssh_password,
+            timeout=15,
+            look_for_keys=False,
+            allow_agent=False,
+        )
+    except paramiko.AuthenticationException:
+        raise RuntimeError("Authentication failed — check your username and password")
+    except socket.timeout:
+        raise RuntimeError("Connection timed out — server did not respond within 15 seconds")
+    except Exception as exc:
+        msg = str(exc)
+        if any(k in msg for k in ("No route to host", "Network unreachable", "No address associated")):
+            raise RuntimeError("Server unreachable — check the IP and network connectivity")
+        if "Connection refused" in msg:
+            raise RuntimeError(
+                f"SSH port {ssh_port} refused — check that SSH is running on that port"
+            )
+        raise RuntimeError(f"Connection failed: {exc}")
+
+    try:
+        # Step 3 — read provision script and collector public key
+        with open("/app/provision-host.sh", "rb") as fh:
+            script = fh.read()
+        with open(f"{COLLECTOR_KEY}.pub") as fh:
+            collector_pubkey = fh.read().strip()
+
+        # Step 4 — upload provision script via SFTP
+        sftp = client.open_sftp()
+        sftp.putfo(io.BytesIO(script), "/tmp/sam-provision.sh")
+        sftp.chmod("/tmp/sam-provision.sh", 0o700)
+        sftp.close()
+
+        # Step 5 — execute via sudo -S (password on stdin)
+        cmd = (
+            f"sudo -S bash /tmp/sam-provision.sh "
+            f"{shlex.quote(collector_pubkey)} {shlex.quote(SSH_USER)}"
+        )
+        stdin, stdout, stderr = client.exec_command(cmd, timeout=60)
+        stdin.write(ssh_password + "\n")
+        stdin.flush()
+        stdin.channel.shutdown_write()
+
+        exit_code = stdout.channel.recv_exit_status()
+        err_out = stderr.read().decode(errors="replace")
+
+        # Step 6 — cleanup (best-effort)
+        try:
+            client.exec_command("rm -f /tmp/sam-provision.sh")
+        except Exception:
+            pass
+
+        if exit_code != 0:
+            if "sudo:" in err_out and any(
+                k in err_out.lower() for k in ("incorrect password", "no password", "not allowed")
+            ):
+                raise RuntimeError(
+                    "Provisioning failed — check that the user has sudo privileges"
+                )
+            raise RuntimeError(
+                f"Provisioning script failed (exit {exit_code}): {err_out[:300]}"
+            )
     finally:
         client.close()

@@ -63,7 +63,7 @@ def expire_keys() -> int:
     """
     rows = db.query(
         """
-        SELECT DISTINCT ka.key_id, ka.server_id, sk.fingerprint, s.hostname, s.ip_address
+        SELECT DISTINCT ka.key_id, ka.server_id, sk.fingerprint, s.hostname, s.ip_address, s.ssh_port
         FROM key_authorizations ka
         JOIN ssh_keys sk ON sk.id = ka.key_id
         JOIN servers s ON s.id = ka.server_id
@@ -76,7 +76,7 @@ def expire_keys() -> int:
     expired = 0
     for row in rows:
         try:
-            ssh.revoke_on_server(row["hostname"], row["fingerprint"], ip=row["ip_address"])
+            ssh.revoke_on_server(row["hostname"], row["fingerprint"], ip=row["ip_address"], port=row["ssh_port"])
         except Exception as exc:
             alerts.send_alert(
                 "CRITICAL",

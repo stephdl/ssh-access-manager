@@ -58,7 +58,16 @@
     "success_msg": "✅ {hostname} ha sido añadido.",
     "deploy_hint": "Despliega ahora la clave del colector en este servidor en `/home/{sshUser}/.ssh/authorized_keys`:",
     "deploy_hint2": "O ejecuta `provision-host.sh` con esta clave.",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "provision_title": "Aprovisionamiento automático (opcional)",
+    "provision_hint": "Si se proporciona, la clave del colector se desplegará automáticamente vía SSH.",
+    "ssh_user_label": "Usuario SSH",
+    "ssh_port_label": "Puerto SSH",
+    "ssh_password_label": "Contraseña SSH",
+    "ssh_password_placeholder": "Dejar vacío para aprovisionar manualmente",
+    "provision_connecting": "Conectando al servidor…",
+    "provision_success": "✅ Servidor aprovisionado — clave del colector desplegada automáticamente.",
+    "provision_error": "Error de aprovisionamiento: {error}"
   },
   "edit_server": {
     "title": "Editar servidor",
@@ -69,6 +78,7 @@
     "env_placeholder": "— Elegir —",
     "os_family": "Familia OS",
     "os_placeholder": "ej: rhel, debian (opcional)",
+    "ssh_port_label": "Puerto SSH",
     "submitting": "Guardando…",
     "submit": "Guardar"
   },
@@ -96,6 +106,7 @@
     "section_info": "Información",
     "field_hostname": "Hostname",
     "field_ip": "IP",
+    "field_ssh_port": "Puerto SSH",
     "field_environment": "Entorno",
     "field_os": "OS",
     "field_active": "Activo",

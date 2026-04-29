@@ -51,12 +51,13 @@ def sync_servers(path: str = SERVERS_YML) -> list[dict]:
     for s in servers:
         db.execute(
             """
-            INSERT INTO servers (hostname, ip_address, environment, os_family)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO servers (hostname, ip_address, environment, os_family, ssh_port)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (hostname) DO UPDATE SET
                 ip_address  = EXCLUDED.ip_address,
                 environment = EXCLUDED.environment,
                 os_family   = EXCLUDED.os_family,
+                ssh_port    = EXCLUDED.ssh_port,
                 is_active   = true
             """,
             (
@@ -64,6 +65,7 @@ def sync_servers(path: str = SERVERS_YML) -> list[dict]:
                 s["ip"],
                 s.get("environment"),
                 s.get("os_family"),
+                s.get("ssh_port", 22),
             ),
         )
     return servers

@@ -672,3 +672,197 @@ def test_ssh_collect_sessions_local_tty_no_ip(mock_ssh_client):
             params = insert_calls[0][0][1]
             # login_ip must be None, not "Mon"
             assert params[3] is None
+
+
+# ---------------------------------------------------------------------------
+# provision_server — auto-provision via password SSH
+# ---------------------------------------------------------------------------
+
+def test_ssh_provision_server_success():
+    """provision_server succeeds when all steps complete."""
+    from unittest.mock import MagicMock, patch, mock_open
+    import subprocess
+
+    mock_sp_result = MagicMock()
+    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
+
+    def mock_open_side_effect(filename, *args, **kwargs):
+        if filename == "/app/provision-host.sh":
+            return mock_open(read_data=b"#!/bin/sh\necho provisioned")()
+        elif filename.endswith(".pub"):
+            return mock_open(read_data="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...")()
+        return mock_open()()
+
+    with patch("subprocess.run", return_value=mock_sp_result), \
+         patch("builtins.open", side_effect=mock_open_side_effect), \
+         patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy") as mock_policy:
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+
+        mock_stdin = MagicMock()
+        mock_stdout = MagicMock()
+        mock_stderr = MagicMock()
+        mock_stdout.channel.recv_exit_status.return_value = 0
+        mock_stderr.read.return_value = b""
+        mock_client.exec_command.return_value = (mock_stdin, mock_stdout, mock_stderr)
+
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+
+        # Should not raise
+        ssh.provision_server("192.168.1.10", "root", "password123", 22)
+
+        mock_client.set_missing_host_key_policy.assert_called_once()
+        mock_client.connect.assert_called_once()
+        assert mock_client.connect.call_args[1]["password"] == "password123"
+        assert mock_sftp.putfo.called
+        mock_client.close.assert_called_once()
+
+
+def test_ssh_provision_server_auth_failed():
+    """provision_server raises RuntimeError on authentication failure."""
+    from unittest.mock import MagicMock, patch, mock_open
+    import paramiko
+
+    mock_sp_result = MagicMock()
+    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
+
+    with patch("subprocess.run", return_value=mock_sp_result), \
+         patch("builtins.open", mock_open(read_data=b"#!/bin/sh\necho provisioned")), \
+         patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy"):
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+        mock_client.connect.side_effect = paramiko.AuthenticationException("Auth failed")
+
+        with pytest.raises(RuntimeError, match="Authentication failed"):
+            ssh.provision_server("192.168.1.10", "root", "wrongpass", 22)
+
+
+def test_ssh_provision_server_timeout():
+    """provision_server raises RuntimeError on timeout."""
+    from unittest.mock import MagicMock, patch, mock_open
+    import socket
+
+    mock_sp_result = MagicMock()
+    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
+
+    with patch("subprocess.run", return_value=mock_sp_result), \
+         patch("builtins.open", mock_open(read_data=b"#!/bin/sh\necho provisioned")), \
+         patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy"):
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+        mock_client.connect.side_effect = socket.timeout("Timeout")
+
+        with pytest.raises(RuntimeError, match="timed out"):
+            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+
+
+def test_ssh_provision_server_no_route():
+    """provision_server raises RuntimeError on no route to host."""
+    from unittest.mock import MagicMock, patch, mock_open
+
+    mock_sp_result = MagicMock()
+    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
+
+    with patch("subprocess.run", return_value=mock_sp_result), \
+         patch("builtins.open", mock_open(read_data=b"#!/bin/sh\necho provisioned")), \
+         patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy"):
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+        mock_client.connect.side_effect = Exception("No route to host")
+
+        with pytest.raises(RuntimeError, match="unreachable"):
+            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+
+
+def test_ssh_provision_server_refused():
+    """provision_server raises RuntimeError on connection refused."""
+    from unittest.mock import MagicMock, patch, mock_open
+
+    mock_sp_result = MagicMock()
+    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
+
+    with patch("subprocess.run", return_value=mock_sp_result), \
+         patch("builtins.open", mock_open(read_data=b"#!/bin/sh\necho provisioned")), \
+         patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy"):
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+        mock_client.connect.side_effect = Exception("Connection refused")
+
+        with pytest.raises(RuntimeError, match="refused"):
+            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+
+
+def test_ssh_provision_server_keyscan_unreachable():
+    """provision_server raises RuntimeError when ssh-keyscan returns empty output."""
+    from unittest.mock import MagicMock, patch
+
+    mock_sp_result = MagicMock()
+    mock_sp_result.stdout = ""
+
+    with patch("subprocess.run", return_value=mock_sp_result):
+        with pytest.raises(RuntimeError, match="unreachable"):
+            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+
+
+def test_ssh_provision_server_script_failed():
+    """provision_server raises RuntimeError when provision script fails with sudo error."""
+    from unittest.mock import MagicMock, patch, mock_open
+
+    mock_sp_result = MagicMock()
+    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
+
+    def mock_open_side_effect(filename, *args, **kwargs):
+        if filename == "/app/provision-host.sh":
+            return mock_open(read_data=b"#!/bin/sh\necho provisioned")()
+        elif filename.endswith(".pub"):
+            return mock_open(read_data="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...")()
+        return mock_open()()
+
+    with patch("subprocess.run", return_value=mock_sp_result), \
+         patch("builtins.open", side_effect=mock_open_side_effect), \
+         patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy"):
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+
+        mock_stdin = MagicMock()
+        mock_stdout = MagicMock()
+        mock_stderr = MagicMock()
+        mock_stdout.channel.recv_exit_status.return_value = 1
+        mock_stderr.read.return_value = b"sudo: incorrect password for user"
+        mock_client.exec_command.return_value = (mock_stdin, mock_stdout, mock_stderr)
+
+        mock_sftp = MagicMock()
+        mock_client.open_sftp.return_value = mock_sftp
+
+        with pytest.raises(RuntimeError, match="sudo privileges"):
+            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+
+
+def test_ssh_provision_server_uses_reject_policy():
+    """provision_server must use RejectPolicy."""
+    from unittest.mock import MagicMock, patch, mock_open
+
+    mock_sp_result = MagicMock()
+    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
+
+    with patch("subprocess.run", return_value=mock_sp_result), \
+         patch("builtins.open", mock_open(read_data=b"#!/bin/sh\necho provisioned")), \
+         patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy") as mock_policy:
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+        mock_client.connect.side_effect = Exception("stop early")
+
+        try:
+            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+        except Exception:
+            pass
+
+        mock_client.set_missing_host_key_policy.assert_called_once_with(mock_policy.return_value)

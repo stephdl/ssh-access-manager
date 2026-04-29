@@ -83,12 +83,13 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
     """
     hostname = server["hostname"]
     ip = server["ip_address"]
+    ssh_port = server.get("ssh_port", 22)
     server_id = server["id"]
     result = {"hostname": hostname, "new": 0, "disappeared": 0, "known": 0, "error": None, "anomalies": []}
 
     try:
-        ssh.ensure_scripts(hostname, server_id, ip=ip)
-        raw_lines = ssh.collect_keys(hostname, ip=ip)
+        ssh.ensure_scripts(hostname, server_id, ip=ip, port=ssh_port)
+        raw_lines = ssh.collect_keys(hostname, ip=ip, port=ssh_port)
     except Exception as exc:
         result["error"] = str(exc)
         db.execute(
@@ -187,7 +188,7 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
 
     # Collect SSH sessions (non-fatal)
     try:
-        ssh.collect_sessions_on_server(hostname, server_id, ip=ip)
+        ssh.collect_sessions_on_server(hostname, server_id, ip=ip, port=ssh_port)
     except Exception:
         pass
 

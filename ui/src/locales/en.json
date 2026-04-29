@@ -58,7 +58,16 @@
     "success_msg": "✅ {hostname} has been added.",
     "deploy_hint": "Now deploy the collector key on this server in `/home/{sshUser}/.ssh/authorized_keys`:",
     "deploy_hint2": "Or run `provision-host.sh` with this key.",
-    "close": "Close"
+    "close": "Close",
+    "provision_title": "Automatic provisioning (optional)",
+    "provision_hint": "If provided, the collector key will be deployed automatically via SSH.",
+    "ssh_user_label": "SSH User",
+    "ssh_port_label": "SSH Port",
+    "ssh_password_label": "SSH Password",
+    "ssh_password_placeholder": "Leave empty to provision manually",
+    "provision_connecting": "Connecting to server…",
+    "provision_success": "✅ Server provisioned — collector key deployed automatically.",
+    "provision_error": "Provisioning failed: {error}"
   },
   "edit_server": {
     "title": "Edit server",
@@ -69,6 +78,7 @@
     "env_placeholder": "— Choose —",
     "os_family": "OS Family",
     "os_placeholder": "e.g.: rhel, debian (optional)",
+    "ssh_port_label": "SSH Port",
     "submitting": "Saving…",
     "submit": "Save"
   },
@@ -96,6 +106,7 @@
     "section_info": "Information",
     "field_hostname": "Hostname",
     "field_ip": "IP",
+    "field_ssh_port": "SSH Port",
     "field_environment": "Environment",
     "field_os": "OS",
     "field_active": "Active",

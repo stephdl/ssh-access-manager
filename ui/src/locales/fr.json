@@ -58,7 +58,16 @@
     "success_msg": "✅ {hostname} a été ajouté.",
     "deploy_hint": "Déployez maintenant la clé collecteur sur ce serveur dans `/home/{sshUser}/.ssh/authorized_keys` :",
     "deploy_hint2": "Ou relancez `provision-host.sh` avec cette clé.",
-    "close": "Fermer"
+    "close": "Fermer",
+    "provision_title": "Provisionnement automatique (optionnel)",
+    "provision_hint": "Si renseigné, la clé collecteur sera déployée automatiquement via SSH.",
+    "ssh_user_label": "Utilisateur SSH",
+    "ssh_port_label": "Port SSH",
+    "ssh_password_label": "Mot de passe SSH",
+    "ssh_password_placeholder": "Laisser vide pour provisionner manuellement",
+    "provision_connecting": "Connexion au serveur…",
+    "provision_success": "✅ Serveur provisionné — clé collecteur déployée automatiquement.",
+    "provision_error": "Provisionnement échoué : {error}"
   },
   "edit_server": {
     "title": "Éditer le serveur",
@@ -69,6 +78,7 @@
     "env_placeholder": "— Choisir —",
     "os_family": "OS Family",
     "os_placeholder": "ex: rhel, debian (optionnel)",
+    "ssh_port_label": "Port SSH",
     "submitting": "Sauvegarde…",
     "submit": "Sauvegarder"
   },
@@ -96,6 +106,7 @@
     "section_info": "Informations",
     "field_hostname": "Hostname",
     "field_ip": "IP",
+    "field_ssh_port": "Port SSH",
     "field_environment": "Environnement",
     "field_os": "OS",
     "field_active": "Actif",

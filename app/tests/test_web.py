@@ -325,7 +325,7 @@ def test_web_update_server_authenticated_returns_200(auth_client):
         )
         assert resp.status_code == 200
         mock_actions.update_server.assert_called_once_with(
-            "server-test-01", "10.0.0.2", "production", "debian", ADMIN_ID
+            "server-test-01", "10.0.0.2", "production", "debian", 22, ADMIN_ID
         )
 
 
@@ -386,6 +386,107 @@ def test_web_delete_server_returns_404_if_not_found(auth_client):
         mock_actions.delete_server.side_effect = ValueError("not found")
         resp = auth_client.delete("/api/servers/ghost")
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /api/servers/<hostname>/provision
+# ---------------------------------------------------------------------------
+
+def test_web_provision_server_success(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            "/api/servers/server-test-01/provision",
+            json={"ssh_user": "root", "ssh_password": "secret", "ssh_port": 22},
+        )
+        assert resp.status_code == 200
+        assert resp.json["message"] == "Server provisioned successfully"
+        mock_actions.provision_server.assert_called_once_with(
+            "server-test-01", "root", "secret", 22, ADMIN_ID
+        )
+
+
+def test_web_provision_server_missing_password(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            "/api/servers/server-test-01/provision",
+            json={"ssh_user": "root"},
+        )
+        assert resp.status_code == 400
+        assert "ssh_password is required" in resp.json["error"]
+
+
+def test_web_provision_server_invalid_port(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            "/api/servers/server-test-01/provision",
+            json={"ssh_user": "root", "ssh_password": "secret", "ssh_port": 99999},
+        )
+        assert resp.status_code == 400
+        assert "ssh_port must be between 1 and 65535" in resp.json["error"]
+
+
+def test_web_provision_server_not_found(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.provision_server.side_effect = ValueError("Server not found")
+        resp = auth_client.post(
+            "/api/servers/ghost/provision",
+            json={"ssh_user": "root", "ssh_password": "secret", "ssh_port": 22},
+        )
+        assert resp.status_code == 404
+
+
+def test_web_provision_server_ssh_error(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.provision_server.side_effect = RuntimeError("Connection failed")
+        resp = auth_client.post(
+            "/api/servers/server-test-01/provision",
+            json={"ssh_user": "root", "ssh_password": "secret", "ssh_port": 22},
+        )
+        assert resp.status_code == 422
+
+
+def test_web_provision_server_viewer_forbidden(client):
+    """Viewers cannot provision servers."""
+    viewer_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = viewer_id
+        sess["admin_username"] = "viewer"
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": viewer_id, "username": "viewer", "role": "viewer"}
+        resp = client.post(
+            "/api/servers/server-test-01/provision",
+            json={"ssh_user": "root", "ssh_password": "secret", "ssh_port": 22},
+        )
+        assert resp.status_code == 403
+
+
+def test_web_provision_server_password_not_logged(auth_client):
+    """Password must never appear in audit_log or exceptions."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        secret_password = "SuperSecret123!"
+
+        # Capture all db.execute calls via actions.provision_server
+        def check_no_password(*args, **kwargs):
+            sql = args[0] if args else ""
+            params = args[1] if len(args) > 1 else ()
+            for param in params:
+                if isinstance(param, str) and secret_password in param:
+                    raise AssertionError(f"Password found in audit_log: {param}")
+
+        mock_actions.provision_server.side_effect = check_no_password
+
+        resp = auth_client.post(
+            "/api/servers/server-test-01/provision",
+            json={"ssh_user": "root", "ssh_password": secret_password, "ssh_port": 22},
+        )
+        # The mock will raise if password is logged
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------

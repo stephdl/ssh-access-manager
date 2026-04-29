@@ -201,6 +201,12 @@ else
     generate_nginx_conf
     generate_msmtprc
     generate_crontab
+
+    # Idempotent schema migration: add ssh_port column if missing
+    su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' start -w"
+    su -s /bin/sh postgres -c "psql -h /tmp -U ${POSTGRES_USER:-ssh_manager} -d ${POSTGRES_DB:-ssh_manager} \
+        -c \"ALTER TABLE servers ADD COLUMN IF NOT EXISTS ssh_port INTEGER NOT NULL DEFAULT 22;\""
+    su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' stop -w"
 fi
 
 # ---------------------------------------------------------------------------

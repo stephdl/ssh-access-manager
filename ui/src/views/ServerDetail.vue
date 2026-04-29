@@ -58,6 +58,8 @@
           <dd>{{ server.hostname }}</dd>
           <dt>{{ $t('server_detail.field_ip') }}</dt>
           <dd>{{ server.ip_address }}</dd>
+          <dt>{{ $t('server_detail.field_ssh_port') }}</dt>
+          <dd>{{ server.ssh_port || 22 }}</dd>
           <dt>{{ $t('server_detail.field_environment') }}</dt>
           <dd>
             <span class="badge" :class="envBadge(server.environment)">{{
