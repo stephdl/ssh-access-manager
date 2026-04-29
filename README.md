@@ -321,9 +321,12 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `FLASK_SECRET_KEY` | Clé secrète Flask (sessions) — **obligatoire**, le container refuse de démarrer si absente | — |
 | `SMTP_HOST` | Serveur SMTP | — |
 | `SMTP_PORT` | Port SMTP | `587` |
-| `SMTP_USER` | Utilisateur SMTP | — |
+| `SMTP_USERNAME` | Utilisateur SMTP | — |
 | `SMTP_PASSWORD` | Mot de passe SMTP | — |
 | `SMTP_FROM` | Adresse expéditeur | — |
+| `SMTP_ENCRYPTION` | Mode TLS : `none` / `starttls` / `tls` | `starttls` |
+| `SMTP_TLSVERIFY` | Vérification certificat TLS : `1` (on) / `` (off) | `1` |
+| `SMTP_ENABLED` | Active/désactive l'envoi d'emails : `1` / `` (off) | `1` |
 | `SSH_USER` | Utilisateur SSH collecteur | `audit-collector` |
 | `ADMIN_USERNAME` | Username de l'administrateur initial | `admin` |
 | `ADMIN_EMAIL` | Email de l'administrateur initial | — |

@@ -44,6 +44,11 @@ def _build_message(level: str, subject: str, body: str, to_email: str) -> str:
 
 def send_test_email(to_email: str) -> None:
     """Send a test email to verify SMTP configuration. Raises on failure."""
+    smtp_enabled = os.environ.get("SMTP_ENABLED", "1")
+    if not smtp_enabled or smtp_enabled == "0":
+        log.info("SMTP disabled — skipping test email to %s", to_email)
+        return
+
     message = (
         f"From: {SMTP_FROM}\n"
         f"To: {to_email}\n"
@@ -73,6 +78,11 @@ def send_alert(level: str, subject: str, body: str) -> None:
     log.info("[%s] %s", level, subject)
 
     if level not in _EMAIL_LEVELS:
+        return
+
+    smtp_enabled = os.environ.get("SMTP_ENABLED", "1")
+    if not smtp_enabled or smtp_enabled == "0":
+        log.info("SMTP disabled — skipping alert email: %s", subject)
         return
 
     recipients = _get_alert_recipients()

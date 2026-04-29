@@ -177,3 +177,37 @@ def test_alerts_send_test_email_raises_on_msmtp_not_found():
     with patch("subprocess.run", side_effect=FileNotFoundError("msmtp not found")):
         with pytest.raises(FileNotFoundError):
             alerts.send_test_email("user@example.com")
+
+
+# ---------------------------------------------------------------------------
+# SMTP_ENABLED guard
+# ---------------------------------------------------------------------------
+
+def test_alerts_smtp_disabled_send_alert_does_not_call_msmtp(mock_smtp):
+    with patch.dict(os.environ, {"SMTP_ENABLED": ""}):
+        with patch("alerts.db") as mock_db:
+            mock_db.query.return_value = _make_recipients("admin@example.com")
+            alerts.send_alert("CRITICAL", "Test", "Body")
+    mock_smtp.assert_not_called()
+
+
+def test_alerts_smtp_disabled_send_test_email_does_not_call_msmtp(mock_smtp):
+    with patch.dict(os.environ, {"SMTP_ENABLED": ""}):
+        alerts.send_test_email("user@example.com")
+    mock_smtp.assert_not_called()
+
+
+def test_alerts_smtp_enabled_zero_sends_alert(mock_smtp):
+    with patch.dict(os.environ, {"SMTP_ENABLED": "0"}):
+        with patch("alerts.db") as mock_db:
+            mock_db.query.return_value = _make_recipients("admin@example.com")
+            alerts.send_alert("CRITICAL", "Test", "Body")
+    mock_smtp.assert_not_called()
+
+
+def test_alerts_smtp_enabled_one_sends_alert(mock_smtp):
+    with patch.dict(os.environ, {"SMTP_ENABLED": "1"}):
+        with patch("alerts.db") as mock_db:
+            mock_db.query.return_value = _make_recipients("admin@example.com")
+            alerts.send_alert("CRITICAL", "Test", "Body")
+    mock_smtp.assert_called_once()

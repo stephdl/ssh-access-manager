@@ -415,5 +415,8 @@
   "password_banner": {
     "message": "Your password has never been changed. Please update it for security.",
     "btn_change": "Change password"
+  },
+  "smtp_banner": {
+    "message": "Email notifications are disabled — set SMTP settings to enable alerts."
   }
 }

@@ -442,6 +442,64 @@ def test_web_system_status_returns_200(auth_client):
         assert "keys_pending_review" in data
 
 
+def test_web_system_status_smtp_enabled_default(auth_client):
+    with patch("web.db") as mock_db, patch.dict(os.environ, {}, clear=False):
+        if "SMTP_ENABLED" in os.environ:
+            del os.environ["SMTP_ENABLED"]
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"n": 1},
+            {"n": 0},
+            {"n": 0},
+            None,
+        ]
+        resp = auth_client.get("/api/system/status")
+        assert resp.status_code == 200
+        assert resp.get_json()["smtp_enabled"] is True
+
+
+def test_web_system_status_smtp_enabled_set_one(auth_client):
+    with patch("web.db") as mock_db, patch.dict(os.environ, {"SMTP_ENABLED": "1"}):
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"n": 1},
+            {"n": 0},
+            {"n": 0},
+            None,
+        ]
+        resp = auth_client.get("/api/system/status")
+        assert resp.status_code == 200
+        assert resp.get_json()["smtp_enabled"] is True
+
+
+def test_web_system_status_smtp_disabled_empty(auth_client):
+    with patch("web.db") as mock_db, patch.dict(os.environ, {"SMTP_ENABLED": ""}):
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"n": 1},
+            {"n": 0},
+            {"n": 0},
+            None,
+        ]
+        resp = auth_client.get("/api/system/status")
+        assert resp.status_code == 200
+        assert resp.get_json()["smtp_enabled"] is False
+
+
+def test_web_system_status_smtp_disabled_zero(auth_client):
+    with patch("web.db") as mock_db, patch.dict(os.environ, {"SMTP_ENABLED": "0"}):
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"n": 1},
+            {"n": 0},
+            {"n": 0},
+            None,
+        ]
+        resp = auth_client.get("/api/system/status")
+        assert resp.status_code == 200
+        assert resp.get_json()["smtp_enabled"] is False
+
+
 def test_web_collector_key_includes_ssh_user(auth_client, tmp_path):
     pub_key_file = tmp_path / "collector_key.pub"
     pub_key_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 test")

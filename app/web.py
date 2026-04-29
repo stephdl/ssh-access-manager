@@ -972,11 +972,14 @@ def system_status():
     last_scan = db.query_one(
         "SELECT performed_at FROM audit_log WHERE action = 'SCAN_COMPLETED' ORDER BY performed_at DESC LIMIT 1"
     )
+    _smtp_env = os.environ.get("SMTP_ENABLED", "1")
+    smtp_enabled = _smtp_env not in ("", "0")
     return jsonify({
         "servers_active": servers_total["n"] if servers_total else 0,
         "keys_active": keys_active["n"] if keys_active else 0,
         "keys_pending_review": keys_pending["n"] if keys_pending else 0,
         "last_scan": last_scan["performed_at"].isoformat() if last_scan else None,
+        "smtp_enabled": smtp_enabled,
     })
 
 

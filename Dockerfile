@@ -50,7 +50,6 @@ COPY sql/            /app/sql/
 COPY supervisord.conf          /etc/supervisord.conf
 COPY bootstrap.sh              /app/bootstrap.sh
 COPY nginx.conf.template       /app/nginx.conf.template
-COPY msmtp.conf.template       /app/msmtp.conf.template
 COPY crontab                   /etc/crontabs/root
 COPY provision-host.sh         /app/provision-host.sh
 

@@ -25,6 +25,9 @@
         {{ $t('password_banner.btn_change') }}
       </button>
     </div>
+    <div v-if="admin && !smtpEnabled" class="smtp-banner">
+      <span>{{ $t('smtp_banner.message') }}</span>
+    </div>
     <main class="content">
       <router-view />
     </main>
@@ -32,6 +35,7 @@
 </template>
 
 <script setup>
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuth } from './composables/useAuth.js'
@@ -39,6 +43,25 @@ import { useAuth } from './composables/useAuth.js'
 const router = useRouter()
 const { admin, logout } = useAuth()
 const { locale } = useI18n()
+
+const smtpEnabled = ref(true)
+
+watch(
+  admin,
+  async (newAdmin) => {
+    if (!newAdmin) return
+    try {
+      const res = await fetch('/api/system/status')
+      if (res.ok) {
+        const data = await res.json()
+        smtpEnabled.value = data.smtp_enabled !== false
+      }
+    } catch {
+      // silently ignore — smtp banner is non-critical
+    }
+  },
+  { immediate: true }
+)
 
 function goChangePassword() {
   router.push('/admins?changePassword=true')
@@ -156,6 +179,17 @@ body {
 }
 .btn-banner-action:hover {
   background: #e0a800;
+}
+
+.smtp-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1.5rem;
+  background: #fff3cd;
+  color: #856404;
+  border-bottom: 1px solid #ffc107;
+  font-size: 0.9rem;
 }
 
 .content {

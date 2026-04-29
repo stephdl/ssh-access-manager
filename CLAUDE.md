@@ -60,13 +60,17 @@ Voir `ui/CLAUDE.md` pour le frontend Vue.js (vues, composants, i18n, tests Vites
 POSTGRES_DB=ssh_manager  POSTGRES_USER=ssh_manager  POSTGRES_PASSWORD=changeme
 NGINX_PORT=8080
 FLASK_SECRET_KEY=changeme
-SMTP_HOST  SMTP_PORT=587  SMTP_USER  SMTP_PASSWORD  SMTP_FROM
+SMTP_HOST  SMTP_PORT=587  SMTP_USERNAME  SMTP_PASSWORD  SMTP_FROM
+SMTP_ENCRYPTION=starttls  SMTP_TLSVERIFY=1  SMTP_ENABLED=1
 SSH_USER=audit-collector
 ADMIN_USERNAME=admin  ADMIN_EMAIL  ADMIN_PASSWORD=changeme
 ```
 
 Notes : pas de NGINX_USER/NGINX_PASSWORD (#54). Pas de TZ (UTC en base, conversion navigateur — #228).
 Pas de EXPIRE_WARN_DAYS* (configurables en base via settings — #230).
+SMTP_ENCRYPTION : `none` / `starttls` / `tls` — contrôle le mode TLS de msmtp.
+SMTP_TLSVERIFY : `1` (on) / `` (off) — vérifie les certificats TLS.
+SMTP_ENABLED : `1` / `` (off) — désactive l'envoi d'emails si vide.
 
 ## Langue du code — English only
 

@@ -22,16 +22,50 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Generate /etc/msmtprc from template + ENV
+# Generate /etc/msmtprc dynamically based on SMTP_ENCRYPTION and SMTP_TLSVERIFY
 # ---------------------------------------------------------------------------
 generate_msmtprc() {
-    sed \
-        -e "s|{{SMTP_HOST}}|${SMTP_HOST:-mail.example.com}|g" \
-        -e "s|{{SMTP_PORT}}|${SMTP_PORT:-587}|g" \
-        -e "s|{{SMTP_USER}}|${SMTP_USER:-alerts@example.com}|g" \
-        -e "s|{{SMTP_PASSWORD}}|${SMTP_PASSWORD:-changeme}|g" \
-        -e "s|{{SMTP_FROM}}|${SMTP_FROM:-ssh-manager@example.com}|g" \
-        /app/msmtp.conf.template > /etc/msmtprc
+    case "${SMTP_ENCRYPTION:-starttls}" in
+        none)
+            _tls_block=""
+            ;;
+        tls)
+            if [ "${SMTP_TLSVERIFY:-1}" = "1" ]; then
+                _certcheck="on"
+            else
+                _certcheck="off"
+            fi
+            _tls_block="tls            on
+tls_starttls   off
+tls_trust_file /etc/ssl/certs/ca-certificates.crt
+tls_certcheck  ${_certcheck}"
+            ;;
+        starttls|*)
+            if [ "${SMTP_TLSVERIFY:-1}" = "1" ]; then
+                _certcheck="on"
+            else
+                _certcheck="off"
+            fi
+            _tls_block="tls            on
+tls_starttls   on
+tls_trust_file /etc/ssl/certs/ca-certificates.crt
+tls_certcheck  ${_certcheck}"
+            ;;
+    esac
+
+    cat > /etc/msmtprc << EOF
+defaults
+auth           on
+${_tls_block}
+logfile        /dev/stderr
+
+account        default
+host           ${SMTP_HOST:-mail.example.com}
+port           ${SMTP_PORT:-587}
+from           ${SMTP_FROM:-ssh-manager@example.com}
+user           ${SMTP_USERNAME:-alerts@example.com}
+password       ${SMTP_PASSWORD:-changeme}
+EOF
     chmod 640 /etc/msmtprc
     chown root:nobody /etc/msmtprc
 }
