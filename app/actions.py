@@ -636,10 +636,11 @@ def revoke_request(request_id: str, admin_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 def add_server(
-    hostname: str, ip: str, env: str, os_family: str | None = None,
+    hostname: str, ip: str, ssh_user: str, ssh_password: str,
+    env: str | None = None, os_family: str | None = None,
     ssh_port: int = 22, admin_id: str | None = None,
 ) -> dict:
-    """Insert a new server, run ssh-keyscan, and log SERVER_ADDED."""
+    """Add and provision a server atomically. Server is only created in DB if SSH provisioning succeeds."""
     ip = _validate_ip(ip)
     existing = db.query_one(
         "SELECT hostname FROM servers WHERE ip_address = %s", (ip,)
@@ -651,6 +652,7 @@ def add_server(
         servers_mod.add_to_known_hosts(ip)
     except Exception as e:
         raise ValueError(f"Cannot reach {hostname} ({ip}) for keyscan: {e}") from e
+    ssh.provision_server(ip, ssh_user, ssh_password, ssh_port)
     db.execute(
         "INSERT INTO servers (hostname, ip_address, environment, os_family, ssh_port) VALUES (%s, %s, %s, %s, %s)",
         (hostname, ip, env, os_family, ssh_port),
@@ -662,6 +664,13 @@ def add_server(
         VALUES ('SERVER_ADDED', %s, %s, %s::jsonb)
         """,
         (admin_id, server["id"], json.dumps({"hostname": hostname, "ip": ip, "environment": env, "ssh_port": ssh_port})),
+    )
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, target_server, details)
+        VALUES ('SERVER_PROVISIONED', %s, %s, %s::jsonb)
+        """,
+        (admin_id, server["id"], json.dumps({"hostname": hostname, "ssh_user": ssh_user, "ssh_port": ssh_port})),
     )
     return server
 

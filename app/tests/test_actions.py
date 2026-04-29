@@ -400,11 +400,77 @@ def test_actions_revoke_request_calls_sam_revoke():
 # ---------------------------------------------------------------------------
 
 def test_actions_add_server_logs_server_added(sample_server):
-    with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"):
+    with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"), patch("actions.ssh"):
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
-        actions.add_server("new-host", "10.0.0.1", "lab", "rhel", 22, ADMIN_ID)
+        actions.add_server("new-host", "10.0.0.1", "root", "pass123", "lab", "rhel", 22, ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
         assert any("SERVER_ADDED" in c for c in calls)
+
+
+def test_actions_add_server_provisions_before_insert(sample_server):
+    """SSH provisioning must happen before INSERT."""
+    call_order = []
+    with patch("actions.db") as mock_db, \
+         patch("actions.ssh") as mock_ssh, \
+         patch("servers.add_to_known_hosts"):
+        mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
+        mock_ssh.provision_server.side_effect = lambda *a, **kw: call_order.append("ssh")
+        def track_execute(*args, **kwargs):
+            call_order.append("db")
+        mock_db.execute.side_effect = track_execute
+        actions.add_server("new-host", "10.0.0.1", "root", "pass", "lab", None, 22, ADMIN_ID)
+        ssh_idx = call_order.index("ssh")
+        db_idx = call_order.index("db")
+        assert ssh_idx < db_idx, "SSH must be called before first DB write"
+
+
+def test_actions_add_server_ssh_failure_no_db_write(sample_server):
+    """If SSH provisioning fails, nothing is written to DB."""
+    with patch("actions.db") as mock_db, \
+         patch("actions.ssh") as mock_ssh, \
+         patch("servers.add_to_known_hosts"):
+        mock_db.query_one.return_value = None
+        mock_ssh.provision_server.side_effect = RuntimeError("Auth failed")
+        with pytest.raises(RuntimeError, match="Auth failed"):
+            actions.add_server("new-host", "10.0.0.1", "root", "wrong", "lab", None, 22, ADMIN_ID)
+        mock_db.execute.assert_not_called()
+
+
+def test_actions_add_server_logs_provisioned(sample_server):
+    """SERVER_PROVISIONED audit entry must be created after success."""
+    with patch("actions.db") as mock_db, \
+         patch("actions.ssh"), \
+         patch("servers.add_to_known_hosts"):
+        mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
+        actions.add_server("new-host", "10.0.0.1", "root", "pass", "lab", None, 22, ADMIN_ID)
+        calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("SERVER_PROVISIONED" in c for c in calls)
+
+
+def test_actions_add_server_password_not_in_db(sample_server):
+    """Password must never appear in any DB call."""
+    secret = "SuperSecret123!"
+    with patch("actions.db") as mock_db, \
+         patch("actions.ssh"), \
+         patch("servers.add_to_known_hosts"):
+        mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
+        actions.add_server("new-host", "10.0.0.1", "root", secret, "lab", None, 22, ADMIN_ID)
+        for call_args in mock_db.execute.call_args_list:
+            params = call_args[0][1] if len(call_args[0]) > 1 else ()
+            for param in params:
+                if isinstance(param, str) and secret in param:
+                    raise AssertionError(f"Password found in DB call: {param}")
+
+
+def test_actions_add_server_env_optional(sample_server):
+    """Environment can be None."""
+    with patch("actions.db") as mock_db, \
+         patch("actions.ssh"), \
+         patch("servers.add_to_known_hosts"):
+        mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
+        actions.add_server("new-host", "10.0.0.1", "root", "pass", None, None, 22, ADMIN_ID)
+        insert_call = mock_db.execute.call_args_list[0]
+        assert None in insert_call[0][1]
 
 
 def test_actions_disable_server_sets_inactive(sample_server):
@@ -1066,7 +1132,7 @@ def test_actions_update_server_not_found():
 def test_actions_add_server_rejects_invalid_ip():
     for bad in ["notanip", "999.1.1.1", "192.168.1", "hello world"]:
         with pytest.raises(ValueError, match="Invalid IP"):
-            actions.add_server("h", bad, "lab", None, ADMIN_ID)
+            actions.add_server("h", bad, "root", "x", "lab", None, 22, ADMIN_ID)
 
 
 def test_actions_update_server_rejects_invalid_ip():
@@ -1078,7 +1144,7 @@ def test_actions_add_server_rejects_duplicate_ip():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"hostname": "existing-server"}
         with pytest.raises(ValueError, match="already used by server"):
-            actions.add_server("new-host", "10.0.0.1", "lab", None, ADMIN_ID)
+            actions.add_server("new-host", "10.0.0.1", "root", "x", "lab", None, 22, ADMIN_ID)
 
 
 def test_actions_update_server_rejects_duplicate_ip():

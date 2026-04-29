@@ -48,6 +48,7 @@ def test_manage_servers_add(runner):
         result = runner.invoke(manage.cli, [
             "servers", "add",
             "--hostname", HOSTNAME, "--ip", "10.0.0.1", "--env", "lab",
+            "--ssh-password", "testpass123",
         ])
         assert result.exit_code == 0
         mock_actions.add_server.assert_called_once()
