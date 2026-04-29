@@ -5,8 +5,8 @@
 | Vue | Rôle |
 |-----|------|
 | Login.vue | Connexion + checkbox "Keep me logged on this device" (#239) |
-| Dashboard.vue | Tableau serveurs + recherche + compteurs + modal ajout serveur (#71) + clé collecteur (#74) |
-| ServerDetail.vue | Détail serveur + clés + actions + bandeau rouge si désactivé (#91) |
+| Dashboard.vue | Tableau serveurs + recherche + compteurs + modal ajout serveur (#71) + clé collecteur (#74). Provisionnement atomique via SSH (#299, #301) : SSH user/password obligatoires, serveur créé uniquement si SSH réussit. Validation hostname RFC 1123 (#303). Layout 2 colonnes. |
+| ServerDetail.vue | Détail serveur + clés + actions + bandeau rouge si désactivé (#91). Bouton **Re-provisionner** (violet, sysadmin + serveur actif) : modal SSH credentials, spinner, traduction error_code (#302). |
 | Anomalies.vue | Anomalies actives + filtres texte/type/serveur/conformité + colonne unix_user (#195) |
 | AccessRequests.vue | DeployKeyForm + UserLockForm |
 | Audit.vue | Historique filtrable |
@@ -70,5 +70,8 @@ Détection automatique de la langue du navigateur via vue-i18n v9 (i18n.js).
 | AuditTable.spec.js | 8 | filtres serveur/action/date, pagination, row classes (#250) |
 | AnomaliesTable.spec.js | 13 | filtres texte/type/conformité, pagination, RBAC, events (#250) |
 | SessionsCard.spec.js | 17 | sessions actives, modal historique, filtres, pagination, CSV export, RBAC (#253) |
+| Dashboard.spec.js | 8 | champs SSH obligatoires, submit désactivé sans password/hostname invalide, POST avec ssh_user/password/port, port 22 par défaut, fermeture modal, validation RFC 1123 (#299, #303) |
+| PaginationBar.spec.js | 10 | sélecteur taille, navigation pages, désactivation limites |
+| App.spec.js | 6 | sélecteur langue, persistance localStorage |
 
 vitest doit passer avant tout commit.

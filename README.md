@@ -138,38 +138,51 @@ Les durées sont des constantes dans `web.py` — pas de redémarrage nécessair
 
 ## Workflow — Ajout d'un serveur distant
 
-### 1. Provisionner l'hôte distant
+### Via l'interface web (recommandé — provisionnement automatique)
 
-Sur chaque serveur à auditer, depuis la machine hébergeant le container.
-`<user>` peut être `root` ou tout utilisateur avec `sudo ALL` — c'est le `sudo bash -s` qui élève les privilèges :
+Dashboard → bouton **+ Ajouter un serveur** → remplir :
 
-```bash
-ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec sam-server cat /data/keys/collector_key.pub)'" \
-    < <(podman exec sam-server cat /app/provision-host.sh)
-```
+| Champ | Obligatoire | Description |
+|---|---|---|
+| Hostname | ✓ | Nom RFC 1123 (`server-01`, `web.prod.example.com`) |
+| Adresse IP | ✓ | IPv4 ou IPv6 — doit être unique |
+| Utilisateur SSH | ✓ | Compte avec sudo sur le serveur cible (`root` ou tout compte `sudo ALL`) |
+| Mot de passe SSH | ✓ | Utilisé **une seule fois** pour le provisionnement — jamais stocké en base |
+| Port SSH | — | Défaut : 22 |
+| Environnement | — | `production` / `staging` / `lab` — modifiable ultérieurement |
+| OS | — | Famille d'OS (`rhel`, `debian`…) — modifiable ultérieurement |
 
-Cette commande est **identique** pour un premier provisionnement ou une mise à jour (ex. après un rebuild ou un changement des règles sudoers). Le script est **idempotent** : il crée l'utilisateur `audit-collector` (réutilise s'il existe), ajoute la clé publique dans `authorized_keys` si elle est absente, et écrase `/etc/sudoers.d/audit-collector` avec les règles courantes.
+Le serveur n'est enregistré en base **que si la connexion SSH réussit**. En cas d'échec (mauvais mot de passe, port fermé, sudo manquant…), aucune donnée n'est écrite et l'erreur est affichée dans la langue du navigateur. Le script `provision-host.sh` est exécuté à distance : il crée l'utilisateur `audit-collector`, déploie la clé publique collecteur et configure les règles sudoers.
 
-### 2. Déclarer le serveur
+Le script est **idempotent** : il peut être rejoué sans risque (après rebuild, changement de clé ou de règles sudoers). Un bouton **Re-provisionner** est disponible sur la vue détail d'un serveur existant (rôle `sysadmin` uniquement).
 
-**Via l'interface web (recommandé)** : Dashboard → bouton **+ Ajouter un serveur** → remplir hostname, IP, environnement, OS. La clé publique collecteur est affichée directement après l'ajout pour faciliter le déploiement.
-
-**Via la CLI** :
+### Via la CLI
 
 ```bash
 podman exec sam-server python3 /app/app/manage.py servers add \
-  --hostname server-prod-01 --ip 192.168.1.10 --env production --os rhel
+  --hostname server-prod-01 --ip 192.168.1.10 \
+  --ssh-user root --ssh-password SECRET \
+  [--env production] [--os rhel] [--port 22]
 ```
 
-**Via `servers.yml`** (déclaratif, chargé au démarrage) :
+Le mot de passe est demandé interactivement si `--ssh-password` est absent.
+
+### Via `servers.yml` (déclaratif — provisionnement manuel requis)
 
 ```yaml
 # /data/config/servers.yml
 servers:
   - hostname: server-prod-01
     ip: 192.168.1.10
-    environment: production
-    os_family: rhel
+    environment: production   # optionnel
+    os_family: rhel           # optionnel
+```
+
+Cette méthode ajoute le serveur en base sans provisionnement SSH automatique. Il faut exécuter le script manuellement sur la cible depuis la machine hébergeant le container :
+
+```bash
+ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec sam-server cat /data/keys/collector_key.pub)'" \
+    < <(podman exec sam-server cat /app/provision-host.sh)
 ```
 
 > **Note** : La connexion SSH utilise toujours l'adresse IP déclarée, jamais la résolution DNS, pour éviter les ambiguïtés réseau.
@@ -359,7 +372,7 @@ EXEC="podman exec sam-server python3 /app/app/manage.py"
 
 # Serveurs
 $EXEC servers list
-$EXEC servers add --hostname HOST --ip IP --env production --os rhel
+$EXEC servers add --hostname HOST --ip IP --ssh-user USER --ssh-password PASS [--env production] [--os rhel] [--port 22]
 $EXEC servers scan
 $EXEC servers scan --server HOST
 $EXEC servers disable HOST
