@@ -24,15 +24,15 @@ def _hostname_in_known_hosts(hostname: str, known_hosts: str = KNOWN_HOSTS) -> b
         return False
 
 
-def add_to_known_hosts(ip: str, known_hosts: str = KNOWN_HOSTS) -> None:
-    """Run ssh-keyscan on ip and append to known_hosts if not present."""
+def add_to_known_hosts(ip: str, port: int = 22, known_hosts: str = KNOWN_HOSTS) -> None:
+    """Run ssh-keyscan on ip (and port) and append to known_hosts if not present."""
     if _hostname_in_known_hosts(ip, known_hosts):
         return
-    result = subprocess.run(
-        ["ssh-keyscan", "-H", "-T", "10", ip],
-        capture_output=True,
-        text=True,
-    )
+    cmd = ["ssh-keyscan", "-H", "-T", "10"]
+    if port != 22:
+        cmd += ["-p", str(port)]
+    cmd.append(ip)
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.stdout:
         with open(known_hosts, "a") as f:
             f.write(result.stdout)
