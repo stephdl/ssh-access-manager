@@ -81,6 +81,15 @@ def _reset_attempts(ip: str) -> None:
         _login_attempts.pop(ip, None)
 
 
+def _is_smtp_enabled() -> bool:
+    """SMTP is considered enabled only when SMTP_ENABLED is truthy AND SMTP_HOST is set."""
+    smtp_env = os.environ.get("SMTP_ENABLED", "1")
+    if smtp_env in ("", "0"):
+        return False
+    smtp_host = os.environ.get("SMTP_HOST", "").strip()
+    return bool(smtp_host)
+
+
 # ---------------------------------------------------------------------------
 # Session timeout — constants (no DB config, no UI)
 # ---------------------------------------------------------------------------
@@ -424,15 +433,19 @@ def get_server_sessions(hostname):
 @require_role("sysadmin", "operator")
 def refresh_server_sessions(hostname):
     server = db.query_one(
-        "SELECT id, host(ip_address) AS ip_address FROM servers WHERE hostname = %s AND is_active = true",
+        "SELECT id, host(ip_address) AS ip_address, ssh_port FROM servers WHERE hostname = %s AND is_active = true",
         (hostname,),
     )
     if not server:
         return jsonify({"error": "Server not found or inactive"}), 404
     ip = str(server["ip_address"])
+    port = server.get("ssh_port") or 22
     try:
-        ssh.collect_sessions_on_server(hostname, server["id"], ip)
+        ssh.collect_sessions_on_server(hostname, server["id"], ip, port=port)
         return jsonify({"status": "refreshed"})
+    except RuntimeError as e:
+        logging.warning("collect_sessions_on_server failed on %s (%s): %s", hostname, ip, e)
+        return jsonify({"error": str(e)}), 502
     except Exception:
         logging.exception("collect_sessions_on_server failed on %s (%s)", hostname, ip)
         return jsonify({"error": "Internal server error"}), 502
@@ -1048,14 +1061,12 @@ def system_status():
     last_scan = db.query_one(
         "SELECT performed_at FROM audit_log WHERE action = 'SCAN_COMPLETED' ORDER BY performed_at DESC LIMIT 1"
     )
-    _smtp_env = os.environ.get("SMTP_ENABLED", "1")
-    smtp_enabled = _smtp_env not in ("", "0")
     return jsonify({
         "servers_active": servers_total["n"] if servers_total else 0,
         "keys_active": keys_active["n"] if keys_active else 0,
         "keys_pending_review": keys_pending["n"] if keys_pending else 0,
         "last_scan": last_scan["performed_at"].isoformat() if last_scan else None,
-        "smtp_enabled": smtp_enabled,
+        "smtp_enabled": _is_smtp_enabled(),
     })
 
 
@@ -1083,7 +1094,9 @@ def get_collector_key():
 @require_auth
 def get_config():
     rows = db.query("SELECT key, value FROM settings")
-    return jsonify({r["key"]: r["value"] for r in rows})
+    data = {r["key"]: r["value"] for r in rows}
+    data["smtp_enabled"] = _is_smtp_enabled()
+    return jsonify(data)
 
 
 @app.route("/api/system/config", methods=["PUT"])

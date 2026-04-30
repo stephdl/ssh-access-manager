@@ -838,6 +838,8 @@ def add_admin(username: str, email: str, password: str, admin_id: str | None = N
     if role not in VALID_ROLES:
         raise UserError(f"Invalid role: {role}. Must be one of: {', '.join(sorted(VALID_ROLES))}")
     _validate_password_strength(password)
+    if db.query_one("SELECT id FROM administrators WHERE username = %s", (username,)):
+        raise UserError(f"Username '{username}' is already taken")
     password_hash = generate_password_hash(password)
     db.execute(
         "INSERT INTO administrators (username, email, password_hash, role) VALUES (%s, %s, %s, %s)",

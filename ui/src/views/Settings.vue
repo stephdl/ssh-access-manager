@@ -112,7 +112,7 @@
     <section class="card">
       <h3>{{ $t('settings.smtp_section') }}</h3>
       <div class="field">
-        <button class="btn-primary" :disabled="smtpTesting" @click="testSmtp">
+        <button class="btn-primary" :disabled="smtpTesting || !smtpEnabled" @click="testSmtp">
           {{ smtpTesting ? $t('settings.smtp_testing') : $t('settings.smtp_test_btn') }}
         </button>
         <p class="hint">{{ $t('settings.smtp_hint') }}</p>
@@ -144,6 +144,7 @@ const savingSecurity = ref(false)
 const successSecurity = ref(false)
 const errorSecurity = ref('')
 
+const smtpEnabled = ref(true)
 const smtpTesting = ref(false)
 const smtpSuccess = ref('')
 const smtpError = ref('')
@@ -158,6 +159,7 @@ onMounted(async () => {
     expireWarnDays2.value = parseInt(data.expire_warn_days_2 || 2)
     loginMaxAttempts.value = parseInt(data.login_max_attempts || 10)
     loginBanSeconds.value = parseInt(data.login_ban_seconds || 300)
+    smtpEnabled.value = data.smtp_enabled || false
   } catch (err) {
     error.value = err.message
   }

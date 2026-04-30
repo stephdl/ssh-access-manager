@@ -587,7 +587,7 @@ def test_web_system_status_returns_200(auth_client):
 
 
 def test_web_system_status_smtp_enabled_default(auth_client):
-    with patch("web.db") as mock_db, patch.dict(os.environ, {}, clear=False):
+    with patch("web.db") as mock_db, patch.dict(os.environ, {"SMTP_HOST": "mail.example.com"}, clear=False):
         if "SMTP_ENABLED" in os.environ:
             del os.environ["SMTP_ENABLED"]
         mock_db.query_one.side_effect = [
@@ -603,7 +603,7 @@ def test_web_system_status_smtp_enabled_default(auth_client):
 
 
 def test_web_system_status_smtp_enabled_set_one(auth_client):
-    with patch("web.db") as mock_db, patch.dict(os.environ, {"SMTP_ENABLED": "1"}):
+    with patch("web.db") as mock_db, patch.dict(os.environ, {"SMTP_ENABLED": "1", "SMTP_HOST": "mail.example.com"}):
         mock_db.query_one.side_effect = [
             _admin_row(),
             {"n": 1},
@@ -614,6 +614,20 @@ def test_web_system_status_smtp_enabled_set_one(auth_client):
         resp = auth_client.get("/api/system/status")
         assert resp.status_code == 200
         assert resp.get_json()["smtp_enabled"] is True
+
+
+def test_web_system_status_smtp_disabled_no_host(auth_client):
+    with patch("web.db") as mock_db, patch.dict(os.environ, {"SMTP_ENABLED": "1", "SMTP_HOST": ""}):
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"n": 1},
+            {"n": 0},
+            {"n": 0},
+            None,
+        ]
+        resp = auth_client.get("/api/system/status")
+        assert resp.status_code == 200
+        assert resp.get_json()["smtp_enabled"] is False
 
 
 def test_web_system_status_smtp_disabled_empty(auth_client):

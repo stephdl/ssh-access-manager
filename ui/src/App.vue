@@ -38,7 +38,7 @@
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAuth } from './composables/useAuth.js'
+import { useAuth, apiFetch } from './composables/useAuth.js'
 
 const router = useRouter()
 const { admin, logout } = useAuth()
@@ -51,7 +51,7 @@ watch(
   async (newAdmin) => {
     if (!newAdmin) return
     try {
-      const res = await fetch('/api/system/status')
+      const res = await apiFetch('/api/system/status')
       if (res.ok) {
         const data = await res.json()
         smtpEnabled.value = data.smtp_enabled !== false

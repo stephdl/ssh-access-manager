@@ -5,6 +5,7 @@ Appelee par cron et via manage.py / web.py.
 import base64
 import hashlib
 import json
+import logging
 import os
 import struct
 from datetime import datetime, timezone
@@ -189,8 +190,8 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
     # Collect SSH sessions (non-fatal)
     try:
         ssh.collect_sessions_on_server(hostname, server_id, ip=ip, port=ssh_port)
-    except Exception:
-        pass
+    except Exception as exc:
+        logging.warning("collect_sessions_on_server failed on %s (%s): %s", hostname, ip, exc)
 
     db.execute(
         """

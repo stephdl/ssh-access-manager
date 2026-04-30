@@ -131,7 +131,7 @@ describe('App.vue — SMTP banner', () => {
     const wrapper = mount(App, { global: { plugins: [i18n], stubs: ['router-view'] } })
     await flushPromises()
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/system/status')
+    expect(global.fetch).toHaveBeenCalledWith('/api/system/status', expect.any(Object))
     expect(wrapper.find('.smtp-banner').exists()).toBe(true)
   })
 })

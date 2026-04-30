@@ -226,6 +226,7 @@ describe('Settings.vue', () => {
           scan_interval_hours: '4',
           expire_warn_days: '7',
           expire_warn_days_2: '2',
+          smtp_enabled: true,
         }),
       })
       .mockResolvedValueOnce({
@@ -251,6 +252,7 @@ describe('Settings.vue', () => {
           scan_interval_hours: '4',
           expire_warn_days: '7',
           expire_warn_days_2: '2',
+          smtp_enabled: true,
         }),
       })
       .mockResolvedValueOnce({
@@ -273,6 +275,7 @@ describe('Settings.vue', () => {
           scan_interval_hours: '4',
           expire_warn_days: '7',
           expire_warn_days_2: '2',
+          smtp_enabled: true,
         }),
       })
       .mockResolvedValueOnce({
