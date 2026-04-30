@@ -649,7 +649,7 @@ def add_server(
         raise ValueError(f"IP {ip} is already used by server '{existing['hostname']}'")
     import servers as servers_mod
     try:
-        servers_mod.add_to_known_hosts(ip)
+        servers_mod.add_to_known_hosts(ip, ssh_port)
     except Exception as e:
         raise ValueError(f"Cannot reach {hostname} ({ip}) for keyscan: {e}") from e
     ssh.provision_server(ip, ssh_user, ssh_password, ssh_port)
@@ -747,7 +747,7 @@ def update_server(
 
     if new_ip != old_ip:
         try:
-            servers_mod.add_to_known_hosts(new_ip)
+            servers_mod.add_to_known_hosts(new_ip, ssh_port)
         except Exception as e:
             raise ValueError(f"Cannot reach {hostname} ({new_ip}) for keyscan: {e}") from e
 

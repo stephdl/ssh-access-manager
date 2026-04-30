@@ -1118,7 +1118,7 @@ def test_actions_update_server_ip_change_calls_keyscan():
     with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts") as mock_keyscan:
         mock_db.query_one.side_effect = [server, None]
         actions.update_server("server-test-01", "192.168.1.99", "lab", "rhel", 22, ADMIN_ID)
-        mock_keyscan.assert_called_once_with("192.168.1.99")
+        mock_keyscan.assert_called_once_with("192.168.1.99", 22)
 
 
 def test_actions_update_server_not_found():

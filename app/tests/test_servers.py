@@ -86,6 +86,24 @@ def test_servers_add_known_hosts_calls_ssh_keyscan_if_absent():
             args = mock_run.call_args[0][0]
             assert "ssh-keyscan" in args
             assert "new-host" in args
+            assert "-p" not in args
+    finally:
+        os.unlink(path)
+
+
+def test_servers_add_known_hosts_uses_custom_port():
+    with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
+        path = f.name
+    try:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                stdout="|1|hash= ssh-ed25519 AAAA\n", returncode=0
+            )
+            servers.add_to_known_hosts("new-host", port=65500, known_hosts=path)
+            args = mock_run.call_args[0][0]
+            assert "-p" in args
+            assert "65500" in args
+            assert "new-host" in args
     finally:
         os.unlink(path)
 
