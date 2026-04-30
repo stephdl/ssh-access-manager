@@ -295,8 +295,6 @@
             </svg>
           </button>
         </div>
-        <p class="hint">{{ $t('server_detail.reprovision_password_optional_hint') }}</p>
-
         <label>{{ $t('server_detail.reprovision_ssh_port') }}</label>
         <input v-model.number="reprovisionForm.sshPort" type="number" min="1" max="65535" />
 
