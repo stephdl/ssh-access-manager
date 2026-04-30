@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import actions
+from actions import UserError
 
 
 ADMIN_ID = str(uuid.uuid4())
@@ -39,7 +40,7 @@ def test_actions_validate_key_sets_active(sample_key, sample_server):
 def test_actions_validate_key_raises_if_key_not_found(sample_key):
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(UserError, match="not found"):
             actions.validate_key(sample_key["fingerprint"], ADMIN_ID)
 
 
@@ -47,7 +48,7 @@ def test_actions_validate_key_raises_if_no_pending(sample_key):
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"id": KEY_ID}
         mock_db.query.return_value = []
-        with pytest.raises(ValueError, match="PENDING_REVIEW"):
+        with pytest.raises(UserError, match="PENDING_REVIEW"):
             actions.validate_key(sample_key["fingerprint"], ADMIN_ID)
 
 
@@ -90,7 +91,7 @@ def test_actions_revoke_key_scenario1_logs_key_revoked(sample_key):
 def test_actions_revoke_key_raises_if_key_not_found(sample_key):
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(UserError, match="not found"):
             actions.revoke_key(sample_key["fingerprint"], ADMIN_ID, "reason")
 
 
@@ -273,7 +274,7 @@ def test_actions_assign_key_updates_owner(sample_key):
 def test_actions_assign_key_raises_if_key_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="Key not found"):
+        with pytest.raises(UserError, match="Key not found"):
             actions.assign_key("SHA256:xxx", "Alice Martin")
 
 
@@ -292,7 +293,7 @@ def test_actions_set_key_expiry_updates_active_auths(sample_key):
 def test_actions_set_key_expiry_raises_if_key_not_found(sample_key):
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError):
+        with pytest.raises(UserError):
             actions.set_key_expiry(sample_key["fingerprint"], _future())
 
 
@@ -325,7 +326,7 @@ def test_actions_grant_access_returns_ids(sample_key, sample_server):
 def test_actions_grant_access_raises_if_server_not_found(sample_key):
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [{"id": KEY_ID}, None]
-        with pytest.raises(ValueError, match="Server not found"):
+        with pytest.raises(UserError, match="Server not found"):
             actions.grant_access(sample_key["fingerprint"], "ghost", _future(), "x", ADMIN_ID)
 
 
@@ -349,7 +350,7 @@ def test_actions_approve_request_sets_approved_and_creates_auth():
 def test_actions_approve_request_raises_if_not_pending():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="not PENDING"):
+        with pytest.raises(UserError, match="not PENDING"):
             actions.approve_request(REQUEST_ID, ADMIN_ID)
 
 
@@ -377,7 +378,7 @@ def test_actions_reject_request_sets_rejected():
 def test_actions_reject_request_raises_if_not_pending():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError):
+        with pytest.raises(UserError):
             actions.reject_request(REQUEST_ID, ADMIN_ID)
 
 
@@ -494,7 +495,7 @@ def test_actions_disable_server_sets_inactive(sample_server):
 def test_actions_disable_server_raises_if_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(UserError, match="not found"):
             actions.disable_server("ghost")
 
 
@@ -536,7 +537,7 @@ def test_actions_provision_server_password_not_logged(sample_server):
 def test_actions_provision_server_raises_if_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(UserError, match="not found"):
             actions.provision_server("ghost", "root", "password", 22, ADMIN_ID)
 
 
@@ -563,7 +564,7 @@ def test_actions_disable_admin_sets_inactive():
 def test_actions_disable_admin_raises_if_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(UserError, match="not found"):
             actions.disable_admin("ghost")
 
 
@@ -574,7 +575,7 @@ def test_actions_disable_admin_prevents_last_sysadmin():
             {"id": ADMIN_ID, "role": "sysadmin"},
             {"n": 0},
         ]
-        with pytest.raises(ValueError, match="Cannot disable last active sysadmin"):
+        with pytest.raises(UserError, match="Cannot disable last active sysadmin"):
             actions.disable_admin("admin", ADMIN_ID)
 
 
@@ -613,7 +614,7 @@ def test_actions_enable_server_logs_server_added():
 def test_actions_enable_server_raises_if_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(UserError, match="not found"):
             actions.enable_server("ghost")
 
 
@@ -641,7 +642,7 @@ def test_actions_delete_server_removes_authorizations_and_requests():
 def test_actions_delete_server_raises_if_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(UserError, match="not found"):
             actions.delete_server("ghost")
 
 
@@ -668,7 +669,7 @@ def test_actions_enable_admin_logs_admin_enabled():
 def test_actions_enable_admin_raises_if_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(UserError, match="not found"):
             actions.enable_admin("ghost")
 
 
@@ -695,7 +696,7 @@ def test_actions_delete_admin_logs_admin_deleted():
 def test_actions_delete_admin_raises_if_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="Admin not found"):
+        with pytest.raises(UserError, match="Admin not found"):
             actions.delete_admin("ghost")
 
 
@@ -727,7 +728,7 @@ def test_actions_update_admin_not_found():
     """update_admin lève ValueError si admin introuvable."""
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="Admin not found"):
+        with pytest.raises(UserError, match="Admin not found"):
             actions.update_admin("ghost", "new@example.com", "operator", ADMIN_ID)
 
 
@@ -737,7 +738,7 @@ def test_actions_update_admin_self_role_change_raises():
     current_admin = {"username": "admin"}
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [admin, current_admin]
-        with pytest.raises(ValueError, match="Cannot change your own role"):
+        with pytest.raises(UserError, match="Cannot change your own role"):
             actions.update_admin("admin", "admin@example.com", "operator", ADMIN_ID)
 
 
@@ -747,7 +748,7 @@ def test_actions_update_admin_prevents_demoting_last_sysadmin():
     current_admin = {"username": "other-admin"}
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [admin, current_admin, {"n": 0}]
-        with pytest.raises(ValueError, match="Cannot demote last active sysadmin"):
+        with pytest.raises(UserError, match="Cannot demote last active sysadmin"):
             actions.update_admin("admin", "admin@example.com", "operator", ADMIN_ID)
 
 
@@ -794,7 +795,7 @@ def test_actions_deploy_key_invalid_key_type(sample_server):
         mock_db.query_one.return_value = {
             "id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22
         }
-        with pytest.raises(ValueError, match="Unsupported key type"):
+        with pytest.raises(UserError, match="Unsupported key type"):
             actions.deploy_key(
                 public_key="ssh-dss AAAA test",
                 unix_user="alice",
@@ -808,7 +809,7 @@ def test_actions_deploy_key_invalid_key_type(sample_server):
 def test_actions_deploy_key_server_not_found(sample_key):
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="Server not found"):
+        with pytest.raises(UserError, match="Server not found"):
             actions.deploy_key(
                 public_key=sample_key["public_key"],
                 unix_user="alice",
@@ -820,7 +821,7 @@ def test_actions_deploy_key_server_not_found(sample_key):
 
 
 def test_actions_deploy_key_invalid_format():
-    with pytest.raises(ValueError, match="Invalid key format"):
+    with pytest.raises(UserError, match="Invalid key format"):
         actions.deploy_key(
             public_key="notakey",
             unix_user="alice",
@@ -832,7 +833,7 @@ def test_actions_deploy_key_invalid_format():
 
 
 def test_actions_deploy_key_invalid_unix_user_with_space():
-    with pytest.raises(ValueError, match="Invalid Unix username"):
+    with pytest.raises(UserError, match="Invalid Unix username"):
         actions.deploy_key(
             public_key="ssh-ed25519 AAAA test",
             unix_user="zoor dupont",
@@ -844,7 +845,7 @@ def test_actions_deploy_key_invalid_unix_user_with_space():
 
 
 def test_actions_deploy_key_invalid_unix_user_uppercase():
-    with pytest.raises(ValueError, match="Invalid Unix username"):
+    with pytest.raises(UserError, match="Invalid Unix username"):
         actions.deploy_key(
             public_key="ssh-ed25519 AAAA test",
             unix_user="Alice",
@@ -877,28 +878,28 @@ def test_actions_deploy_key_valid_unix_user_passes_check(sample_server, sample_k
 # ---------------------------------------------------------------------------
 
 def test_actions_validate_key_rejects_invalid_fingerprint_format():
-    with pytest.raises(ValueError, match="Invalid fingerprint format"):
+    with pytest.raises(UserError, match="Invalid fingerprint format"):
         actions.validate_key("not-a-fingerprint", ADMIN_ID)
 
 
 def test_actions_revoke_key_rejects_invalid_fingerprint_format():
-    with pytest.raises(ValueError, match="Invalid fingerprint format"):
+    with pytest.raises(UserError, match="Invalid fingerprint format"):
         actions.revoke_key("INVALID:abc", ADMIN_ID, "test")
 
 
 def test_actions_assign_key_rejects_invalid_fingerprint_format():
-    with pytest.raises(ValueError, match="Invalid fingerprint format"):
+    with pytest.raises(UserError, match="Invalid fingerprint format"):
         actions.assign_key("sha256:lowercase", "alice")
 
 
 def test_actions_set_expiry_rejects_invalid_fingerprint_format():
     from datetime import datetime, timezone
-    with pytest.raises(ValueError, match="Invalid fingerprint format"):
+    with pytest.raises(UserError, match="Invalid fingerprint format"):
         actions.set_key_expiry("bad\nfingerprint", datetime.now(tz=timezone.utc))
 
 
 def test_actions_remove_expiry_rejects_invalid_fingerprint_format():
-    with pytest.raises(ValueError, match="Invalid fingerprint format"):
+    with pytest.raises(UserError, match="Invalid fingerprint format"):
         actions.remove_key_expiry("SHA256:bad/char!")
 
 
@@ -926,14 +927,14 @@ def test_actions_lock_user_success():
 
 
 def test_actions_lock_user_invalid_username():
-    with pytest.raises(ValueError, match="Invalid Unix username"):
+    with pytest.raises(UserError, match="Invalid Unix username"):
         actions.lock_user("bad user", "server-test-01", ADMIN_ID)
 
 
 def test_actions_lock_user_server_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="Server not found or inactive"):
+        with pytest.raises(UserError, match="Server not found or inactive"):
             actions.lock_user("alice", "unknown-server", ADMIN_ID)
 
 
@@ -951,21 +952,21 @@ def test_actions_unlock_user_success():
 
 
 def test_actions_unlock_user_invalid_username():
-    with pytest.raises(ValueError, match="Invalid Unix username"):
+    with pytest.raises(UserError, match="Invalid Unix username"):
         actions.unlock_user("bad@user", "server-test-01", ADMIN_ID)
 
 
 def test_actions_lock_user_ssh_user_raises():
     with patch("actions.ssh") as mock_ssh:
         mock_ssh.SSH_USER = "audit-collector"
-        with pytest.raises(ValueError, match="Cannot lock the collector account"):
+        with pytest.raises(UserError, match="Cannot lock the collector account"):
             actions.lock_user("audit-collector", "server-test-01", ADMIN_ID)
 
 
 def test_actions_unlock_user_ssh_user_raises():
     with patch("actions.ssh") as mock_ssh:
         mock_ssh.SSH_USER = "audit-collector"
-        with pytest.raises(ValueError, match="Cannot unlock the collector account"):
+        with pytest.raises(UserError, match="Cannot unlock the collector account"):
             actions.unlock_user("audit-collector", "server-test-01", ADMIN_ID)
 
 
@@ -1099,7 +1100,7 @@ def test_actions_validate_key_scoped_raises_if_server_not_found(sample_key):
             {"id": KEY_ID},  # ssh_keys found
             None,            # server not found
         ]
-        with pytest.raises(ValueError, match="Server not found"):
+        with pytest.raises(UserError, match="Server not found"):
             actions.validate_key(sample_key["fingerprint"], ADMIN_ID, unix_user="alice", hostname="unknown")
 
 
@@ -1135,25 +1136,25 @@ def test_actions_update_server_not_found():
     """Si le serveur n'existe pas, ValueError levée."""
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="Server not found"):
+        with pytest.raises(UserError, match="Server not found"):
             actions.update_server("unknown-server", "10.0.0.1", "lab", "rhel", ADMIN_ID)
 
 
 def test_actions_add_server_rejects_invalid_ip():
     for bad in ["notanip", "999.1.1.1", "192.168.1", "hello world"]:
-        with pytest.raises(ValueError, match="Invalid IP"):
+        with pytest.raises(UserError, match="Invalid IP"):
             actions.add_server("h", bad, "root", "x", "lab", None, 22, ADMIN_ID)
 
 
 def test_actions_update_server_rejects_invalid_ip():
-    with pytest.raises(ValueError, match="Invalid IP"):
+    with pytest.raises(UserError, match="Invalid IP"):
         actions.update_server("h", "not-an-ip", "lab", None, ADMIN_ID)
 
 
 def test_actions_add_server_rejects_duplicate_ip():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"hostname": "existing-server"}
-        with pytest.raises(ValueError, match="already used by server"):
+        with pytest.raises(UserError, match="already used by server"):
             actions.add_server("new-host", "10.0.0.1", "root", "x", "lab", None, 22, ADMIN_ID)
 
 
@@ -1161,7 +1162,7 @@ def test_actions_update_server_rejects_duplicate_ip():
     server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22}
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [server, {"hostname": "other-server"}]
-        with pytest.raises(ValueError, match="already used by server"):
+        with pytest.raises(UserError, match="already used by server"):
             actions.update_server("server-test-01", "10.0.0.2", "lab", None, 22, ADMIN_ID)
 
 
@@ -1171,26 +1172,26 @@ def test_actions_update_server_rejects_duplicate_ip():
 
 def test_actions_add_admin_empty_email_raises():
     with patch("actions.db") as mock_db:
-        with pytest.raises(ValueError, match="email required"):
+        with pytest.raises(UserError, match="email required"):
             actions.add_admin("user", "", "P@ssw0rd1!", None)
 
 
 def test_actions_add_admin_invalid_role_raises():
     with patch("actions.db") as mock_db:
-        with pytest.raises(ValueError, match="Invalid role"):
+        with pytest.raises(UserError, match="Invalid role"):
             actions.add_admin("user", "x@x.com", "P@ssw0rd1!", None, role="superadmin")
 
 
 def test_actions_update_admin_empty_email_raises():
     with patch("actions.db") as mock_db:
-        with pytest.raises(ValueError, match="email required"):
+        with pytest.raises(UserError, match="email required"):
             actions.update_admin("user", "", "operator", ADMIN_ID)
 
 
 def test_actions_update_admin_invalid_role_raises():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"id": ADMIN_ID, "email": "test@example.com", "role": "operator"}
-        with pytest.raises(ValueError, match="Invalid role"):
+        with pytest.raises(UserError, match="Invalid role"):
             actions.update_admin("user", "x@x.com", "superadmin", ADMIN_ID)
 
 
@@ -1222,7 +1223,7 @@ def test_actions_toggle_alerts_disable():
 def test_actions_toggle_alerts_unknown_admin_raises():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="Active admin not found"):
+        with pytest.raises(UserError, match="Active admin not found"):
             actions.toggle_alerts("ghost", True)
 
 
@@ -1258,12 +1259,12 @@ def test_actions_reset_password_works_for_disabled_admin():
 def test_actions_reset_password_raises_if_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
-        with pytest.raises(ValueError, match="Admin not found"):
+        with pytest.raises(UserError, match="Admin not found"):
             actions.reset_password("ghost", "N3wStr0ng#Pass!")
 
 
 def test_actions_reset_password_rejects_weak_password():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"id": ADMIN_ID}
-        with pytest.raises(ValueError):
+        with pytest.raises(UserError):
             actions.reset_password("alice", "weak")
