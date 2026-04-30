@@ -218,6 +218,53 @@ Lors du premier scan :
 
 ---
 
+## Dépannage — Problèmes de connexion SSH
+
+Si le provisionnement ou le scan d'un serveur distant échoue, les erreurs sont à chercher **dans deux endroits**.
+
+### 1. Logs du container SAM
+
+```bash
+podman logs sam-server
+# ou en temps réel
+podman logs -f sam-server
+```
+
+Les erreurs de connexion Paramiko (`AuthenticationException`, `NoValidConnectionsError`, `SSHException`) y sont tracées avec l'adresse IP et le port du serveur concerné.
+
+### 2. Logs SSH sur l'hôte distant
+
+La connexion SSH est journalisée côté serveur. Selon l'OS :
+
+```bash
+# systemd (RHEL, Debian, Ubuntu…)
+journalctl -u sshd -f
+
+# Fichier (Alpine, certaines configs custom)
+tail -f /var/log/auth.log
+# ou
+tail -f /var/log/secure
+```
+
+Ces logs indiquent si la connexion a été refusée (mauvaise clé, utilisateur inexistant, `MaxAuthTries` atteint, etc.).
+
+### 3. Prérequis sudo sur l'hôte distant
+
+**`sudo` est obligatoire** pour l'utilisateur `audit-collector` sur chaque serveur géré. Tous les scripts SAM (`sam-collect`, `sam-revoke`, `sam-add`, `sam-lock-user`, `sam-unlock-user`, `sam-sessions`) sont exécutés avec `sudo` via SSH.
+
+Le script `provision-host.sh` configure automatiquement les règles sudoers lors du provisionnement. Si sudo n'est pas disponible ou si les règles sont absentes, toutes les opérations distantes échoueront avec `Permission denied`.
+
+Pour vérifier la configuration sudoers sur l'hôte distant :
+
+```bash
+# Sur le serveur distant
+sudo -l -U audit-collector
+```
+
+La sortie doit inclure les commandes SAM (`/usr/local/bin/sam-*`) sans demande de mot de passe (`NOPASSWD`).
+
+---
+
 ## Workflow — Traitement des clés PENDING_REVIEW
 
 Après le premier scan, toutes les clés détectées sont en attente de validation.
