@@ -144,7 +144,7 @@ const savingSecurity = ref(false)
 const successSecurity = ref(false)
 const errorSecurity = ref('')
 
-const smtpEnabled = ref(false)
+const smtpEnabled = ref(true)
 const smtpTesting = ref(false)
 const smtpSuccess = ref('')
 const smtpError = ref('')

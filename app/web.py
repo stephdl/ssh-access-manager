@@ -424,14 +424,15 @@ def get_server_sessions(hostname):
 @require_role("sysadmin", "operator")
 def refresh_server_sessions(hostname):
     server = db.query_one(
-        "SELECT id, host(ip_address) AS ip_address FROM servers WHERE hostname = %s AND is_active = true",
+        "SELECT id, host(ip_address) AS ip_address, ssh_port FROM servers WHERE hostname = %s AND is_active = true",
         (hostname,),
     )
     if not server:
         return jsonify({"error": "Server not found or inactive"}), 404
     ip = str(server["ip_address"])
+    port = server.get("ssh_port") or 22
     try:
-        ssh.collect_sessions_on_server(hostname, server["id"], ip)
+        ssh.collect_sessions_on_server(hostname, server["id"], ip, port=port)
         return jsonify({"status": "refreshed"})
     except RuntimeError as e:
         logging.warning("collect_sessions_on_server failed on %s (%s): %s", hostname, ip, e)
@@ -1086,7 +1087,10 @@ def get_collector_key():
 @require_auth
 def get_config():
     rows = db.query("SELECT key, value FROM settings")
-    return jsonify({r["key"]: r["value"] for r in rows})
+    data = {r["key"]: r["value"] for r in rows}
+    _smtp_env = os.environ.get("SMTP_ENABLED", "1")
+    data["smtp_enabled"] = _smtp_env not in ("", "0")
+    return jsonify(data)
 
 
 @app.route("/api/system/config", methods=["PUT"])

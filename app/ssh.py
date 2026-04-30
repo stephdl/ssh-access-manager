@@ -407,8 +407,20 @@ def _is_valid_ip(s: str) -> bool:
 
 def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int = 22) -> None:
     """Collect SSH sessions via sam-sessions and upsert into ssh_sessions table."""
+    import socket
     from datetime import datetime, timezone
-    client = _connect(ip, port)
+    try:
+        client = _connect(ip, port)
+    except paramiko.AuthenticationException:
+        raise RuntimeError("Authentication failed — check collector key authorization")
+    except paramiko.SSHException as exc:
+        raise RuntimeError(f"SSH error connecting to {hostname}: {exc}")
+    except socket.timeout:
+        raise RuntimeError("Connection timed out — server did not respond within 15 seconds")
+    except OSError as exc:
+        if "Connection refused" in str(exc):
+            raise RuntimeError("Server unreachable — check the IP and network connectivity")
+        raise RuntimeError(f"Connection failed: {exc}")
     try:
         out, _, rc = _run(client, f"sudo {SAM_SESSIONS_PATH}")
         if rc != 0:
