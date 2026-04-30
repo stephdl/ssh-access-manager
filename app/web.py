@@ -14,6 +14,7 @@ from flask import Flask, g, jsonify, request, session
 from werkzeug.security import check_password_hash
 
 import actions
+from actions import UserError
 import alerts
 import collect as collect_mod
 import db
@@ -286,12 +287,12 @@ def add_server():
         return jsonify(server), 201
     except KeyError as e:
         return jsonify({"error": f"Missing field: {e}"}), 400
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
     except RuntimeError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": str(e), "error_code": _ssh_error_code(str(e))}), 422
+        return jsonify({"error": "SSH operation failed", "error_code": _ssh_error_code(str(e))}), 422
 
 
 @app.route("/api/servers/<hostname>/provision", methods=["POST"])
@@ -312,10 +313,11 @@ def provision_server_route(hostname):
     try:
         actions.provision_server(hostname, ssh_user, ssh_password, ssh_port, g.admin_id)
         return jsonify({"message": "Server provisioned successfully"})
-    except ValueError as exc:
+    except UserError as exc:
         return jsonify({"error": str(exc)}), 404
     except RuntimeError as exc:
-        return jsonify({"error": str(exc), "error_code": _ssh_error_code(str(exc))}), 422
+        logging.warning("%s", str(exc).replace("\n", "\\n").replace("\r", "\\r"))
+        return jsonify({"error": "SSH operation failed", "error_code": _ssh_error_code(str(exc))}), 422
 
 
 @app.route("/api/servers/<hostname>", methods=["PUT"])
@@ -329,9 +331,12 @@ def update_server(hostname):
             data.get("os_family"), data.get("ssh_port", 22), g.admin_id,
         )
         return jsonify({"message": "Server updated"})
-    except (KeyError, ValueError) as e:
+    except KeyError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": str(e)}), 404 if isinstance(e, ValueError) else 400
+        return jsonify({"error": str(e)}), 400
+    except UserError as e:
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+        return jsonify({"error": str(e)}), 404
 
 
 @app.route("/api/servers/<hostname>/disable", methods=["PUT"])
@@ -341,7 +346,7 @@ def disable_server(hostname):
     try:
         actions.disable_server(hostname, g.admin_id)
         return jsonify({"status": "disabled"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -353,7 +358,7 @@ def enable_server(hostname):
     try:
         actions.enable_server(hostname, g.admin_id)
         return jsonify({"status": "enabled"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -365,7 +370,7 @@ def delete_server(hostname):
     try:
         actions.delete_server(hostname, g.admin_id)
         return jsonify({"status": "deleted"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -432,9 +437,9 @@ def refresh_server_sessions(hostname):
     try:
         ssh.collect_sessions_on_server(hostname, server["id"], ip)
         return jsonify({"status": "refreshed"})
-    except Exception as e:
+    except Exception:
         logging.exception("collect_sessions_on_server failed on %s (%s)", hostname, ip)
-        return jsonify({"error": str(e) or repr(e)}), 502
+        return jsonify({"error": "Internal server error"}), 502
 
 
 @app.route("/api/servers/<hostname>/sessions/history", methods=["GET"])
@@ -538,7 +543,7 @@ def validate_key(fingerprint):
     try:
         actions.validate_key(fingerprint, g.admin_id, unix_user=unix_user, hostname=hostname)
         return jsonify({"status": "validated"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -556,7 +561,7 @@ def revoke_key(fingerprint):
     try:
         actions.revoke_key(fingerprint, g.admin_id, reason, hostname=hostname, unix_user=unix_user)
         return jsonify({"status": "revoked"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -569,7 +574,10 @@ def assign_key(fingerprint):
     try:
         actions.assign_key(fingerprint, data["owner_name"])
         return jsonify({"status": "assigned"})
-    except (KeyError, ValueError) as e:
+    except KeyError as e:
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+        return jsonify({"error": str(e)}), 400
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
 
@@ -588,7 +596,7 @@ def set_key_expiry(fingerprint):
     try:
         actions.set_key_expiry(fingerprint, expires_at)
         return jsonify({"status": "expiry set", "expires_at": expires_at.isoformat()})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -600,7 +608,7 @@ def remove_key_expiry(fingerprint):
     try:
         actions.remove_key_expiry(fingerprint)
         return jsonify({"status": "expiry removed"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -651,7 +659,10 @@ def grant_access():
         )
         result["expires_at"] = result["expires_at"].isoformat()
         return jsonify(result), 201
-    except (KeyError, ValueError) as e:
+    except KeyError as e:
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+        return jsonify({"error": str(e)}), 400
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
 
@@ -694,12 +705,12 @@ def api_deploy_key():
             admin_id=g.admin_id,
         )
         return jsonify(result), 201
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
-    except Exception as e:
+    except Exception:
         logging.exception("deploy_key failed")
-        return jsonify({"error": "internal server error"}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/access/lock-user", methods=["POST"])
@@ -714,12 +725,12 @@ def api_lock_user():
     try:
         result = actions.lock_user(unix_user, hostname, g.admin_id)
         return jsonify(result), 200
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
     except Exception:
         logging.exception("lock_user failed")
-        return jsonify({"error": "internal server error"}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/access/unlock-user", methods=["POST"])
@@ -734,12 +745,12 @@ def api_unlock_user():
     try:
         result = actions.unlock_user(unix_user, hostname, g.admin_id)
         return jsonify(result), 200
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
     except Exception:
         logging.exception("unlock_user failed")
-        return jsonify({"error": "internal server error"}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/api/access/deployed-users", methods=["GET"])
@@ -803,9 +814,15 @@ def request_access():
             ),
         )
         return jsonify({"status": "requested"}), 201
-    except (KeyError, Exception) as e:
-        logging.exception("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+    except KeyError as e:
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
+    except UserError as e:
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+        return jsonify({"error": str(e)}), 400
+    except Exception:
+        logging.exception("request_access failed")
+        return jsonify({"error": "Internal server error"}), 400
 
 
 @app.route("/api/access/<request_id>/approve", methods=["POST"])
@@ -815,7 +832,7 @@ def approve_request(request_id):
     try:
         actions.approve_request(request_id, g.admin_id)
         return jsonify({"status": "approved"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -827,7 +844,7 @@ def reject_request(request_id):
     try:
         actions.reject_request(request_id, g.admin_id)
         return jsonify({"status": "rejected"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -839,7 +856,7 @@ def revoke_request(request_id):
     try:
         actions.revoke_request(request_id, g.admin_id)
         return jsonify({"status": "revoked"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -870,9 +887,15 @@ def add_admin():
             role=data.get("role", "operator"),
         )
         return jsonify(admin), 201
-    except (KeyError, Exception) as e:
-        logging.exception("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+    except KeyError as e:
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
+    except UserError as e:
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+        return jsonify({"error": str(e)}), 400
+    except Exception:
+        logging.exception("add_admin failed")
+        return jsonify({"error": "Internal server error"}), 400
 
 
 @app.route("/api/admins/<username>", methods=["PUT"])
@@ -887,7 +910,7 @@ def update_admin(username):
     try:
         result = actions.update_admin(username, email, role, g.admin_id)
         return jsonify({"message": "Admin updated"})
-    except ValueError as e:
+    except UserError as e:
         err_msg = str(e)
         logging.warning("%s", err_msg.replace("\n", "\\n").replace("\r", "\\r"))
         if "own role" in err_msg:
@@ -907,7 +930,7 @@ def change_admin_password(username):
     try:
         actions.change_password(username, password)
         return jsonify({"status": "updated"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -927,7 +950,7 @@ def disable_admin(username):
     try:
         actions.disable_admin(username, g.admin_id)
         return jsonify({"status": "disabled"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -941,7 +964,7 @@ def enable_admin(username):
     try:
         actions.enable_admin(username, g.admin_id)
         return jsonify({"status": "enabled"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 404
 
@@ -955,7 +978,7 @@ def delete_admin(username):
     try:
         actions.delete_admin(username, g.admin_id)
         return jsonify({"status": "deleted"})
-    except ValueError as e:
+    except UserError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
         return jsonify({"error": str(e)}), 400
 
@@ -971,7 +994,7 @@ def toggle_admin_alerts(username):
     try:
         result = actions.toggle_alerts(username, receive_alerts)
         return jsonify(result)
-    except ValueError as e:
+    except UserError as e:
         return jsonify({"error": str(e)}), 404
 
 
@@ -1174,7 +1197,8 @@ def test_smtp():
     except FileNotFoundError:
         return jsonify({"error": "msmtp not found on this system"}), 500
     except RuntimeError as e:
-        return jsonify({"error": str(e)}), 502
+        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
+        return jsonify({"error": "SMTP test failed"}), 502
 
 
 if __name__ == "__main__":

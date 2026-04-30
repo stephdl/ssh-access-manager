@@ -10,6 +10,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import web
+from actions import UserError
 
 ADMIN_ID = str(uuid.uuid4())
 KEY_ID = str(uuid.uuid4())
@@ -214,7 +215,7 @@ def test_web_revoke_key_returns_401_if_not_authenticated(client):
 def test_web_revoke_key_returns_404_if_key_not_found(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.revoke_key.side_effect = ValueError("Key not found")
+        mock_actions.revoke_key.side_effect = UserError("Key not found")
         resp = auth_client.post(
             f"/api/keys/revoke/{FINGERPRINT}",
             json={"reason": "x"},
@@ -379,7 +380,7 @@ def test_web_update_server_unauthenticated_returns_401(client):
 def test_web_update_server_not_found_returns_404(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.update_server.side_effect = ValueError("Server not found")
+        mock_actions.update_server.side_effect = UserError("Server not found")
         resp = auth_client.put(
             "/api/servers/ghost",
             json={"ip": "10.0.0.2", "environment": "lab"},
@@ -402,7 +403,7 @@ def test_web_enable_server_returns_200(auth_client):
 def test_web_enable_server_returns_404_if_not_found(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.enable_server.side_effect = ValueError("not found")
+        mock_actions.enable_server.side_effect = UserError("not found")
         resp = auth_client.put("/api/servers/ghost/enable")
         assert resp.status_code == 404
 
@@ -422,7 +423,7 @@ def test_web_delete_server_returns_200(auth_client):
 def test_web_delete_server_returns_404_if_not_found(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.delete_server.side_effect = ValueError("not found")
+        mock_actions.delete_server.side_effect = UserError("not found")
         resp = auth_client.delete("/api/servers/ghost")
         assert resp.status_code == 404
 
@@ -470,7 +471,7 @@ def test_web_provision_server_invalid_port(auth_client):
 def test_web_provision_server_not_found(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.provision_server.side_effect = ValueError("Server not found")
+        mock_actions.provision_server.side_effect = UserError("Server not found")
         resp = auth_client.post(
             "/api/servers/ghost/provision",
             json={"ssh_user": "root", "ssh_password": "secret", "ssh_port": 22},
@@ -727,7 +728,7 @@ def test_web_delete_admin_self_returns_403(auth_client):
 def test_web_delete_admin_with_references_returns_400(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.delete_admin.side_effect = ValueError("existing audit records reference this account")
+        mock_actions.delete_admin.side_effect = UserError("existing audit records reference this account")
         resp = auth_client.delete("/api/admins/someuser")
         assert resp.status_code == 400
 
@@ -764,7 +765,7 @@ def test_web_update_admin_returns_401_unauthenticated(client):
 def test_web_update_admin_returns_404_not_found(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.update_admin.side_effect = ValueError("Admin not found: ghost")
+        mock_actions.update_admin.side_effect = UserError("Admin not found: ghost")
         resp = auth_client.put("/api/admins/ghost", json={
             "email": "new@example.com",
             "role": "operator"
@@ -775,7 +776,7 @@ def test_web_update_admin_returns_404_not_found(auth_client):
 def test_web_update_admin_returns_403_self_role(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.update_admin.side_effect = ValueError("Cannot change your own role")
+        mock_actions.update_admin.side_effect = UserError("Cannot change your own role")
         resp = auth_client.put("/api/admins/admin", json={
             "email": "admin@example.com",
             "role": "operator"
@@ -1029,7 +1030,7 @@ def test_web_log_injection_newlines_sanitized_in_warning(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions, \
          patch("web.logging") as mock_logging:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.revoke_key.side_effect = ValueError(
+        mock_actions.revoke_key.side_effect = UserError(
             "Key not found: SHA256:test\nWARNING:root:FAKE_ALERT"
         )
         resp = auth_client.post(
@@ -1048,7 +1049,7 @@ def test_web_log_injection_carriage_return_sanitized(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions, \
          patch("web.logging") as mock_logging:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.revoke_key.side_effect = ValueError(
+        mock_actions.revoke_key.side_effect = UserError(
             "Key not found: SHA256:test\rINJECTED"
         )
         resp = auth_client.post(
@@ -1341,7 +1342,7 @@ def test_web_toggle_alerts_non_bool_returns_400(auth_client):
 def test_web_toggle_alerts_unknown_admin_returns_404(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.toggle_alerts.side_effect = ValueError("Active admin not found")
+        mock_actions.toggle_alerts.side_effect = UserError("Active admin not found")
         resp = auth_client.put("/api/admins/ghost/alerts", json={"receive_alerts": True})
     assert resp.status_code == 404
 
@@ -1388,7 +1389,7 @@ def test_web_test_smtp_returns_502_on_msmtp_error(auth_client):
         mock_alerts.send_test_email.side_effect = RuntimeError("connection refused")
         resp = auth_client.post("/api/system/test-smtp")
     assert resp.status_code == 502
-    assert "connection refused" in resp.get_json()["error"]
+    assert resp.get_json()["error"] == "SMTP test failed"
 
 
 def test_web_test_smtp_returns_500_when_msmtp_not_found(auth_client):
