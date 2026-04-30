@@ -33,6 +33,7 @@ function mockAuth() {
       admin: { value: { username: 'admin', role: 'sysadmin' } },
       logout: vi.fn(),
     }),
+    apiFetch: async (url, options = {}) => global.fetch(url, options),
   }))
 }
 

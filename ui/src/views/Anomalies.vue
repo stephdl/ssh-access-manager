@@ -82,7 +82,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAuth } from '../composables/useAuth.js'
+import { useAuth, apiFetch } from '../composables/useAuth.js'
 import AnomaliesTable from '../components/AnomaliesTable.vue'
 
 const { t } = useI18n()
@@ -115,7 +115,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const res = await fetch('/api/keys')
+    const res = await apiFetch('/api/keys')
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     allKeys.value = await res.json()
   } catch (e) {
@@ -157,7 +157,7 @@ async function apiAction(url, body, successMsg) {
   error.value = ''
   message.value = ''
   try {
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

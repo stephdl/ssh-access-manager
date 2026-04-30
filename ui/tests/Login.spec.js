@@ -11,6 +11,7 @@ vi.mock('../src/composables/useAuth.js', () => ({
   useAuth: () => ({
     login: loginMock,
   }),
+  apiFetch: async (url, options = {}) => global.fetch(url, options),
 }))
 
 const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })

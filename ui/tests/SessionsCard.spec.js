@@ -12,6 +12,10 @@ const i18n = createI18n({
 
 global.fetch = vi.fn()
 
+vi.mock('../src/composables/useAuth.js', () => ({
+  apiFetch: async (url, options = {}) => global.fetch(url, options),
+}))
+
 describe('SessionsCard.vue', () => {
   beforeEach(() => {
     fetch.mockReset()
@@ -63,7 +67,7 @@ describe('SessionsCard.vue', () => {
     await new Promise((r) => setTimeout(r, 10))
 
     expect(wrapper.find('h2').text()).toContain('SSH Sessions')
-    expect(fetch).toHaveBeenCalledWith('/api/servers/server01/sessions')
+    expect(fetch).toHaveBeenCalledWith('/api/servers/server01/sessions', {})
   })
 
   it('renders when currentRole is operator', async () => {
@@ -107,7 +111,7 @@ describe('SessionsCard.vue', () => {
 
     await new Promise((r) => setTimeout(r, 10))
 
-    expect(fetch).toHaveBeenCalledWith('/api/servers/server04/sessions')
+    expect(fetch).toHaveBeenCalledWith('/api/servers/server04/sessions', {})
   })
 
   it('shows active sessions table when active sessions exist', async () => {
@@ -258,7 +262,7 @@ describe('SessionsCard.vue', () => {
 
     expect(wrapper.find('.modal').exists()).toBe(true)
     expect(wrapper.find('.modal h3').text()).toContain('Session History')
-    expect(fetch).toHaveBeenCalledWith('/api/servers/server10/sessions/history')
+    expect(fetch).toHaveBeenCalledWith('/api/servers/server10/sessions/history', {})
   })
 
   it('auto-loads history with data when modal is opened', async () => {
@@ -334,7 +338,8 @@ describe('SessionsCard.vue', () => {
     await flushPromises()
 
     expect(fetch).toHaveBeenCalledWith(
-      '/api/servers/server11/sessions/history?user=dave&ip=192.168.1.200&since=2026-04-01'
+      '/api/servers/server11/sessions/history?user=dave&ip=192.168.1.200&since=2026-04-01',
+      {}
     )
     expect(wrapper.vm.historyData).toHaveLength(1)
     expect(wrapper.vm.historyData[0].unix_user).toBe('dave')

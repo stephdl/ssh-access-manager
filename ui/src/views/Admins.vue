@@ -464,7 +464,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuth } from '../composables/useAuth'
+import { useAuth, apiFetch } from '../composables/useAuth'
 import AdminsTable from '../components/AdminsTable.vue'
 
 const { t } = useI18n()
@@ -539,7 +539,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [adminsRes, meRes] = await Promise.all([fetch('/api/admins'), fetch('/api/auth/me')])
+    const [adminsRes, meRes] = await Promise.all([apiFetch('/api/admins'), fetch('/api/auth/me')])
     if (!adminsRes.ok) throw new Error(`HTTP ${adminsRes.status}`)
     admins.value = await adminsRes.json()
     if (meRes.ok) {
@@ -559,7 +559,7 @@ async function submitAdd() {
   error.value = ''
   message.value = ''
   try {
-    const res = await fetch('/api/admins', {
+    const res = await apiFetch('/api/admins', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -600,7 +600,7 @@ function openDelete(username) {
 async function toggleAlerts(username, receive_alerts) {
   error.value = ''
   try {
-    const res = await fetch(`/api/admins/${username}/alerts`, {
+    const res = await apiFetch(`/api/admins/${username}/alerts`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ receive_alerts }),
@@ -624,7 +624,7 @@ async function confirmDisable() {
   error.value = ''
   message.value = ''
   try {
-    const res = await fetch(`/api/admins/${username}/disable`, { method: 'PUT' })
+    const res = await apiFetch(`/api/admins/${username}/disable`, { method: 'PUT' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || `HTTP ${res.status}`)
@@ -642,7 +642,7 @@ async function confirmEnable() {
   error.value = ''
   message.value = ''
   try {
-    const res = await fetch(`/api/admins/${username}/enable`, { method: 'PUT' })
+    const res = await apiFetch(`/api/admins/${username}/enable`, { method: 'PUT' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || `HTTP ${res.status}`)
@@ -660,7 +660,7 @@ async function confirmDelete() {
   error.value = ''
   message.value = ''
   try {
-    const res = await fetch(`/api/admins/${username}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/admins/${username}`, { method: 'DELETE' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || `HTTP ${res.status}`)
@@ -696,7 +696,7 @@ async function confirmEditPassword() {
   error.value = ''
   message.value = ''
   try {
-    const res = await fetch(`/api/admins/${username}/password`, {
+    const res = await apiFetch(`/api/admins/${username}/password`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
@@ -734,7 +734,7 @@ async function confirmEdit() {
   error.value = ''
   message.value = ''
   try {
-    const res = await fetch(`/api/admins/${username}`, {
+    const res = await apiFetch(`/api/admins/${username}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, role }),

@@ -139,6 +139,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { apiFetch } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
 
 const { t } = useI18n()
@@ -163,7 +164,7 @@ const result = ref(null)
 onMounted(async () => {
   serversLoading.value = true
   try {
-    const res = await fetch('/api/servers')
+    const res = await apiFetch('/api/servers')
     if (res.ok) {
       const data = await res.json()
       servers.value = data.filter((s) => s.is_active)
@@ -233,7 +234,7 @@ async function submit() {
   }
 
   try {
-    const res = await fetch('/api/access/deploy', {
+    const res = await apiFetch('/api/access/deploy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

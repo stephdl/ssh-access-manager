@@ -8,6 +8,7 @@ const mockAdmin = vi.hoisted(() => ({ value: { username: 'admin', role: 'sysadmi
 
 vi.mock('../src/composables/useAuth.js', () => ({
   useAuth: () => ({ admin: mockAdmin }),
+  apiFetch: async (url, options = {}) => global.fetch(url, options),
 }))
 
 const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
@@ -61,7 +62,7 @@ describe('DeployedUsersTable', () => {
     const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
-    expect(fetchSpy).toHaveBeenCalledWith('/api/access/deployed-users')
+    expect(fetchSpy).toHaveBeenCalledWith('/api/access/deployed-users', {})
     expect(w.find('[data-testid="table-deployed-users"]').exists()).toBe(true)
   })
 

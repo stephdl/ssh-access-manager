@@ -126,7 +126,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAuth } from '../composables/useAuth.js'
+import { useAuth, apiFetch } from '../composables/useAuth.js'
 
 const { t } = useI18n()
 const { admin } = useAuth()
@@ -150,7 +150,7 @@ const smtpError = ref('')
 
 onMounted(async () => {
   try {
-    const res = await fetch('/api/system/config')
+    const res = await apiFetch('/api/system/config')
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     intervalHours.value = parseInt(data.scan_interval_hours)
@@ -168,7 +168,7 @@ async function testSmtp() {
   smtpSuccess.value = ''
   smtpError.value = ''
   try {
-    const res = await fetch('/api/system/test-smtp', { method: 'POST' })
+    const res = await apiFetch('/api/system/test-smtp', { method: 'POST' })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
     smtpSuccess.value = t('settings.smtp_sent', { to: data.to })
@@ -205,7 +205,7 @@ async function save() {
   error.value = ''
 
   try {
-    const res = await fetch('/api/system/config', {
+    const res = await apiFetch('/api/system/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -246,7 +246,7 @@ async function saveSecurity() {
   errorSecurity.value = ''
 
   try {
-    const res = await fetch('/api/system/config', {
+    const res = await apiFetch('/api/system/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -280,7 +280,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAuth } from '../composables/useAuth.js'
+import { useAuth, apiFetch } from '../composables/useAuth.js'
 import ServerTable from '../components/ServerTable.vue'
 
 const { t, te } = useI18n()
@@ -382,7 +382,7 @@ const editFormValid = computed(
 
 async function loadCollectorKey() {
   try {
-    const res = await fetch('/api/system/collector-key')
+    const res = await apiFetch('/api/system/collector-key')
     if (res.ok) {
       const data = await res.json()
       collectorKey.value = data.public_key
@@ -424,7 +424,7 @@ async function confirmAddServer() {
   adding.value = true
   addError.value = ''
   try {
-    const res = await fetch('/api/servers', {
+    const res = await apiFetch('/api/servers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -457,7 +457,7 @@ async function loadServers() {
   loading.value = true
   error.value = ''
   try {
-    const res = await fetch('/api/servers')
+    const res = await apiFetch('/api/servers')
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     servers.value = await res.json()
   } catch (e) {
@@ -480,7 +480,7 @@ async function triggerScan(url, hostname) {
   scanMessage.value = ''
   error.value = ''
   try {
-    const res = await fetch(url, { method: 'POST' })
+    const res = await apiFetch(url, { method: 'POST' })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     scanMessage.value = hostname
       ? t('dashboard.scan_success', { hostname })
@@ -513,7 +513,7 @@ async function confirmEditServer() {
   editing.value = true
   editError.value = ''
   try {
-    const res = await fetch(`/api/servers/${editForm.value.hostname}`, {
+    const res = await apiFetch(`/api/servers/${editForm.value.hostname}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

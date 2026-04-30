@@ -170,6 +170,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { apiFetch } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
 import PaginationBar from './PaginationBar.vue'
@@ -218,7 +219,7 @@ async function loadSessions() {
   loading.value = true
   error.value = ''
   try {
-    const res = await fetch(`/api/servers/${props.hostname}/sessions`)
+    const res = await apiFetch(`/api/servers/${props.hostname}/sessions`)
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
     }
@@ -238,7 +239,9 @@ async function refreshSessions() {
   refreshing.value = true
   error.value = ''
   try {
-    const res = await fetch(`/api/servers/${props.hostname}/sessions/refresh`, { method: 'POST' })
+    const res = await apiFetch(`/api/servers/${props.hostname}/sessions/refresh`, {
+      method: 'POST',
+    })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || `HTTP ${res.status}`)
@@ -261,7 +264,7 @@ async function loadHistory() {
     if (filterSince.value) params.append('since', filterSince.value)
 
     const url = `/api/servers/${props.hostname}/sessions/history${params.toString() ? '?' + params.toString() : ''}`
-    const res = await fetch(url)
+    const res = await apiFetch(url)
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`)
     }
