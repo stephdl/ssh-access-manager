@@ -146,7 +146,6 @@
                 <input
                   v-model="addForm.sshPassword"
                   :type="showAddPassword ? 'text' : 'password'"
-                  :placeholder="$t('add_server.ssh_password_placeholder')"
                 />
                 <button
                   type="button"
@@ -186,6 +185,7 @@
               </div>
             </div>
           </div>
+          <p class="hint">{{ $t('add_server.ssh_password_optional_hint') }}</p>
           <p class="password-disclaimer">🔒 {{ $t('add_server.ssh_password_disclaimer') }}</p>
         </div>
 

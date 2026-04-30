@@ -60,7 +60,7 @@
     "ssh_user_label": "SSH-Benutzer",
     "ssh_port_label": "SSH-Port",
     "ssh_password_label": "SSH-Passwort",
-    "ssh_password_placeholder": "Leer lassen, wenn bereits bereitgestellt",
+    "ssh_password_optional_hint": "Leer lassen, wenn der Collector-Schlüssel bereits manuell bereitgestellt wurde (ssh-copy-id oder provision-host.sh).",
     "ssh_password_disclaimer": "Das SSH-Passwort wird nur für diesen Bereitstellungsschritt verwendet und niemals gespeichert.",
     "errors": {
       "SSH_AUTH_FAILED": "Authentifizierung fehlgeschlagen — Benutzername und Passwort prüfen.",
@@ -152,7 +152,8 @@
     "reprovision_ssh_port": "SSH-Port",
     "reprovision_submit": "Neu bereitstellen",
     "reprovision_submitting": "Verbindung…",
-    "reprovision_success": "Server erfolgreich neu bereitgestellt."
+    "reprovision_success": "Server erfolgreich neu bereitgestellt.",
+    "reprovision_password_optional_hint": "Leer lassen, wenn der Collector-Schlüssel bereits manuell bereitgestellt wurde (ssh-copy-id oder provision-host.sh)."
   },
   "key_table": {
     "col_status": "Status",

@@ -60,7 +60,7 @@
     "ssh_user_label": "SSH User",
     "ssh_port_label": "SSH Port",
     "ssh_password_label": "SSH Password",
-    "ssh_password_placeholder": "Leave empty if already provisioned",
+    "ssh_password_optional_hint": "Leave empty if the collector key was already deployed manually (ssh-copy-id or provision-host.sh).",
     "ssh_password_disclaimer": "The SSH password is used only for this provisioning step and is never stored.",
     "errors": {
       "SSH_AUTH_FAILED": "Authentication failed — check your username and password.",
@@ -152,7 +152,8 @@
     "reprovision_ssh_port": "SSH Port",
     "reprovision_submit": "Re-provision",
     "reprovision_submitting": "Connecting…",
-    "reprovision_success": "Server re-provisioned successfully."
+    "reprovision_success": "Server re-provisioned successfully.",
+    "reprovision_password_optional_hint": "Leave empty if the collector key was already deployed manually (ssh-copy-id or provision-host.sh)."
   },
   "key_table": {
     "col_status": "Status",
