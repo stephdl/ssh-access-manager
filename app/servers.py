@@ -1,3 +1,4 @@
+import ipaddress
 import os
 import subprocess
 
@@ -26,6 +27,7 @@ def _hostname_in_known_hosts(hostname: str, known_hosts: str = KNOWN_HOSTS) -> b
 
 def add_to_known_hosts(ip: str, port: int = 22, known_hosts: str = KNOWN_HOSTS) -> None:
     """Run ssh-keyscan on ip (and port) and append to known_hosts if not present."""
+    ip = str(ipaddress.ip_address(ip.strip()))
     if _hostname_in_known_hosts(ip, known_hosts):
         return
     cmd = ["ssh-keyscan", "-H", "-T", "10"]

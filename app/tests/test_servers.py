@@ -63,11 +63,11 @@ def test_servers_load_yml_missing_file_raises():
 
 def test_servers_add_known_hosts_skips_if_already_present():
     with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
-        f.write("|1|abc= ssh-ed25519 AAAA server-prod-01\n")
+        f.write("|1|abc= ssh-ed25519 AAAA 192.168.1.10\n")
         path = f.name
     try:
         with patch("subprocess.run") as mock_run:
-            servers.add_to_known_hosts("server-prod-01", known_hosts=path)
+            servers.add_to_known_hosts("192.168.1.10", known_hosts=path)
             mock_run.assert_not_called()
     finally:
         os.unlink(path)
@@ -81,11 +81,11 @@ def test_servers_add_known_hosts_calls_ssh_keyscan_if_absent():
             mock_run.return_value = MagicMock(
                 stdout="|1|hash= ssh-ed25519 AAAA\n", returncode=0
             )
-            servers.add_to_known_hosts("new-host", known_hosts=path)
+            servers.add_to_known_hosts("10.0.0.1", known_hosts=path)
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             assert "ssh-keyscan" in args
-            assert "new-host" in args
+            assert "10.0.0.1" in args
             assert "-p" not in args
     finally:
         os.unlink(path)
@@ -99,11 +99,11 @@ def test_servers_add_known_hosts_uses_custom_port():
             mock_run.return_value = MagicMock(
                 stdout="|1|hash= ssh-ed25519 AAAA\n", returncode=0
             )
-            servers.add_to_known_hosts("new-host", port=65500, known_hosts=path)
+            servers.add_to_known_hosts("10.0.0.1", port=65500, known_hosts=path)
             args = mock_run.call_args[0][0]
             assert "-p" in args
             assert "65500" in args
-            assert "new-host" in args
+            assert "10.0.0.1" in args
     finally:
         os.unlink(path)
 
@@ -114,12 +114,12 @@ def test_servers_add_known_hosts_appends_output_to_file():
     try:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
-                stdout="|1|hash= ssh-ed25519 KEY new-host\n", returncode=0
+                stdout="|1|hash= ssh-ed25519 KEY 10.0.0.1\n", returncode=0
             )
-            servers.add_to_known_hosts("new-host", known_hosts=path)
+            servers.add_to_known_hosts("10.0.0.1", known_hosts=path)
         with open(path) as f:
             content = f.read()
-        assert "new-host" in content
+        assert "10.0.0.1" in content
     finally:
         os.unlink(path)
 
