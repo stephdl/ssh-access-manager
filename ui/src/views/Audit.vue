@@ -12,6 +12,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { apiFetch } from '../composables/useAuth.js'
 import AuditTable from '../components/AuditTable.vue'
 
 const { t } = useI18n()
@@ -25,7 +26,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const res = await fetch('/api/audit')
+    const res = await apiFetch('/api/audit')
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     entries.value = await res.json()
   } catch (e) {

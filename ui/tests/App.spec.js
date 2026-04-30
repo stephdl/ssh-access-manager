@@ -43,6 +43,7 @@ vi.mock('../src/composables/useAuth.js', () => ({
     admin: mockAdmin,
     logout: vi.fn(),
   }),
+  apiFetch: async (url, options = {}) => global.fetch(url, options),
 }))
 
 describe('App.vue — SMTP banner', () => {

@@ -170,7 +170,7 @@
 import { ref, computed, onMounted, defineExpose } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAuth } from '../composables/useAuth.js'
+import { useAuth, apiFetch } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
 import { useSort } from '../composables/useSort.js'
@@ -222,7 +222,7 @@ async function loadUsers() {
   loading.value = true
   loadError.value = ''
   try {
-    const res = await fetch('/api/access/deployed-users')
+    const res = await apiFetch('/api/access/deployed-users')
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || `HTTP ${res.status}`)
@@ -259,7 +259,7 @@ async function performAction(user, endpoint, actionType) {
   errorMessages.value[key] = ''
 
   try {
-    const res = await fetch(endpoint, {
+    const res = await apiFetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ unix_user: user.unix_user, hostname: user.hostname }),

@@ -320,7 +320,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAuth } from '../composables/useAuth.js'
+import { useAuth, apiFetch } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import KeyTable from '../components/KeyTable.vue'
 import SessionsCard from '../components/SessionsCard.vue'
@@ -366,8 +366,8 @@ async function load() {
   error.value = ''
   try {
     const [sRes, kRes] = await Promise.all([
-      fetch(`/api/servers/${hostname}`),
-      fetch(`/api/keys?server=${hostname}`),
+      apiFetch(`/api/servers/${hostname}`),
+      apiFetch(`/api/keys?server=${hostname}`),
     ])
     if (!sRes.ok) throw new Error(t('server_detail.load_error', { status: sRes.status }))
     server.value = await sRes.json()
@@ -402,7 +402,7 @@ async function deleteServer() {
   showDeleteModal.value = false
   error.value = ''
   try {
-    const res = await fetch(`/api/servers/${hostname}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/servers/${hostname}`, { method: 'DELETE' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error || `HTTP ${res.status}`)
@@ -418,7 +418,7 @@ async function scanServer() {
   message.value = ''
   error.value = ''
   try {
-    const res = await fetch(`/api/servers/${hostname}/scan`, { method: 'POST' })
+    const res = await apiFetch(`/api/servers/${hostname}/scan`, { method: 'POST' })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     message.value = t('server_detail.scan_success')
     await load()
@@ -504,7 +504,7 @@ async function apiAction(url, body, method = 'POST', successMsg) {
   error.value = ''
   message.value = ''
   try {
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: body != null ? JSON.stringify(body) : undefined,
@@ -530,7 +530,7 @@ async function confirmReprovision() {
   reprovisioning.value = true
   reprovisionError.value = ''
   try {
-    const res = await fetch(`/api/servers/${hostname}/provision`, {
+    const res = await apiFetch(`/api/servers/${hostname}/provision`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

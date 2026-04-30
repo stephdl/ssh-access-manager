@@ -54,6 +54,7 @@ vi.mock('../src/composables/useAuth.js', () => ({
     login: vi.fn(),
     logout: vi.fn(),
   }),
+  apiFetch: async (url, options = {}) => global.fetch(url, options),
 }))
 
 describe('Settings.vue', () => {

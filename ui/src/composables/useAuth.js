@@ -2,6 +2,16 @@ import { ref } from 'vue'
 
 const admin = ref(null)
 
+export async function apiFetch(url, options = {}) {
+  const res = await fetch(url, options)
+  if (res.status === 401) {
+    admin.value = null
+    window.location.replace('/login')
+    return new Promise(() => {})
+  }
+  return res
+}
+
 export function useAuth() {
   async function fetchMe() {
     try {
