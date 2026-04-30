@@ -98,8 +98,8 @@ def servers_show(hostname):
 def servers_add(hostname, ip, ssh_user, ssh_password, env, os_family, ssh_port):
     """Add and provision a server via SSH. Only created in DB on success."""
     admin_id = _require_admin()
-    if not ssh_password:
-        ssh_password = click.prompt("SSH password", hide_input=True)
+    if ssh_password is None:
+        ssh_password = click.prompt("SSH password (leave empty to use collector key)", hide_input=True, default="")
     try:
         actions.add_server(hostname, ip, ssh_user, ssh_password, env, os_family, ssh_port, admin_id)
         click.echo(f"Server {hostname} added and provisioned successfully.")
