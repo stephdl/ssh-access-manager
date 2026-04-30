@@ -81,6 +81,15 @@ def _reset_attempts(ip: str) -> None:
         _login_attempts.pop(ip, None)
 
 
+def _is_smtp_enabled() -> bool:
+    """SMTP is considered enabled only when SMTP_ENABLED is truthy AND SMTP_HOST is set."""
+    smtp_env = os.environ.get("SMTP_ENABLED", "1")
+    if smtp_env in ("", "0"):
+        return False
+    smtp_host = os.environ.get("SMTP_HOST", "").strip()
+    return bool(smtp_host)
+
+
 # ---------------------------------------------------------------------------
 # Session timeout — constants (no DB config, no UI)
 # ---------------------------------------------------------------------------
@@ -1052,14 +1061,12 @@ def system_status():
     last_scan = db.query_one(
         "SELECT performed_at FROM audit_log WHERE action = 'SCAN_COMPLETED' ORDER BY performed_at DESC LIMIT 1"
     )
-    _smtp_env = os.environ.get("SMTP_ENABLED", "1")
-    smtp_enabled = _smtp_env not in ("", "0")
     return jsonify({
         "servers_active": servers_total["n"] if servers_total else 0,
         "keys_active": keys_active["n"] if keys_active else 0,
         "keys_pending_review": keys_pending["n"] if keys_pending else 0,
         "last_scan": last_scan["performed_at"].isoformat() if last_scan else None,
-        "smtp_enabled": smtp_enabled,
+        "smtp_enabled": _is_smtp_enabled(),
     })
 
 
@@ -1088,8 +1095,7 @@ def get_collector_key():
 def get_config():
     rows = db.query("SELECT key, value FROM settings")
     data = {r["key"]: r["value"] for r in rows}
-    _smtp_env = os.environ.get("SMTP_ENABLED", "1")
-    data["smtp_enabled"] = _smtp_env not in ("", "0")
+    data["smtp_enabled"] = _is_smtp_enabled()
     return jsonify(data)
 
 
