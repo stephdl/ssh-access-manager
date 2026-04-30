@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import logging
 import os
 import shlex
 
@@ -422,14 +423,16 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
             raise RuntimeError("Server unreachable — check the IP and network connectivity")
         raise RuntimeError(f"Connection failed: {exc}")
     try:
-        out, _, rc = _run(client, f"sudo {SAM_SESSIONS_PATH}")
+        out, err, rc = _run(client, f"sudo {SAM_SESSIONS_PATH}")
         if rc != 0:
+            logging.warning("sam-sessions returned rc=%d on %s: %s", rc, hostname, err.strip())
             return
         now = datetime.now(timezone.utc)
         db.execute(
             "UPDATE ssh_sessions SET is_active = false WHERE server_id = %s AND is_active = true",
             (server_id,),
         )
+        active_count = 0
         for line in out.splitlines():
             parts = line.split('\t')
             if len(parts) < 4:
@@ -445,6 +448,7 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
                 login_at_str = parts[4].strip() if len(parts) > 4 else ''
                 login_at = _parse_session_datetime(login_at_str, now)
                 if not login_at:
+                    logging.debug("sam-sessions: could not parse login_at %r on %s", login_at_str, hostname)
                     continue
                 db.execute(
                     """
@@ -455,13 +459,18 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
                     """,
                     (server_id, unix_user, tty, login_ip, login_at),
                 )
+                active_count += 1
             elif session_type == 'H':
                 rest = parts[4].strip() if len(parts) > 4 else ''
                 is_still_active = 'still' in rest.lower()
                 if ' - ' in rest:
                     login_str, logout_str = rest.split(' - ', 1)
+                elif is_still_active:
+                    import re as _re
+                    login_str = _re.split(r'\s{2,}still|\sstill\s', rest, maxsplit=1)[0].strip()
+                    logout_str = ''
                 else:
-                    login_str = rest.split('  still')[0].strip() if is_still_active else rest
+                    login_str = rest
                     logout_str = ''
                 login_at = _parse_session_datetime(login_str.strip(), now)
                 if not login_at:
@@ -482,6 +491,7 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
                     """,
                     (server_id, unix_user, tty, login_ip, login_at, logout_at, is_still_active),
                 )
+        logging.debug("collect_sessions_on_server: %d active sessions on %s", active_count, hostname)
     finally:
         client.close()
 
