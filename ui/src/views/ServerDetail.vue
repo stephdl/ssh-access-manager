@@ -302,11 +302,7 @@
           <button class="btn-secondary" @click="showReprovisionModal = false">
             {{ $t('common.cancel') }}
           </button>
-          <button
-            class="btn-primary"
-            :disabled="reprovisioning"
-            @click="confirmReprovision"
-          >
+          <button class="btn-primary" :disabled="reprovisioning" @click="confirmReprovision">
             <span v-if="reprovisioning" class="spinner btn-spinner"></span>
             {{
               reprovisioning
