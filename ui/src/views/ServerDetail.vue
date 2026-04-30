@@ -253,9 +253,7 @@
         >
         <input v-model="reprovisionForm.sshUser" type="text" placeholder="root" />
 
-        <label
-          >{{ $t('server_detail.reprovision_ssh_password') }} <span class="required">*</span></label
-        >
+        <label>{{ $t('server_detail.reprovision_ssh_password') }}</label>
         <div class="password-wrapper">
           <input
             v-model="reprovisionForm.sshPassword"
@@ -307,7 +305,7 @@
           </button>
           <button
             class="btn-primary"
-            :disabled="!reprovisionForm.sshPassword.trim() || reprovisioning"
+            :disabled="reprovisioning"
             @click="confirmReprovision"
           >
             <span v-if="reprovisioning" class="spinner btn-spinner"></span>

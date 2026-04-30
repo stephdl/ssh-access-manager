@@ -866,3 +866,58 @@ def test_ssh_provision_server_uses_reject_policy():
             pass
 
         mock_client.set_missing_host_key_policy.assert_called_once_with(mock_policy.return_value)
+
+
+def test_ssh_provision_server_no_password_uses_collector_key():
+    """provision_server with empty password connects via collector key (no provision script)."""
+    from unittest.mock import MagicMock, patch
+
+    mock_sp_result = MagicMock()
+    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
+
+    with patch("subprocess.run", return_value=mock_sp_result), \
+         patch("builtins.open", MagicMock()), \
+         patch("ssh._connect") as mock_connect:
+        mock_client = MagicMock()
+        mock_connect.return_value = mock_client
+
+        ssh.provision_server("192.168.1.10", "root", "", 22)
+
+        mock_connect.assert_called_once_with("192.168.1.10", 22)
+        mock_client.close.assert_called_once()
+
+
+def test_ssh_provision_server_no_password_key_auth_failed():
+    """provision_server with empty password raises RuntimeError when collector key is not authorized."""
+    from unittest.mock import MagicMock, patch
+    import paramiko
+
+    mock_sp_result = MagicMock()
+    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
+
+    with patch("subprocess.run", return_value=mock_sp_result), \
+         patch("builtins.open", MagicMock()), \
+         patch("ssh._connect", side_effect=paramiko.AuthenticationException("no key")):
+
+        with pytest.raises(RuntimeError, match="collector key is not authorized"):
+            ssh.provision_server("192.168.1.10", "root", "", 22)
+
+
+def test_ssh_provision_server_no_password_skips_provision_script():
+    """provision_server with empty password does not run the provision script."""
+    from unittest.mock import MagicMock, patch
+
+    mock_sp_result = MagicMock()
+    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
+
+    with patch("subprocess.run", return_value=mock_sp_result), \
+         patch("builtins.open", MagicMock()), \
+         patch("ssh._connect") as mock_connect:
+        mock_client = MagicMock()
+        mock_connect.return_value = mock_client
+
+        ssh.provision_server("192.168.1.10", "root", "", 65500)
+
+        mock_connect.assert_called_once_with("192.168.1.10", 65500)
+        mock_client.exec_command.assert_not_called()
+        mock_client.open_sftp.assert_not_called()

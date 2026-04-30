@@ -475,7 +475,12 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
 
 
 def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 22) -> None:
-    """Connect with password auth and run provision-host.sh on the remote host."""
+    """Connect and provision the server.
+
+    If ssh_password is empty, verify that the collector key already works (server was
+    provisioned manually via ssh-copy-id or provision-host.sh). Otherwise connect with
+    password auth and run the provision script.
+    """
     import socket
     import subprocess as _sp
 
@@ -499,6 +504,29 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
     # Append to known_hosts (dedup: only if not already present)
     with open(KNOWN_HOSTS, "a") as fh:
         fh.write(result.stdout)
+
+    if not ssh_password:
+        # Key-auth path: verify collector key works (server was provisioned manually)
+        try:
+            client = _connect(ip, ssh_port)
+            client.close()
+        except paramiko.AuthenticationException:
+            raise RuntimeError(
+                "Key authentication failed — the collector key is not authorized on this server. "
+                "Provide an SSH password to provision it automatically."
+            )
+        except socket.timeout:
+            raise RuntimeError("Connection timed out — server did not respond within 15 seconds")
+        except Exception as exc:
+            msg = str(exc)
+            if any(k in msg for k in ("No route to host", "Network unreachable", "No address associated")):
+                raise RuntimeError("Server unreachable — check the IP and network connectivity")
+            if "Connection refused" in msg:
+                raise RuntimeError(
+                    f"SSH port {ssh_port} refused — check that SSH is running on that port"
+                )
+            raise RuntimeError(f"Connection failed: {exc}")
+        return
 
     # Step 2 — connect with password auth
     client = paramiko.SSHClient()

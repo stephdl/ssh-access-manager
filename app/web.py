@@ -267,9 +267,7 @@ def get_server(hostname):
 def add_server():
     data = request.get_json(force=True) or {}
     ssh_user = data.get("ssh_user", "root") or "root"
-    ssh_password = data.get("ssh_password", "")
-    if not ssh_password:
-        return jsonify({"error": "ssh_password is required"}), 400
+    ssh_password = data.get("ssh_password", "") or ""
     try:
         ssh_port = int(data.get("ssh_port", 22))
     except (TypeError, ValueError):
@@ -300,13 +298,11 @@ def add_server():
 def provision_server_route(hostname):
     data = request.get_json(force=True) or {}
     ssh_user = data.get("ssh_user", "root") or "root"
-    ssh_password = data.get("ssh_password", "")
+    ssh_password = data.get("ssh_password", "") or ""
     try:
         ssh_port = int(data.get("ssh_port", 22))
     except (TypeError, ValueError):
         return jsonify({"error": "ssh_port must be an integer"}), 400
-    if not ssh_password:
-        return jsonify({"error": "ssh_password is required"}), 400
     if not (1 <= ssh_port <= 65535):
         return jsonify({"error": "ssh_port must be between 1 and 65535"}), 400
     try:
