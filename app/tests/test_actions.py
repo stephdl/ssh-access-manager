@@ -547,7 +547,7 @@ def test_actions_provision_server_raises_if_not_found():
 
 def test_actions_add_admin_logs_admin_added():
     with patch("actions.db") as mock_db:
-        mock_db.query_one.return_value = {"id": ADMIN_ID}
+        mock_db.query_one.side_effect = [None, {"id": ADMIN_ID}]
         actions.add_admin("newuser", "new@example.com", "Str0ng#Pass!", ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
         assert any("ADMIN_ADDED" in c for c in calls)

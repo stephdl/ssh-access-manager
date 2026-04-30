@@ -216,7 +216,7 @@ const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSi
   width: 240px;
 }
 
-.row-inactive {
+.row-inactive td:not(:last-child) {
   opacity: 0.6;
 }
 
