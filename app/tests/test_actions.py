@@ -473,6 +473,16 @@ def test_actions_add_server_env_optional(sample_server):
         assert None in insert_call[0][1]
 
 
+def test_actions_add_server_no_password_calls_provision_with_empty(sample_server):
+    """add_server with empty password passes empty string to provision_server (key-auth path)."""
+    with patch("actions.db") as mock_db, \
+         patch("actions.ssh") as mock_ssh, \
+         patch("servers.add_to_known_hosts"):
+        mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
+        actions.add_server("new-host", "10.0.0.1", "root", "", "lab", None, 22, ADMIN_ID)
+        mock_ssh.provision_server.assert_called_once_with("10.0.0.1", "root", "", 22)
+
+
 def test_actions_disable_server_sets_inactive(sample_server):
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"id": SERVER_ID}

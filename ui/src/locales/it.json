@@ -56,11 +56,11 @@
     "submitting": "Aggiunta…",
     "submit": "Aggiungi",
     "provision_title": "Provisioning SSH",
-    "provision_hint": "La password SSH è necessaria per il provisioning del server. Per l'onboarding manuale, utilizzare lo script provision-host.sh.",
+    "provision_hint": "Lasciare la password vuota se la chiave del collettore è già stata distribuita manualmente (ssh-copy-id o provision-host.sh). Fornire una password SSH per il provisioning automatico.",
     "ssh_user_label": "Utente SSH",
     "ssh_port_label": "Porta SSH",
     "ssh_password_label": "Password SSH",
-    "ssh_password_placeholder": "Password SSH",
+    "ssh_password_optional_hint": "Lasciare vuoto se la chiave del collettore è già stata distribuita manualmente (ssh-copy-id o provision-host.sh).",
     "ssh_password_disclaimer": "La password SSH viene utilizzata solo per questa fase di provisioning e non viene mai memorizzata.",
     "errors": {
       "SSH_AUTH_FAILED": "Autenticazione fallita — verificare l'utente e la password.",
@@ -146,13 +146,14 @@
     "expiry_removed": "Scadenza rimossa — chiave illimitata.",
     "reprovision": "Re-provisioning",
     "reprovision_modal_title": "Re-provisioning del server",
-    "reprovision_hint": "Riesegue lo script di provisioning sul server. Utile se l'utente di audit è stato eliminato o i diritti sudo sono cambiati.",
+    "reprovision_hint": "Riesegue lo script di provisioning sul server. Lasciare la password vuota se la chiave del collettore è già stata distribuita manualmente.",
     "reprovision_ssh_user": "Utente SSH",
     "reprovision_ssh_password": "Password SSH",
     "reprovision_ssh_port": "Porta SSH",
     "reprovision_submit": "Re-provisioning",
     "reprovision_submitting": "Connessione…",
-    "reprovision_success": "Server re-provisionato con successo."
+    "reprovision_success": "Server re-provisionato con successo.",
+    "reprovision_password_optional_hint": "Lasciare vuoto se la chiave del collettore è già stata distribuita manualmente (ssh-copy-id o provision-host.sh)."
   },
   "key_table": {
     "col_status": "Stato",

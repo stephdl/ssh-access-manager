@@ -253,9 +253,7 @@
         >
         <input v-model="reprovisionForm.sshUser" type="text" placeholder="root" />
 
-        <label
-          >{{ $t('server_detail.reprovision_ssh_password') }} <span class="required">*</span></label
-        >
+        <label>{{ $t('server_detail.reprovision_ssh_password') }}</label>
         <div class="password-wrapper">
           <input
             v-model="reprovisionForm.sshPassword"
@@ -297,7 +295,6 @@
             </svg>
           </button>
         </div>
-
         <label>{{ $t('server_detail.reprovision_ssh_port') }}</label>
         <input v-model.number="reprovisionForm.sshPort" type="number" min="1" max="65535" />
 
@@ -305,11 +302,7 @@
           <button class="btn-secondary" @click="showReprovisionModal = false">
             {{ $t('common.cancel') }}
           </button>
-          <button
-            class="btn-primary"
-            :disabled="!reprovisionForm.sshPassword.trim() || reprovisioning"
-            @click="confirmReprovision"
-          >
+          <button class="btn-primary" :disabled="reprovisioning" @click="confirmReprovision">
             <span v-if="reprovisioning" class="spinner btn-spinner"></span>
             {{
               reprovisioning

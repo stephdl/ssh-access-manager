@@ -56,11 +56,11 @@
     "submitting": "Hinzufügen…",
     "submit": "Hinzufügen",
     "provision_title": "SSH-Bereitstellung",
-    "provision_hint": "Das SSH-Passwort ist erforderlich, um den Server bereitzustellen. Für manuelles Onboarding verwenden Sie das Skript provision-host.sh.",
+    "provision_hint": "Lassen Sie das Passwort leer, wenn der Collector-Schlüssel bereits manuell bereitgestellt wurde (ssh-copy-id oder provision-host.sh). Geben Sie ein SSH-Passwort für die automatische Bereitstellung an.",
     "ssh_user_label": "SSH-Benutzer",
     "ssh_port_label": "SSH-Port",
     "ssh_password_label": "SSH-Passwort",
-    "ssh_password_placeholder": "SSH-Passwort",
+    "ssh_password_optional_hint": "Leer lassen, wenn der Collector-Schlüssel bereits manuell bereitgestellt wurde (ssh-copy-id oder provision-host.sh).",
     "ssh_password_disclaimer": "Das SSH-Passwort wird nur für diesen Bereitstellungsschritt verwendet und niemals gespeichert.",
     "errors": {
       "SSH_AUTH_FAILED": "Authentifizierung fehlgeschlagen — Benutzername und Passwort prüfen.",
@@ -146,13 +146,14 @@
     "expiry_removed": "Ablauf entfernt — Schlüssel unbegrenzt.",
     "reprovision": "Neu bereitstellen",
     "reprovision_modal_title": "Server neu bereitstellen",
-    "reprovision_hint": "Führt das Bereitstellungsskript erneut auf dem Server aus. Nützlich, wenn der Audit-Benutzer gelöscht wurde oder die sudo-Rechte geändert wurden.",
+    "reprovision_hint": "Führt das Bereitstellungsskript erneut auf dem Server aus. Lassen Sie das Passwort leer, wenn der Collector-Schlüssel bereits manuell bereitgestellt wurde.",
     "reprovision_ssh_user": "SSH-Benutzer",
     "reprovision_ssh_password": "SSH-Passwort",
     "reprovision_ssh_port": "SSH-Port",
     "reprovision_submit": "Neu bereitstellen",
     "reprovision_submitting": "Verbindung…",
-    "reprovision_success": "Server erfolgreich neu bereitgestellt."
+    "reprovision_success": "Server erfolgreich neu bereitgestellt.",
+    "reprovision_password_optional_hint": "Leer lassen, wenn der Collector-Schlüssel bereits manuell bereitgestellt wurde (ssh-copy-id oder provision-host.sh)."
   },
   "key_table": {
     "col_status": "Status",

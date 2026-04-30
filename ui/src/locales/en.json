@@ -56,11 +56,11 @@
     "submitting": "Adding…",
     "submit": "Add",
     "provision_title": "SSH Provisioning",
-    "provision_hint": "The SSH password is required to provision the server. If you prefer manual onboarding, use the provision-host.sh script.",
+    "provision_hint": "Leave the password empty if the collector key was already deployed manually (ssh-copy-id or provision-host.sh). Provide an SSH password to provision automatically.",
     "ssh_user_label": "SSH User",
     "ssh_port_label": "SSH Port",
     "ssh_password_label": "SSH Password",
-    "ssh_password_placeholder": "SSH password",
+    "ssh_password_optional_hint": "Leave empty if the collector key was already deployed manually (ssh-copy-id or provision-host.sh).",
     "ssh_password_disclaimer": "The SSH password is used only for this provisioning step and is never stored.",
     "errors": {
       "SSH_AUTH_FAILED": "Authentication failed — check your username and password.",
@@ -146,13 +146,14 @@
     "expiry_removed": "Expiry removed — key is now unlimited.",
     "reprovision": "Re-provision",
     "reprovision_modal_title": "Re-provision server",
-    "reprovision_hint": "Re-runs the provisioning script on the server. Useful if the audit user was deleted or sudo rights changed.",
+    "reprovision_hint": "Re-runs the provisioning script on the server. Leave the password empty if the collector key was already deployed manually.",
     "reprovision_ssh_user": "SSH User",
     "reprovision_ssh_password": "SSH Password",
     "reprovision_ssh_port": "SSH Port",
     "reprovision_submit": "Re-provision",
     "reprovision_submitting": "Connecting…",
-    "reprovision_success": "Server re-provisioned successfully."
+    "reprovision_success": "Server re-provisioned successfully.",
+    "reprovision_password_optional_hint": "Leave empty if the collector key was already deployed manually (ssh-copy-id or provision-host.sh)."
   },
   "key_table": {
     "col_status": "Status",

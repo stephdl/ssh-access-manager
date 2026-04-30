@@ -141,15 +141,11 @@
               <input v-model="addForm.sshUser" type="text" placeholder="root" />
             </div>
             <div class="form-field">
-              <label
-                >{{ $t('add_server.ssh_password_label') }}
-                <span class="required">{{ $t('common.required') }}</span></label
-              >
+              <label>{{ $t('add_server.ssh_password_label') }}</label>
               <div class="password-wrapper">
                 <input
                   v-model="addForm.sshPassword"
                   :type="showAddPassword ? 'text' : 'password'"
-                  :placeholder="$t('add_server.ssh_password_placeholder')"
                 />
                 <button
                   type="button"
@@ -369,8 +365,7 @@ const addFormValid = computed(
     addForm.value.ip.trim() &&
     isValidIp(addForm.value.ip) &&
     !isIpDuplicate(addForm.value.ip.trim()) &&
-    addForm.value.sshUser.trim() &&
-    addForm.value.sshPassword.trim()
+    addForm.value.sshUser.trim()
 )
 
 const editFormValid = computed(

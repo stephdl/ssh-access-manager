@@ -313,15 +313,17 @@ def test_web_add_server_returns_201(auth_client):
         assert resp.status_code == 201
 
 
-def test_web_add_server_missing_password_returns_400(auth_client):
-    with patch("web.db") as mock_db:
+def test_web_add_server_no_password_succeeds(auth_client):
+    """ssh_password is optional — empty password uses collector key auth."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
+        mock_actions.add_server.return_value = {"id": SERVER_ID}
         resp = auth_client.post(
             "/api/servers",
-            json={"hostname": "new-srv", "ip": "10.0.0.1"},
+            json={"hostname": "new-srv", "ip": "10.0.0.1", "ssh_user": "root"},
         )
-        assert resp.status_code == 400
-        assert "ssh_password" in resp.json["error"]
+        assert resp.status_code == 201
+        assert mock_actions.add_server.call_args[0][3] == ""
 
 
 def test_web_add_server_ssh_failure_returns_422(auth_client):
@@ -445,15 +447,16 @@ def test_web_provision_server_success(auth_client):
         )
 
 
-def test_web_provision_server_missing_password(auth_client):
-    with patch("web.db") as mock_db:
+def test_web_provision_server_no_password_uses_key_auth(auth_client):
+    """ssh_password is optional — empty password triggers collector key auth path."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
         resp = auth_client.post(
             "/api/servers/server-test-01/provision",
             json={"ssh_user": "root"},
         )
-        assert resp.status_code == 400
-        assert "ssh_password is required" in resp.json["error"]
+        assert resp.status_code == 200
+        assert mock_actions.provision_server.call_args[0][2] == ""
 
 
 def test_web_provision_server_invalid_port(auth_client):

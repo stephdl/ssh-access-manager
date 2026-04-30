@@ -56,11 +56,11 @@
     "submitting": "Añadiendo…",
     "submit": "Añadir",
     "provision_title": "Aprovisionamiento SSH",
-    "provision_hint": "La contraseña SSH es necesaria para aprovisionar el servidor. Para incorporación manual, use el script provision-host.sh.",
+    "provision_hint": "Deje la contraseña vacía si la clave del colector ya fue desplegada manualmente (ssh-copy-id o provision-host.sh). Proporcione una contraseña SSH para aprovisionar automáticamente.",
     "ssh_user_label": "Usuario SSH",
     "ssh_port_label": "Puerto SSH",
     "ssh_password_label": "Contraseña SSH",
-    "ssh_password_placeholder": "Contraseña SSH",
+    "ssh_password_optional_hint": "Dejar vacío si la clave del colector ya fue desplegada manualmente (ssh-copy-id o provision-host.sh).",
     "ssh_password_disclaimer": "La contraseña SSH se usa únicamente para este paso de aprovisionamiento y nunca se almacena.",
     "errors": {
       "SSH_AUTH_FAILED": "Autenticación fallida — verifique el usuario y la contraseña.",
@@ -146,13 +146,14 @@
     "expiry_removed": "Expiración eliminada — clave ilimitada.",
     "reprovision": "Re-aprovisionar",
     "reprovision_modal_title": "Re-aprovisionar servidor",
-    "reprovision_hint": "Vuelve a ejecutar el script de aprovisionamiento en el servidor. Útil si el usuario de auditoría fue eliminado o cambiaron los derechos sudo.",
+    "reprovision_hint": "Vuelve a ejecutar el script de aprovisionamiento en el servidor. Deje la contraseña vacía si la clave del colector ya fue desplegada manualmente.",
     "reprovision_ssh_user": "Usuario SSH",
     "reprovision_ssh_password": "Contraseña SSH",
     "reprovision_ssh_port": "Puerto SSH",
     "reprovision_submit": "Re-aprovisionar",
     "reprovision_submitting": "Conectando…",
-    "reprovision_success": "Servidor re-aprovisionado correctamente."
+    "reprovision_success": "Servidor re-aprovisionado correctamente.",
+    "reprovision_password_optional_hint": "Dejar vacío si la clave del colector ya fue desplegada manualmente (ssh-copy-id o provision-host.sh)."
   },
   "key_table": {
     "col_status": "Estado",

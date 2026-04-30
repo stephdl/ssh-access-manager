@@ -56,11 +56,11 @@
     "submitting": "Ajout en cours…",
     "submit": "Ajouter",
     "provision_title": "Provisionnement SSH",
-    "provision_hint": "Le mot de passe SSH est requis pour provisionner le serveur. Pour un onboarding manuel, utilisez le script provision-host.sh.",
+    "provision_hint": "Laissez le mot de passe vide si la clé collecteur a déjà été déployée manuellement (ssh-copy-id ou provision-host.sh). Fournissez un mot de passe SSH pour provisionner automatiquement.",
     "ssh_user_label": "Utilisateur SSH",
     "ssh_port_label": "Port SSH",
     "ssh_password_label": "Mot de passe SSH",
-    "ssh_password_placeholder": "Mot de passe SSH",
+    "ssh_password_optional_hint": "Laisser vide si la clé collecteur a déjà été déployée manuellement (ssh-copy-id ou provision-host.sh).",
     "ssh_password_disclaimer": "Le mot de passe SSH est utilisé uniquement pour cette étape de provisionnement et n'est jamais stocké.",
     "errors": {
       "SSH_AUTH_FAILED": "Authentification échouée — vérifiez l'utilisateur et le mot de passe.",
@@ -146,13 +146,14 @@
     "expiry_removed": "Expiration retirée — clé illimitée.",
     "reprovision": "Re-provisionner",
     "reprovision_modal_title": "Re-provisionner le serveur",
-    "reprovision_hint": "Relance le script de provisionnement sur le serveur. Utile si l'utilisateur audit a été supprimé ou si les droits sudo ont changé.",
+    "reprovision_hint": "Relance le script de provisionnement sur le serveur. Laissez le mot de passe vide si la clé collecteur a déjà été déployée manuellement.",
     "reprovision_ssh_user": "Utilisateur SSH",
     "reprovision_ssh_password": "Mot de passe SSH",
     "reprovision_ssh_port": "Port SSH",
     "reprovision_submit": "Re-provisionner",
     "reprovision_submitting": "Connexion…",
-    "reprovision_success": "Serveur re-provisionné avec succès."
+    "reprovision_success": "Serveur re-provisionné avec succès.",
+    "reprovision_password_optional_hint": "Laisser vide si la clé collecteur a déjà été déployée manuellement (ssh-copy-id ou provision-host.sh)."
   },
   "key_table": {
     "col_status": "Statut",

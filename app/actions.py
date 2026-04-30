@@ -636,7 +636,7 @@ def revoke_request(request_id: str, admin_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 def add_server(
-    hostname: str, ip: str, ssh_user: str, ssh_password: str,
+    hostname: str, ip: str, ssh_user: str = "root", ssh_password: str = "",
     env: str | None = None, os_family: str | None = None,
     ssh_port: int = 22, admin_id: str | None = None,
 ) -> dict:
@@ -675,8 +675,8 @@ def add_server(
     return server
 
 
-def provision_server(hostname: str, ssh_user: str, ssh_password: str, ssh_port: int, admin_id: str) -> None:
-    """Provision a remote server via SSH password auth. Never stores the password."""
+def provision_server(hostname: str, ssh_user: str = "root", ssh_password: str = "", ssh_port: int = 22, admin_id: str | None = None) -> None:
+    """Provision a remote server. Never stores the password."""
     server = db.query_one(
         "SELECT id, ip_address FROM servers WHERE hostname = %s AND is_active = true",
         (hostname,),

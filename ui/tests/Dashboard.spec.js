@@ -82,7 +82,7 @@ describe('Dashboard - Add Server Modal', () => {
     expect(sshPasswordInput.exists()).toBe(true)
   })
 
-  it('disables submit button when ssh_password is missing', async () => {
+  it('enables submit button without ssh_password (password is optional)', async () => {
     const router = createMockRouter()
     const w = mount(Dashboard, { global: { plugins: [i18n, router] } })
     await flushPromises()
@@ -102,7 +102,7 @@ describe('Dashboard - Add Server Modal', () => {
     await w.vm.$nextTick()
 
     const submitBtn = w.findAll('button.btn-primary').find((b) => b.text().includes('Add'))
-    expect(submitBtn.attributes('disabled')).toBeDefined()
+    expect(submitBtn.attributes('disabled')).toBeUndefined()
   })
 
   it('sends ssh_user, ssh_password and ssh_port in POST /api/servers', async () => {
