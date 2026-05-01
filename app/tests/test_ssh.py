@@ -520,6 +520,10 @@ def test_ssh_unlock_user_on_server_calls_sam_unlock_user(sample_server):
 
 def test_ssh_sam_sessions_is_bytes():
     assert isinstance(ssh.SAM_SESSIONS, bytes)
+    assert b"utmpdump" in ssh.SAM_SESSIONS
+    assert b"/var/run/utmp" in ssh.SAM_SESSIONS
+    assert b"/var/log/wtmp" in ssh.SAM_SESSIONS
+    assert b"#!/bin/sh" in ssh.SAM_SESSIONS
 
 
 def test_ssh_parse_session_datetime_iso():
@@ -531,7 +535,22 @@ def test_ssh_parse_session_datetime_iso():
     assert dt.hour == 10
 
 
+def test_ssh_parse_session_datetime_utmpdump_iso():
+    """Primary path: utmpdump ISO 8601 with timezone (2026-05-01T07:35:23,000000+0000)."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 5, 1, 12, 0, 0, tzinfo=timezone.utc)
+    dt = ssh._parse_session_datetime("2026-05-01T07:35:23,000000+0000", now)
+    assert dt is not None
+    assert dt.year == 2026
+    assert dt.month == 5
+    assert dt.day == 1
+    assert dt.hour == 7
+    assert dt.minute == 35
+    assert dt.tzinfo is not None
+
+
 def test_ssh_parse_session_datetime_last_f():
+    """Fallback last -F: weekday stripped, year present — must parse correctly."""
     from datetime import datetime, timezone
     now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
     dt = ssh._parse_session_datetime("Mon Apr 27 08:00:01 2026", now)
@@ -548,7 +567,7 @@ def test_ssh_parse_session_datetime_hhmm():
 
 
 def test_ssh_parse_session_datetime_last_no_year():
-    """last without -F gives 'Mon Apr 28 13:21' (no year) — must parse correctly."""
+    """Fallback last (no -F): 'Mon Apr 28 13:21' — weekday stripped, year injected."""
     from datetime import datetime, timezone
     now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
     dt = ssh._parse_session_datetime("Mon Apr 28 13:21", now)
@@ -559,7 +578,7 @@ def test_ssh_parse_session_datetime_last_no_year():
 
 
 def test_ssh_parse_session_datetime_last_no_year_single_digit_day():
-    """last without -F with day < 10 uses double-space padding: 'Mon Apr  7 08:00'."""
+    """Fallback last (no -F): single-digit day with double-space: 'Mon Apr  7 08:00'."""
     from datetime import datetime, timezone
     now = datetime(2026, 4, 28, 12, 0, 0, tzinfo=timezone.utc)
     dt = ssh._parse_session_datetime("Mon Apr  7 08:00", now)
@@ -608,11 +627,13 @@ def test_ssh_is_valid_ip_invalid():
 
 
 def test_ssh_collect_sessions_calls_sam_sessions(mock_ssh_client):
-    """collect_sessions_on_server runs sam-sessions and upserts results."""
+    """collect_sessions_on_server runs sam-sessions and upserts results (utmpdump ISO format)."""
     from unittest.mock import MagicMock, patch
     mock_client = MagicMock()
     mock_stdout = MagicMock()
-    mock_stdout.read.return_value = b"A\talice\tpts/0\t192.168.1.50\t2026-04-28 10:00\n"
+    mock_stdout.read.return_value = (
+        b"A\talice\tpts/0\t192.168.1.50\t2026-04-28T10:00:00,000000+0000\n"
+    )
     mock_stdout.channel.recv_exit_status.return_value = 0
     mock_stderr = MagicMock()
     mock_stderr.read.return_value = b""
@@ -629,7 +650,9 @@ def test_ssh_collect_sessions_marks_inactive_before_reinserting(mock_ssh_client)
     from unittest.mock import MagicMock, patch
     mock_client = MagicMock()
     mock_stdout = MagicMock()
-    mock_stdout.read.return_value = b"A\talice\tpts/0\t192.168.1.50\t2026-04-28 10:00\n"
+    mock_stdout.read.return_value = (
+        b"A\talice\tpts/0\t192.168.1.50\t2026-04-28T10:00:00,000000+0000\n"
+    )
     mock_stdout.channel.recv_exit_status.return_value = 0
     mock_stderr = MagicMock()
     mock_stderr.read.return_value = b""
@@ -646,12 +669,61 @@ def test_ssh_collect_sessions_marks_inactive_before_reinserting(mock_ssh_client)
         assert first_call[0][1] == ("server-uuid-1",)
 
 
-def test_ssh_collect_sessions_local_tty_no_ip(mock_ssh_client):
-    """Local TTY sessions (no IP in last output) must not fail INET insertion."""
+def test_ssh_collect_sessions_utmpdump_history(mock_ssh_client):
+    """H-type lines from utmpdump (ISO login - ISO logout) are parsed and inserted."""
     from unittest.mock import MagicMock, patch
     mock_client = MagicMock()
     mock_stdout = MagicMock()
-    # 'root' on tty1 with no IP (Mon is a day abbreviation, not an IP)
+    mock_stdout.read.return_value = (
+        b"H\troot\tpts/0\t192.168.1.50\t"
+        b"2026-04-27T16:37:00,000000+0000 - 2026-04-27T16:45:00,000000+0000\n"
+    )
+    mock_stdout.channel.recv_exit_status.return_value = 0
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b""
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    with patch("ssh._connect", return_value=mock_client), \
+         patch("ssh.db") as mock_db:
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+        insert_calls = [c for c in mock_db.execute.call_args_list if "INSERT" in c[0][0]]
+        assert insert_calls
+        params = insert_calls[0][0][1]
+        # login_ip must be the real IP
+        assert params[3] == "192.168.1.50"
+        # logout_at must not be None
+        assert params[5] is not None
+
+
+def test_ssh_collect_sessions_local_tty_no_ip(mock_ssh_client):
+    """Local TTY sessions with no IP (utmpdump 'local') must not fail INET insertion."""
+    from unittest.mock import MagicMock, patch
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
+    # utmpdump format: local TTY login (no real IP → 'local')
+    mock_stdout.read.return_value = (
+        b"A\troot\ttty1\tlocal\t2026-04-27T18:38:00,000000+0000\n"
+    )
+    mock_stdout.channel.recv_exit_status.return_value = 0
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b""
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    with patch("ssh._connect", return_value=mock_client), \
+         patch("ssh.db") as mock_db:
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+        insert_calls = [c for c in mock_db.execute.call_args_list if "INSERT" in c[0][0]]
+        if insert_calls:
+            params = insert_calls[0][0][1]
+            # login_ip must be None ('local' is not a valid IP)
+            assert params[3] is None
+
+
+def test_ssh_collect_sessions_fallback_still_logged_in(mock_ssh_client):
+    """Fallback H-type with 'still logged in' (last output) must set is_still_active."""
+    from unittest.mock import MagicMock, patch
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
     mock_stdout.read.return_value = (
         b"H\troot\ttty1\t\tMon Apr 27 18:38 2026   still logged in\n"
     )
@@ -662,16 +734,12 @@ def test_ssh_collect_sessions_local_tty_no_ip(mock_ssh_client):
 
     with patch("ssh._connect", return_value=mock_client), \
          patch("ssh.db") as mock_db:
-        # Must not raise — "Mon" must not reach the INET column
         ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
-        # call_args_list[0] is the UPDATE (mark inactive), [1] is the H line INSERT
-        insert_calls = [
-            c for c in mock_db.execute.call_args_list if "INSERT" in c[0][0]
-        ]
+        insert_calls = [c for c in mock_db.execute.call_args_list if "INSERT" in c[0][0]]
         if insert_calls:
             params = insert_calls[0][0][1]
-            # login_ip must be None, not "Mon"
-            assert params[3] is None
+            # is_still_active must be True
+            assert params[6] is True
 
 
 # ---------------------------------------------------------------------------

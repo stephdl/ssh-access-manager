@@ -170,39 +170,74 @@ SAM_SESSIONS_PATH = "/usr/local/bin/sam-sessions"
 SAM_SESSIONS = b"""#!/bin/sh
 # sam-sessions - collect SSH session data
 # Outputs tab-separated lines:
-#   A\\tuser\\ttty\\tip\\tlogin_str   (active, from 'who')
-#   H\\tuser\\ttty\\tip\\trest        (history, from 'last')
-set -e
+#   A\\tuser\\ttty\\tip\\t<ISO8601>            (active, utmpdump /var/run/utmp)
+#   H\\tuser\\ttty\\tip\\t<ISO8601> - <ISO8601> (history, utmpdump /var/log/wtmp)
+# Falls back to who + LANG=C last -F when utmpdump is unavailable (busybox/Alpine).
+#
+# utmpdump output format (8 bracket-delimited fields per line):
+#   [type] [pid] [id] [user] [line] [host] [addr] [time]
+# type 7=USER_PROCESS (login), type 8=DEAD_PROCESS (logout)
+# Parsing: replace all [ and ] with tab, then split on tab.
 
-# Active sessions from 'who'
-# GNU who: alice pts/0 2024-03-01 10:00 (192.168.1.10)
-# busybox who: alice pts/0 Mar  1 10:00
-who 2>/dev/null | awk '{
-    user=$1; tty=$2;
-    if($3 ~ /^[0-9]{4}-/) {
-        login=$3" "$4;
-        ip=$5; gsub(/[()]/,"",ip);
-    } else {
-        login=$3" "$4" "$5;
-        ip="";
-    }
-    if(ip=="" || ip==user) ip="local";
-    print "A\\t"user"\\t"tty"\\t"ip"\\t"login;
-}'
-
-# Session history from 'last -F' (full timestamps including year).
-# Falls back to 'last' if -F is unsupported (busybox targets).
-# Local TTY: 'root tty1   Mon Apr 27 18:38:00 2026 ...'
-# SSH:       'alice pts/0 192.168.1.10 Mon Apr 27 18:38:00 2026 ...'
-# Detect IP by presence of '.' (IPv4) or ':' (IPv6) in field 3.
-{ last -F -n 100 2>/dev/null || last -n 100 2>/dev/null; } | grep -v "^$\\|^reboot\\|^wtmp\\|^btmp" | awk '{
-    if(NF<3) next;
-    user=$1; tty=$2;
-    if($3 ~ /[.:]/) { ip=$3; start=4; } else { ip=""; start=3; }
-    rest="";
-    for(i=start;i<=NF;i++) rest=rest$i(i<NF?" ":"");
-    print "H\\t"user"\\t"tty"\\t"ip"\\t"rest;
-}'
+if command -v utmpdump >/dev/null 2>&1 && [ -r /var/run/utmp ]; then
+    utmpdump /var/run/utmp 2>/dev/null | awk '{
+        s=$0; gsub(/\\[|\\]/, "\\t", s); split(s, f, "\\t");
+        type=f[2]+0;
+        user=f[8];  gsub(/^ +| +$/, "", user);
+        line=f[10]; gsub(/^ +| +$/, "", line);
+        host=f[12]; gsub(/^ +| +$/, "", host);
+        time=f[16]; gsub(/^ +| +$/, "", time);
+        if(type!=7 || user=="") next;
+        ip=host; if(ip=="" || ip=="0.0.0.0") ip="local";
+        print "A\\t"user"\\t"line"\\t"ip"\\t"time;
+    }'
+    if [ -r /var/log/wtmp ]; then
+        utmpdump /var/log/wtmp 2>/dev/null | tail -n 300 | awk '{
+            s=$0; gsub(/\\[|\\]/, "\\t", s); split(s, f, "\\t");
+            type=f[2]+0;
+            pid=f[4];   gsub(/^ +| +$/, "", pid);
+            user=f[8];  gsub(/^ +| +$/, "", user);
+            line=f[10]; gsub(/^ +| +$/, "", line);
+            host=f[12]; gsub(/^ +| +$/, "", host);
+            time=f[16]; gsub(/^ +| +$/, "", time);
+            if(line=="") next;
+            if(type==7 && user!="") {
+                key=line":"pid;
+                ltime[key]=time; luser[key]=user; lhost[key]=host;
+            } else if(type==8) {
+                key=line":"pid;
+                if(key in ltime) {
+                    ip=lhost[key]; if(ip=="" || ip=="0.0.0.0") ip="local";
+                    print "H\\t"luser[key]"\\t"line"\\t"ip"\\t"ltime[key]" - "time;
+                    delete ltime[key]; delete luser[key]; delete lhost[key];
+                }
+            }
+        }'
+    fi
+else
+    # Fallback: who (active) + LANG=C last -F (history, English forced, year included)
+    who 2>/dev/null | awk '{
+        user=$1; tty=$2;
+        if($3 ~ /^[0-9]{4}-/) {
+            login=$3" "$4;
+            ip=$5; gsub(/[()]/,"",ip);
+        } else {
+            login=$3" "$4" "$5;
+            ip="";
+        }
+        if(ip=="" || ip==user) ip="local";
+        print "A\\t"user"\\t"tty"\\t"ip"\\t"login;
+    }'
+    { LANG=C last -F -n 100 2>/dev/null || LANG=C last -n 100 2>/dev/null; } | \\
+        grep -v "^$\\|^reboot\\|^wtmp\\|^btmp" | awk '{
+        if(NF<3) next;
+        user=$1; tty=$2;
+        if($3 ~ /[.:]/) { ip=$3; start=4; } else { ip=""; start=3; }
+        rest="";
+        for(i=start;i<=NF;i++) rest=rest$i(i<NF?" ":"");
+        print "H\\t"user"\\t"tty"\\t"ip"\\t"rest;
+    }'
+fi
 """
 
 
@@ -360,33 +395,46 @@ def unlock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22
 
 
 def _parse_session_datetime(s: str, now) -> "datetime | None":
-    """Parse various date formats from who/last output. Returns UTC datetime or None."""
+    """Parse date strings from sam-sessions output. Returns UTC datetime or None.
+
+    Handles three sources:
+    - utmpdump ISO 8601:  2026-05-01T07:35:23,000000+0000  (primary path)
+    - who ISO date:       2026-05-01 07:35                  (fallback active)
+    - last -F / last:     Mon Apr 27 08:00:01 2026          (fallback history)
+    """
     import re
     from datetime import datetime, timezone
     s = s.strip()
     if not s:
         return None
-    formats = [
-        "%a %b %d %H:%M:%S %Y",
-        "%a %b  %d %H:%M:%S %Y",
-        "%a %b %d %H:%M %Y",
-        "%a %b  %d %H:%M %Y",
-        "%a %b %d %H:%M",
-        "%a %b  %d %H:%M",
-        "%Y-%m-%d %H:%M",
-        "%b %d %H:%M",
-        "%b  %d %H:%M",
-    ]
-    for fmt in formats:
+    # ISO 8601 from utmpdump (contains 'T' and timezone offset)
+    if 'T' in s:
         try:
-            dt = datetime.strptime(s, fmt)
-            if dt.year == 1900:
-                dt = dt.replace(year=now.year)
-                if dt.date() > now.date():
-                    dt = dt.replace(year=now.year - 1)
+            return datetime.fromisoformat(s.replace(',', '.')).astimezone(timezone.utc)
+        except ValueError:
+            pass
+    # ISO date from who: 2026-05-01 07:35 (no timezone — treat as UTC)
+    if re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}', s):
+        try:
+            dt = datetime.strptime(s[:16], "%Y-%m-%d %H:%M")
+            return dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+    # last / last -F fallback: strip leading weekday abbreviation (Mon, Fri, …)
+    # then inject current year when absent — avoids DeprecationWarning in Python
+    # 3.12 and the upcoming ValueError in Python 3.15 for year-less formats.
+    s = re.sub(r'^[A-Z][a-z]{2}\s+', '', s)
+    has_year = bool(re.search(r'\b\d{4}\b', s))
+    s_parse = f"{s} {now.year}" if not has_year else s
+    for fmt in ("%b %d %H:%M:%S %Y", "%b  %d %H:%M:%S %Y", "%b %d %H:%M %Y", "%b  %d %H:%M %Y"):
+        try:
+            dt = datetime.strptime(s_parse, fmt)
+            if not has_year and dt.date() > now.date():
+                dt = dt.replace(year=now.year - 1)
             return dt.replace(tzinfo=timezone.utc)
         except ValueError:
             continue
+    # Pure HH:MM logout time from legacy last output (no date context available)
     if re.match(r'^\d{1,2}:\d{2}$', s):
         try:
             t = datetime.strptime(s, "%H:%M")
