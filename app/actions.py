@@ -651,11 +651,6 @@ def add_server(
     )
     if existing:
         raise UserError(f"IP {ip} is already used by server '{existing['hostname']}'")
-    import servers as servers_mod
-    try:
-        servers_mod.add_to_known_hosts(ip, ssh_port)
-    except Exception as e:
-        raise UserError(f"Cannot reach {hostname} ({ip}) for keyscan: {e}") from e
     ssh.provision_server(ip, ssh_user, ssh_password, ssh_port)
     db.execute(
         "INSERT INTO servers (hostname, ip_address, environment, os_family, ssh_port) VALUES (%s, %s, %s, %s, %s)",

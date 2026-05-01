@@ -66,27 +66,20 @@ def test_servers_add_known_hosts_skips_if_already_present():
         f.write("|1|abc= ssh-ed25519 AAAA 192.168.1.10\n")
         path = f.name
     try:
-        with patch("subprocess.run") as mock_run:
+        with patch("ssh._fetch_host_key") as mock_fetch:
             servers.add_to_known_hosts("192.168.1.10", known_hosts=path)
-            mock_run.assert_not_called()
+            mock_fetch.assert_not_called()
     finally:
         os.unlink(path)
 
 
-def test_servers_add_known_hosts_calls_ssh_keyscan_if_absent():
+def test_servers_add_known_hosts_calls_fetch_host_key_if_absent():
     with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
         path = f.name
     try:
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                stdout="|1|hash= ssh-ed25519 AAAA\n", returncode=0
-            )
+        with patch("ssh._fetch_host_key") as mock_fetch:
             servers.add_to_known_hosts("10.0.0.1", known_hosts=path)
-            mock_run.assert_called_once()
-            args = mock_run.call_args[0][0]
-            assert "ssh-keyscan" in args
-            assert "10.0.0.1" in args
-            assert "-p" not in args
+            mock_fetch.assert_called_once_with("10.0.0.1", 22, known_hosts_path=path)
     finally:
         os.unlink(path)
 
@@ -95,31 +88,20 @@ def test_servers_add_known_hosts_uses_custom_port():
     with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
         path = f.name
     try:
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                stdout="|1|hash= ssh-ed25519 AAAA\n", returncode=0
-            )
+        with patch("ssh._fetch_host_key") as mock_fetch:
             servers.add_to_known_hosts("10.0.0.1", port=65500, known_hosts=path)
-            args = mock_run.call_args[0][0]
-            assert "-p" in args
-            assert "65500" in args
-            assert "10.0.0.1" in args
+            mock_fetch.assert_called_once_with("10.0.0.1", 65500, known_hosts_path=path)
     finally:
         os.unlink(path)
 
 
-def test_servers_add_known_hosts_appends_output_to_file():
+def test_servers_add_known_hosts_propagates_error():
     with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
         path = f.name
     try:
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                stdout="|1|hash= ssh-ed25519 KEY 10.0.0.1\n", returncode=0
-            )
-            servers.add_to_known_hosts("10.0.0.1", known_hosts=path)
-        with open(path) as f:
-            content = f.read()
-        assert "10.0.0.1" in content
+        with patch("ssh._fetch_host_key", side_effect=RuntimeError("unreachable")):
+            with pytest.raises(RuntimeError, match="unreachable"):
+                servers.add_to_known_hosts("10.0.0.1", known_hosts=path)
     finally:
         os.unlink(path)
 

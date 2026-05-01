@@ -496,6 +496,25 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
         client.close()
 
 
+def _fetch_host_key(ip: str, port: int, known_hosts_path: str | None = None) -> None:
+    """Fetch the server host key via a single Paramiko Transport connection and append to known_hosts."""
+    t = paramiko.Transport((ip, port))
+    try:
+        t.start_client(timeout=10)
+        key = t.get_remote_server_key()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Server unreachable — could not get host key on port {port}. "
+            "Check the IP address and that SSH is running."
+        ) from exc
+    finally:
+        t.close()
+    host = f"[{ip}]:{port}" if port != 22 else ip
+    path = known_hosts_path if known_hosts_path is not None else KNOWN_HOSTS
+    with open(path, "a") as fh:
+        fh.write(f"{host} {key.get_name()} {key.get_base64()}\n")
+
+
 def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 22) -> None:
     """Connect and provision the server.
 
@@ -504,28 +523,9 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
     password auth and run the provision script.
     """
     import socket
-    import subprocess as _sp
 
-    # Step 1 — ssh-keyscan on provision port to populate known_hosts
-    try:
-        result = _sp.run(
-            ["ssh-keyscan", "-H", "-T", "10", "-p", str(ssh_port), ip],
-            capture_output=True, text=True, timeout=15,
-        )
-    except _sp.TimeoutExpired:
-        raise RuntimeError(
-            f"Connection timed out — server did not respond within 15 seconds on port {ssh_port}"
-        )
-
-    if not result.stdout.strip():
-        raise RuntimeError(
-            f"Server unreachable — could not get host key on port {ssh_port}. "
-            "Check the IP address and that SSH is running."
-        )
-
-    # Append to known_hosts (dedup: only if not already present)
-    with open(KNOWN_HOSTS, "a") as fh:
-        fh.write(result.stdout)
+    # Step 1 — fetch host key via single Paramiko Transport (1 TCP connection, no preauth events)
+    _fetch_host_key(ip, ssh_port)
 
     if not ssh_password:
         # Key-auth path: verify collector key works (server was provisioned manually)
