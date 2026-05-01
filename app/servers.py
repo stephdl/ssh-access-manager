@@ -1,10 +1,10 @@
 import ipaddress
 import os
-import subprocess
 
 import yaml
 
 import db
+import ssh
 
 SERVERS_YML = os.environ.get("SERVERS_YML", "/data/config/servers.yml")
 KNOWN_HOSTS = os.environ.get("KNOWN_HOSTS", "/data/keys/known_hosts")
@@ -26,20 +26,11 @@ def _hostname_in_known_hosts(hostname: str, known_hosts: str = KNOWN_HOSTS) -> b
 
 
 def add_to_known_hosts(ip: str, port: int = 22, known_hosts: str = KNOWN_HOSTS) -> None:
-    """Run ssh-keyscan on ip (and port) and append to known_hosts if not present."""
+    """Fetch server host key via single Paramiko connection and append to known_hosts if not present."""
     ip = str(ipaddress.ip_address(ip.strip()))
     if _hostname_in_known_hosts(ip, known_hosts):
         return
-    cmd = ["ssh-keyscan", "-H", "-T", "10"]
-    if port != 22:
-        cmd += ["-p", str(port)]
-    cmd.append(ip)
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.stdout:
-        with open(known_hosts, "a") as f:
-            f.write(result.stdout)
-    else:
-        raise RuntimeError(f"ssh-keyscan failed for {ip}")
+    ssh._fetch_host_key(ip, port, known_hosts_path=known_hosts)
 
 
 def sync_servers(path: str = SERVERS_YML) -> list[dict]:

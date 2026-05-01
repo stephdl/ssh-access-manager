@@ -675,16 +675,86 @@ def test_ssh_collect_sessions_local_tty_no_ip(mock_ssh_client):
 
 
 # ---------------------------------------------------------------------------
+# _fetch_host_key — single Paramiko Transport connection
+# ---------------------------------------------------------------------------
+
+def test_ssh_fetch_host_key_single_connection():
+    """_fetch_host_key writes host key entry using a single Transport connection."""
+    import tempfile
+    from unittest.mock import MagicMock, patch
+
+    mock_key = MagicMock()
+    mock_key.get_name.return_value = "ssh-ed25519"
+    mock_key.get_base64.return_value = "AAAAC3NzaC1lZDI1NTE5AAAA"
+
+    mock_transport = MagicMock()
+    mock_transport.get_remote_server_key.return_value = mock_key
+
+    with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
+        path = f.name
+    try:
+        with patch("ssh.paramiko.Transport", return_value=mock_transport):
+            ssh._fetch_host_key("192.168.1.10", 22, known_hosts_path=path)
+        with open(path) as f:
+            content = f.read()
+        assert "192.168.1.10 ssh-ed25519" in content
+        mock_transport.start_client.assert_called_once()
+        mock_transport.close.assert_called_once()
+    finally:
+        os.unlink(path)
+
+
+def test_ssh_fetch_host_key_non_standard_port_brackets():
+    """_fetch_host_key uses [ip]:port bracket format for non-22 ports."""
+    import tempfile
+    from unittest.mock import MagicMock, patch
+
+    mock_key = MagicMock()
+    mock_key.get_name.return_value = "ssh-ed25519"
+    mock_key.get_base64.return_value = "AAAAC3NzaC1lZDI1NTE5AAAA"
+
+    mock_transport = MagicMock()
+    mock_transport.get_remote_server_key.return_value = mock_key
+
+    with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
+        path = f.name
+    try:
+        with patch("ssh.paramiko.Transport", return_value=mock_transport):
+            ssh._fetch_host_key("10.0.0.1", 2222, known_hosts_path=path)
+        with open(path) as f:
+            content = f.read()
+        assert "[10.0.0.1]:2222 ssh-ed25519" in content
+    finally:
+        os.unlink(path)
+
+
+def test_ssh_fetch_host_key_raises_on_unreachable():
+    """_fetch_host_key raises RuntimeError when Transport cannot connect."""
+    import tempfile
+    from unittest.mock import MagicMock, patch
+
+    mock_transport = MagicMock()
+    mock_transport.start_client.side_effect = Exception("Connection refused")
+
+    with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
+        path = f.name
+    try:
+        with patch("ssh.paramiko.Transport", return_value=mock_transport):
+            with pytest.raises(RuntimeError, match="unreachable"):
+                ssh._fetch_host_key("10.0.0.1", 22, known_hosts_path=path)
+        mock_transport.close.assert_called_once()
+    finally:
+        os.unlink(path)
+
+
+
+# ---------------------------------------------------------------------------
 # provision_server — auto-provision via password SSH
 # ---------------------------------------------------------------------------
 
 def test_ssh_provision_server_success():
     """provision_server succeeds when all steps complete."""
     from unittest.mock import MagicMock, patch, mock_open
-    import subprocess
-
-    mock_sp_result = MagicMock()
-    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
 
     def mock_open_side_effect(filename, *args, **kwargs):
         if filename == "/app/provision-host.sh":
@@ -693,7 +763,7 @@ def test_ssh_provision_server_success():
             return mock_open(read_data="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...")()
         return mock_open()()
 
-    with patch("subprocess.run", return_value=mock_sp_result), \
+    with patch("ssh._fetch_host_key"), \
          patch("builtins.open", side_effect=mock_open_side_effect), \
          patch("ssh.paramiko.SSHClient") as mock_cls, \
          patch("ssh.paramiko.RejectPolicy") as mock_policy:
@@ -710,7 +780,6 @@ def test_ssh_provision_server_success():
         mock_sftp = MagicMock()
         mock_client.open_sftp.return_value = mock_sftp
 
-        # Should not raise
         ssh.provision_server("192.168.1.10", "root", "password123", 22)
 
         mock_client.set_missing_host_key_policy.assert_called_once()
@@ -720,15 +789,32 @@ def test_ssh_provision_server_success():
         mock_client.close.assert_called_once()
 
 
+def test_ssh_provision_server_uses_paramiko_for_host_key():
+    """provision_server calls _fetch_host_key instead of subprocess ssh-keyscan."""
+    from unittest.mock import MagicMock, patch, mock_open
+
+    with patch("ssh._fetch_host_key") as mock_fetch, \
+         patch("builtins.open", mock_open(read_data=b"#!/bin/sh\necho provisioned")), \
+         patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy"):
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+        mock_client.connect.side_effect = Exception("stop early")
+
+        try:
+            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+        except Exception:
+            pass
+
+        mock_fetch.assert_called_once_with("192.168.1.10", 22)
+
+
 def test_ssh_provision_server_auth_failed():
     """provision_server raises RuntimeError on authentication failure."""
     from unittest.mock import MagicMock, patch, mock_open
     import paramiko
 
-    mock_sp_result = MagicMock()
-    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
-
-    with patch("subprocess.run", return_value=mock_sp_result), \
+    with patch("ssh._fetch_host_key"), \
          patch("builtins.open", mock_open(read_data=b"#!/bin/sh\necho provisioned")), \
          patch("ssh.paramiko.SSHClient") as mock_cls, \
          patch("ssh.paramiko.RejectPolicy"):
@@ -745,10 +831,7 @@ def test_ssh_provision_server_timeout():
     from unittest.mock import MagicMock, patch, mock_open
     import socket
 
-    mock_sp_result = MagicMock()
-    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
-
-    with patch("subprocess.run", return_value=mock_sp_result), \
+    with patch("ssh._fetch_host_key"), \
          patch("builtins.open", mock_open(read_data=b"#!/bin/sh\necho provisioned")), \
          patch("ssh.paramiko.SSHClient") as mock_cls, \
          patch("ssh.paramiko.RejectPolicy"):
@@ -764,10 +847,7 @@ def test_ssh_provision_server_no_route():
     """provision_server raises RuntimeError on no route to host."""
     from unittest.mock import MagicMock, patch, mock_open
 
-    mock_sp_result = MagicMock()
-    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
-
-    with patch("subprocess.run", return_value=mock_sp_result), \
+    with patch("ssh._fetch_host_key"), \
          patch("builtins.open", mock_open(read_data=b"#!/bin/sh\necho provisioned")), \
          patch("ssh.paramiko.SSHClient") as mock_cls, \
          patch("ssh.paramiko.RejectPolicy"):
@@ -783,10 +863,7 @@ def test_ssh_provision_server_refused():
     """provision_server raises RuntimeError on connection refused."""
     from unittest.mock import MagicMock, patch, mock_open
 
-    mock_sp_result = MagicMock()
-    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
-
-    with patch("subprocess.run", return_value=mock_sp_result), \
+    with patch("ssh._fetch_host_key"), \
          patch("builtins.open", mock_open(read_data=b"#!/bin/sh\necho provisioned")), \
          patch("ssh.paramiko.SSHClient") as mock_cls, \
          patch("ssh.paramiko.RejectPolicy"):
@@ -799,13 +876,10 @@ def test_ssh_provision_server_refused():
 
 
 def test_ssh_provision_server_keyscan_unreachable():
-    """provision_server raises RuntimeError when ssh-keyscan returns empty output."""
-    from unittest.mock import MagicMock, patch
+    """provision_server raises RuntimeError when host key fetch fails."""
+    from unittest.mock import patch
 
-    mock_sp_result = MagicMock()
-    mock_sp_result.stdout = ""
-
-    with patch("subprocess.run", return_value=mock_sp_result):
+    with patch("ssh._fetch_host_key", side_effect=RuntimeError("Server unreachable")):
         with pytest.raises(RuntimeError, match="unreachable"):
             ssh.provision_server("192.168.1.10", "root", "password123", 22)
 
@@ -814,9 +888,6 @@ def test_ssh_provision_server_script_failed():
     """provision_server raises RuntimeError when provision script fails with sudo error."""
     from unittest.mock import MagicMock, patch, mock_open
 
-    mock_sp_result = MagicMock()
-    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
-
     def mock_open_side_effect(filename, *args, **kwargs):
         if filename == "/app/provision-host.sh":
             return mock_open(read_data=b"#!/bin/sh\necho provisioned")()
@@ -824,7 +895,7 @@ def test_ssh_provision_server_script_failed():
             return mock_open(read_data="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...")()
         return mock_open()()
 
-    with patch("subprocess.run", return_value=mock_sp_result), \
+    with patch("ssh._fetch_host_key"), \
          patch("builtins.open", side_effect=mock_open_side_effect), \
          patch("ssh.paramiko.SSHClient") as mock_cls, \
          patch("ssh.paramiko.RejectPolicy"):
@@ -849,10 +920,7 @@ def test_ssh_provision_server_uses_reject_policy():
     """provision_server must use RejectPolicy."""
     from unittest.mock import MagicMock, patch, mock_open
 
-    mock_sp_result = MagicMock()
-    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
-
-    with patch("subprocess.run", return_value=mock_sp_result), \
+    with patch("ssh._fetch_host_key"), \
          patch("builtins.open", mock_open(read_data=b"#!/bin/sh\necho provisioned")), \
          patch("ssh.paramiko.SSHClient") as mock_cls, \
          patch("ssh.paramiko.RejectPolicy") as mock_policy:
@@ -872,11 +940,7 @@ def test_ssh_provision_server_no_password_uses_collector_key():
     """provision_server with empty password connects via collector key (no provision script)."""
     from unittest.mock import MagicMock, patch
 
-    mock_sp_result = MagicMock()
-    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
-
-    with patch("subprocess.run", return_value=mock_sp_result), \
-         patch("builtins.open", MagicMock()), \
+    with patch("ssh._fetch_host_key"), \
          patch("ssh._connect") as mock_connect:
         mock_client = MagicMock()
         mock_connect.return_value = mock_client
@@ -889,14 +953,10 @@ def test_ssh_provision_server_no_password_uses_collector_key():
 
 def test_ssh_provision_server_no_password_key_auth_failed():
     """provision_server with empty password raises RuntimeError when collector key is not authorized."""
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import patch
     import paramiko
 
-    mock_sp_result = MagicMock()
-    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
-
-    with patch("subprocess.run", return_value=mock_sp_result), \
-         patch("builtins.open", MagicMock()), \
+    with patch("ssh._fetch_host_key"), \
          patch("ssh._connect", side_effect=paramiko.AuthenticationException("no key")):
 
         with pytest.raises(RuntimeError, match="collector key is not authorized"):
@@ -907,11 +967,7 @@ def test_ssh_provision_server_no_password_skips_provision_script():
     """provision_server with empty password does not run the provision script."""
     from unittest.mock import MagicMock, patch
 
-    mock_sp_result = MagicMock()
-    mock_sp_result.stdout = "ssh-ed25519 AAAA...\n"
-
-    with patch("subprocess.run", return_value=mock_sp_result), \
-         patch("builtins.open", MagicMock()), \
+    with patch("ssh._fetch_host_key"), \
          patch("ssh._connect") as mock_connect:
         mock_client = MagicMock()
         mock_connect.return_value = mock_client

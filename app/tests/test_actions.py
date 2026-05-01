@@ -401,7 +401,7 @@ def test_actions_revoke_request_calls_sam_revoke():
 # ---------------------------------------------------------------------------
 
 def test_actions_add_server_logs_server_added(sample_server):
-    with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"), patch("actions.ssh"):
+    with patch("actions.db") as mock_db, patch("actions.ssh"):
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         actions.add_server("new-host", "10.0.0.1", "root", "pass123", "lab", "rhel", 22, ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
@@ -412,8 +412,7 @@ def test_actions_add_server_provisions_before_insert(sample_server):
     """SSH provisioning must happen before INSERT."""
     call_order = []
     with patch("actions.db") as mock_db, \
-         patch("actions.ssh") as mock_ssh, \
-         patch("servers.add_to_known_hosts"):
+         patch("actions.ssh") as mock_ssh:
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         mock_ssh.provision_server.side_effect = lambda *a, **kw: call_order.append("ssh")
         def track_execute(*args, **kwargs):
@@ -428,8 +427,7 @@ def test_actions_add_server_provisions_before_insert(sample_server):
 def test_actions_add_server_ssh_failure_no_db_write(sample_server):
     """If SSH provisioning fails, nothing is written to DB."""
     with patch("actions.db") as mock_db, \
-         patch("actions.ssh") as mock_ssh, \
-         patch("servers.add_to_known_hosts"):
+         patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = None
         mock_ssh.provision_server.side_effect = RuntimeError("Auth failed")
         with pytest.raises(RuntimeError, match="Auth failed"):
@@ -440,8 +438,7 @@ def test_actions_add_server_ssh_failure_no_db_write(sample_server):
 def test_actions_add_server_logs_provisioned(sample_server):
     """SERVER_PROVISIONED audit entry must be created after success."""
     with patch("actions.db") as mock_db, \
-         patch("actions.ssh"), \
-         patch("servers.add_to_known_hosts"):
+         patch("actions.ssh"):
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         actions.add_server("new-host", "10.0.0.1", "root", "pass", "lab", None, 22, ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
@@ -452,8 +449,7 @@ def test_actions_add_server_password_not_in_db(sample_server):
     """Password must never appear in any DB call."""
     secret = "SuperSecret123!"
     with patch("actions.db") as mock_db, \
-         patch("actions.ssh"), \
-         patch("servers.add_to_known_hosts"):
+         patch("actions.ssh"):
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         actions.add_server("new-host", "10.0.0.1", "root", secret, "lab", None, 22, ADMIN_ID)
         for call_args in mock_db.execute.call_args_list:
@@ -466,8 +462,7 @@ def test_actions_add_server_password_not_in_db(sample_server):
 def test_actions_add_server_env_optional(sample_server):
     """Environment can be None."""
     with patch("actions.db") as mock_db, \
-         patch("actions.ssh"), \
-         patch("servers.add_to_known_hosts"):
+         patch("actions.ssh"):
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         actions.add_server("new-host", "10.0.0.1", "root", "pass", None, None, 22, ADMIN_ID)
         insert_call = mock_db.execute.call_args_list[0]
@@ -477,8 +472,7 @@ def test_actions_add_server_env_optional(sample_server):
 def test_actions_add_server_no_password_calls_provision_with_empty(sample_server):
     """add_server with empty password passes empty string to provision_server (key-auth path)."""
     with patch("actions.db") as mock_db, \
-         patch("actions.ssh") as mock_ssh, \
-         patch("servers.add_to_known_hosts"):
+         patch("actions.ssh") as mock_ssh:
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         actions.add_server("new-host", "10.0.0.1", "root", "", "lab", None, 22, ADMIN_ID)
         mock_ssh.provision_server.assert_called_once_with("10.0.0.1", "root", "", 22)
