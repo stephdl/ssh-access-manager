@@ -444,8 +444,8 @@ def refresh_server_sessions(hostname):
         ssh.collect_sessions_on_server(hostname, server["id"], ip, port=port)
         return jsonify({"status": "refreshed"})
     except RuntimeError as e:
-        logging.warning("collect_sessions_on_server failed on %s (%s): %s", hostname, ip, e)
-        return jsonify({"error": str(e)}), 502
+        logging.warning("collect_sessions_on_server failed on %s (%s): %s", hostname, ip, str(e).replace("\n", " ").replace("\r", ""))
+        return jsonify({"error": "Session collection failed"}), 502
     except Exception:
         logging.exception("collect_sessions_on_server failed on %s (%s)", hostname, ip)
         return jsonify({"error": "Internal server error"}), 502

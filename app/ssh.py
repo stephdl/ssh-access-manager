@@ -425,7 +425,7 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
     try:
         out, err, rc = _run(client, f"sudo {SAM_SESSIONS_PATH}")
         if rc != 0:
-            logging.warning("sam-sessions returned rc=%d on %s: %s", rc, hostname, err.strip())
+            logging.warning("sam-sessions returned rc=%d on %s: %s", rc, hostname, err.strip().replace("\n", " ").replace("\r", ""))
             return
         now = datetime.now(timezone.utc)
         db.execute(
@@ -448,7 +448,7 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
                 login_at_str = parts[4].strip() if len(parts) > 4 else ''
                 login_at = _parse_session_datetime(login_at_str, now)
                 if not login_at:
-                    logging.debug("sam-sessions: could not parse login_at %r on %s", login_at_str, hostname)
+                    logging.debug("sam-sessions: could not parse login_at %r on %s", login_at_str.replace("\n", " ").replace("\r", ""), hostname)
                     continue
                 db.execute(
                     """
@@ -491,7 +491,7 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
                     """,
                     (server_id, unix_user, tty, login_ip, login_at, logout_at, is_still_active),
                 )
-        logging.debug("collect_sessions_on_server: %d active sessions on %s", active_count, hostname)
+        logging.debug("collect_sessions_on_server: %d active sessions on %s", active_count, hostname.replace("\n", " ").replace("\r", ""))
     finally:
         client.close()
 
