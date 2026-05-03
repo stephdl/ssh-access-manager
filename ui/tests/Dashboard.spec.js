@@ -332,6 +332,61 @@ describe('Dashboard - Add Server Modal', () => {
     expect(w.vm.counts.danger).toBe(1)
   })
 
+  it('triggers a scan automatically after successful server creation', async () => {
+    const router = createMockRouter()
+    const fetchSpy = vi.fn((url, options) => {
+      if (url === '/api/servers' && options?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ hostname: 'test-server' }),
+        })
+      }
+      if (url === '/api/servers/test-server/scan' && options?.method === 'POST') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+      }
+      if (url === '/api/servers') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(MOCK_SERVERS),
+        })
+      }
+      if (url === '/api/system/collector-key') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ public_key: COLLECTOR_KEY, ssh_user: 'audit-collector' }),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = mount(Dashboard, { global: { plugins: [i18n, router] } })
+    await flushPromises()
+
+    await w.find('button.btn-secondary').trigger('click')
+    await flushPromises()
+
+    w.vm.addForm = {
+      hostname: 'test-server',
+      ip: '192.168.1.50',
+      environment: 'production',
+      os_family: '',
+      sshUser: 'root',
+      sshPort: 22,
+      sshPassword: 'mypassword',
+    }
+    await w.vm.$nextTick()
+
+    const submitBtn = w.findAll('button.btn-primary').find((b) => b.text().includes('Add'))
+    await submitBtn.trigger('click')
+    await flushPromises()
+
+    const scanCall = fetchSpy.mock.calls.find(
+      (call) => call[0] === '/api/servers/test-server/scan' && call[1]?.method === 'POST'
+    )
+    expect(scanCall).toBeDefined()
+  })
+
   it('accepts valid hostnames — simple label and FQDN', async () => {
     const router = createMockRouter()
     const w = mount(Dashboard, { global: { plugins: [i18n, router] } })
