@@ -797,12 +797,12 @@ def test_ssh_fetch_host_key_non_standard_port_brackets():
 
 
 def test_ssh_fetch_host_key_raises_on_unreachable():
-    """_fetch_host_key raises RuntimeError when Transport cannot connect."""
+    """_fetch_host_key raises RuntimeError when Transport cannot connect (generic error)."""
     import tempfile
     from unittest.mock import MagicMock, patch
 
     mock_transport = MagicMock()
-    mock_transport.start_client.side_effect = Exception("Connection refused")
+    mock_transport.start_client.side_effect = Exception("Network timeout")
 
     with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
         path = f.name
@@ -811,6 +811,44 @@ def test_ssh_fetch_host_key_raises_on_unreachable():
             with pytest.raises(RuntimeError, match="unreachable"):
                 ssh._fetch_host_key("10.0.0.1", 22, known_hosts_path=path)
         mock_transport.close.assert_called_once()
+    finally:
+        os.unlink(path)
+
+
+def test_ssh_fetch_host_key_connection_refused_raises_runtime_error():
+    """_fetch_host_key raises RuntimeError with 'refused' when Transport constructor gets connection refused."""
+    import tempfile
+    from unittest.mock import patch
+    import paramiko as paramiko_mod
+
+    with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
+        path = f.name
+    try:
+        with patch(
+            "ssh.paramiko.Transport",
+            side_effect=paramiko_mod.SSHException("Unable to connect: [Errno 111] Connection refused"),
+        ):
+            with pytest.raises(RuntimeError, match="refused"):
+                ssh._fetch_host_key("10.0.0.1", 22, known_hosts_path=path)
+    finally:
+        os.unlink(path)
+
+
+def test_ssh_fetch_host_key_generic_ssh_exception_raises_runtime_error():
+    """_fetch_host_key raises RuntimeError with 'unreachable' for non-refused SSHException."""
+    import tempfile
+    from unittest.mock import patch
+    import paramiko as paramiko_mod
+
+    with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
+        path = f.name
+    try:
+        with patch(
+            "ssh.paramiko.Transport",
+            side_effect=paramiko_mod.SSHException("Network unreachable"),
+        ):
+            with pytest.raises(RuntimeError, match="unreachable"):
+                ssh._fetch_host_key("10.0.0.1", 22, known_hosts_path=path)
     finally:
         os.unlink(path)
 

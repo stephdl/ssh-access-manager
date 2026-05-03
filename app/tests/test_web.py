@@ -419,6 +419,23 @@ def test_web_add_server_ssh_failure_returns_422(auth_client):
         assert resp.status_code == 422
 
 
+def test_web_add_server_ssh_port_refused_returns_422(auth_client):
+    """POST /api/servers returns 422 with SSH_PORT_REFUSED when port is refused."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.add_server.side_effect = RuntimeError(
+            "SSH port 22 refused — check that SSH is running on that port"
+        )
+        resp = auth_client.post(
+            "/api/servers",
+            json={"hostname": "new-srv", "ip": "10.0.0.1",
+                  "ssh_user": "root", "ssh_password": "pass"},
+        )
+        assert resp.status_code == 422
+        data = resp.get_json()
+        assert data["error_code"] == "SSH_PORT_REFUSED"
+
+
 def test_web_add_server_env_optional(auth_client):
     """environment field is optional — server can be created without it."""
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
