@@ -57,6 +57,7 @@
       v-else
       :servers="servers"
       :current-role="currentRole"
+      :scanning-hostname="scanningHostname"
       @scan="scanOne"
       @edit="openEditServer"
     />
@@ -290,6 +291,7 @@ const currentRole = computed(() => admin.value?.role || 'viewer')
 const servers = ref([])
 const loading = ref(true)
 const scanning = ref(false)
+const scanningHostname = ref(null)
 const error = ref('')
 const scanMessage = ref('')
 const collectorKey = ref('')
@@ -481,6 +483,7 @@ async function scanOne(hostname) {
 
 async function triggerScan(url, hostname) {
   scanning.value = true
+  scanningHostname.value = hostname
   scanMessage.value = ''
   error.value = ''
   try {
@@ -494,6 +497,7 @@ async function triggerScan(url, hostname) {
     error.value = t('dashboard.scan_error', { error: e.message })
   } finally {
     scanning.value = false
+    scanningHostname.value = null
   }
 }
 
