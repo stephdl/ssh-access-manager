@@ -446,8 +446,10 @@ async function confirmAddServer() {
         data.error_code && te(i18nKey) ? t(i18nKey) : data.error || `HTTP ${res.status}`
       )
     }
+    const newHostname = addForm.value.hostname.trim()
     await loadServers()
     closeAddServer()
+    scanOne(newHostname)
   } catch (e) {
     addError.value = e.message
   } finally {
