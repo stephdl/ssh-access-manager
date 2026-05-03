@@ -53,9 +53,17 @@ tls_certcheck  ${_certcheck}"
             ;;
     esac
 
+    if [ -n "${SMTP_USERNAME}" ]; then
+        _auth_block="auth           on
+user           ${SMTP_USERNAME}
+password       ${SMTP_PASSWORD}"
+    else
+        _auth_block="auth           off"
+    fi
+
     cat > /etc/msmtprc << EOF
 defaults
-auth           on
+${_auth_block}
 ${_tls_block}
 logfile        /dev/stderr
 
@@ -63,8 +71,6 @@ account        default
 host           ${SMTP_HOST:-mail.example.com}
 port           ${SMTP_PORT:-587}
 from           ${SMTP_FROM:-ssh-manager@example.com}
-user           ${SMTP_USERNAME:-alerts@example.com}
-password       ${SMTP_PASSWORD:-changeme}
 EOF
     chmod 640 /etc/msmtprc
     chown root:nobody /etc/msmtprc
