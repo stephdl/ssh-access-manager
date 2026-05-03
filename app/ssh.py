@@ -546,17 +546,24 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
 
 def _fetch_host_key(ip: str, port: int, known_hosts_path: str | None = None) -> None:
     """Fetch the server host key via a single Paramiko Transport connection and append to known_hosts."""
-    t = paramiko.Transport((ip, port))
+    t = None
     try:
+        t = paramiko.Transport((ip, port))
         t.start_client(timeout=10)
         key = t.get_remote_server_key()
     except Exception as exc:
+        msg = str(exc)
+        if "Connection refused" in msg or "refused" in msg:
+            raise RuntimeError(
+                f"SSH port {port} refused — check that SSH is running on that port"
+            ) from exc
         raise RuntimeError(
             f"Server unreachable — could not get host key on port {port}. "
             "Check the IP address and that SSH is running."
         ) from exc
     finally:
-        t.close()
+        if t is not None:
+            t.close()
     host = f"[{ip}]:{port}" if port != 22 else ip
     path = known_hosts_path if known_hosts_path is not None else KNOWN_HOSTS
     with open(path, "a") as fh:
