@@ -30,6 +30,7 @@
     "scanning": "Scannen…",
     "status_ok": "✅ OK",
     "status_alert": "🟡 Warnung",
+    "status_scan_failed": "🟠 Scan fehlgeschlagen",
     "status_inactive": "🔴 Inaktiv",
     "status_total": "Gesamt",
     "collector_key": "Öffentlicher Collector-Schlüssel",
@@ -96,6 +97,7 @@
     "col_actions": "Aktionen",
     "empty": "Kein Server gefunden.",
     "disabled_badge": "DEAKTIVIERT",
+    "status_scan_failed": "Letzter Scan fehlgeschlagen",
     "scan": "Scannen",
     "edit": "Bearbeiten"
   },
@@ -120,6 +122,7 @@
     "load_error": "Server nicht gefunden (HTTP {status})",
     "scan_success": "Scan erfolgreich gestartet.",
     "scan_error": "Scan-Fehler: {error}",
+    "last_scan_failed": "Letzter Scan fehlgeschlagen: {error}",
     "disable_success": "Server deaktiviert.",
     "reactivate_success": "Server reaktiviert.",
     "delete_modal_title": "Server löschen",
@@ -177,7 +180,9 @@
     "btn_unlimited": "Unbegrenzt",
     "filter_placeholder": "Fingerprint, Benutzer, Owner suchen…",
     "filter_all_statuses": "Alle Status",
-    "no_results": "Keine passenden Schlüssel."
+    "no_results": "Keine passenden Schlüssel.",
+    "revoke_unavailable": "Widerrufen nicht möglich: letzter Scan fehlgeschlagen (Server nicht erreichbar)",
+    "validate_unavailable": "Validieren nicht möglich: letzter Scan fehlgeschlagen (Server nicht erreichbar)"
   },
   "access": {
     "title": "Temporärer Zugriff",
@@ -434,7 +439,8 @@
     "filter_apply": "Anwenden",
     "export_csv": "CSV exportieren",
     "refresh_error": "Aktualisierung fehlgeschlagen: {error}",
-    "load_error": "Sitzungen konnten nicht geladen werden: {error}"
+    "load_error": "Sitzungen konnten nicht geladen werden: {error}",
+    "scan_required": "Zuerst den Server scannen, um Sitzungen zu aktualisieren"
   },
   "password_banner": {
     "message": "Ihr Passwort wurde noch nie geändert. Bitte aktualisieren Sie es aus Sicherheitsgründen.",

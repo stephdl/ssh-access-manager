@@ -30,6 +30,7 @@
     "scanning": "Scanning…",
     "status_ok": "✅ OK",
     "status_alert": "🟡 Alert",
+    "status_scan_failed": "🟠 Scan Failed",
     "status_inactive": "🔴 Inactive",
     "status_total": "Total",
     "collector_key": "Collector public key",
@@ -96,6 +97,7 @@
     "col_actions": "Actions",
     "empty": "No server found.",
     "disabled_badge": "DISABLED",
+    "status_scan_failed": "Last scan failed",
     "scan": "Scan",
     "edit": "Edit"
   },
@@ -120,6 +122,7 @@
     "load_error": "Server not found (HTTP {status})",
     "scan_success": "Scan launched successfully.",
     "scan_error": "Scan error: {error}",
+    "last_scan_failed": "Last scan failed: {error}",
     "disable_success": "Server disabled.",
     "reactivate_success": "Server reactivated.",
     "delete_modal_title": "Delete server",
@@ -177,7 +180,9 @@
     "btn_unlimited": "Unlimited",
     "filter_placeholder": "Search fingerprint, user, owner…",
     "filter_all_statuses": "All statuses",
-    "no_results": "No matching keys."
+    "no_results": "No matching keys.",
+    "revoke_unavailable": "Cannot revoke: last scan failed (server unreachable)",
+    "validate_unavailable": "Cannot validate: last scan failed (server unreachable)"
   },
   "access": {
     "title": "Temporary Access",
@@ -434,7 +439,8 @@
     "filter_apply": "Apply",
     "export_csv": "Export CSV",
     "refresh_error": "Refresh failed: {error}",
-    "load_error": "Failed to load sessions: {error}"
+    "load_error": "Failed to load sessions: {error}",
+    "scan_required": "Scan the server first to refresh sessions"
   },
   "password_banner": {
     "message": "Your password has never been changed. Please update it for security.",

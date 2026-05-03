@@ -53,6 +53,9 @@
 
     <div v-if="error" class="alert-error">{{ error }}</div>
     <div v-if="message" class="alert-info">{{ message }}</div>
+    <div v-if="!loading && server.last_scan_ok === false" class="alert-error">
+      {{ $t('server_detail.last_scan_failed', { error: server.last_scan_error }) }}
+    </div>
 
     <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
 
@@ -85,7 +88,7 @@
       </section>
 
       <!-- SSH Sessions -->
-      <SessionsCard :hostname="hostname" :current-role="currentRole" />
+      <SessionsCard :hostname="hostname" :current-role="currentRole" :scan-ok="scanOk" />
 
       <!-- SSH Keys -->
       <section class="card">
@@ -93,6 +96,7 @@
         <KeyTable
           :keys="keys"
           :current-role="currentRole"
+          :scan-ok="scanOk"
           @validate="validateKey"
           @revoke="openRevoke"
           @set-expiry="openExpiry"
@@ -420,7 +424,12 @@ async function scanServer() {
   try {
     const res = await apiFetch(`/api/servers/${hostname}/scan`, { method: 'POST' })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    message.value = t('server_detail.scan_success')
+    const data = await res.json()
+    if (data.error) {
+      error.value = t('server_detail.scan_error', { error: data.error })
+    } else {
+      message.value = t('server_detail.scan_success')
+    }
     await load()
   } catch (e) {
     error.value = t('server_detail.scan_error', { error: e.message })
@@ -428,6 +437,8 @@ async function scanServer() {
     scanning.value = false
   }
 }
+
+const scanOk = computed(() => server.value?.last_scan_ok ?? null)
 
 const efp = (fp) => encodeURIComponent(fp)
 
@@ -673,7 +684,6 @@ dd {
   margin-bottom: 1rem;
   font-size: 0.95rem;
 }
-
 .modal-overlay {
   position: fixed;
   inset: 0;

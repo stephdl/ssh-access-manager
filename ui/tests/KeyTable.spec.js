@@ -231,4 +231,64 @@ describe('KeyTable', () => {
     const rows = w.findAll('tbody tr').filter((r) => r.find('code').exists())
     expect(rows.length).toBe(2)
   })
+
+  it('disables revoke button when scanOk is false', () => {
+    const w = mount(KeyTable, {
+      props: { keys: [makeKey({ status: 'ACTIVE' })], currentRole: 'sysadmin', scanOk: false },
+      global: { plugins: [i18n] },
+    })
+    const revokeBtn = w.findAll('button').find((b) => b.text() === 'Revoke')
+    expect(revokeBtn).toBeDefined()
+    expect(revokeBtn.attributes('disabled')).toBeDefined()
+    expect(revokeBtn.attributes('title')).toContain('Cannot revoke')
+  })
+
+  it('keeps revoke button enabled when scanOk is true', () => {
+    const w = mount(KeyTable, {
+      props: { keys: [makeKey({ status: 'ACTIVE' })], currentRole: 'sysadmin', scanOk: true },
+      global: { plugins: [i18n] },
+    })
+    const revokeBtn = w.findAll('button').find((b) => b.text() === 'Revoke')
+    expect(revokeBtn).toBeDefined()
+    expect(revokeBtn.attributes('disabled')).toBeUndefined()
+  })
+
+  it('keeps revoke button enabled when scanOk is null (no scan yet)', () => {
+    const w = mount(KeyTable, {
+      props: { keys: [makeKey({ status: 'ACTIVE' })], currentRole: 'sysadmin', scanOk: null },
+      global: { plugins: [i18n] },
+    })
+    const revokeBtn = w.findAll('button').find((b) => b.text() === 'Revoke')
+    expect(revokeBtn).toBeDefined()
+    expect(revokeBtn.attributes('disabled')).toBeUndefined()
+  })
+
+  it('validate button is disabled when scanOk is false', () => {
+    const w = mount(KeyTable, {
+      props: {
+        keys: [makeKey({ status: 'PENDING_REVIEW' })],
+        currentRole: 'sysadmin',
+        scanOk: false,
+      },
+      global: { plugins: [i18n] },
+    })
+    const validateBtn = w.findAll('button').find((b) => b.text() === 'Validate')
+    expect(validateBtn).toBeDefined()
+    expect(validateBtn.attributes('disabled')).toBeDefined()
+    expect(validateBtn.attributes('title')).toContain('Cannot validate')
+  })
+
+  it('validate button is enabled when scanOk is true', () => {
+    const w = mount(KeyTable, {
+      props: {
+        keys: [makeKey({ status: 'PENDING_REVIEW' })],
+        currentRole: 'sysadmin',
+        scanOk: true,
+      },
+      global: { plugins: [i18n] },
+    })
+    const validateBtn = w.findAll('button').find((b) => b.text() === 'Validate')
+    expect(validateBtn).toBeDefined()
+    expect(validateBtn.attributes('disabled')).toBeUndefined()
+  })
 })

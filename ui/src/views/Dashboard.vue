@@ -29,6 +29,10 @@
         <span class="counter-value">{{ counts.warn }}</span>
         <span class="counter-label">{{ $t('dashboard.status_alert') }}</span>
       </div>
+      <div class="counter counter-scan-fail">
+        <span class="counter-value">{{ counts.scanFailed }}</span>
+        <span class="counter-label">{{ $t('dashboard.status_scan_failed') }}</span>
+      </div>
       <div class="counter counter-danger">
         <span class="counter-value">{{ counts.danger }}</span>
         <span class="counter-label">{{ $t('dashboard.status_inactive') }}</span>
@@ -312,8 +316,11 @@ const editError = ref('')
 const editForm = ref({ hostname: '', ip: '', environment: '', os_family: '', ssh_port: 22 })
 
 const counts = computed(() => ({
-  ok: servers.value.filter((s) => s.is_active && !s.has_anomalies).length,
-  warn: servers.value.filter((s) => s.is_active && s.has_anomalies).length,
+  ok: servers.value.filter((s) => s.is_active && !s.has_anomalies && s.last_scan_ok !== false)
+    .length,
+  warn: servers.value.filter((s) => s.is_active && s.last_scan_ok !== false && s.has_anomalies)
+    .length,
+  scanFailed: servers.value.filter((s) => s.is_active && s.last_scan_ok === false).length,
   danger: servers.value.filter((s) => !s.is_active).length,
 }))
 
@@ -583,6 +590,9 @@ h1 {
 }
 .counter-warn {
   border-left: 4px solid #ffc107;
+}
+.counter-scan-fail {
+  border-left: 4px solid #fd7e14;
 }
 .counter-danger {
   border-left: 4px solid #dc3545;

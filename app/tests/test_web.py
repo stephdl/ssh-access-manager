@@ -293,9 +293,89 @@ def test_web_set_expiry_rejects_no_date_or_hours(auth_client):
 def test_web_get_servers_returns_200(auth_client):
     with patch("web.db") as mock_db:
         mock_db.query_one.return_value = _admin_row()
-        mock_db.query.return_value = [{"hostname": "srv-01"}]
+        mock_db.query.return_value = [{"hostname": "srv-01", "last_scan_action": "SCAN_COMPLETED"}]
         resp = auth_client.get("/api/servers")
         assert resp.status_code == 200
+        data = resp.get_json()
+        assert data[0]["last_scan_ok"] is True
+        assert "last_scan_action" not in data[0]
+
+
+def test_web_get_servers_last_scan_ok_false(auth_client):
+    """GET /api/servers includes last_scan_ok=False when last_scan_action is SCAN_FAILED."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = [{"hostname": "srv-01", "last_scan_action": "SCAN_FAILED"}]
+        resp = auth_client.get("/api/servers")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data[0]["last_scan_ok"] is False
+
+
+def test_web_get_servers_last_scan_ok_none(auth_client):
+    """GET /api/servers includes last_scan_ok=None when no scan has run (last_scan_action absent)."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = [{"hostname": "srv-01", "last_scan_action": None}]
+        resp = auth_client.get("/api/servers")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data[0]["last_scan_ok"] is None
+
+
+# ---------------------------------------------------------------------------
+# GET /api/servers/<hostname>
+# ---------------------------------------------------------------------------
+
+def test_web_get_server_last_scan_ok_true(auth_client):
+    """GET /api/servers/<hostname> includes last_scan_ok=True when last audit is SCAN_COMPLETED."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"id": SERVER_ID, "hostname": "srv-01", "ip_address": "10.0.0.1",
+             "ssh_port": 22, "is_active": True, "environment": "lab",
+             "os_family": None, "os_version": None, "added_at": None},
+            {"action": "SCAN_COMPLETED", "scan_error": None},
+        ]
+        resp = auth_client.get("/api/servers/srv-01")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["last_scan_ok"] is True
+        assert data["last_scan_error"] is None
+
+
+def test_web_get_server_last_scan_ok_false(auth_client):
+    """GET /api/servers/<hostname> includes last_scan_ok=False and error when last audit is SCAN_FAILED."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"id": SERVER_ID, "hostname": "srv-01", "ip_address": "10.0.0.1",
+             "ssh_port": 22, "is_active": True, "environment": "lab",
+             "os_family": None, "os_version": None, "added_at": None},
+            {"action": "SCAN_FAILED", "scan_error": "Connection timed out"},
+        ]
+        resp = auth_client.get("/api/servers/srv-01")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["last_scan_ok"] is False
+        assert data["last_scan_error"] == "Connection timed out"
+
+
+def test_web_get_server_no_scan_yet(auth_client):
+    """GET /api/servers/<hostname> includes last_scan_ok=None when no scan has run yet."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"id": SERVER_ID, "hostname": "srv-01", "ip_address": "10.0.0.1",
+             "ssh_port": 22, "is_active": True, "environment": "lab",
+             "os_family": None, "os_version": None, "added_at": None},
+            None,
+        ]
+        resp = auth_client.get("/api/servers/srv-01")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["last_scan_ok"] is None
+        assert data["last_scan_error"] is None
 
 
 # ---------------------------------------------------------------------------

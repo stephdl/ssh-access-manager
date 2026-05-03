@@ -258,8 +258,26 @@ def _ssh_error_code(msg: str) -> str:
 @app.route("/api/servers", methods=["GET"])
 @require_auth
 def list_servers():
-    rows = db.query("SELECT * FROM servers ORDER BY hostname")
-    return jsonify(rows)
+    rows = db.query(
+        """
+        SELECT s.*, ls.action AS last_scan_action
+        FROM servers s
+        LEFT JOIN LATERAL (
+            SELECT action FROM audit_log
+            WHERE target_server = s.id AND action IN ('SCAN_COMPLETED', 'SCAN_FAILED')
+            ORDER BY performed_at DESC LIMIT 1
+        ) ls ON true
+        ORDER BY s.hostname
+        """
+    )
+    result = []
+    for row in rows:
+        d = dict(row)
+        last_action = d.pop('last_scan_action', None)
+        d['last_scan_ok'] = (True if last_action == 'SCAN_COMPLETED' else
+                             False if last_action == 'SCAN_FAILED' else None)
+        result.append(d)
+    return jsonify(result)
 
 
 @app.route("/api/servers/<hostname>", methods=["GET"])
@@ -268,7 +286,26 @@ def get_server(hostname):
     row = db.query_one("SELECT * FROM servers WHERE hostname = %s", (hostname,))
     if not row:
         return jsonify({"error": "Not found"}), 404
-    return jsonify(row)
+    server = dict(row)
+    last_scan = db.query_one(
+        """
+        SELECT action, details->>'error' AS scan_error
+        FROM audit_log
+        WHERE target_server = %s AND action IN ('SCAN_COMPLETED', 'SCAN_FAILED')
+        ORDER BY performed_at DESC LIMIT 1
+        """,
+        (server["id"],),
+    )
+    if last_scan is None:
+        server["last_scan_ok"] = None
+        server["last_scan_error"] = None
+    elif last_scan["action"] == "SCAN_COMPLETED":
+        server["last_scan_ok"] = True
+        server["last_scan_error"] = None
+    else:
+        server["last_scan_ok"] = False
+        server["last_scan_error"] = last_scan["scan_error"]
+    return jsonify(server)
 
 
 @app.route("/api/servers", methods=["POST"])
