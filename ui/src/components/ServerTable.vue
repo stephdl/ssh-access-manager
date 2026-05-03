@@ -68,7 +68,9 @@
           <td colspan="7" class="empty">{{ $t('server_table.empty') }}</td>
         </tr>
         <tr v-for="s in paginatedItems" :key="s.id" :class="rowClass(s)">
-          <td>{{ statusIcon(s) }}</td>
+          <td :title="s.last_scan_ok === false ? $t('server_table.status_scan_failed') : undefined">
+            {{ statusIcon(s) }}
+          </td>
           <td>
             <router-link
               :to="`/servers/${s.hostname}`"
@@ -158,12 +160,14 @@ const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSi
 
 function statusIcon(s) {
   if (!s.is_active) return '🔴'
+  if (s.last_scan_ok === false) return '🟠'
   if (s.has_anomalies) return '🟡'
   return '✅'
 }
 
 function rowClass(s) {
   if (!s.is_active) return 'row-danger'
+  if (s.last_scan_ok === false) return 'row-scan-fail'
   if (s.has_anomalies) return 'row-warning'
   return ''
 }
@@ -216,6 +220,9 @@ function envBadge(env) {
 }
 .row-danger td {
   color: #6c6c6c;
+}
+.row-scan-fail {
+  background: #fff4e5;
 }
 .row-warning {
   background: #fffbf0;

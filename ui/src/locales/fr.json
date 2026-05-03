@@ -30,6 +30,7 @@
     "scanning": "Scan en cours…",
     "status_ok": "✅ OK",
     "status_alert": "🟡 Alerte",
+    "status_scan_failed": "🟠 Scan échoué",
     "status_inactive": "🔴 Inactif",
     "status_total": "Total",
     "collector_key": "Clé publique collecteur",
@@ -96,6 +97,7 @@
     "col_actions": "Actions",
     "empty": "Aucun serveur trouvé.",
     "disabled_badge": "DÉSACTIVÉ",
+    "status_scan_failed": "Dernier scan échoué",
     "scan": "Scanner",
     "edit": "Éditer"
   },
@@ -179,7 +181,8 @@
     "filter_placeholder": "Rechercher fingerprint, utilisateur, owner…",
     "filter_all_statuses": "Tous les statuts",
     "no_results": "Aucune clé correspondante.",
-    "revoke_unavailable": "Révocation impossible : dernier scan échoué (serveur injoignable)"
+    "revoke_unavailable": "Révocation impossible : dernier scan échoué (serveur injoignable)",
+    "validate_unavailable": "Validation impossible : dernier scan échoué (serveur injoignable)"
   },
   "access": {
     "title": "Accès temporaires",

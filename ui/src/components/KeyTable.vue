@@ -118,6 +118,8 @@
               <button
                 v-if="k.status === 'PENDING_REVIEW' && props.currentRole !== 'viewer'"
                 class="btn-success"
+                :disabled="props.scanOk === false"
+                :title="props.scanOk === false ? $t('key_table.validate_unavailable') : undefined"
                 @click="$emit('validate', k)"
               >
                 {{ $t('key_table.btn_validate') }}

@@ -263,12 +263,27 @@ describe('KeyTable', () => {
     expect(revokeBtn.attributes('disabled')).toBeUndefined()
   })
 
-  it('validate button stays enabled even when scanOk is false', () => {
+  it('validate button is disabled when scanOk is false', () => {
     const w = mount(KeyTable, {
       props: {
         keys: [makeKey({ status: 'PENDING_REVIEW' })],
         currentRole: 'sysadmin',
         scanOk: false,
+      },
+      global: { plugins: [i18n] },
+    })
+    const validateBtn = w.findAll('button').find((b) => b.text() === 'Validate')
+    expect(validateBtn).toBeDefined()
+    expect(validateBtn.attributes('disabled')).toBeDefined()
+    expect(validateBtn.attributes('title')).toContain('Cannot validate')
+  })
+
+  it('validate button is enabled when scanOk is true', () => {
+    const w = mount(KeyTable, {
+      props: {
+        keys: [makeKey({ status: 'PENDING_REVIEW' })],
+        currentRole: 'sysadmin',
+        scanOk: true,
       },
       global: { plugins: [i18n] },
     })

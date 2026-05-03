@@ -30,6 +30,7 @@
     "scanning": "Escaneando…",
     "status_ok": "✅ OK",
     "status_alert": "🟡 Alerta",
+    "status_scan_failed": "🟠 Escaneo fallido",
     "status_inactive": "🔴 Inactivo",
     "status_total": "Total",
     "collector_key": "Clave pública del colector",
@@ -96,6 +97,7 @@
     "col_actions": "Acciones",
     "empty": "No se encontraron servidores.",
     "disabled_badge": "DESACTIVADO",
+    "status_scan_failed": "Último escaneo fallido",
     "scan": "Escanear",
     "edit": "Editar"
   },
@@ -179,7 +181,8 @@
     "filter_placeholder": "Buscar fingerprint, usuario, owner…",
     "filter_all_statuses": "Todos los estados",
     "no_results": "No se encontraron claves.",
-    "revoke_unavailable": "No se puede revocar: último escaneo fallido (servidor inaccesible)"
+    "revoke_unavailable": "No se puede revocar: último escaneo fallido (servidor inaccesible)",
+    "validate_unavailable": "No se puede validar: último escaneo fallido (servidor inaccesible)"
   },
   "access": {
     "title": "Acceso temporal",

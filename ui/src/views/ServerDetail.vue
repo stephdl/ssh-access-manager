@@ -53,7 +53,7 @@
 
     <div v-if="error" class="alert-error">{{ error }}</div>
     <div v-if="message" class="alert-info">{{ message }}</div>
-    <div v-if="!loading && server.last_scan_ok === false" class="alert-warning">
+    <div v-if="!loading && server.last_scan_ok === false" class="alert-error">
       {{ $t('server_detail.last_scan_failed', { error: server.last_scan_error }) }}
     </div>
 
@@ -684,16 +684,6 @@ dd {
   margin-bottom: 1rem;
   font-size: 0.95rem;
 }
-.alert-warning {
-  background: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffeeba;
-  padding: 0.75rem 1rem;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  font-size: 0.95rem;
-}
-
 .modal-overlay {
   position: fixed;
   inset: 0;

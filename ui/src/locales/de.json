@@ -30,6 +30,7 @@
     "scanning": "Scannen…",
     "status_ok": "✅ OK",
     "status_alert": "🟡 Warnung",
+    "status_scan_failed": "🟠 Scan fehlgeschlagen",
     "status_inactive": "🔴 Inaktiv",
     "status_total": "Gesamt",
     "collector_key": "Öffentlicher Collector-Schlüssel",
@@ -96,6 +97,7 @@
     "col_actions": "Aktionen",
     "empty": "Kein Server gefunden.",
     "disabled_badge": "DEAKTIVIERT",
+    "status_scan_failed": "Letzter Scan fehlgeschlagen",
     "scan": "Scannen",
     "edit": "Bearbeiten"
   },
@@ -179,7 +181,8 @@
     "filter_placeholder": "Fingerprint, Benutzer, Owner suchen…",
     "filter_all_statuses": "Alle Status",
     "no_results": "Keine passenden Schlüssel.",
-    "revoke_unavailable": "Widerrufen nicht möglich: letzter Scan fehlgeschlagen (Server nicht erreichbar)"
+    "revoke_unavailable": "Widerrufen nicht möglich: letzter Scan fehlgeschlagen (Server nicht erreichbar)",
+    "validate_unavailable": "Validieren nicht möglich: letzter Scan fehlgeschlagen (Server nicht erreichbar)"
   },
   "access": {
     "title": "Temporärer Zugriff",

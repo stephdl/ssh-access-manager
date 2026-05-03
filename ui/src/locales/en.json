@@ -30,6 +30,7 @@
     "scanning": "Scanning…",
     "status_ok": "✅ OK",
     "status_alert": "🟡 Alert",
+    "status_scan_failed": "🟠 Scan Failed",
     "status_inactive": "🔴 Inactive",
     "status_total": "Total",
     "collector_key": "Collector public key",
@@ -96,6 +97,7 @@
     "col_actions": "Actions",
     "empty": "No server found.",
     "disabled_badge": "DISABLED",
+    "status_scan_failed": "Last scan failed",
     "scan": "Scan",
     "edit": "Edit"
   },
@@ -179,7 +181,8 @@
     "filter_placeholder": "Search fingerprint, user, owner…",
     "filter_all_statuses": "All statuses",
     "no_results": "No matching keys.",
-    "revoke_unavailable": "Cannot revoke: last scan failed (server unreachable)"
+    "revoke_unavailable": "Cannot revoke: last scan failed (server unreachable)",
+    "validate_unavailable": "Cannot validate: last scan failed (server unreachable)"
   },
   "access": {
     "title": "Temporary Access",

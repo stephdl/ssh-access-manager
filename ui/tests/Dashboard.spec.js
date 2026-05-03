@@ -305,6 +305,33 @@ describe('Dashboard - Add Server Modal', () => {
     expect(w.find('.field-error').exists()).toBe(true)
   })
 
+  it('counts scanFailed servers in the dedicated counter', async () => {
+    const router = createMockRouter()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) => {
+        if (url === '/api/servers') {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve([
+                { hostname: 's1', is_active: true, has_anomalies: false, last_scan_ok: true },
+                { hostname: 's2', is_active: true, has_anomalies: false, last_scan_ok: false },
+                { hostname: 's3', is_active: true, has_anomalies: false, last_scan_ok: false },
+                { hostname: 's4', is_active: false, has_anomalies: false, last_scan_ok: null },
+              ]),
+          })
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(null) })
+      }),
+    )
+    const w = mount(Dashboard, { global: { plugins: [i18n, router] } })
+    await flushPromises()
+    expect(w.vm.counts.ok).toBe(1)
+    expect(w.vm.counts.scanFailed).toBe(2)
+    expect(w.vm.counts.danger).toBe(1)
+  })
+
   it('accepts valid hostnames — simple label and FQDN', async () => {
     const router = createMockRouter()
     const w = mount(Dashboard, { global: { plugins: [i18n, router] } })

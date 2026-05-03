@@ -30,6 +30,7 @@
     "scanning": "Scansione…",
     "status_ok": "✅ OK",
     "status_alert": "🟡 Allerta",
+    "status_scan_failed": "🟠 Scansione fallita",
     "status_inactive": "🔴 Inattivo",
     "status_total": "Totale",
     "collector_key": "Chiave pubblica collector",
@@ -96,6 +97,7 @@
     "col_actions": "Azioni",
     "empty": "Nessun server trovato.",
     "disabled_badge": "DISABILITATO",
+    "status_scan_failed": "Ultima scansione fallita",
     "scan": "Scansiona",
     "edit": "Modifica"
   },
@@ -179,7 +181,8 @@
     "filter_placeholder": "Cerca fingerprint, utente, owner…",
     "filter_all_statuses": "Tutti gli stati",
     "no_results": "Nessuna chiave corrispondente.",
-    "revoke_unavailable": "Impossibile revocare: ultima scansione fallita (server non raggiungibile)"
+    "revoke_unavailable": "Impossibile revocare: ultima scansione fallita (server non raggiungibile)",
+    "validate_unavailable": "Impossibile validare: ultima scansione fallita (server non raggiungibile)"
   },
   "access": {
     "title": "Accesso temporaneo",

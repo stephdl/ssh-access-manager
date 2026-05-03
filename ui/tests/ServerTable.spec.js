@@ -217,4 +217,36 @@ describe('ServerTable', () => {
     const hostnameHeader = w.findAll('th.th-sortable').find((th) => th.text().includes('Hostname'))
     expect(hostnameHeader.text()).toContain('↕')
   })
+
+  it('affiche 🟠 pour un serveur actif dont le dernier scan a échoué', () => {
+    const server = {
+      id: '4', hostname: 'fail-01', ip_address: '10.0.0.4',
+      environment: 'lab', os_family: null, added_at: null,
+      is_active: true, has_anomalies: false, last_scan_ok: false,
+    }
+    const w = mountTable([server])
+    expect(w.text()).toContain('🟠')
+  })
+
+  it('applique la classe row-scan-fail quand last_scan_ok est false', () => {
+    const server = {
+      id: '4', hostname: 'fail-01', ip_address: '10.0.0.4',
+      environment: 'lab', os_family: null, added_at: null,
+      is_active: true, has_anomalies: false, last_scan_ok: false,
+    }
+    const w = mountTable([server])
+    const row = w.find('tbody tr')
+    expect(row.classes()).toContain('row-scan-fail')
+  })
+
+  it('🟠 a priorité sur 🟡 (scan failed + anomalies)', () => {
+    const server = {
+      id: '5', hostname: 'fail-anomaly', ip_address: '10.0.0.5',
+      environment: 'lab', os_family: null, added_at: null,
+      is_active: true, has_anomalies: true, last_scan_ok: false,
+    }
+    const w = mountTable([server])
+    expect(w.text()).toContain('🟠')
+    expect(w.text()).not.toContain('🟡')
+  })
 })
