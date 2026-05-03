@@ -128,6 +128,8 @@
                   props.currentRole !== 'viewer'
                 "
                 class="btn-danger"
+                :disabled="props.scanOk === false"
+                :title="props.scanOk === false ? $t('key_table.revoke_unavailable') : undefined"
                 @click="$emit('revoke', k)"
               >
                 {{ $t('key_table.btn_revoke') }}
@@ -186,6 +188,7 @@ const { sortKey, toggleSort, sorted, sortIndicator } = useSort()
 const props = defineProps({
   keys: { type: Array, default: () => [] },
   currentRole: { type: String, default: 'viewer' },
+  scanOk: { type: Boolean, default: null },
 })
 defineEmits(['validate', 'revoke', 'set-expiry', 'remove-expiry', 'assign'])
 

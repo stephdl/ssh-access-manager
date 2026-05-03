@@ -120,6 +120,7 @@
     "load_error": "Server non trovato (HTTP {status})",
     "scan_success": "Scansione avviata con successo.",
     "scan_error": "Errore scansione: {error}",
+    "last_scan_failed": "Ultima scansione fallita: {error}",
     "disable_success": "Server disabilitato.",
     "reactivate_success": "Server riattivato.",
     "delete_modal_title": "Elimina server",
@@ -177,7 +178,8 @@
     "btn_unlimited": "Illimitato",
     "filter_placeholder": "Cerca fingerprint, utente, owner…",
     "filter_all_statuses": "Tutti gli stati",
-    "no_results": "Nessuna chiave corrispondente."
+    "no_results": "Nessuna chiave corrispondente.",
+    "revoke_unavailable": "Impossibile revocare: ultima scansione fallita (server non raggiungibile)"
   },
   "access": {
     "title": "Accesso temporaneo",
@@ -434,7 +436,8 @@
     "filter_apply": "Applica",
     "export_csv": "Esporta CSV",
     "refresh_error": "Aggiornamento fallito: {error}",
-    "load_error": "Impossibile caricare le sessioni: {error}"
+    "load_error": "Impossibile caricare le sessioni: {error}",
+    "scan_required": "Scansionare prima il server per aggiornare le sessioni"
   },
   "password_banner": {
     "message": "La password non è mai stata cambiata. Aggiornala per motivi di sicurezza.",

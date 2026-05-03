@@ -482,4 +482,56 @@ describe('SessionsCard.vue', () => {
     expect(wrapper.find('.alert-error').exists()).toBe(true)
     expect(wrapper.find('.alert-error').text()).toContain('Failed to load sessions')
   })
+
+  it('disables refresh button when scanOk is false', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ active: [], recent: [] }),
+    })
+
+    const wrapper = mount(SessionsCard, {
+      props: { hostname: 'server13', currentRole: 'sysadmin', scanOk: false },
+      global: { plugins: [i18n] },
+    })
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    const refreshBtn = wrapper.find('[data-testid="sessions-refresh"]')
+    expect(refreshBtn.attributes('disabled')).toBeDefined()
+    expect(refreshBtn.attributes('title')).toContain('Scan the server first')
+  })
+
+  it('keeps refresh button enabled when scanOk is null (no scan yet)', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ active: [], recent: [] }),
+    })
+
+    const wrapper = mount(SessionsCard, {
+      props: { hostname: 'server14', currentRole: 'sysadmin', scanOk: null },
+      global: { plugins: [i18n] },
+    })
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    const refreshBtn = wrapper.find('[data-testid="sessions-refresh"]')
+    expect(refreshBtn.attributes('disabled')).toBeUndefined()
+  })
+
+  it('keeps history button accessible even when scanOk is false', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ active: [], recent: [] }),
+    })
+
+    const wrapper = mount(SessionsCard, {
+      props: { hostname: 'server15', currentRole: 'sysadmin', scanOk: false },
+      global: { plugins: [i18n] },
+    })
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    const historyBtn = wrapper.find('[data-testid="sessions-history-btn"]')
+    expect(historyBtn.attributes('disabled')).toBeUndefined()
+  })
 })

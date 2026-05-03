@@ -10,7 +10,8 @@
       <div class="header-actions">
         <button
           class="btn-sm btn-secondary"
-          :disabled="refreshing"
+          :disabled="refreshing || props.scanOk === false"
+          :title="props.scanOk === false ? $t('sessions.scan_required') : undefined"
           @click="refreshSessions"
           data-testid="sessions-refresh"
         >
@@ -184,6 +185,10 @@ const props = defineProps({
   currentRole: {
     type: String,
     default: 'viewer',
+  },
+  scanOk: {
+    type: Boolean,
+    default: null,
   },
 })
 

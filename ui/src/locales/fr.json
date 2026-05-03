@@ -120,6 +120,7 @@
     "load_error": "Serveur introuvable (HTTP {status})",
     "scan_success": "Scan lancé avec succès.",
     "scan_error": "Erreur scan : {error}",
+    "last_scan_failed": "Dernier scan échoué : {error}",
     "disable_success": "Serveur désactivé.",
     "reactivate_success": "Serveur réactivé.",
     "delete_modal_title": "Supprimer le serveur",
@@ -177,7 +178,8 @@
     "btn_unlimited": "Illimité",
     "filter_placeholder": "Rechercher fingerprint, utilisateur, owner…",
     "filter_all_statuses": "Tous les statuts",
-    "no_results": "Aucune clé correspondante."
+    "no_results": "Aucune clé correspondante.",
+    "revoke_unavailable": "Révocation impossible : dernier scan échoué (serveur injoignable)"
   },
   "access": {
     "title": "Accès temporaires",
@@ -434,7 +436,8 @@
     "filter_apply": "Appliquer",
     "export_csv": "Exporter CSV",
     "refresh_error": "Actualisation échouée : {error}",
-    "load_error": "Impossible de charger les sessions : {error}"
+    "load_error": "Impossible de charger les sessions : {error}",
+    "scan_required": "Scannez le serveur pour actualiser les sessions"
   },
   "password_banner": {
     "message": "Votre mot de passe n'a jamais été changé. Veuillez le mettre à jour pour votre sécurité.",
