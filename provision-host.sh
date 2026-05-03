@@ -19,6 +19,7 @@ if ! id "${COLLECTOR_USER}" >/dev/null 2>&1; then
 else
     echo "[provision] User ${COLLECTOR_USER} already exists."
 fi
+chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "/home/${COLLECTOR_USER}"
 chmod 700 "/home/${COLLECTOR_USER}"
 
 # 2. Configure SSH directory
