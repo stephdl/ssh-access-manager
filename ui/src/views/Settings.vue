@@ -55,6 +55,23 @@
         <p class="hint">{{ $t('settings.expire_warn_days_2_hint') }}</p>
       </div>
 
+      <div class="field">
+        <label>{{ $t('settings.audit_retention_days_label') }}</label>
+        <div class="input-row">
+          <input
+            v-model.number="auditRetentionDays"
+            type="number"
+            min="30"
+            max="3650"
+            step="1"
+            class="input-number"
+            :disabled="currentRole !== 'sysadmin'"
+          />
+          <span class="unit">{{ $t('settings.days') }}</span>
+        </div>
+        <p class="hint">{{ $t('settings.audit_retention_days_hint') }}</p>
+      </div>
+
       <div v-if="currentRole === 'sysadmin'" class="field">
         <button class="btn-primary" :disabled="saving" @click="save">
           <Spinner v-if="saving" />
@@ -139,6 +156,7 @@ const currentRole = computed(() => admin.value?.role || 'viewer')
 const intervalHours = ref(4)
 const expireWarnDays = ref(7)
 const expireWarnDays2 = ref(2)
+const auditRetentionDays = ref(365)
 const loginMaxAttempts = ref(10)
 const loginBanSeconds = ref(300)
 const saving = ref(false)
@@ -161,6 +179,7 @@ onMounted(async () => {
     intervalHours.value = parseInt(data.scan_interval_hours)
     expireWarnDays.value = parseInt(data.expire_warn_days || 7)
     expireWarnDays2.value = parseInt(data.expire_warn_days_2 || 2)
+    auditRetentionDays.value = parseInt(data.audit_retention_days || 365)
     loginMaxAttempts.value = parseInt(data.login_max_attempts || 10)
     loginBanSeconds.value = parseInt(data.login_ban_seconds || 300)
     smtpEnabled.value = data.smtp_enabled || false
@@ -218,6 +237,7 @@ async function save() {
         scan_interval_hours: intervalHours.value,
         expire_warn_days: expireWarnDays.value,
         expire_warn_days_2: expireWarnDays2.value,
+        audit_retention_days: auditRetentionDays.value,
       }),
     })
 

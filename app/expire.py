@@ -116,7 +116,35 @@ def expire_keys() -> int:
     return expired
 
 
+def purge_old_audit_logs() -> int:
+    """
+    Delete audit_log entries older than audit_retention_days (default 365).
+    Returns the count of deleted rows.
+    """
+    row = db.query_one("SELECT value FROM settings WHERE key = 'audit_retention_days'")
+    retention_days = int(row["value"]) if row else 365
+    result = db.query_one(
+        """
+        WITH deleted AS (
+            DELETE FROM audit_log
+            WHERE performed_at < NOW() - make_interval(days => %s)
+            RETURNING id
+        )
+        SELECT count(*) AS cnt FROM deleted
+        """,
+        (retention_days,),
+    )
+    count = int(result["cnt"]) if result else 0
+    if count:
+        import logging
+        logging.getLogger(__name__).info(
+            "Purged %d audit log entries older than %d days", count, retention_days
+        )
+    return count
+
+
 if __name__ == "__main__":
     warned = warn_expiring_keys()
     expired = expire_keys()
-    print(f"expire.py: {warned} warnings sent, {expired} keys expired")
+    purged = purge_old_audit_logs()
+    print(f"expire.py: {warned} warnings sent, {expired} keys expired, {purged} audit entries purged")
