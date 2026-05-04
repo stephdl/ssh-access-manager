@@ -659,6 +659,39 @@ def remove_key_expiry(fingerprint):
         return jsonify({"error": str(e)}), 404
 
 
+@app.route("/api/keys/bulk-validate", methods=["POST"])
+@require_auth
+@require_role("sysadmin", "operator")
+def bulk_validate_keys():
+    data = request.get_json(force=True) or {}
+    fingerprints = data.get("fingerprints")
+    if not isinstance(fingerprints, list):
+        return jsonify({"error": "fingerprints must be a list"}), 400
+    try:
+        result = actions.bulk_validate_keys(fingerprints, g.admin_id)
+        return jsonify(result)
+    except UserError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/keys/bulk-revoke", methods=["POST"])
+@require_auth
+@require_role("sysadmin", "operator")
+def bulk_revoke_keys():
+    data = request.get_json(force=True) or {}
+    fingerprints = data.get("fingerprints")
+    reason = data.get("reason", "").strip()
+    if not isinstance(fingerprints, list):
+        return jsonify({"error": "fingerprints must be a list"}), 400
+    if not reason:
+        return jsonify({"error": "reason is required"}), 400
+    try:
+        result = actions.bulk_revoke_keys(fingerprints, reason, g.admin_id)
+        return jsonify(result)
+    except UserError as e:
+        return jsonify({"error": str(e)}), 400
+
+
 # ---------------------------------------------------------------------------
 # Acces temporaires
 # ---------------------------------------------------------------------------

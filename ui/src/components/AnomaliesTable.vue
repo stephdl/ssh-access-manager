@@ -1,5 +1,27 @@
 <template>
   <div class="anomalies-table">
+    <!-- Bulk action bar (pending only) -->
+    <div
+      v-if="selected.size > 0 && type === 'pending' && props.currentRole !== 'viewer'"
+      class="bulk-bar"
+      data-testid="anomalies-bulk-bar"
+    >
+      <span class="bulk-count">{{ $t('anomalies.bulk_selected', { n: selected.size }) }}</span>
+      <button
+        class="btn-success"
+        @click="emitBulkValidate"
+        data-testid="anomalies-bulk-validate-btn"
+      >
+        {{ $t('anomalies.bulk_validate') }}
+      </button>
+      <button class="btn-danger" @click="emitBulkRevoke" data-testid="anomalies-bulk-revoke-btn">
+        {{ $t('anomalies.bulk_revoke') }}
+      </button>
+      <button class="btn-secondary" @click="selected = new Set()">
+        {{ $t('anomalies.bulk_clear') }}
+      </button>
+    </div>
+
     <div v-if="props.anomalies.length > 0" class="filters" data-testid="anomalies-filters">
       <input
         v-model="filterText"
@@ -31,6 +53,15 @@
     <table v-if="filtered.length > 0">
       <thead>
         <tr>
+          <th v-if="type === 'pending' && props.currentRole !== 'viewer'" class="th-check">
+            <input
+              type="checkbox"
+              :checked="allSelectableChecked"
+              :indeterminate="someSelected"
+              data-testid="anomalies-bulk-select-all"
+              @change="toggleSelectAll"
+            />
+          </th>
           <th>{{ $t('anomalies.col_fingerprint') }}</th>
           <th
             class="th-sortable"
@@ -81,6 +112,13 @@
           :key="k.fingerprint + k.server_hostname"
           :data-testid="`${type}-row-${k.fingerprint}`"
         >
+          <td v-if="type === 'pending' && props.currentRole !== 'viewer'" class="td-check">
+            <input
+              type="checkbox"
+              :checked="selected.has(k.fingerprint + '|' + k.server_hostname)"
+              @change="toggleSelect(k.fingerprint + '|' + k.server_hostname)"
+            />
+          </td>
           <td class="fp">
             <code>{{ k.fingerprint }}</code>
           </td>
@@ -140,7 +178,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
@@ -158,12 +196,13 @@ const props = defineProps({
   type: { type: String, default: 'pending', validator: (v) => ['pending', 'revoked'].includes(v) },
 })
 
-defineEmits(['validate', 'revoke'])
+const emit = defineEmits(['validate', 'revoke', 'bulk-validate', 'bulk-revoke'])
 
 const filterText = ref('')
 const filterType = ref('')
 const filterServer = ref('')
 const filterCompliant = ref('')
+const selected = ref(new Set())
 
 const uniqueTypes = computed(() => {
   return [...new Set(props.anomalies.map((k) => k.key_type).filter(Boolean))].sort()
@@ -194,6 +233,59 @@ const filtered = computed(() => {
 
 const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
   usePagination(computed(() => sorted(filtered.value)))
+
+watch(filtered, () => {
+  selected.value = new Set()
+})
+
+const selectableOnPage = computed(() =>
+  paginatedItems.value.map((k) => k.fingerprint + '|' + k.server_hostname)
+)
+
+const allSelectableChecked = computed(
+  () =>
+    selectableOnPage.value.length > 0 &&
+    selectableOnPage.value.every((key) => selected.value.has(key))
+)
+
+const someSelected = computed(
+  () => !allSelectableChecked.value && selectableOnPage.value.some((key) => selected.value.has(key))
+)
+
+function toggleSelect(key) {
+  const s = new Set(selected.value)
+  if (s.has(key)) s.delete(key)
+  else s.add(key)
+  selected.value = s
+}
+
+function toggleSelectAll(e) {
+  const s = new Set(selected.value)
+  if (e.target.checked) {
+    selectableOnPage.value.forEach((key) => s.add(key))
+  } else {
+    selectableOnPage.value.forEach((key) => s.delete(key))
+  }
+  selected.value = s
+}
+
+function emitBulkValidate() {
+  const entries = [...selected.value].map((key) => {
+    const [fp, hostname] = key.split('|')
+    const item =
+      paginatedItems.value.find((k) => k.fingerprint === fp && k.server_hostname === hostname) ||
+      props.anomalies.find((k) => k.fingerprint === fp && k.server_hostname === hostname)
+    return { fingerprint: fp, unix_user: item?.unix_user || null, hostname }
+  })
+  emit('bulk-validate', entries)
+  selected.value = new Set()
+}
+
+function emitBulkRevoke() {
+  const fingerprints = [...selected.value].map((key) => key.split('|')[0])
+  emit('bulk-revoke', fingerprints)
+  selected.value = new Set()
+}
 
 const colDate = computed(() => {
   return props.type === 'pending' ? t('anomalies.col_first_seen') : t('anomalies.col_revoked_at')
@@ -246,6 +338,31 @@ function exportCsv() {
 </script>
 
 <style scoped>
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: #e8f4fd;
+  border: 1px solid #b8d9f5;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+
+.bulk-count {
+  font-weight: 600;
+  color: #0d6efd;
+  margin-right: 0.25rem;
+}
+
+.th-check,
+.td-check {
+  width: 36px;
+  text-align: center;
+  padding: 0.25rem;
+}
+
 .filters {
   display: flex;
   gap: 0.75rem;

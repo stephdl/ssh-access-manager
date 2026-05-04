@@ -106,6 +106,8 @@
           @set-expiry="openExpiry"
           @remove-expiry="removeExpiry"
           @assign="openAssign"
+          @bulk-validate="bulkValidateKeys"
+          @bulk-revoke="openBulkRevoke"
         />
       </section>
     </template>
@@ -126,6 +128,45 @@
           </button>
           <button class="btn-danger" @click="deleteServer">
             {{ $t('server_detail.delete_confirm') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk revoke modal -->
+    <div
+      v-if="bulkRevokeFingerprints"
+      class="modal-overlay"
+      @click.self="bulkRevokeFingerprints = null"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h3>{{ $t('server_detail.bulk_revoke_modal_title') }}</h3>
+          <button class="modal-close" @click="bulkRevokeFingerprints = null" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
+        <p>{{ $t('key_table.bulk_selected', { n: bulkRevokeFingerprints.length }) }}</p>
+        <label for="bulk-revoke-reason"
+          >{{ $t('server_detail.revoke_reason_label') }}
+          <span class="required">{{ $t('common.required') }}</span></label
+        >
+        <textarea
+          id="bulk-revoke-reason"
+          v-model="bulkRevokeReason"
+          rows="3"
+          :placeholder="$t('server_detail.revoke_reason_placeholder')"
+        ></textarea>
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="bulkRevokeFingerprints = null">
+            {{ $t('common.cancel') }}
+          </button>
+          <button
+            class="btn-danger"
+            :disabled="!bulkRevokeReason.trim()"
+            @click="confirmBulkRevoke"
+          >
+            {{ $t('server_detail.revoke_confirm') }}
           </button>
         </div>
       </div>
@@ -363,6 +404,8 @@ const showReprovisionPassword = ref(false)
 
 const revokeTarget = ref(null)
 const revokeReason = ref('')
+const bulkRevokeFingerprints = ref(null)
+const bulkRevokeReason = ref('')
 const assignTarget = ref(null)
 const assignUsername = ref('')
 const expiryTarget = ref(null)
@@ -480,6 +523,55 @@ async function confirmRevoke() {
     t('server_detail.key_revoked')
   )
   revokeTarget.value = null
+}
+
+async function bulkValidateKeys(fingerprints) {
+  error.value = ''
+  message.value = ''
+  try {
+    const res = await apiFetch('/api/keys/bulk-validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprints }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    const data = await res.json()
+    message.value = t('server_detail.bulk_validated', {
+      validated: data.validated,
+      skipped: data.skipped,
+    })
+    await load()
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
+function openBulkRevoke(fingerprints) {
+  bulkRevokeFingerprints.value = fingerprints
+  bulkRevokeReason.value = ''
+}
+
+async function confirmBulkRevoke() {
+  const res = await apiFetch('/api/keys/bulk-revoke', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fingerprints: bulkRevokeFingerprints.value,
+      reason: bulkRevokeReason.value,
+    }),
+  })
+  bulkRevokeFingerprints.value = null
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    error.value = data.error || `HTTP ${res.status}`
+    return
+  }
+  const data = await res.json()
+  message.value = t('server_detail.bulk_revoked', { revoked: data.revoked, skipped: data.skipped })
+  await load()
 }
 
 function openAssign(fingerprint) {

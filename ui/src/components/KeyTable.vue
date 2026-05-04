@@ -1,5 +1,23 @@
 <template>
   <div class="keytable-wrapper">
+    <!-- Bulk action bar -->
+    <div
+      v-if="selected.size > 0 && currentRole !== 'viewer'"
+      class="bulk-bar"
+      data-testid="bulk-bar"
+    >
+      <span class="bulk-count">{{ $t('key_table.bulk_selected', { n: selected.size }) }}</span>
+      <button class="btn-success" @click="emitBulkValidate" data-testid="bulk-validate-btn">
+        {{ $t('key_table.bulk_validate') }}
+      </button>
+      <button class="btn-danger" @click="emitBulkRevoke" data-testid="bulk-revoke-btn">
+        {{ $t('key_table.bulk_revoke') }}
+      </button>
+      <button class="btn-secondary" @click="selected = new Set()">
+        {{ $t('key_table.bulk_clear') }}
+      </button>
+    </div>
+
     <div v-if="keys.length > 0" class="filters" data-testid="keytable-filters">
       <input
         v-model="filterText"
@@ -22,6 +40,15 @@
     <table>
       <thead>
         <tr>
+          <th v-if="currentRole !== 'viewer'" class="th-check">
+            <input
+              type="checkbox"
+              :checked="allSelectableChecked"
+              :indeterminate="someSelected"
+              data-testid="bulk-select-all"
+              @change="toggleSelectAll"
+            />
+          </th>
           <th
             class="th-sortable"
             :class="{ active: sortKey === 'status' }"
@@ -94,6 +121,14 @@
           </td>
         </tr>
         <tr v-for="k in paginatedItems" :key="k.fingerprint + '|' + (k.unix_user || '')">
+          <td v-if="currentRole !== 'viewer'" class="td-check">
+            <input
+              v-if="isSelectable(k)"
+              type="checkbox"
+              :checked="selected.has(k.fingerprint)"
+              @change="toggleSelect(k.fingerprint)"
+            />
+          </td>
           <td>
             <span class="badge" :class="statusBadge(k.status)">{{ k.status }}</span>
           </td>
@@ -177,7 +212,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
@@ -193,10 +228,19 @@ const props = defineProps({
   currentRole: { type: String, default: 'viewer' },
   scanOk: { type: Boolean, default: null },
 })
-defineEmits(['validate', 'revoke', 'set-expiry', 'remove-expiry', 'assign'])
+const emit = defineEmits([
+  'validate',
+  'revoke',
+  'set-expiry',
+  'remove-expiry',
+  'assign',
+  'bulk-validate',
+  'bulk-revoke',
+])
 
 const filterText = ref('')
 const filterStatus = ref('')
+const selected = ref(new Set())
 
 const filteredKeys = computed(() => {
   const text = filterText.value.trim().toLowerCase()
@@ -214,6 +258,56 @@ const filteredKeys = computed(() => {
 
 const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
   usePagination(computed(() => sorted(filteredKeys.value)))
+
+// Reset selection when filter changes
+watch(filteredKeys, () => {
+  selected.value = new Set()
+})
+
+function isSelectable(k) {
+  return k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW'
+}
+
+const selectableOnPage = computed(() =>
+  paginatedItems.value.filter(isSelectable).map((k) => k.fingerprint)
+)
+
+const allSelectableChecked = computed(
+  () =>
+    selectableOnPage.value.length > 0 &&
+    selectableOnPage.value.every((fp) => selected.value.has(fp))
+)
+
+const someSelected = computed(
+  () => !allSelectableChecked.value && selectableOnPage.value.some((fp) => selected.value.has(fp))
+)
+
+function toggleSelect(fp) {
+  const s = new Set(selected.value)
+  if (s.has(fp)) s.delete(fp)
+  else s.add(fp)
+  selected.value = s
+}
+
+function toggleSelectAll(e) {
+  const s = new Set(selected.value)
+  if (e.target.checked) {
+    selectableOnPage.value.forEach((fp) => s.add(fp))
+  } else {
+    selectableOnPage.value.forEach((fp) => s.delete(fp))
+  }
+  selected.value = s
+}
+
+function emitBulkValidate() {
+  emit('bulk-validate', [...selected.value])
+  selected.value = new Set()
+}
+
+function emitBulkRevoke() {
+  emit('bulk-revoke', [...selected.value])
+  selected.value = new Set()
+}
 
 function complianceTooltip(k) {
   if (k.key_type === 'ssh-rsa') {
@@ -274,6 +368,30 @@ function exportCsv() {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: #e8f4fd;
+  border: 1px solid #b8d9f5;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.bulk-count {
+  font-weight: 600;
+  color: #0d6efd;
+  margin-right: 0.25rem;
+}
+
+.th-check,
+.td-check {
+  width: 36px;
+  text-align: center;
+  padding: 0.25rem;
 }
 
 .filters {

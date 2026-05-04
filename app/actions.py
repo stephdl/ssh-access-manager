@@ -95,6 +95,56 @@ def validate_key(
     return key
 
 
+def bulk_validate_keys(fingerprints: list, admin_id: str) -> dict:
+    """Validate multiple keys (PENDING_REVIEW → ACTIVE) in one call.
+
+    Skips fingerprints that have no PENDING_REVIEW authorization (no error).
+    Returns {"validated": N, "skipped": N}.
+    Max 200 fingerprints per call.
+    """
+    if len(fingerprints) > 200:
+        raise UserError("Bulk operation limited to 200 keys at a time")
+    if not fingerprints:
+        raise UserError("At least one fingerprint is required")
+
+    validated = 0
+    skipped = 0
+    for fp in fingerprints:
+        try:
+            _check_fingerprint(fp)
+            validate_key(fp, admin_id)
+            validated += 1
+        except UserError:
+            skipped += 1
+    return {"validated": validated, "skipped": skipped}
+
+
+def bulk_revoke_keys(fingerprints: list, reason: str, admin_id: str) -> dict:
+    """Revoke multiple keys in one call.
+
+    Skips fingerprints that have no ACTIVE/PENDING_REVIEW authorization.
+    Returns {"revoked": N, "skipped": N}.
+    Max 200 fingerprints per call.
+    """
+    if len(fingerprints) > 200:
+        raise UserError("Bulk operation limited to 200 keys at a time")
+    if not fingerprints:
+        raise UserError("At least one fingerprint is required")
+    if not reason or not reason.strip():
+        raise UserError("A revocation reason is required")
+
+    revoked = 0
+    skipped = 0
+    for fp in fingerprints:
+        try:
+            _check_fingerprint(fp)
+            revoke_key(fp, admin_id, reason)
+            revoked += 1
+        except UserError:
+            skipped += 1
+    return {"revoked": revoked, "skipped": skipped}
+
+
 def revoke_key(
     fingerprint: str,
     admin_id: str,
