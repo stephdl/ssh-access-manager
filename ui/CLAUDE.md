@@ -6,7 +6,7 @@
 |-----|------|
 | Login.vue | Connexion + checkbox "Keep me logged on this device" (#239) |
 | Dashboard.vue | Tableau serveurs + recherche + compteurs + modal ajout serveur (#71) + clé collecteur (#74). Provisionnement atomique via SSH (#299, #301) : SSH user/password obligatoires, serveur créé uniquement si SSH réussit. Validation hostname RFC 1123 (#303). Layout 2 colonnes. |
-| ServerDetail.vue | Détail serveur + clés + actions + bandeau rouge si désactivé (#91). Bouton **Re-provisionner** (violet, sysadmin + serveur actif) : modal SSH credentials, spinner, traduction error_code (#302). |
+| ServerDetail.vue | Détail serveur + clés + actions + bandeau rouge si désactivé (#91). Bouton **Edit** (sysadmin) : ouvre `EditServerModal` pour modifier IP, env, OS, port SSH (#339). Bandeau orange si `last_scan_ok === false` (#324). Bouton **Re-provisionner** (violet, sysadmin + serveur actif) : modal SSH credentials, spinner, traduction error_code (#302). |
 | Anomalies.vue | Anomalies actives + filtres texte/type/serveur/conformité + colonne unix_user (#195) |
 | AccessRequests.vue | DeployKeyForm + UserLockForm |
 | Audit.vue | Historique filtrable |
@@ -29,10 +29,12 @@
 | AnomaliesTable.vue | Tableau anomalies + filtres texte/type/serveur/conformité + pagination (#250) |
 | PaginationBar.vue | Composant pagination réutilisable avec contrôles taille de page |
 | SessionsCard.vue | Sessions SSH actives + modal Full History (filtres user/ip/date, pagination, export CSV) — sysadmin/operator uniquement (#253) |
+| Spinner.vue | Spinner animé universel — utilisé dans tous les boutons en état de chargement (#337) |
+| EditServerModal.vue | Modal édition serveur (IP, env, OS, port SSH) — partagé par Dashboard et ServerDetail. Props : `modelValue` (v-model), `server`, `allServers` (optionnel, pour validation doublon IP). Émet `saved` après PUT /api/servers/{hostname} (#337, #339) |
 
 ## Composables
 
-- `useAuth.js` — authentification session
+- `useAuth.js` — authentification session + détection 401 → redirection automatique vers `/login` via `apiFetch` (session expirée — #312)
 - `useFormatDate.js` — `formatDate()` et `formatDateOnly()` avec locale navigateur (#228, UTC→local)
 - `usePagination.js` — pagination côté client réutilisable (10 lignes par défaut, reset auto au changement de filtre)
 

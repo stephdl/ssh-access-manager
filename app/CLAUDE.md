@@ -71,17 +71,15 @@ Tracées dans audit_log (SCRIPT_DEPLOYED).
 | SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> | root, 750 | Crée user Unix si absent, ajoute clé idempotent (#164) |
 | SAM_LOCK_USER | /usr/local/bin/sam-lock-user \<unix_user\> | root, 750 | `usermod -L -s /sbin/nologin` — bloque mdp ET shell (#181) |
 | SAM_UNLOCK_USER | /usr/local/bin/sam-unlock-user \<unix_user\> | root, 750 | `usermod -U -s /bin/bash` (#181) |
-| SAM_SESSIONS | /usr/local/bin/sam-sessions | root, 750 | Collecte sessions SSH actives (who) + historique (last) → stdout : `A\|H\tuser\ttty\tip\trest` (#253) |
+| SAM_SESSIONS | /usr/local/bin/sam-sessions | root, 750 | Collecte sessions SSH actives + historique → stdout : `A\|H\tuser\ttty\tip\trest`. Utilise `utmpdump /var/run/utmp` (ISO 8601, locale-safe), fallback `LANG=C last -F` (#253, #322) |
 
 ## Logique métier — known_hosts et connexions SSH
 
 **`paramiko.RejectPolicy()` obligatoire — jamais AutoAddPolicy.**
 
-ssh-keyscan si hôte absent de known_hosts :
-```python
-subprocess.run(['ssh-keyscan', '-H', '-T', '10', ip_address])
-# → append dans /data/keys/known_hosts
-```
+Récupération de clé hôte si absent de known_hosts — `_fetch_host_key(ip, port, known_hosts_path)` via `paramiko.Transport` :
+- 1 handshake TCP (au lieu de 6+ avec ssh-keyscan subprocess) — évite les bans CrowdSec (#320)
+- Écrit la ligne hachée dans `/data/keys/known_hosts`
 
 **Les connexions SSH utilisent ip_address (pas hostname)** — le hostname peut ne pas être résolvable DNS depuis le container (#80, #84). known_hosts est indexé par IP.
 
@@ -151,6 +149,10 @@ Fonctions : `_get_client_ip()`, `_load_login_settings()`, `_check_rate_limit(ip)
 - Format compatible fail2ban/CrowdSec
 
 Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (1–100), login_ban_seconds (30–86400).
+
+## Exceptions métier (actions.py)
+
+- `UserError(message)` — exception user-safe exposée directement dans les réponses HTTP (400/404/409). Ne pas l'attraper dans web.py : le décorateur `@require_auth` la transforme automatiquement en `{"error": message}`. Résout l'exposition de stack-traces Python dans les réponses API (#314).
 
 ## actions.py — fonctions
 

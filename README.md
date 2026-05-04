@@ -152,7 +152,7 @@ Dashboard → bouton **+ Ajouter un serveur** → remplir :
 | Environnement | — | `production` / `staging` / `lab` — modifiable ultérieurement |
 | OS | — | Famille d'OS (`rhel`, `debian`…) — modifiable ultérieurement |
 
-Le serveur n'est enregistré en base **que si la connexion SSH réussit**. En cas d'échec (mauvais mot de passe, port fermé, sudo manquant…), aucune donnée n'est écrite et l'erreur est affichée dans la langue du navigateur. Le script `provision-host.sh` est exécuté à distance : il crée l'utilisateur `audit-collector`, déploie la clé publique collecteur et configure les règles sudoers.
+Le serveur n'est enregistré en base **que si la connexion SSH réussit**. Après la création, un **scan automatique** est lancé immédiatement en arrière-plan (fire-and-forget) afin de collecter les clés existantes sans attendre le prochain cycle cron. En cas d'échec (mauvais mot de passe, port fermé, sudo manquant…), aucune donnée n'est écrite et l'erreur est affichée dans la langue du navigateur. Le script `provision-host.sh` est exécuté à distance : il crée l'utilisateur `audit-collector`, déploie la clé publique collecteur et configure les règles sudoers.
 
 Le script est **idempotent** : il peut être rejoué sans risque (après rebuild, changement de clé ou de règles sudoers). Un bouton **Re-provisionner** est disponible sur la vue détail d'un serveur existant (rôle `sysadmin` uniquement).
 
@@ -195,6 +195,7 @@ Depuis la vue détail d'un serveur (**Dashboard > clic sur hostname**) :
 
 | Action | Effet |
 |---|---|
+| **Modifier** | Modifie l'adresse IP, l'environnement, la famille d'OS ou le port SSH du serveur (rôle `sysadmin`). |
 | **Désactiver** | Le serveur n'est plus scanné automatiquement. Indicateur rouge visible dans le dashboard et la vue détail. |
 | **Réactiver** | Le serveur reprend le cycle de scan automatique. |
 | **Supprimer** | Suppression définitive du serveur et de toutes ses clés, autorisations et logs associés (action irréversible). |
@@ -215,6 +216,12 @@ Lors du premier scan :
 - Les scripts `sam-collect` et `sam-revoke` sont déployés sur chaque hôte (via SFTP, hash SHA256 vérifié)
 - Toutes les clés présentes dans `authorized_keys` sont importées avec le statut `PENDING_REVIEW`
 - Une alerte email CRITIQUE est envoyée pour chaque clé inconnue détectée
+
+Si le scan d'un serveur échoue (SSH injoignable, sudo manquant, timeout…), le serveur passe en statut **Scan Failed** :
+- Indicateur 🟠 visible dans le tableau de bord (badge orange)
+- Bandeau orange en haut de la vue détail du serveur
+- Les boutons **Valider** et **Révoquer** sont désactivés jusqu'au prochain scan réussi
+- Une alerte email CRITIQUE est envoyée
 
 ---
 
@@ -381,7 +388,7 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `FLASK_SECRET_KEY` | Clé secrète Flask (sessions) — **obligatoire**, le container refuse de démarrer si absente | — |
 | `SMTP_HOST` | Serveur SMTP | — |
 | `SMTP_PORT` | Port SMTP | `587` |
-| `SMTP_USERNAME` | Utilisateur SMTP | — |
+| `SMTP_USERNAME` | Utilisateur SMTP — si vide, `auth off` dans msmtp (relay sans authentification) | — |
 | `SMTP_PASSWORD` | Mot de passe SMTP | — |
 | `SMTP_FROM` | Adresse expéditeur | — |
 | `SMTP_ENCRYPTION` | Mode TLS : `none` / `starttls` / `tls` | `starttls` |
