@@ -12,6 +12,7 @@
           :disabled="scanning"
           @click="scanServer"
         >
+          <Spinner v-if="scanning" />
           {{ scanning ? $t('server_detail.scanning') : $t('server_detail.scan') }}
         </button>
         <button
@@ -307,7 +308,7 @@
             {{ $t('common.cancel') }}
           </button>
           <button class="btn-primary" :disabled="reprovisioning" @click="confirmReprovision">
-            <span v-if="reprovisioning" class="spinner btn-spinner"></span>
+            <Spinner v-if="reprovisioning" />
             {{
               reprovisioning
                 ? $t('server_detail.reprovision_submitting')
@@ -328,6 +329,7 @@ import { useAuth, apiFetch } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import KeyTable from '../components/KeyTable.vue'
 import SessionsCard from '../components/SessionsCard.vue'
+import Spinner from '../components/Spinner.vue'
 
 const { t, te } = useI18n()
 const { admin } = useAuth()
@@ -759,26 +761,5 @@ dd {
 }
 .btn-eye:hover {
   color: #333;
-}
-.spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: rgba(255, 255, 255, 0.9);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 6px;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.btn-spinner {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 6px;
 }
 </style>

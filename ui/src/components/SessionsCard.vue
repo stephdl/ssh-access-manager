@@ -15,6 +15,7 @@
           @click="refreshSessions"
           data-testid="sessions-refresh"
         >
+          <Spinner v-if="refreshing" />
           {{ refreshing ? $t('sessions.refreshing') : $t('sessions.refresh') }}
         </button>
         <button
@@ -175,6 +176,7 @@ import { apiFetch } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
 import PaginationBar from './PaginationBar.vue'
+import Spinner from './Spinner.vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps({

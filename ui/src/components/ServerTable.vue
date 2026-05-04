@@ -99,6 +99,7 @@
                 :disabled="props.scanningHostname === s.hostname"
                 @click="$emit('scan', s.hostname)"
               >
+                <Spinner v-if="props.scanningHostname === s.hostname" />
                 {{
                   props.scanningHostname === s.hostname
                     ? $t('server_table.scanning')
@@ -136,6 +137,7 @@ import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
 import { useSort } from '../composables/useSort.js'
 import PaginationBar from './PaginationBar.vue'
+import Spinner from './Spinner.vue'
 
 const { formatDateOnly } = useFormatDate()
 const { sortKey, toggleSort, sorted, sortIndicator } = useSort()

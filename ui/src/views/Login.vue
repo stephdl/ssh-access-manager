@@ -39,6 +39,7 @@
         <div v-if="error" class="alert-error">{{ error }}</div>
 
         <button type="submit" class="btn-primary btn-full" :disabled="loading || !canSubmit">
+          <Spinner v-if="loading" />
           {{ loading ? $t('auth.submitting') : $t('auth.submit') }}
         </button>
       </form>
@@ -50,6 +51,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
+import Spinner from '../components/Spinner.vue'
 
 const router = useRouter()
 const { login } = useAuth()
