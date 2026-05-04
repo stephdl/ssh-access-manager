@@ -6,9 +6,9 @@ Projet "ssh-access-manager" — audit et gestion des accès SSH dans un containe
 VAE RNCP41330 "Expert en développement logiciel" Niveau 7 — C.1.6.
 Développeur : Stéphane de Labrusse.
 
-## État du projet — toutes issues fermées (57/57)
+## État du projet — toutes issues fermées (69/69)
 
-Milestone 1–4 + issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148, 181, 183, 185, 222, 223, 228, 230, 236, 239, 253, 257, 259, 260, 299, 301, 302, 303) ✅
+Milestone 1–4 + issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148, 181, 183, 185, 222, 223, 228, 230, 236, 239, 253, 257, 259, 260, 299, 301, 302, 303, 312, 314, 320, 322, 324, 326, 328, 330, 332, 335, 337, 339) ✅
 
 ## Stack vérifiée et figée
 
@@ -42,7 +42,7 @@ Nginx : `/api/` → proxy Flask, `/` → /app/static (SPA). Pas de Basic Auth (s
 | Fichier | Rôle |
 |---------|------|
 | db.py | connexion + helpers PostgreSQL |
-| servers.py | parsing servers.yml + sync BDD + ssh-keyscan known_hosts |
+| servers.py | parsing servers.yml + sync BDD + paramiko.Transport known_hosts |
 | ssh.py | connexion paramiko + scripts distants (SAM_*) + revoke/lock/unlock |
 | actions.py | logique métier pure (partagée CLI+API) |
 | collect.py | orchestration scan complet |
@@ -69,6 +69,7 @@ ADMIN_USERNAME=admin  ADMIN_EMAIL  ADMIN_PASSWORD=admin
 Notes : pas de NGINX_USER/NGINX_PASSWORD (#54). Pas de TZ (UTC en base, conversion navigateur — #228).
 Pas de EXPIRE_WARN_DAYS* (configurables en base via settings — #230).
 SMTP_ENCRYPTION : `none` / `starttls` / `tls` — contrôle le mode TLS de msmtp.
+SMTP_USERNAME : si vide → `auth off` dans msmtp (relay sans authentification).
 SMTP_TLSVERIFY : `1` (on) / `` (off) — vérifie les certificats TLS.
 SMTP_ENABLED : `1` / `` (off) — désactive l'envoi d'emails si vide.
 
