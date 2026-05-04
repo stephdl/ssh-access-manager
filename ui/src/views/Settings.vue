@@ -57,6 +57,7 @@
 
       <div v-if="currentRole === 'sysadmin'" class="field">
         <button class="btn-primary" :disabled="saving" @click="save">
+          <Spinner v-if="saving" />
           {{ $t('settings.save') }}
         </button>
         <p v-if="success" class="success-msg">{{ $t('settings.saved') }}</p>
@@ -102,6 +103,7 @@
 
       <div v-if="currentRole === 'sysadmin'" class="field">
         <button class="btn-primary" :disabled="savingSecurity" @click="saveSecurity">
+          <Spinner v-if="savingSecurity" />
           {{ $t('settings.save') }}
         </button>
         <p v-if="successSecurity" class="success-msg">{{ $t('settings.saved') }}</p>
@@ -113,6 +115,7 @@
       <h3>{{ $t('settings.smtp_section') }}</h3>
       <div class="field">
         <button class="btn-primary" :disabled="smtpTesting || !smtpEnabled" @click="testSmtp">
+          <Spinner v-if="smtpTesting" />
           {{ smtpTesting ? $t('settings.smtp_testing') : $t('settings.smtp_test_btn') }}
         </button>
         <p class="hint">{{ $t('settings.smtp_hint') }}</p>
@@ -127,6 +130,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth, apiFetch } from '../composables/useAuth.js'
+import Spinner from '../components/Spinner.vue'
 
 const { t } = useI18n()
 const { admin } = useAuth()

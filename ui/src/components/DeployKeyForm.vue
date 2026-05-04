@@ -129,6 +129,7 @@
           :disabled="!isValid || submitting"
           data-testid="submit-btn"
         >
+          <Spinner v-if="submitting" />
           {{ submitting ? $t('deployKey.submitting') : $t('deployKey.submit') }}
         </button>
       </div>
@@ -141,6 +142,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
+import Spinner from './Spinner.vue'
 
 const { t } = useI18n()
 const { formatDate } = useFormatDate()

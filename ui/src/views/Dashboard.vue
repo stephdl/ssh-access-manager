@@ -12,6 +12,7 @@
           :disabled="scanning"
           @click="scanAll"
         >
+          <Spinner v-if="scanning" />
           {{ scanning ? $t('dashboard.scanning') : $t('dashboard.scan_now') }}
         </button>
       </div>
@@ -196,7 +197,7 @@
         <div class="modal-actions">
           <button class="btn-secondary" @click="closeAddServer">{{ $t('common.cancel') }}</button>
           <button class="btn-primary" :disabled="!addFormValid || adding" @click="confirmAddServer">
-            <span v-if="adding" class="spinner btn-spinner"></span>
+            <Spinner v-if="adding" />
             {{ adding ? $t('add_server.submitting') : $t('add_server.submit') }}
           </button>
         </div>
@@ -270,6 +271,7 @@
             :disabled="!editFormValid || editing"
             @click="confirmEditServer"
           >
+            <Spinner v-if="editing" />
             {{ editing ? $t('edit_server.submitting') : $t('edit_server.submit') }}
           </button>
         </div>
@@ -283,6 +285,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth, apiFetch } from '../composables/useAuth.js'
 import ServerTable from '../components/ServerTable.vue'
+import Spinner from '../components/Spinner.vue'
 
 const { t, te } = useI18n()
 const { admin } = useAuth()
@@ -847,28 +850,5 @@ h1 {
   background: #f8d7da;
   border-color: #f5c6cb;
   color: #721c24;
-}
-
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #ccc;
-  border-top-color: #0d6efd;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-.btn-spinner {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 6px;
-  border-top-color: rgba(255, 255, 255, 0.8);
-  border-color: rgba(255, 255, 255, 0.3);
-  border-top-color: rgba(255, 255, 255, 0.9);
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

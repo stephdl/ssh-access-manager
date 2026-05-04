@@ -181,8 +181,9 @@
             </span>
           </div>
           <div class="form-actions">
-            <button type="submit" class="btn-primary" :disabled="!canSubmitAdd">
-              {{ $t('admins.btn_add') }}
+            <button type="submit" class="btn-primary" :disabled="!canSubmitAdd || submittingAdd">
+              <Spinner v-if="submittingAdd" />
+              {{ submittingAdd ? $t('admins.btn_add_submitting') : $t('admins.btn_add') }}
             </button>
           </div>
         </form>
@@ -466,6 +467,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth, apiFetch } from '../composables/useAuth'
 import AdminsTable from '../components/AdminsTable.vue'
+import Spinner from '../components/Spinner.vue'
 
 const { t } = useI18n()
 const { admin } = useAuth()
@@ -509,6 +511,7 @@ const newPassword = ref('')
 const newPasswordConfirm = ref('')
 const showNewPwd = ref(false)
 const showNewPwdConfirm = ref(false)
+const submittingAdd = ref(false)
 const disableTarget = ref(null)
 const enableTarget = ref(null)
 const deleteTarget = ref(null)
@@ -558,6 +561,7 @@ async function submitAdd() {
   if (!canSubmitAdd.value) return
   error.value = ''
   message.value = ''
+  submittingAdd.value = true
   try {
     const res = await apiFetch('/api/admins', {
       method: 'POST',
@@ -584,6 +588,8 @@ async function submitAdd() {
     await load()
   } catch (e) {
     error.value = e.message
+  } finally {
+    submittingAdd.value = false
   }
 }
 

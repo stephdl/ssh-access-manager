@@ -51,6 +51,7 @@
         data-testid="btn-lock"
         @click="lockUser"
       >
+        <Spinner v-if="submitting" />
         {{ submitting ? $t('common.loading') : $t('userLock.btnLock') }}
       </button>
       <button
@@ -60,6 +61,7 @@
         data-testid="btn-unlock"
         @click="unlockUser"
       >
+        <Spinner v-if="submitting" />
         {{ submitting ? $t('common.loading') : $t('userLock.btnUnlock') }}
       </button>
     </div>
@@ -70,6 +72,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { apiFetch } from '../composables/useAuth.js'
+import Spinner from './Spinner.vue'
 
 const { t } = useI18n()
 
