@@ -204,79 +204,12 @@
       </div>
     </div>
 
-    <!-- Edit server modal -->
-    <div v-if="showEditServer" class="modal-overlay" @click.self="closeEditServer">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>{{ $t('edit_server.title') }}</h3>
-          <button class="modal-close" @click="closeEditServer" aria-label="Close">&#x2715;</button>
-        </div>
-        <div v-if="editError" class="alert-error">{{ editError }}</div>
-
-        <div class="form-grid">
-          <!-- Hostname (readonly) + IP -->
-          <div class="form-field">
-            <label>{{ $t('edit_server.hostname') }}</label>
-            <input v-model="editForm.hostname" type="text" disabled class="input-readonly" />
-          </div>
-          <div class="form-field">
-            <label
-              >{{ $t('edit_server.ip') }}
-              <span class="required">{{ $t('common.required') }}</span></label
-            >
-            <input
-              v-model="editForm.ip"
-              type="text"
-              :placeholder="$t('edit_server.ip_placeholder')"
-            />
-            <span v-if="editIpError" class="field-error">{{ editIpError }}</span>
-          </div>
-
-          <!-- Environment + OS Family -->
-          <div class="form-field">
-            <label>{{ $t('edit_server.environment') }}</label>
-            <select v-model="editForm.environment">
-              <option value="">{{ $t('edit_server.env_placeholder') }}</option>
-              <option value="production">production</option>
-              <option value="staging">staging</option>
-              <option value="lab">lab</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label>{{ $t('edit_server.os_family') }}</label>
-            <input
-              v-model="editForm.os_family"
-              type="text"
-              :placeholder="$t('edit_server.os_placeholder')"
-            />
-          </div>
-
-          <!-- Port SSH (half width) -->
-          <div class="form-field">
-            <label>{{ $t('edit_server.ssh_port_label') }}</label>
-            <input
-              v-model.number="editForm.ssh_port"
-              type="number"
-              min="1"
-              max="65535"
-              placeholder="22"
-            />
-          </div>
-        </div>
-
-        <div class="modal-actions">
-          <button class="btn-secondary" @click="closeEditServer">{{ $t('common.cancel') }}</button>
-          <button
-            class="btn-primary"
-            :disabled="!editFormValid || editing"
-            @click="confirmEditServer"
-          >
-            <Spinner v-if="editing" />
-            {{ editing ? $t('edit_server.submitting') : $t('edit_server.submit') }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <EditServerModal
+      v-model="showEditServer"
+      :server="editingServer"
+      :all-servers="servers"
+      @saved="loadServers"
+    />
   </div>
 </template>
 
@@ -286,6 +219,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuth, apiFetch } from '../composables/useAuth.js'
 import ServerTable from '../components/ServerTable.vue'
 import Spinner from '../components/Spinner.vue'
+import EditServerModal from '../components/EditServerModal.vue'
 
 const { t, te } = useI18n()
 const { admin } = useAuth()
@@ -316,9 +250,7 @@ const addForm = ref({
 })
 
 const showEditServer = ref(false)
-const editing = ref(false)
-const editError = ref('')
-const editForm = ref({ hostname: '', ip: '', environment: '', os_family: '', ssh_port: 22 })
+const editingServer = ref(null)
 
 const counts = computed(() => ({
   ok: servers.value.filter((s) => s.is_active && !s.has_anomalies && s.last_scan_ok !== false)
@@ -362,14 +294,6 @@ const addIpError = computed(() => {
   return ''
 })
 
-const editIpError = computed(() => {
-  const ip = editForm.value.ip.trim()
-  if (!ip) return ''
-  if (!isValidIp(ip)) return t('add_server.error_invalid_ip')
-  if (isIpDuplicate(ip, editForm.value.hostname)) return t('add_server.error_duplicate_ip')
-  return ''
-})
-
 const addFormValid = computed(
   () =>
     addForm.value.hostname.trim() &&
@@ -378,13 +302,6 @@ const addFormValid = computed(
     isValidIp(addForm.value.ip) &&
     !isIpDuplicate(addForm.value.ip.trim()) &&
     addForm.value.sshUser.trim()
-)
-
-const editFormValid = computed(
-  () =>
-    editForm.value.ip.trim() &&
-    isValidIp(editForm.value.ip) &&
-    !isIpDuplicate(editForm.value.ip.trim(), editForm.value.hostname)
 )
 
 async function loadCollectorKey() {
@@ -505,44 +422,8 @@ async function triggerScan(url, hostname) {
 }
 
 function openEditServer(server) {
-  editForm.value = {
-    hostname: server.hostname,
-    ip: server.ip_address,
-    environment: server.environment,
-    os_family: server.os_family || '',
-    ssh_port: server.ssh_port || 22,
-  }
-  editError.value = ''
+  editingServer.value = server
   showEditServer.value = true
-}
-
-function closeEditServer() {
-  showEditServer.value = false
-}
-
-async function confirmEditServer() {
-  editing.value = true
-  editError.value = ''
-  try {
-    const res = await apiFetch(`/api/servers/${editForm.value.hostname}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ip: editForm.value.ip.trim(),
-        environment: editForm.value.environment,
-        os_family: editForm.value.os_family.trim() || null,
-        ssh_port: editForm.value.ssh_port || 22,
-      }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-    closeEditServer()
-    await loadServers()
-  } catch (e) {
-    editError.value = e.message
-  } finally {
-    editing.value = false
-  }
 }
 
 onMounted(() => {
