@@ -96,9 +96,14 @@
               <button
                 v-if="props.currentRole !== 'viewer'"
                 class="btn-primary"
+                :disabled="props.scanningHostname === s.hostname"
                 @click="$emit('scan', s.hostname)"
               >
-                {{ $t('server_table.scan') }}
+                {{
+                  props.scanningHostname === s.hostname
+                    ? $t('server_table.scanning')
+                    : $t('server_table.scan')
+                }}
               </button>
               <button
                 v-if="props.currentRole === 'sysadmin'"
@@ -138,6 +143,7 @@ const { sortKey, toggleSort, sorted, sortIndicator } = useSort()
 const props = defineProps({
   servers: { type: Array, default: () => [] },
   currentRole: { type: String, default: 'viewer' },
+  scanningHostname: { type: String, default: null },
 })
 defineEmits(['scan', 'edit'])
 

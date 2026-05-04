@@ -99,6 +99,7 @@
     "disabled_badge": "DEAKTIVIERT",
     "status_scan_failed": "Letzter Scan fehlgeschlagen",
     "scan": "Scannen",
+    "scanning": "Wird gescannt…",
     "edit": "Bearbeiten"
   },
   "server_detail": {

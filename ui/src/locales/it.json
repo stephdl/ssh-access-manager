@@ -99,6 +99,7 @@
     "disabled_badge": "DISABILITATO",
     "status_scan_failed": "Ultima scansione fallita",
     "scan": "Scansiona",
+    "scanning": "Scansione…",
     "edit": "Modifica"
   },
   "server_detail": {
