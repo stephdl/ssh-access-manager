@@ -15,6 +15,9 @@
           <Spinner v-if="scanning" />
           {{ scanning ? $t('server_detail.scanning') : $t('server_detail.scan') }}
         </button>
+        <button v-if="currentRole === 'sysadmin'" class="btn-secondary" @click="openEdit">
+          {{ $t('server_detail.edit') }}
+        </button>
         <button
           v-if="server.is_active && currentRole === 'sysadmin'"
           class="btn-warning"
@@ -237,6 +240,8 @@
       </div>
     </div>
 
+    <EditServerModal v-model="showEditModal" :server="server" @saved="load" />
+
     <!-- Re-provision modal -->
     <div
       v-if="showReprovisionModal"
@@ -330,6 +335,7 @@ import { useFormatDate } from '../composables/useFormatDate.js'
 import KeyTable from '../components/KeyTable.vue'
 import SessionsCard from '../components/SessionsCard.vue'
 import Spinner from '../components/Spinner.vue'
+import EditServerModal from '../components/EditServerModal.vue'
 
 const { t, te } = useI18n()
 const { admin } = useAuth()
@@ -345,6 +351,8 @@ const loading = ref(true)
 const scanning = ref(false)
 const error = ref('')
 const message = ref('')
+
+const showEditModal = ref(false)
 
 const showDeleteModal = ref(false)
 const showReprovisionModal = ref(false)
@@ -366,6 +374,10 @@ const expiryValid = computed(() => {
   if (expiryMode.value === 'hours') return expiryHours.value > 0
   return !!expiryDate.value
 })
+
+function openEdit() {
+  showEditModal.value = true
+}
 
 async function load() {
   loading.value = true

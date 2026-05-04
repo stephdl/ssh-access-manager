@@ -105,6 +105,7 @@
   "server_detail": {
     "scan": "Scanner",
     "scanning": "Scan en cours",
+    "edit": "Modifier",
     "disable": "Désactiver",
     "reactivate": "Réactiver",
     "delete": "Supprimer",
