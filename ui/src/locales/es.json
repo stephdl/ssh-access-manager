@@ -184,7 +184,8 @@
     "filter_all_statuses": "Todos los estados",
     "no_results": "No se encontraron claves.",
     "revoke_unavailable": "No se puede revocar: último escaneo fallido (servidor inaccesible)",
-    "validate_unavailable": "No se puede validar: último escaneo fallido (servidor inaccesible)"
+    "validate_unavailable": "No se puede validar: último escaneo fallido (servidor inaccesible)",
+    "export_csv": "Exportar CSV"
   },
   "access": {
     "title": "Acceso temporal",
@@ -221,7 +222,8 @@
     "filter_since": "Desde",
     "filter_btn": "Filtrar",
     "reset_btn": "Restablecer",
-    "load_error": "No se puede cargar la auditoría: {error}"
+    "load_error": "No se puede cargar la auditoría: {error}",
+    "export_csv": "Exportar CSV"
   },
   "admins_table": {
     "search_placeholder": "Buscar administradores...",
@@ -330,7 +332,8 @@
     "filter_all_compliant": "Conformidad",
     "filter_compliant": "Conforme",
     "filter_non_compliant": "No conforme",
-    "no_results": "No se encontraron anomalías."
+    "no_results": "No se encontraron anomalías.",
+    "export_csv": "Exportar CSV"
   },
   "settings": {
     "title": "Ajustes",

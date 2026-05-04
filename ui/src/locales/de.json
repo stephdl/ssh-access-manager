@@ -184,7 +184,8 @@
     "filter_all_statuses": "Alle Status",
     "no_results": "Keine passenden Schlüssel.",
     "revoke_unavailable": "Widerrufen nicht möglich: letzter Scan fehlgeschlagen (Server nicht erreichbar)",
-    "validate_unavailable": "Validieren nicht möglich: letzter Scan fehlgeschlagen (Server nicht erreichbar)"
+    "validate_unavailable": "Validieren nicht möglich: letzter Scan fehlgeschlagen (Server nicht erreichbar)",
+    "export_csv": "CSV exportieren"
   },
   "access": {
     "title": "Temporärer Zugriff",
@@ -221,7 +222,8 @@
     "filter_since": "Seit",
     "filter_btn": "Filtern",
     "reset_btn": "Zurücksetzen",
-    "load_error": "Audit kann nicht geladen werden: {error}"
+    "load_error": "Audit kann nicht geladen werden: {error}",
+    "export_csv": "CSV exportieren"
   },
   "admins_table": {
     "search_placeholder": "Administratoren suchen...",
@@ -330,7 +332,8 @@
     "filter_all_compliant": "Konformität",
     "filter_compliant": "Konform",
     "filter_non_compliant": "Nicht konform",
-    "no_results": "Keine passenden Anomalien."
+    "no_results": "Keine passenden Anomalien.",
+    "export_csv": "CSV exportieren"
   },
   "settings": {
     "title": "Einstellungen",

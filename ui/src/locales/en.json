@@ -184,7 +184,8 @@
     "filter_all_statuses": "All statuses",
     "no_results": "No matching keys.",
     "revoke_unavailable": "Cannot revoke: last scan failed (server unreachable)",
-    "validate_unavailable": "Cannot validate: last scan failed (server unreachable)"
+    "validate_unavailable": "Cannot validate: last scan failed (server unreachable)",
+    "export_csv": "Export CSV"
   },
   "access": {
     "title": "Temporary Access",
@@ -221,7 +222,8 @@
     "filter_since": "Since",
     "filter_btn": "Filter",
     "reset_btn": "Reset",
-    "load_error": "Unable to load audit: {error}"
+    "load_error": "Unable to load audit: {error}",
+    "export_csv": "Export CSV"
   },
   "admins_table": {
     "search_placeholder": "Search administrators...",
@@ -330,7 +332,8 @@
     "filter_all_compliant": "Compliance",
     "filter_compliant": "Compliant",
     "filter_non_compliant": "Non-compliant",
-    "no_results": "No matching anomalies."
+    "no_results": "No matching anomalies.",
+    "export_csv": "Export CSV"
   },
   "settings": {
     "title": "Settings",

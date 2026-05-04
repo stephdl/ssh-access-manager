@@ -19,6 +19,7 @@
         </div>
         <button class="btn-primary" @click="applyFilters">{{ $t('audit.filter_btn') }}</button>
         <button @click="resetFilters">{{ $t('audit.reset_btn') }}</button>
+        <button class="btn-export" @click="exportCsv">{{ $t('audit.export_csv') }}</button>
       </div>
     </section>
 
@@ -107,11 +108,13 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
 import { useSort } from '../composables/useSort.js'
 import PaginationBar from './PaginationBar.vue'
 
+const { t } = useI18n()
 const { formatDate } = useFormatDate()
 const { sortKey, toggleSort, sorted, sortIndicator } = useSort()
 
@@ -190,6 +193,35 @@ function resetFilters() {
   filters.value = { server: '', action: '', since: '' }
   currentPage.value = 1
 }
+
+function exportCsv() {
+  const headers = [
+    t('audit.col_date'),
+    t('audit.col_action'),
+    t('audit.col_by'),
+    t('audit.col_server'),
+    t('audit.col_key'),
+    t('audit.col_details'),
+  ]
+  const rows = filtered.value.map((e) => [
+    e.performed_at ? formatDate(e.performed_at) : '',
+    e.action || '',
+    e.performed_by_username || '',
+    e.server_hostname || '',
+    e.key_fingerprint || '',
+    formatDetails(e.details),
+  ])
+  const csv = [headers, ...rows]
+    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `audit-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 </script>
 
 <style scoped>
@@ -210,6 +242,19 @@ function resetFilters() {
   align-items: flex-end;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+.btn-export {
+  background: #6c757d;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.btn-export:hover {
+  background: #5a6268;
 }
 
 .field {
