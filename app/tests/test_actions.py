@@ -1262,3 +1262,80 @@ def test_actions_reset_password_rejects_weak_password():
         mock_db.query_one.return_value = {"id": ADMIN_ID}
         with pytest.raises(UserError):
             actions.reset_password("alice", "weak")
+
+
+# ---------------------------------------------------------------------------
+# bulk_validate_keys
+# ---------------------------------------------------------------------------
+
+def test_actions_bulk_validate_calls_validate_for_each():
+    fp1 = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    fp2 = "SHA256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    with patch("actions.validate_key") as mock_validate:
+        mock_validate.return_value = {"id": KEY_ID}
+        result = actions.bulk_validate_keys([fp1, fp2], ADMIN_ID)
+        assert mock_validate.call_count == 2
+        assert result["validated"] == 2
+        assert result["skipped"] == 0
+
+
+def test_actions_bulk_validate_skips_on_user_error():
+    fp1 = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    fp2 = "SHA256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    with patch("actions.validate_key") as mock_validate:
+        mock_validate.side_effect = [UserError("no pending"), {"id": KEY_ID}]
+        result = actions.bulk_validate_keys([fp1, fp2], ADMIN_ID)
+        assert result["validated"] == 1
+        assert result["skipped"] == 1
+
+
+def test_actions_bulk_validate_rejects_empty_list():
+    with pytest.raises(UserError, match="At least one"):
+        actions.bulk_validate_keys([], ADMIN_ID)
+
+
+def test_actions_bulk_validate_rejects_over_200():
+    fps = [f"SHA256:{'a' * 43}"] * 201
+    with pytest.raises(UserError, match="200"):
+        actions.bulk_validate_keys(fps, ADMIN_ID)
+
+
+# ---------------------------------------------------------------------------
+# bulk_revoke_keys
+# ---------------------------------------------------------------------------
+
+def test_actions_bulk_revoke_calls_revoke_for_each():
+    fp1 = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    fp2 = "SHA256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    with patch("actions.revoke_key") as mock_revoke:
+        result = actions.bulk_revoke_keys([fp1, fp2], "security audit", ADMIN_ID)
+        assert mock_revoke.call_count == 2
+        assert result["revoked"] == 2
+        assert result["skipped"] == 0
+
+
+def test_actions_bulk_revoke_skips_on_user_error():
+    fp1 = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    fp2 = "SHA256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    with patch("actions.revoke_key") as mock_revoke:
+        mock_revoke.side_effect = [UserError("not found"), None]
+        result = actions.bulk_revoke_keys([fp1, fp2], "audit", ADMIN_ID)
+        assert result["revoked"] == 1
+        assert result["skipped"] == 1
+
+
+def test_actions_bulk_revoke_rejects_empty_list():
+    with pytest.raises(UserError, match="At least one"):
+        actions.bulk_revoke_keys([], "reason", ADMIN_ID)
+
+
+def test_actions_bulk_revoke_rejects_over_200():
+    fps = [f"SHA256:{'a' * 43}"] * 201
+    with pytest.raises(UserError, match="200"):
+        actions.bulk_revoke_keys(fps, "reason", ADMIN_ID)
+
+
+def test_actions_bulk_revoke_rejects_empty_reason():
+    fp = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    with pytest.raises(UserError, match="reason"):
+        actions.bulk_revoke_keys([fp], "", ADMIN_ID)

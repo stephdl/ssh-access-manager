@@ -1851,3 +1851,111 @@ def test_web_sessions_history_operator_200(client):
             sess["admin_id"] = ADMIN_ID
         res = client.get("/api/servers/server1/sessions/history")
         assert res.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# POST /api/keys/bulk-validate
+# ---------------------------------------------------------------------------
+
+def test_web_bulk_validate_returns_200(auth_client):
+    fps = ["SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.bulk_validate_keys.return_value = {"validated": 1, "skipped": 0}
+        resp = auth_client.post("/api/keys/bulk-validate", json={"fingerprints": fps})
+    assert resp.status_code == 200
+    assert resp.get_json()["validated"] == 1
+
+
+def test_web_bulk_validate_rejects_missing_fingerprints(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post("/api/keys/bulk-validate", json={})
+    assert resp.status_code == 400
+
+
+def test_web_bulk_validate_rejects_non_list(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post("/api/keys/bulk-validate", json={"fingerprints": "notalist"})
+    assert resp.status_code == 400
+
+
+def test_web_bulk_validate_viewer_returns_403(client):
+    with client.session_transaction() as sess:
+        sess["admin_id"] = ADMIN_ID
+        sess["admin_username"] = "viewer"
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "viewer", "role": "viewer"}
+        resp = client.post("/api/keys/bulk-validate", json={"fingerprints": []})
+    assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# POST /api/keys/bulk-revoke
+# ---------------------------------------------------------------------------
+
+def test_web_bulk_revoke_returns_200(auth_client):
+    fps = ["SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.bulk_revoke_keys.return_value = {"revoked": 1, "skipped": 0}
+        resp = auth_client.post("/api/keys/bulk-revoke", json={"fingerprints": fps, "reason": "audit"})
+    assert resp.status_code == 200
+    assert resp.get_json()["revoked"] == 1
+
+
+def test_web_bulk_revoke_rejects_missing_reason(auth_client):
+    fps = ["SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post("/api/keys/bulk-revoke", json={"fingerprints": fps})
+    assert resp.status_code == 400
+    assert "reason" in resp.get_json()["error"]
+
+
+def test_web_bulk_revoke_rejects_missing_fingerprints(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post("/api/keys/bulk-revoke", json={"reason": "audit"})
+    assert resp.status_code == 400
+
+
+def test_web_bulk_revoke_viewer_returns_403(client):
+    with client.session_transaction() as sess:
+        sess["admin_id"] = ADMIN_ID
+        sess["admin_username"] = "viewer"
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "viewer", "role": "viewer"}
+        resp = client.post("/api/keys/bulk-revoke", json={"fingerprints": [], "reason": "x"})
+    assert resp.status_code == 403
+
+
+def test_web_bulk_validate_rejects_empty_list(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post("/api/keys/bulk-validate", json={"fingerprints": []})
+    assert resp.status_code == 400
+
+
+def test_web_bulk_validate_rejects_over_200(auth_client):
+    fps = ["SHA256:" + "a" * 43] * 201
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post("/api/keys/bulk-validate", json={"fingerprints": fps})
+    assert resp.status_code == 400
+
+
+def test_web_bulk_revoke_rejects_empty_list(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post("/api/keys/bulk-revoke", json={"fingerprints": [], "reason": "audit"})
+    assert resp.status_code == 400
+
+
+def test_web_bulk_revoke_rejects_over_200(auth_client):
+    fps = ["SHA256:" + "a" * 43] * 201
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post("/api/keys/bulk-revoke", json={"fingerprints": fps, "reason": "audit"})
+    assert resp.status_code == 400

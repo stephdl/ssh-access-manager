@@ -23,6 +23,8 @@
           type="pending"
           @validate="validate"
           @revoke="openRevokeByFingerprint"
+          @bulk-validate="bulkValidate"
+          @bulk-revoke="openBulkRevoke"
         />
       </section>
 
@@ -43,6 +45,45 @@
         />
       </section>
     </template>
+
+    <!-- Bulk revoke modal -->
+    <div
+      v-if="bulkRevokeFingerprints"
+      class="modal-overlay"
+      @click.self="bulkRevokeFingerprints = null"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h3>{{ $t('anomalies.bulk_revoke_modal_title') }}</h3>
+          <button class="modal-close" @click="bulkRevokeFingerprints = null" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
+        <p>{{ $t('anomalies.bulk_selected', { n: bulkRevokeFingerprints.length }) }}</p>
+        <label for="bulk-revoke-reason"
+          >{{ $t('anomalies.revoke_reason_label') }}
+          <span class="required">{{ $t('common.required') }}</span></label
+        >
+        <textarea
+          id="bulk-revoke-reason"
+          v-model="bulkRevokeReason"
+          rows="3"
+          :placeholder="$t('anomalies.revoke_reason_placeholder')"
+        ></textarea>
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="bulkRevokeFingerprints = null">
+            {{ $t('common.cancel') }}
+          </button>
+          <button
+            class="btn-danger"
+            :disabled="!bulkRevokeReason.trim()"
+            @click="confirmBulkRevoke"
+          >
+            {{ $t('anomalies.btn_revoke_confirm') }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Revoke modal -->
     <div v-if="revokeTarget" class="modal-overlay" @click.self="revokeTarget = null">
@@ -96,6 +137,8 @@ const error = ref('')
 const message = ref('')
 const revokeTarget = ref(null)
 const revokeReason = ref('')
+const bulkRevokeFingerprints = ref(null)
+const bulkRevokeReason = ref('')
 
 const pendingAll = computed(() => allKeys.value.filter((k) => k.status === 'PENDING_REVIEW'))
 
@@ -151,6 +194,60 @@ async function confirmRevoke() {
     t('anomalies.key_revoked')
   )
   revokeTarget.value = null
+}
+
+async function bulkValidate(entries) {
+  error.value = ''
+  message.value = ''
+  try {
+    const res = await apiFetch('/api/keys/bulk-validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprints: entries.map((e) => e.fingerprint) }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    const data = await res.json()
+    message.value = t('anomalies.bulk_validated', {
+      validated: data.validated,
+      skipped: data.skipped,
+    })
+    await load()
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
+function openBulkRevoke(fingerprints) {
+  bulkRevokeFingerprints.value = fingerprints
+  bulkRevokeReason.value = ''
+}
+
+async function confirmBulkRevoke() {
+  error.value = ''
+  message.value = ''
+  try {
+    const res = await apiFetch('/api/keys/bulk-revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fingerprints: bulkRevokeFingerprints.value,
+        reason: bulkRevokeReason.value,
+      }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    const data = await res.json()
+    message.value = t('anomalies.bulk_revoked', { revoked: data.revoked, skipped: data.skipped })
+    bulkRevokeFingerprints.value = null
+    await load()
+  } catch (e) {
+    error.value = e.message
+  }
 }
 
 async function apiAction(url, body, successMsg) {

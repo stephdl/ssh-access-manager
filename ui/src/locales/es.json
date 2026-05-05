@@ -158,7 +158,10 @@
     "reprovision_submit": "Re-aprovisionar",
     "reprovision_submitting": "Conectando…",
     "reprovision_success": "Servidor re-aprovisionado correctamente.",
-    "reprovision_password_optional_hint": "Dejar vacío si la clave del colector ya fue desplegada manualmente (ssh-copy-id o provision-host.sh)."
+    "reprovision_password_optional_hint": "Dejar vacío si la clave del colector ya fue desplegada manualmente (ssh-copy-id o provision-host.sh).",
+    "bulk_revoke_modal_title": "Revocar claves seleccionadas",
+    "bulk_validated": "Claves validadas: {validated}, omitidas: {skipped}",
+    "bulk_revoked": "Claves revocadas: {revoked}, omitidas: {skipped}"
   },
   "key_table": {
     "col_status": "Estado",
@@ -185,7 +188,11 @@
     "no_results": "No se encontraron claves.",
     "revoke_unavailable": "No se puede revocar: último escaneo fallido (servidor inaccesible)",
     "validate_unavailable": "No se puede validar: último escaneo fallido (servidor inaccesible)",
-    "export_csv": "Exportar CSV"
+    "export_csv": "Exportar CSV",
+    "bulk_selected": "{n} clave(s) seleccionada(s)",
+    "bulk_validate": "Validar selección",
+    "bulk_revoke": "Revocar selección",
+    "bulk_clear": "Borrar selección"
   },
   "access": {
     "title": "Acceso temporal",
@@ -333,7 +340,14 @@
     "filter_compliant": "Conforme",
     "filter_non_compliant": "No conforme",
     "no_results": "No se encontraron anomalías.",
-    "export_csv": "Exportar CSV"
+    "export_csv": "Exportar CSV",
+    "bulk_selected": "{n} clave(s) seleccionada(s)",
+    "bulk_validate": "Validar selección",
+    "bulk_revoke": "Revocar selección",
+    "bulk_clear": "Borrar selección",
+    "bulk_revoke_modal_title": "Revocar claves seleccionadas",
+    "bulk_validated": "Claves validadas: {validated}, omitidas: {skipped}",
+    "bulk_revoked": "Claves revocadas: {revoked}, omitidas: {skipped}"
   },
   "settings": {
     "title": "Ajustes",

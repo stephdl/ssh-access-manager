@@ -158,7 +158,10 @@
     "reprovision_submit": "Re-provision",
     "reprovision_submitting": "Connecting…",
     "reprovision_success": "Server re-provisioned successfully.",
-    "reprovision_password_optional_hint": "Leave empty if the collector key was already deployed manually (ssh-copy-id or provision-host.sh)."
+    "reprovision_password_optional_hint": "Leave empty if the collector key was already deployed manually (ssh-copy-id or provision-host.sh).",
+    "bulk_revoke_modal_title": "Revoke selected keys",
+    "bulk_validated": "Keys validated: {validated}, skipped: {skipped}",
+    "bulk_revoked": "Keys revoked: {revoked}, skipped: {skipped}"
   },
   "key_table": {
     "col_status": "Status",
@@ -185,7 +188,11 @@
     "no_results": "No matching keys.",
     "revoke_unavailable": "Cannot revoke: last scan failed (server unreachable)",
     "validate_unavailable": "Cannot validate: last scan failed (server unreachable)",
-    "export_csv": "Export CSV"
+    "export_csv": "Export CSV",
+    "bulk_selected": "{n} key(s) selected",
+    "bulk_validate": "Validate selected",
+    "bulk_revoke": "Revoke selected",
+    "bulk_clear": "Clear selection"
   },
   "access": {
     "title": "Temporary Access",
@@ -333,7 +340,14 @@
     "filter_compliant": "Compliant",
     "filter_non_compliant": "Non-compliant",
     "no_results": "No matching anomalies.",
-    "export_csv": "Export CSV"
+    "export_csv": "Export CSV",
+    "bulk_selected": "{n} key(s) selected",
+    "bulk_validate": "Validate selected",
+    "bulk_revoke": "Revoke selected",
+    "bulk_clear": "Clear selection",
+    "bulk_revoke_modal_title": "Revoke selected keys",
+    "bulk_validated": "Keys validated: {validated}, skipped: {skipped}",
+    "bulk_revoked": "Keys revoked: {revoked}, skipped: {skipped}"
   },
   "settings": {
     "title": "Settings",

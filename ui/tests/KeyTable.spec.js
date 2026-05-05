@@ -316,4 +316,61 @@ describe('KeyTable', () => {
     expect(validateBtn).toBeDefined()
     expect(validateBtn.attributes('disabled')).toBeUndefined()
   })
+
+  // --- Bulk actions ---
+
+  it('shows checkbox column for sysadmin', () => {
+    const w = mountTable([makeKey()])
+    expect(w.find('[data-testid="bulk-select-all"]').exists()).toBe(true)
+  })
+
+  it('hides checkbox column for viewer', () => {
+    const w = mountTable([makeKey()], 'viewer')
+    expect(w.find('[data-testid="bulk-select-all"]').exists()).toBe(false)
+  })
+
+  it('bulk bar hidden when nothing selected', () => {
+    const w = mountTable([makeKey()])
+    expect(w.find('[data-testid="bulk-bar"]').exists()).toBe(false)
+  })
+
+  it('shows bulk bar after selecting a row', async () => {
+    const w = mountTable([makeKey()])
+    const checkbox = w.find('tbody input[type="checkbox"]')
+    await checkbox.setChecked(true)
+    expect(w.find('[data-testid="bulk-bar"]').exists()).toBe(true)
+  })
+
+  it('emits bulk-validate with fingerprints', async () => {
+    const key = makeKey({ status: 'ACTIVE' })
+    const w = mountTable([key])
+    await w.find('tbody input[type="checkbox"]').setChecked(true)
+    await w.find('[data-testid="bulk-validate-btn"]').trigger('click')
+    expect(w.emitted('bulk-validate')).toBeTruthy()
+    expect(w.emitted('bulk-validate')[0][0]).toContain(FP)
+  })
+
+  it('emits bulk-revoke with fingerprints', async () => {
+    const key = makeKey({ status: 'ACTIVE' })
+    const w = mountTable([key])
+    await w.find('tbody input[type="checkbox"]').setChecked(true)
+    await w.find('[data-testid="bulk-revoke-btn"]').trigger('click')
+    expect(w.emitted('bulk-revoke')).toBeTruthy()
+    expect(w.emitted('bulk-revoke')[0][0]).toContain(FP)
+  })
+
+  it('select-all checks all selectable rows on page', async () => {
+    const keys = [
+      makeKey({ fingerprint: 'SHA256:aaaaa', status: 'ACTIVE' }),
+      makeKey({ fingerprint: 'SHA256:bbbbb', status: 'PENDING_REVIEW' }),
+    ]
+    const w = mountTable(keys)
+    await w.find('[data-testid="bulk-select-all"]').setChecked(true)
+    expect(w.find('[data-testid="bulk-bar"]').exists()).toBe(true)
+  })
+
+  it('REVOKED rows are not selectable', async () => {
+    const w = mountTable([makeKey({ status: 'REVOKED' })])
+    expect(w.find('tbody input[type="checkbox"]').exists()).toBe(false)
+  })
 })

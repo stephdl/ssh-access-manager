@@ -158,7 +158,10 @@
     "reprovision_submit": "Neu bereitstellen",
     "reprovision_submitting": "Verbindung…",
     "reprovision_success": "Server erfolgreich neu bereitgestellt.",
-    "reprovision_password_optional_hint": "Leer lassen, wenn der Collector-Schlüssel bereits manuell bereitgestellt wurde (ssh-copy-id oder provision-host.sh)."
+    "reprovision_password_optional_hint": "Leer lassen, wenn der Collector-Schlüssel bereits manuell bereitgestellt wurde (ssh-copy-id oder provision-host.sh).",
+    "bulk_revoke_modal_title": "Ausgewählte Schlüssel widerrufen",
+    "bulk_validated": "Schlüssel validiert: {validated}, übersprungen: {skipped}",
+    "bulk_revoked": "Schlüssel widerrufen: {revoked}, übersprungen: {skipped}"
   },
   "key_table": {
     "col_status": "Status",
@@ -185,7 +188,11 @@
     "no_results": "Keine passenden Schlüssel.",
     "revoke_unavailable": "Widerrufen nicht möglich: letzter Scan fehlgeschlagen (Server nicht erreichbar)",
     "validate_unavailable": "Validieren nicht möglich: letzter Scan fehlgeschlagen (Server nicht erreichbar)",
-    "export_csv": "CSV exportieren"
+    "export_csv": "CSV exportieren",
+    "bulk_selected": "{n} Schlüssel ausgewählt",
+    "bulk_validate": "Auswahl validieren",
+    "bulk_revoke": "Auswahl widerrufen",
+    "bulk_clear": "Auswahl aufheben"
   },
   "access": {
     "title": "Temporärer Zugriff",
@@ -333,7 +340,14 @@
     "filter_compliant": "Konform",
     "filter_non_compliant": "Nicht konform",
     "no_results": "Keine passenden Anomalien.",
-    "export_csv": "CSV exportieren"
+    "export_csv": "CSV exportieren",
+    "bulk_selected": "{n} Schlüssel ausgewählt",
+    "bulk_validate": "Auswahl validieren",
+    "bulk_revoke": "Auswahl widerrufen",
+    "bulk_clear": "Auswahl aufheben",
+    "bulk_revoke_modal_title": "Ausgewählte Schlüssel widerrufen",
+    "bulk_validated": "Schlüssel validiert: {validated}, übersprungen: {skipped}",
+    "bulk_revoked": "Schlüssel widerrufen: {revoked}, übersprungen: {skipped}"
   },
   "settings": {
     "title": "Einstellungen",

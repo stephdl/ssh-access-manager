@@ -158,7 +158,10 @@
     "reprovision_submit": "Re-provisionner",
     "reprovision_submitting": "Connexion…",
     "reprovision_success": "Serveur re-provisionné avec succès.",
-    "reprovision_password_optional_hint": "Laisser vide si la clé collecteur a déjà été déployée manuellement (ssh-copy-id ou provision-host.sh)."
+    "reprovision_password_optional_hint": "Laisser vide si la clé collecteur a déjà été déployée manuellement (ssh-copy-id ou provision-host.sh).",
+    "bulk_revoke_modal_title": "Révoquer les clés sélectionnées",
+    "bulk_validated": "Clés validées : {validated}, ignorées : {skipped}",
+    "bulk_revoked": "Clés révoquées : {revoked}, ignorées : {skipped}"
   },
   "key_table": {
     "col_status": "Statut",
@@ -185,7 +188,11 @@
     "no_results": "Aucune clé correspondante.",
     "revoke_unavailable": "Révocation impossible : dernier scan échoué (serveur injoignable)",
     "validate_unavailable": "Validation impossible : dernier scan échoué (serveur injoignable)",
-    "export_csv": "Exporter CSV"
+    "export_csv": "Exporter CSV",
+    "bulk_selected": "{n} clé(s) sélectionnée(s)",
+    "bulk_validate": "Valider la sélection",
+    "bulk_revoke": "Révoquer la sélection",
+    "bulk_clear": "Effacer la sélection"
   },
   "access": {
     "title": "Accès temporaires",
@@ -333,7 +340,14 @@
     "filter_compliant": "Conforme",
     "filter_non_compliant": "Non conforme",
     "no_results": "Aucune anomalie correspondante.",
-    "export_csv": "Exporter CSV"
+    "export_csv": "Exporter CSV",
+    "bulk_selected": "{n} clé(s) sélectionnée(s)",
+    "bulk_validate": "Valider la sélection",
+    "bulk_revoke": "Révoquer la sélection",
+    "bulk_clear": "Effacer la sélection",
+    "bulk_revoke_modal_title": "Révoquer les clés sélectionnées",
+    "bulk_validated": "Clés validées : {validated}, ignorées : {skipped}",
+    "bulk_revoked": "Clés révoquées : {revoked}, ignorées : {skipped}"
   },
   "settings": {
     "title": "Paramètres",
