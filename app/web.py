@@ -667,11 +667,12 @@ def bulk_validate_keys():
     fingerprints = data.get("fingerprints")
     if not isinstance(fingerprints, list):
         return jsonify({"error": "fingerprints must be a list"}), 400
-    try:
-        result = actions.bulk_validate_keys(fingerprints, g.admin_id)
-        return jsonify(result)
-    except UserError as e:
-        return jsonify({"error": str(e)}), 400
+    if not fingerprints:
+        return jsonify({"error": "At least one fingerprint is required"}), 400
+    if len(fingerprints) > 200:
+        return jsonify({"error": "Bulk operation limited to 200 keys at a time"}), 400
+    result = actions.bulk_validate_keys(fingerprints, g.admin_id)
+    return jsonify(result)
 
 
 @app.route("/api/keys/bulk-revoke", methods=["POST"])
@@ -683,13 +684,14 @@ def bulk_revoke_keys():
     reason = data.get("reason", "").strip()
     if not isinstance(fingerprints, list):
         return jsonify({"error": "fingerprints must be a list"}), 400
+    if not fingerprints:
+        return jsonify({"error": "At least one fingerprint is required"}), 400
+    if len(fingerprints) > 200:
+        return jsonify({"error": "Bulk operation limited to 200 keys at a time"}), 400
     if not reason:
         return jsonify({"error": "reason is required"}), 400
-    try:
-        result = actions.bulk_revoke_keys(fingerprints, reason, g.admin_id)
-        return jsonify(result)
-    except UserError as e:
-        return jsonify({"error": str(e)}), 400
+    result = actions.bulk_revoke_keys(fingerprints, reason, g.admin_id)
+    return jsonify(result)
 
 
 # ---------------------------------------------------------------------------
