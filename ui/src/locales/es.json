@@ -363,6 +363,8 @@
     "expire_warn_days_2_label": "Segunda advertencia de expiración",
     "expire_warn_days_2_hint": "Envía un segundo correo N días antes de la expiración. Debe ser menor que la primera advertencia (1–30).",
     "expire_warn_error": "La primera advertencia debe ser mayor que la segunda.",
+    "audit_retention_days_label": "Retención del registro de auditoría",
+    "audit_retention_days_hint": "Las entradas de auditoría más antiguas que este número de días se purgan automáticamente en cada ciclo cron (30–3650).",
     "security_section": "Seguridad",
     "login_max_attempts_label": "Intentos fallidos máximos",
     "login_max_attempts_hint": "Número de fallos consecutivos antes de que una IP sea temporalmente bloqueada (1–100).",

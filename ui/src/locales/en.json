@@ -363,6 +363,8 @@
     "expire_warn_days_2_label": "Second expiry warning",
     "expire_warn_days_2_hint": "Send a second warning email N days before expiry. Must be less than the first warning (1–30).",
     "expire_warn_error": "First warning days must be greater than second warning days.",
+    "audit_retention_days_label": "Audit log retention",
+    "audit_retention_days_hint": "Audit entries older than this number of days are automatically purged during each cron cycle (30–3650).",
     "security_section": "Security",
     "login_max_attempts_label": "Max failed login attempts",
     "login_max_attempts_hint": "Number of consecutive failures before an IP is temporarily banned (1–100).",

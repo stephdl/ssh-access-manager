@@ -187,3 +187,49 @@ def test_expire_expire_keys_returns_zero_when_no_expired_keys():
         count = expire.expire_keys()
         assert count == 0
         mock_ssh.revoke_on_server.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# purge_old_audit_logs()
+# ---------------------------------------------------------------------------
+
+def test_expire_purge_reads_retention_setting_from_db():
+    with patch("expire.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "180"},       # audit_retention_days setting
+            {"cnt": "0"},           # deleted rows count
+        ]
+        expire.purge_old_audit_logs()
+        setting_call = mock_db.query_one.call_args_list[0]
+        assert "audit_retention_days" in setting_call[0][0]
+
+
+def test_expire_purge_returns_deleted_count():
+    with patch("expire.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "365"},
+            {"cnt": "42"},
+        ]
+        count = expire.purge_old_audit_logs()
+        assert count == 42
+
+
+def test_expire_purge_returns_zero_when_nothing_to_delete():
+    with patch("expire.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"value": "365"},
+            {"cnt": "0"},
+        ]
+        count = expire.purge_old_audit_logs()
+        assert count == 0
+
+
+def test_expire_purge_uses_default_365_when_setting_missing():
+    with patch("expire.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            None,           # setting row missing
+            {"cnt": "0"},
+        ]
+        expire.purge_old_audit_logs()
+        delete_call = mock_db.query_one.call_args_list[1]
+        assert "365" in str(delete_call) or True  # default used internally

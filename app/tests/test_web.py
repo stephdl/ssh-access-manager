@@ -1700,6 +1700,41 @@ def test_web_config_login_ban_seconds_too_low(auth_client):
     assert resp.status_code == 400
 
 
+def test_web_config_update_audit_retention_days(auth_client):
+    """PUT /api/system/config accepts audit_retention_days."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"value": "7"},
+            {"value": "2"},
+        ]
+        mock_db.query.return_value = [
+            {"key": "scan_interval_hours", "value": "4"},
+            {"key": "audit_retention_days", "value": "180"},
+        ]
+        resp = auth_client.put("/api/system/config", json={"audit_retention_days": 180})
+    assert resp.status_code == 200
+    assert resp.get_json()["audit_retention_days"] == 180
+
+
+def test_web_config_audit_retention_days_too_low(auth_client):
+    """PUT /api/system/config rejects audit_retention_days < 30."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/system/config", json={"audit_retention_days": 0})
+    assert resp.status_code == 400
+    assert "audit_retention_days" in resp.get_json()["error"]
+
+
+def test_web_config_audit_retention_days_too_high(auth_client):
+    """PUT /api/system/config rejects audit_retention_days > 3650."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/system/config", json={"audit_retention_days": 9999})
+    assert resp.status_code == 400
+    assert "audit_retention_days" in resp.get_json()["error"]
+
+
 # ---------------------------------------------------------------------------
 # Session timeout
 # ---------------------------------------------------------------------------

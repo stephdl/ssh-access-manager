@@ -363,6 +363,8 @@
     "expire_warn_days_2_label": "Zweite Ablaufwarnung",
     "expire_warn_days_2_hint": "Sendet eine zweite Warn-E-Mail N Tage vor dem Ablauf. Muss kleiner als die erste Warnung sein (1–30).",
     "expire_warn_error": "Die erste Warnung muss größer als die zweite sein.",
+    "audit_retention_days_label": "Aufbewahrung des Audit-Protokolls",
+    "audit_retention_days_hint": "Audit-Einträge, die älter als diese Anzahl von Tagen sind, werden bei jedem Cron-Zyklus automatisch gelöscht (30–3650).",
     "security_section": "Sicherheit",
     "login_max_attempts_label": "Maximale Fehlversuche",
     "login_max_attempts_hint": "Anzahl aufeinanderfolgender Fehler, bevor eine IP vorübergehend gesperrt wird (1–100).",

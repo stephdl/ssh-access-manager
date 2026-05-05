@@ -363,6 +363,8 @@
     "expire_warn_days_2_label": "Secondo avviso di scadenza",
     "expire_warn_days_2_hint": "Invia un secondo avviso N giorni prima della scadenza. Deve essere inferiore al primo avviso (1–30).",
     "expire_warn_error": "Il primo avviso deve essere maggiore del secondo.",
+    "audit_retention_days_label": "Conservazione del registro di controllo",
+    "audit_retention_days_hint": "Le voci di audit più vecchie di questo numero di giorni vengono eliminate automaticamente ad ogni ciclo cron (30–3650).",
     "security_section": "Sicurezza",
     "login_max_attempts_label": "Tentativi massimi falliti",
     "login_max_attempts_hint": "Numero di fallimenti consecutivi prima che un IP venga temporaneamente vietato (1–100).",

@@ -1183,10 +1183,11 @@ def update_config():
     expire_warn_days_2 = data.get("expire_warn_days_2")
     login_max_attempts = data.get("login_max_attempts")
     login_ban_seconds = data.get("login_ban_seconds")
+    audit_retention_days = data.get("audit_retention_days")
 
     # Must have at least one value
     if all(v is None for v in [scan_interval_hours, expire_warn_days, expire_warn_days_2,
-                                login_max_attempts, login_ban_seconds]):
+                                login_max_attempts, login_ban_seconds, audit_retention_days]):
         return jsonify({"error": "At least one setting must be provided"}), 400
 
     # Validate scan_interval_hours if present
@@ -1234,6 +1235,15 @@ def update_config():
         except (ValueError, TypeError):
             return jsonify({"error": "login_ban_seconds must be between 30 and 86400"}), 400
 
+    # Validate audit_retention_days if present
+    if audit_retention_days is not None:
+        try:
+            audit_retention_days = int(audit_retention_days)
+            if not (30 <= audit_retention_days <= 3650):
+                raise ValueError
+        except (ValueError, TypeError):
+            return jsonify({"error": "audit_retention_days must be between 30 and 3650"}), 400
+
     # Read current values from DB if not in request
     current_warn_days = db.query_one("SELECT value FROM settings WHERE key = 'expire_warn_days'")
     current_warn_days_2 = db.query_one("SELECT value FROM settings WHERE key = 'expire_warn_days_2'")
@@ -1252,6 +1262,7 @@ def update_config():
         "expire_warn_days_2": expire_warn_days_2,
         "login_max_attempts": login_max_attempts,
         "login_ban_seconds": login_ban_seconds,
+        "audit_retention_days": audit_retention_days,
     }
     for key, value in updates.items():
         if value is not None:

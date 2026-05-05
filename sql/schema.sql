@@ -309,6 +309,7 @@ INSERT INTO settings (key, value) VALUES ('expire_warn_days', '7');
 INSERT INTO settings (key, value) VALUES ('expire_warn_days_2', '2');
 INSERT INTO settings (key, value) VALUES ('login_max_attempts', '10');
 INSERT INTO settings (key, value) VALUES ('login_ban_seconds', '300');
+INSERT INTO settings (key, value) VALUES ('audit_retention_days', '365');
 
 -- =============================================================================
 -- INDEX

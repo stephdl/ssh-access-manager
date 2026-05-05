@@ -363,6 +363,8 @@
     "expire_warn_days_2_label": "Deuxième alerte d'expiration",
     "expire_warn_days_2_hint": "Envoie un second email d'alerte N jours avant l'expiration. Doit être inférieur à la première alerte (1–30).",
     "expire_warn_error": "La première alerte doit être supérieure à la deuxième.",
+    "audit_retention_days_label": "Rétention du journal d'audit",
+    "audit_retention_days_hint": "Les entrées d'audit plus anciennes que ce nombre de jours sont purgées automatiquement à chaque cycle cron (30–3650).",
     "security_section": "Sécurité",
     "login_max_attempts_label": "Tentatives max avant bannissement",
     "login_max_attempts_hint": "Nombre d'échecs consécutifs avant qu'une IP soit temporairement bannie (1–100).",
