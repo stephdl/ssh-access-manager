@@ -184,7 +184,8 @@
     "filter_all_statuses": "Tous les statuts",
     "no_results": "Aucune clé correspondante.",
     "revoke_unavailable": "Révocation impossible : dernier scan échoué (serveur injoignable)",
-    "validate_unavailable": "Validation impossible : dernier scan échoué (serveur injoignable)"
+    "validate_unavailable": "Validation impossible : dernier scan échoué (serveur injoignable)",
+    "export_csv": "Exporter CSV"
   },
   "access": {
     "title": "Accès temporaires",
@@ -221,7 +222,8 @@
     "filter_since": "Depuis",
     "filter_btn": "Filtrer",
     "reset_btn": "Réinitialiser",
-    "load_error": "Impossible de charger l'audit : {error}"
+    "load_error": "Impossible de charger l'audit : {error}",
+    "export_csv": "Exporter CSV"
   },
   "admins_table": {
     "search_placeholder": "Rechercher administrateurs...",
@@ -330,7 +332,8 @@
     "filter_all_compliant": "Conformité",
     "filter_compliant": "Conforme",
     "filter_non_compliant": "Non conforme",
-    "no_results": "Aucune anomalie correspondante."
+    "no_results": "Aucune anomalie correspondante.",
+    "export_csv": "Exporter CSV"
   },
   "settings": {
     "title": "Paramètres",

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AuditTable from '../src/components/AuditTable.vue'
 import PaginationBar from '../src/components/PaginationBar.vue'
@@ -120,6 +120,37 @@ describe('AuditTable.vue', () => {
     const rows = wrapper.findAll('tbody tr')
     const warningRow = rows.find((r) => r.text().includes('EXPIRY_WARNING'))
     expect(warningRow.classes()).toContain('row-warning')
+  })
+
+  it('shows export CSV button', () => {
+    const wrapper = mount(AuditTable, {
+      props: { logs, servers: [] },
+      global: { plugins: [i18n], stubs: { PaginationBar } },
+    })
+    const buttons = wrapper.findAll('button')
+    expect(buttons.some((b) => b.text().includes('Export CSV'))).toBe(true)
+  })
+
+  it('triggers CSV download on export button click', async () => {
+    const createObjectURL = vi.fn(() => 'blob:fake')
+    const revokeObjectURL = vi.fn()
+    const click = vi.fn()
+    global.URL.createObjectURL = createObjectURL
+    global.URL.revokeObjectURL = revokeObjectURL
+    const originalCreate = document.createElement.bind(document)
+    const createElement = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+      if (tag === 'a') return { href: '', download: '', click }
+      return originalCreate(tag)
+    })
+    const wrapper = mount(AuditTable, {
+      props: { logs, servers: [] },
+      global: { plugins: [i18n], stubs: { PaginationBar } },
+    })
+    const exportBtn = wrapper.findAll('button').find((b) => b.text().includes('Export CSV'))
+    await exportBtn.trigger('click')
+    expect(createObjectURL).toHaveBeenCalled()
+    expect(click).toHaveBeenCalled()
+    createElement.mockRestore()
   })
 
   it('resets filters on reset button click', async () => {

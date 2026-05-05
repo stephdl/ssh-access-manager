@@ -25,6 +25,7 @@
         <option value="yes">{{ $t('anomalies.filter_compliant') }}</option>
         <option value="no">{{ $t('anomalies.filter_non_compliant') }}</option>
       </select>
+      <button class="btn-export" @click="exportCsv">{{ $t('anomalies.export_csv') }}</button>
     </div>
 
     <table v-if="filtered.length > 0">
@@ -213,6 +214,35 @@ function complianceTooltip(k) {
   }
   return t('key_table.non_compliant_type')
 }
+
+function exportCsv() {
+  const headers = [
+    t('anomalies.col_fingerprint'),
+    t('anomalies.col_type'),
+    t('anomalies.col_server'),
+    t('anomalies.col_unix_user'),
+    colDate.value,
+    t('anomalies.col_compliant'),
+  ]
+  const rows = filtered.value.map((k) => [
+    k.fingerprint || '',
+    k.key_type || '',
+    k.server_hostname || '',
+    k.unix_user || '',
+    k[dateField.value] ? formatDate(k[dateField.value]) : '',
+    k.is_compliant ? t('key_table.compliant_ok') : '⚠️',
+  ])
+  const csv = [headers, ...rows]
+    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `anomalies-${props.type}-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 </script>
 
 <style scoped>
@@ -236,6 +266,19 @@ function complianceTooltip(k) {
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 0.875rem;
+}
+
+.btn-export {
+  background: #6c757d;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.btn-export:hover {
+  background: #5a6268;
 }
 
 .fp {

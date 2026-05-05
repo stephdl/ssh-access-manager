@@ -16,6 +16,7 @@
         <option value="EXPIRED">EXPIRED</option>
         <option value="UNAUTHORIZED">UNAUTHORIZED</option>
       </select>
+      <button class="btn-export" @click="exportCsv">{{ $t('key_table.export_csv') }}</button>
     </div>
 
     <table>
@@ -233,6 +234,39 @@ function statusBadge(status) {
     }[status] || 'badge-expired'
   )
 }
+
+function exportCsv() {
+  const headers = [
+    t('key_table.col_status'),
+    t('key_table.col_type'),
+    t('key_table.col_fingerprint'),
+    t('key_table.col_unix_user'),
+    t('key_table.col_comment'),
+    t('key_table.col_owner'),
+    t('key_table.col_expires'),
+    t('key_table.col_compliant'),
+  ]
+  const rows = filteredKeys.value.map((k) => [
+    k.status || '',
+    k.key_type || '',
+    k.fingerprint || '',
+    k.unix_user || '',
+    k.comment || '',
+    k.owner || '',
+    k.expires_at ? formatDate(k.expires_at) : '',
+    k.is_compliant ? t('key_table.compliant_ok') : '⚠️',
+  ])
+  const csv = [headers, ...rows]
+    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `keys-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 </script>
 
 <style scoped>
@@ -263,6 +297,19 @@ function statusBadge(status) {
   border-radius: 4px;
   font-size: 0.875rem;
   min-width: 160px;
+}
+
+.btn-export {
+  background: #6c757d;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.btn-export:hover {
+  background: #5a6268;
 }
 
 .fp {

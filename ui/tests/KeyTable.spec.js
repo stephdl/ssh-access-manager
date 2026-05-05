@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '../src/locales/en.json'
@@ -276,6 +276,31 @@ describe('KeyTable', () => {
     expect(validateBtn).toBeDefined()
     expect(validateBtn.attributes('disabled')).toBeDefined()
     expect(validateBtn.attributes('title')).toContain('Cannot validate')
+  })
+
+  it('shows export CSV button when keys exist', () => {
+    const w = mountTable([makeKey()])
+    const buttons = w.findAll('button')
+    expect(buttons.some((b) => b.text().includes('Export CSV'))).toBe(true)
+  })
+
+  it('triggers CSV download on export button click', async () => {
+    const createObjectURL = vi.fn(() => 'blob:fake')
+    const revokeObjectURL = vi.fn()
+    const click = vi.fn()
+    global.URL.createObjectURL = createObjectURL
+    global.URL.revokeObjectURL = revokeObjectURL
+    const originalCreate = document.createElement.bind(document)
+    const createElement = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+      if (tag === 'a') return { href: '', download: '', click }
+      return originalCreate(tag)
+    })
+    const w = mountTable([makeKey()])
+    const exportBtn = w.findAll('button').find((b) => b.text().includes('Export CSV'))
+    await exportBtn.trigger('click')
+    expect(createObjectURL).toHaveBeenCalled()
+    expect(click).toHaveBeenCalled()
+    createElement.mockRestore()
   })
 
   it('validate button is enabled when scanOk is true', () => {

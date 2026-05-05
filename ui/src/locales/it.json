@@ -184,7 +184,8 @@
     "filter_all_statuses": "Tutti gli stati",
     "no_results": "Nessuna chiave corrispondente.",
     "revoke_unavailable": "Impossibile revocare: ultima scansione fallita (server non raggiungibile)",
-    "validate_unavailable": "Impossibile validare: ultima scansione fallita (server non raggiungibile)"
+    "validate_unavailable": "Impossibile validare: ultima scansione fallita (server non raggiungibile)",
+    "export_csv": "Esporta CSV"
   },
   "access": {
     "title": "Accesso temporaneo",
@@ -221,7 +222,8 @@
     "filter_since": "Dal",
     "filter_btn": "Filtra",
     "reset_btn": "Reimposta",
-    "load_error": "Impossibile caricare l'audit: {error}"
+    "load_error": "Impossibile caricare l'audit: {error}",
+    "export_csv": "Esporta CSV"
   },
   "admins_table": {
     "search_placeholder": "Cerca amministratori...",
@@ -330,7 +332,8 @@
     "filter_all_compliant": "Conformità",
     "filter_compliant": "Conforme",
     "filter_non_compliant": "Non conforme",
-    "no_results": "Nessuna anomalia corrispondente."
+    "no_results": "Nessuna anomalia corrispondente.",
+    "export_csv": "Esporta CSV"
   },
   "settings": {
     "title": "Impostazioni",

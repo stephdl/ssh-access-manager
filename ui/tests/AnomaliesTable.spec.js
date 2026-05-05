@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AnomaliesTable from '../src/components/AnomaliesTable.vue'
 import PaginationBar from '../src/components/PaginationBar.vue'
@@ -225,6 +225,47 @@ describe('AnomaliesTable.vue', () => {
     await select.setValue('ssh-rsa')
     expect(wrapper.text()).toContain('SHA256:def456')
     expect(wrapper.text()).not.toContain('SHA256:abc123')
+  })
+
+  it('shows export CSV button when anomalies exist', () => {
+    const wrapper = mount(AnomaliesTable, {
+      props: {
+        anomalies: pendingAnomalies,
+        servers: [],
+        currentRole: 'operator',
+        type: 'pending',
+      },
+      global: { plugins: [i18n], stubs: { PaginationBar, RouterLink: true } },
+    })
+    const buttons = wrapper.findAll('button')
+    expect(buttons.some((b) => b.text().includes('Export CSV'))).toBe(true)
+  })
+
+  it('triggers CSV download on export button click', async () => {
+    const createObjectURL = vi.fn(() => 'blob:fake')
+    const revokeObjectURL = vi.fn()
+    const click = vi.fn()
+    global.URL.createObjectURL = createObjectURL
+    global.URL.revokeObjectURL = revokeObjectURL
+    const originalCreate = document.createElement.bind(document)
+    const createElement = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+      if (tag === 'a') return { href: '', download: '', click }
+      return originalCreate(tag)
+    })
+    const wrapper = mount(AnomaliesTable, {
+      props: {
+        anomalies: pendingAnomalies,
+        servers: [],
+        currentRole: 'operator',
+        type: 'pending',
+      },
+      global: { plugins: [i18n], stubs: { PaginationBar, RouterLink: true } },
+    })
+    const exportBtn = wrapper.findAll('button').find((b) => b.text().includes('Export CSV'))
+    await exportBtn.trigger('click')
+    expect(createObjectURL).toHaveBeenCalled()
+    expect(click).toHaveBeenCalled()
+    createElement.mockRestore()
   })
 
   it('filters by compliance dropdown', async () => {
