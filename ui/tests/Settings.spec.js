@@ -126,6 +126,7 @@ describe('Settings.vue', () => {
           scan_interval_hours: 12,
           expire_warn_days: 7,
           expire_warn_days_2: 2,
+          audit_retention_days: 365,
         }),
       })
     )
@@ -342,7 +343,7 @@ describe('Settings.vue', () => {
     expect(wrapper.text()).toContain('Second expiry warning')
 
     const inputs = wrapper.findAll('input[type="number"]')
-    expect(inputs.length).toBe(5)
+    expect(inputs.length).toBe(6)
     expect(inputs[1].element.value).toBe('7')
     expect(inputs[2].element.value).toBe('2')
   })
@@ -382,6 +383,7 @@ describe('Settings.vue', () => {
           scan_interval_hours: 4,
           expire_warn_days: 10,
           expire_warn_days_2: 3,
+          audit_retention_days: 365,
         }),
       })
     )
@@ -432,8 +434,8 @@ describe('Settings.vue', () => {
     expect(wrapper.text()).toContain('Ban duration')
 
     const inputs = wrapper.findAll('input[type="number"]')
-    expect(inputs[3].element.value).toBe('5')
-    expect(inputs[4].element.value).toBe('600')
+    expect(inputs[4].element.value).toBe('5')
+    expect(inputs[5].element.value).toBe('600')
   })
 
   it('loads login_max_attempts and login_ban_seconds from config', async () => {
@@ -452,8 +454,8 @@ describe('Settings.vue', () => {
     await flushPromises()
 
     const inputs = wrapper.findAll('input[type="number"]')
-    expect(inputs[3].element.value).toBe('15')
-    expect(inputs[4].element.value).toBe('900')
+    expect(inputs[4].element.value).toBe('15')
+    expect(inputs[5].element.value).toBe('900')
   })
 
   it('includes login settings in save payload', async () => {
@@ -477,8 +479,8 @@ describe('Settings.vue', () => {
     await flushPromises()
 
     const inputs = wrapper.findAll('input[type="number"]')
-    await inputs[3].setValue(20)
-    await inputs[4].setValue(120)
+    await inputs[4].setValue(20)
+    await inputs[5].setValue(120)
 
     // Click the security Save button (second btn-primary)
     const saveBtns = wrapper.findAll('button.btn-primary')
