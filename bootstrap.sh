@@ -145,29 +145,32 @@ if [ ! -f /data/pg/PG_VERSION ]; then
     # 3. Collector key already handled by the guard above
 
     # 4. Initialize PostgreSQL cluster
-    su -s /bin/sh postgres -c "initdb -D /data/pg --encoding=UTF8 --locale=C"
+    # peer: Unix-socket connections authenticate by OS username (no password needed)
+    # scram-sha-256: TCP connections require password (explicit, not relying on distro default)
+    su -s /bin/sh postgres -c "initdb -D /data/pg --encoding=UTF8 --locale=C --auth-local=peer --auth-host=scram-sha-256"
 
-    # 5. Start PostgreSQL temporarily (local socket only)
-    su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' start -w"
+    # 5. Start PostgreSQL temporarily (socket + loopback TCP for bootstrap)
+    su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp -h 127.0.0.1' start -w"
 
-    # 6. Create database and user from ENV
+    # 6. Create database and user from ENV (socket, postgres OS user → postgres DB user, peer OK)
     # CREATE DATABASE cannot run in a transaction: two separate calls
     su -s /bin/sh postgres -c "psql -h /tmp -c \"CREATE USER ${POSTGRES_USER:-ssh_manager} WITH PASSWORD '${POSTGRES_PASSWORD:-changeme}';\""
     su -s /bin/sh postgres -c "psql -h /tmp -c \"CREATE DATABASE ${POSTGRES_DB:-ssh_manager} OWNER ${POSTGRES_USER:-ssh_manager};\""
 
-    # 7. Apply SQL schema
+    # 7. Apply SQL schema (TCP, password auth — peer would fail: OS user postgres ≠ DB user ssh_manager)
+    PGPASSWORD="${POSTGRES_PASSWORD:-changeme}" \
     su -s /bin/sh postgres -c \
-        "psql -h /tmp -U ${POSTGRES_USER:-ssh_manager} -d ${POSTGRES_DB:-ssh_manager} \
+        "psql -h 127.0.0.1 -U ${POSTGRES_USER:-ssh_manager} -d ${POSTGRES_DB:-ssh_manager} \
          -f /app/sql/schema.sql"
 
-    # 8. Insert initial administrator from ENV
+    # 8. Insert initial administrator from ENV (TCP, password auth)
     # Uses Python+psycopg2 to avoid shell interpolation of hash ($...)
     python3 << 'PYEOF'
 import os, psycopg2
 from werkzeug.security import generate_password_hash
 
 conn = psycopg2.connect(
-    host="/tmp",
+    host="127.0.0.1",
     dbname=os.environ.get("POSTGRES_DB", "ssh_manager"),
     user=os.environ.get("POSTGRES_USER", "ssh_manager"),
     password=os.environ.get("POSTGRES_PASSWORD", "changeme"),
