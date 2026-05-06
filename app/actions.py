@@ -19,6 +19,20 @@ VALID_ROLES = {"sysadmin", "operator", "viewer"}
 class UserError(Exception):
     """User-facing error — safe to include in HTTP response."""
 
+    status = 400
+
+
+class NotFoundError(UserError):
+    """Resource not found — HTTP 404."""
+
+    status = 404
+
+
+class ForbiddenError(UserError):
+    """Forbidden action — HTTP 403."""
+
+    status = 403
+
 
 def _validate_ip(ip: str) -> str:
     try:
@@ -51,12 +65,12 @@ def validate_key(
     _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
-        raise UserError(f"Key not found: {fingerprint}")
+        raise NotFoundError(f"Key not found: {fingerprint}")
 
     if unix_user is not None and hostname is not None:
         server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
         if not server:
-            raise UserError(f"Server not found: {hostname}")
+            raise NotFoundError(f"Server not found: {hostname}")
         rows = db.query(
             """
             SELECT key_id, server_id, unix_user FROM key_authorizations
@@ -164,7 +178,7 @@ def revoke_key(
     _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
-        raise UserError(f"Key not found: {fingerprint}")
+        raise NotFoundError(f"Key not found: {fingerprint}")
 
     if hostname and unix_user:
         # --- Targeted revocation (one user on one server) ---
@@ -173,7 +187,7 @@ def revoke_key(
             (hostname,),
         )
         if not server:
-            raise UserError(f"Server not found: {hostname}")
+            raise NotFoundError(f"Server not found: {hostname}")
         auth = db.query_one(
             """
             SELECT status FROM key_authorizations
@@ -413,7 +427,7 @@ def assign_key(fingerprint: str, owner_name: str) -> None:
     _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
-        raise UserError(f"Key not found: {fingerprint}")
+        raise NotFoundError(f"Key not found: {fingerprint}")
     db.execute(
         "UPDATE ssh_keys SET owner = %s WHERE id = %s",
         (owner_name, key["id"]),
@@ -425,7 +439,7 @@ def set_key_expiry(fingerprint: str, expires_at: datetime) -> None:
     _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
-        raise UserError(f"Key not found: {fingerprint}")
+        raise NotFoundError(f"Key not found: {fingerprint}")
     db.execute(
         "UPDATE key_authorizations SET expires_at = %s WHERE key_id = %s AND status = 'ACTIVE'",
         (expires_at, key["id"]),
@@ -437,7 +451,7 @@ def remove_key_expiry(fingerprint: str) -> None:
     _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
-        raise UserError(f"Key not found: {fingerprint}")
+        raise NotFoundError(f"Key not found: {fingerprint}")
     db.execute(
         "UPDATE key_authorizations SET expires_at = NULL WHERE key_id = %s AND status = 'ACTIVE'",
         (key["id"],),
@@ -458,12 +472,12 @@ def grant_access(
     """Create or update a key_authorization as ACTIVE for a given server."""
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (key_fp,))
     if not key:
-        raise UserError(f"Key not found: {key_fp}")
+        raise NotFoundError(f"Key not found: {key_fp}")
     server = db.query_one(
         "SELECT id FROM servers WHERE hostname = %s AND is_active = true", (hostname,)
     )
     if not server:
-        raise UserError(f"Server not found: {hostname}")
+        raise NotFoundError(f"Server not found: {hostname}")
 
     db.execute(
         """
@@ -539,7 +553,7 @@ def deploy_key(
         (hostname,),
     )
     if not server:
-        raise UserError(f"Server not found or inactive: {hostname}")
+        raise NotFoundError(f"Server not found or inactive: {hostname}")
 
     db.execute(
         """
@@ -596,7 +610,7 @@ def approve_request(request_id: str, admin_id: str) -> None:
         (request_id,),
     )
     if not req:
-        raise UserError(f"Request not found or not PENDING: {request_id}")
+        raise NotFoundError(f"Request not found or not PENDING: {request_id}")
 
     expires_at = req.get("expires_at_requested")
     if req.get("duration_hours") and not expires_at:
@@ -638,7 +652,7 @@ def reject_request(request_id: str, admin_id: str) -> None:
         (request_id,),
     )
     if not req:
-        raise UserError(f"Request not found or not PENDING: {request_id}")
+        raise NotFoundError(f"Request not found or not PENDING: {request_id}")
     db.execute(
         """
         UPDATE access_requests
@@ -663,7 +677,7 @@ def revoke_request(request_id: str, admin_id: str) -> None:
         (request_id,),
     )
     if not req:
-        raise UserError(f"Request not found or not APPROVED: {request_id}")
+        raise NotFoundError(f"Request not found or not APPROVED: {request_id}")
 
     key = db.query_one("SELECT fingerprint FROM ssh_keys WHERE id = %s", (req["key_id"],))
     if key:
@@ -731,7 +745,7 @@ def provision_server(hostname: str, ssh_user: str = "root", ssh_password: str = 
         (hostname,),
     )
     if not server:
-        raise UserError(f"Server not found or inactive: {hostname}")
+        raise NotFoundError(f"Server not found or inactive: {hostname}")
     ssh.provision_server(server["ip_address"], ssh_user, ssh_password, ssh_port)
     # Update ssh_port in DB after successful provisioning
     db.execute(
@@ -757,7 +771,7 @@ def disable_server(hostname: str, admin_id: str | None = None) -> None:
         "SELECT id FROM servers WHERE hostname = %s AND is_active = true", (hostname,)
     )
     if not server:
-        raise UserError(f"Active server not found: {hostname}")
+        raise NotFoundError(f"Active server not found: {hostname}")
     db.execute("UPDATE servers SET is_active = false WHERE id = %s", (server["id"],))
     db.execute(
         """
@@ -780,7 +794,7 @@ def update_server(
         (hostname,),
     )
     if not server:
-        raise UserError(f"Server not found: {hostname}")
+        raise NotFoundError(f"Server not found: {hostname}")
 
     existing = db.query_one(
         "SELECT hostname FROM servers WHERE ip_address = %s AND hostname != %s",
@@ -830,7 +844,7 @@ def enable_server(hostname: str, admin_id: str | None = None) -> None:
         "SELECT id FROM servers WHERE hostname = %s AND is_active = false", (hostname,)
     )
     if not server:
-        raise UserError(f"Inactive server not found: {hostname}")
+        raise NotFoundError(f"Inactive server not found: {hostname}")
     db.execute("UPDATE servers SET is_active = true WHERE id = %s", (server["id"],))
     db.execute(
         """
@@ -845,7 +859,7 @@ def delete_server(hostname: str, admin_id: str | None = None) -> None:
     """Hard delete a server and all related data."""
     server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
     if not server:
-        raise UserError(f"Server not found: {hostname}")
+        raise NotFoundError(f"Server not found: {hostname}")
     sid = server["id"]
     db.execute("DELETE FROM audit_log WHERE target_server = %s", (sid,))
     db.execute("DELETE FROM access_requests WHERE server_id = %s", (sid,))
@@ -909,7 +923,7 @@ def change_password(username: str, new_password: str) -> None:
         "SELECT id FROM administrators WHERE username = %s AND is_active = true", (username,)
     )
     if not admin:
-        raise UserError(f"Active admin not found: {username}")
+        raise NotFoundError(f"Active admin not found: {username}")
     db.execute(
         "UPDATE administrators SET password_hash = %s, password_changed_at = now() WHERE id = %s",
         (generate_password_hash(new_password), admin["id"]),
@@ -923,7 +937,7 @@ def reset_password(username: str, new_password: str) -> None:
     _validate_password_strength(new_password)
     admin = db.query_one("SELECT id FROM administrators WHERE username = %s", (username,))
     if not admin:
-        raise UserError(f"Admin not found: {username}")
+        raise NotFoundError(f"Admin not found: {username}")
     db.execute(
         "UPDATE administrators SET password_hash = %s, password_changed_at = now() WHERE id = %s",
         (generate_password_hash(new_password), admin["id"]),
@@ -944,13 +958,13 @@ def update_admin(username: str, email: str | None, role: str, admin_id: str) -> 
         "SELECT id, email, role FROM administrators WHERE username = %s", (username,)
     )
     if not admin:
-        raise UserError(f"Admin not found: {username}")
+        raise NotFoundError(f"Admin not found: {username}")
 
     current_admin = db.query_one(
         "SELECT username FROM administrators WHERE id = %s", (admin_id,)
     )
     if current_admin and current_admin["username"] == username and admin["role"] != role:
-        raise UserError("Cannot change your own role")
+        raise ForbiddenError("Cannot change your own role")
 
     if admin["role"] == "sysadmin" and role != "sysadmin":
         other_sysadmins = db.query_one(
@@ -958,7 +972,7 @@ def update_admin(username: str, email: str | None, role: str, admin_id: str) -> 
             (admin["id"],),
         )
         if not other_sysadmins or other_sysadmins["n"] == 0:
-            raise UserError("Cannot demote last active sysadmin")
+            raise ForbiddenError("Cannot demote last active sysadmin")
 
     old_email = admin["email"]
     old_role = admin["role"]
@@ -992,14 +1006,14 @@ def disable_admin(username: str, admin_id: str | None = None) -> None:
         "SELECT id, role FROM administrators WHERE username = %s AND is_active = true", (username,)
     )
     if not admin:
-        raise UserError(f"Active admin not found: {username}")
+        raise NotFoundError(f"Active admin not found: {username}")
     if admin["role"] == "sysadmin":
         other_sysadmins = db.query_one(
             "SELECT COUNT(*) AS n FROM administrators WHERE role = 'sysadmin' AND is_active = true AND id != %s",
             (admin["id"],),
         )
         if not other_sysadmins or other_sysadmins["n"] == 0:
-            raise UserError("Cannot disable last active sysadmin")
+            raise ForbiddenError("Cannot disable last active sysadmin")
     db.execute("UPDATE administrators SET is_active = false WHERE id = %s", (admin["id"],))
     db.execute(
         """
@@ -1016,7 +1030,7 @@ def enable_admin(username: str, admin_id: str | None = None) -> None:
         "SELECT id FROM administrators WHERE username = %s AND is_active = false", (username,)
     )
     if not admin:
-        raise UserError(f"Inactive admin not found: {username}")
+        raise NotFoundError(f"Inactive admin not found: {username}")
     db.execute("UPDATE administrators SET is_active = true WHERE id = %s", (admin["id"],))
     db.execute(
         """
@@ -1033,7 +1047,7 @@ def toggle_alerts(username: str, receive_alerts: bool) -> dict:
         "SELECT id FROM administrators WHERE username = %s AND is_active = true", (username,)
     )
     if not admin:
-        raise UserError(f"Active admin not found: {username}")
+        raise NotFoundError(f"Active admin not found: {username}")
     db.execute(
         "UPDATE administrators SET receive_alerts = %s WHERE id = %s",
         (receive_alerts, admin["id"]),
@@ -1047,7 +1061,7 @@ def delete_admin(username: str, admin_id: str | None = None) -> None:
         "SELECT id FROM administrators WHERE username = %s", (username,)
     )
     if not admin:
-        raise UserError(f"Admin not found: {username}")
+        raise NotFoundError(f"Admin not found: {username}")
     db.execute(
         """
         INSERT INTO audit_log (action, performed_by, details)
@@ -1073,7 +1087,7 @@ def lock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
         (hostname,)
     )
     if not server:
-        raise UserError(f"Server not found or inactive: {hostname}")
+        raise NotFoundError(f"Server not found or inactive: {hostname}")
     ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"])
     ssh.lock_user_on_server(hostname, unix_user, server["ip_address"], port=server["ssh_port"])
     db.execute(
@@ -1095,7 +1109,7 @@ def unlock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
         (hostname,)
     )
     if not server:
-        raise UserError(f"Server not found or inactive: {hostname}")
+        raise NotFoundError(f"Server not found or inactive: {hostname}")
     ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"])
     ssh.unlock_user_on_server(hostname, unix_user, server["ip_address"], port=server["ssh_port"])
     db.execute(
