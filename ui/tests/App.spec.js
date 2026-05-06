@@ -4,6 +4,11 @@ import App from '../src/App.vue'
 import { createI18n } from 'vue-i18n'
 import { ref } from 'vue'
 
+vi.mock('../src/i18n.js', () => ({
+  default: { install: vi.fn() },
+  loadLocale: vi.fn().mockResolvedValue(undefined),
+}))
+
 const i18n = createI18n({
   legacy: false,
   locale: 'en',
@@ -133,5 +138,47 @@ describe('App.vue — SMTP banner', () => {
 
     expect(global.fetch).toHaveBeenCalledWith('/api/system/status', expect.any(Object))
     expect(wrapper.find('.smtp-banner').exists()).toBe(true)
+  })
+})
+
+describe('App.vue — language switcher', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn()
+    mockAdmin.value = { username: 'admin', email: 'admin@test.com', role: 'sysadmin' }
+    localStorage.clear()
+  })
+
+  it('calls loadLocale and persists lang to localStorage on change', async () => {
+    const { loadLocale } = await import('../src/i18n.js')
+
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ smtp_enabled: true }) })
+
+    const wrapper = mount(App, { global: { plugins: [i18n], stubs: ['router-view'] } })
+    await flushPromises()
+
+    const select = wrapper.find('.lang-select')
+    await select.setValue('fr')
+    await select.trigger('change')
+    await flushPromises()
+
+    expect(loadLocale).toHaveBeenCalledWith('fr')
+    expect(localStorage.getItem('lang')).toBe('fr')
+  })
+
+  it('does not throw if loadLocale rejects', async () => {
+    const { loadLocale } = await import('../src/i18n.js')
+    loadLocale.mockRejectedValueOnce(new Error('load failed'))
+
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ smtp_enabled: true }) })
+
+    const wrapper = mount(App, { global: { plugins: [i18n], stubs: ['router-view'] } })
+    await flushPromises()
+
+    const select = wrapper.find('.lang-select')
+    await select.setValue('de')
+    await expect(select.trigger('change')).resolves.not.toThrow()
+    await flushPromises()
+
+    expect(loadLocale).toHaveBeenCalledWith('de')
   })
 })
