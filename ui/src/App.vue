@@ -39,6 +39,7 @@ import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuth, apiFetch } from './composables/useAuth.js'
+import { loadLocale } from './i18n.js'
 
 const router = useRouter()
 const { admin, logout } = useAuth()
@@ -72,9 +73,14 @@ async function handleLogout() {
   router.push('/login')
 }
 
-function changeLang(lang) {
-  locale.value = lang
-  localStorage.setItem('lang', lang)
+async function changeLang(lang) {
+  try {
+    await loadLocale(lang)
+    locale.value = lang
+    localStorage.setItem('lang', lang)
+  } catch {
+    // locale file unavailable — keep current language
+  }
 }
 </script>
 
