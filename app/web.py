@@ -1177,4 +1177,5 @@ def test_smtp():
 if __name__ == "__main__":
     if not os.environ.get("FLASK_SECRET_KEY"):
         raise RuntimeError("FLASK_SECRET_KEY environment variable is required")
-    app.run(host="127.0.0.1", port=5000)
+    from waitress import serve
+    serve(app, host="127.0.0.1", port=5000)

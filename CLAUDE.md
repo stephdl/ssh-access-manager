@@ -14,7 +14,7 @@ Milestone 1–4 + issues supplémentaires (25, 51–54, 61–62, 70–71, 73–7
 
 Image finale : **alpine:3.23.4**
 - PostgreSQL 18, Python 3.12, Supervisor, Nginx, msmtp, openssh-client, busybox crond, wget, tzdata
-- pip : flask, click, paramiko, psycopg2-binary, pyyaml, werkzeug
+- pip : flask, click, paramiko, psycopg2-binary, pyyaml, werkzeug, waitress
 
 Stage build UI : **node:24-alpine**
 - Vue.js 3 (^3.4), vue-router (^4.3), vue-i18n (^9.14 — 5 langues : EN/FR/ES/IT/DE), Vite
