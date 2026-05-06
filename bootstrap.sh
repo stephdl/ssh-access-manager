@@ -145,7 +145,7 @@ if [ ! -f /data/pg/PG_VERSION ]; then
     # 3. Collector key already handled by the guard above
 
     # 4. Initialize PostgreSQL cluster
-    su -s /bin/sh postgres -c "initdb -D /data/pg --encoding=UTF8 --locale=C"
+    su -s /bin/sh postgres -c "initdb -D /data/pg --encoding=UTF8 --locale=C --auth-local=scram-sha-256"
 
     # 5. Start PostgreSQL temporarily (local socket only)
     su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp' start -w"
