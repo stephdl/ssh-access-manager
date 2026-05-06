@@ -41,6 +41,7 @@ RUN apk update && apk add --no-cache \
         paramiko \
         psycopg2-binary \
         pyyaml \
+        waitress \
         --break-system-packages
 
 COPY --from=ui-builder /ui/dist /app/static
