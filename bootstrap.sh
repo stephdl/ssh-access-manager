@@ -146,8 +146,8 @@ if [ ! -f /data/pg/PG_VERSION ]; then
 
     # 4. Initialize PostgreSQL cluster
     # peer: Unix-socket connections authenticate by OS username (no password needed)
-    # scram-sha-256: TCP connections require password (default since PostgreSQL 14)
-    su -s /bin/sh postgres -c "initdb -D /data/pg --encoding=UTF8 --locale=C --auth-local=peer"
+    # scram-sha-256: TCP connections require password (explicit, not relying on distro default)
+    su -s /bin/sh postgres -c "initdb -D /data/pg --encoding=UTF8 --locale=C --auth-local=peer --auth-host=scram-sha-256"
 
     # 5. Start PostgreSQL temporarily (socket + loopback TCP for bootstrap)
     su -s /bin/sh postgres -c "pg_ctl -D /data/pg -o '-k /tmp -h 127.0.0.1' start -w"
