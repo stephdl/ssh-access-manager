@@ -958,7 +958,7 @@ input.input-error {
   z-index: 100;
 }
 .modal {
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   padding: 1.5rem;
   width: 420px;
@@ -966,6 +966,8 @@ input.input-error {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 .modal-actions {
   display: flex;

@@ -333,7 +333,7 @@ h2 {
   font-weight: 600;
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .input-row {
@@ -345,20 +345,22 @@ h2 {
 .input-number {
   width: 100px;
   padding: 0.4rem 0.6rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   font-size: 0.95rem;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
 
 .unit {
   font-size: 0.9rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .hint {
   margin-top: 0.75rem;
   font-size: 0.8rem;
-  color: #666;
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
