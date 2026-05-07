@@ -325,11 +325,12 @@ onMounted(() => {
 
 <style scoped>
 .card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 1.25rem;
   margin-bottom: 1.25rem;
+  color: var(--text-primary);
 }
 
 .card-header {
@@ -472,7 +473,7 @@ td {
 }
 
 .modal {
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   padding: 1.5rem;
   width: 420px;
@@ -482,6 +483,8 @@ td {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
 .modal-wide {

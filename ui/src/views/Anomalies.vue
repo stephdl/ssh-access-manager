@@ -368,14 +368,16 @@ code {
   z-index: 100;
 }
 .modal {
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   padding: 1.5rem;
-  width: 420px;
+  width: 480px;
   max-width: 90vw;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 label {
   font-size: 0.85rem;

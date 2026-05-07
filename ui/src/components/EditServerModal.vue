@@ -175,7 +175,7 @@ async function confirm() {
 }
 
 .modal {
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   padding: 1.5rem;
   width: 480px;
@@ -183,11 +183,14 @@ async function confirm() {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .modal label {
   font-size: 0.85rem;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .required {
@@ -199,15 +202,25 @@ async function confirm() {
 .modal select {
   width: 100%;
   padding: 0.4rem 0.6rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
   border-radius: 4px;
   font-size: 0.9rem;
   box-sizing: border-box;
 }
 
+.modal input[type='text']:focus,
+.modal input[type='number']:focus,
+.modal select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
 .input-readonly {
-  background: #f5f5f5;
-  color: #666;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   cursor: not-allowed;
 }
 
@@ -235,16 +248,35 @@ async function confirm() {
 }
 
 .alert-error {
-  background: #f8d7da;
-  color: #721c24;
+  background: #dc3545;
+  color: #fff;
   padding: 0.6rem 1rem;
   border-radius: 4px;
+  border: 1px solid #c82333;
 }
 
 .field-error {
   font-size: 0.8rem;
-  color: #c00;
+  color: #ff6b6b;
   margin-top: 0.2rem;
   display: block;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  padding: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  opacity: 0.7;
 }
 </style>

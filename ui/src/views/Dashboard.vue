@@ -462,8 +462,8 @@ h1 {
   align-items: center;
   padding: 1rem;
   border-radius: 6px;
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
 }
 
 .counter-value {
@@ -472,7 +472,7 @@ h1 {
 }
 .counter-label {
   font-size: 0.8rem;
-  color: #555;
+  color: var(--text-secondary);
   margin-top: 0.25rem;
 }
 .counter-ok {
@@ -495,8 +495,8 @@ h1 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 0.6rem 1rem;
   margin-bottom: 1.25rem;
@@ -506,14 +506,14 @@ h1 {
 .collector-key-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #555;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
 .collector-key-value {
   flex: 1;
   font-size: 0.75rem;
-  color: #333;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -538,7 +538,7 @@ h1 {
 .loading {
   text-align: center;
   padding: 2rem;
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .alert-error {
@@ -573,7 +573,7 @@ h1 {
 }
 
 .modal {
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   padding: 1.5rem;
   width: 480px;
@@ -581,11 +581,14 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
 .modal label {
   font-size: 0.85rem;
   font-weight: 600;
+  color: var(--text-primary);
 }
 .required {
   color: #dc3545;
@@ -597,15 +600,26 @@ h1 {
 .modal select {
   width: 100%;
   padding: 0.4rem 0.6rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
   border-radius: 4px;
   font-size: 0.9rem;
   box-sizing: border-box;
 }
 
+.modal input[type='text']:focus,
+.modal input[type='number']:focus,
+.modal input[type='password']:focus,
+.modal select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
 .input-readonly {
-  background: #f5f5f5;
-  color: #666;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
   cursor: not-allowed;
 }
 
@@ -626,15 +640,15 @@ h1 {
 }
 .deploy-hint.small {
   font-size: 0.8rem;
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .key-display {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 0.5rem 0.75rem;
 }
@@ -663,13 +677,13 @@ h1 {
   background: none;
   border: none;
   cursor: pointer;
-  color: #666;
+  color: var(--text-secondary);
   padding: 0.2rem;
   display: flex;
   align-items: center;
 }
 .btn-eye:hover {
-  color: #333;
+  color: var(--text-primary);
 }
 
 .form-grid {
@@ -690,7 +704,7 @@ h1 {
 .provision-section {
   margin-top: 1.5rem;
   padding-top: 1rem;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--border-color);
 }
 
 .provision-section h4 {
@@ -702,12 +716,12 @@ h1 {
 .provision-section .hint {
   margin: 0 0 0.75rem 0;
   font-size: 0.8rem;
-  color: #666;
+  color: var(--text-secondary);
 }
 .password-disclaimer {
   margin-top: 0.4rem;
   font-size: 0.78rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .provision-status {
@@ -717,8 +731,8 @@ h1 {
   padding: 0.75rem 1rem;
   border-radius: 6px;
   margin: 1rem 0;
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
 }
 
 .provision-status.success {

@@ -84,12 +84,12 @@ async function submit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f5f5f5;
+  background: var(--bg-primary);
 }
 
 .login-card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 2rem;
   width: 360px;
@@ -97,18 +97,19 @@ async function submit() {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  box-shadow: var(--shadow-lg);
 }
 
 h1 {
   font-size: 1.25rem;
   font-weight: bold;
-  color: #1a1a2e;
+  color: var(--text-primary);
   text-align: center;
 }
 
 .subtitle {
   text-align: center;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   margin-top: -0.75rem;
 }
@@ -131,6 +132,7 @@ form {
 label {
   font-size: 0.85rem;
   font-weight: 600;
+  color: var(--text-primary);
 }
 .checkbox-label {
   display: flex;
@@ -139,6 +141,7 @@ label {
   font-size: 0.85rem;
   font-weight: normal;
   cursor: pointer;
+  color: var(--text-primary);
 }
 .checkbox-label input[type='checkbox'] {
   width: auto;
@@ -147,14 +150,16 @@ label {
 
 input {
   padding: 0.5rem 0.75rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
   border-radius: 4px;
   font-size: 0.95rem;
   width: 100%;
 }
 input:focus {
-  outline: 2px solid #0d6efd;
-  border-color: #0d6efd;
+  outline: 2px solid #2563eb;
+  border-color: #2563eb;
 }
 
 .btn-full {
@@ -164,10 +169,11 @@ input:focus {
 }
 
 .alert-error {
-  background: #f8d7da;
-  color: #721c24;
-  padding: 0.5rem 0.75rem;
+  background: #dc3545;
+  color: #fff;
+  padding: 0.75rem 1rem;
   border-radius: 4px;
   font-size: 0.85rem;
+  border: 1px solid #c82333;
 }
 </style>

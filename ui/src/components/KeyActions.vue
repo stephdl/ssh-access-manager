@@ -98,7 +98,7 @@ function confirmRevoke() {
 }
 
 .modal {
-  background: #fff;
+  background: var(--bg-secondary);
   border-radius: 8px;
   padding: 1.5rem;
   width: 400px;
@@ -106,14 +106,18 @@ function confirmRevoke() {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
 .fp-display {
   font-size: 0.85rem;
   word-break: break-all;
+  color: var(--text-primary);
 }
 code {
-  background: #f4f4f4;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   padding: 0 3px;
   border-radius: 3px;
 }
@@ -121,6 +125,7 @@ code {
 label {
   font-size: 0.85rem;
   font-weight: 600;
+  color: var(--text-primary);
 }
 .required {
   color: #dc3545;
