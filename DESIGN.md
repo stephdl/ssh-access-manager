@@ -107,6 +107,15 @@ statiques. La séparation des stages garantit également que les outils de build
 (npm, node_modules) n'existent pas dans l'image de production, réduisant la surface
 d'attaque.
 
+L'image finale atteint environ 165–190 Mo, contre 400–500 Mo pour une base Python:3.12
+Debian équivalente — une réduction de 60 % de l'empreinte de stockage sur GHCR et de
+la bande passante consommée à chaque déploiement. Le choix de `alpine:3.23.4` comme
+base de production (~7 Mo vs ~77 Mo pour Ubuntu) et l'utilisation systématique de
+`--no-cache` sur `apk` et `--no-cache-dir` sur `pip` participent à cette réduction.
+Ces pratiques relèvent de l'écoconception logicielle : à fonctionnalité égale, une
+image plus légère consomme moins de ressources réseau, de stockage registre et de
+mémoire à l'exécution.
+
 ---
 
 ## 4. Base de données : PostgreSQL 18
@@ -1348,6 +1357,7 @@ permet de modifier `NGINX_PORT` ou `SMTP_HOST` sans reconstruire l'image — un
 | Wire format RSA | Pas de dépendance cryptographique externe | Complexité du parsing |
 | `actions.py` centralisé | Source unique de vérité CLI+API | Import circulaire impossible |
 | Multi-stage Dockerfile | Image finale sans Node.js | Build légèrement plus lent |
+| Base Alpine 3.23.4 | ~7 Mo vs ~77 Mo Ubuntu — réduction 60 % de l'empreinte stockage et bande passante GHCR | Disponibilité de paquets parfois limitée vs Debian |
 | Session Flask | Simplicité d'implémentation | Pas de support multi-device/token |
 | Rate limiting in-memory | Pas de dépendance Redis/Memcached | État perdu au redémarrage |
 | JSONB audit details | Extensibilité sans migration | Données non structurées en DB |

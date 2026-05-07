@@ -286,6 +286,18 @@ def test_web_set_expiry_rejects_no_date_or_hours(auth_client):
         assert resp.status_code == 400
 
 
+def test_web_set_expiry_duration_hours_not_integer_returns_400(auth_client):
+    """duration_hours type validation — string should return 400."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            f"/api/keys/set-expiry/{FINGERPRINT}",
+            json={"duration_hours": "not-a-number"},
+        )
+        assert resp.status_code == 400
+        assert "must be an integer" in resp.json["error"] or "error" in resp.json
+
+
 # ---------------------------------------------------------------------------
 # GET /api/servers
 # ---------------------------------------------------------------------------
@@ -451,6 +463,19 @@ def test_web_add_server_env_optional(auth_client):
         assert call_args[0][4] is None
 
 
+def test_web_add_server_ssh_port_not_integer(auth_client):
+    """ssh_port type validation — string should return 400."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            "/api/servers",
+            json={"hostname": "new-srv", "ip": "10.0.0.1",
+                  "ssh_user": "root", "ssh_password": "Str0ng#Pass!", "ssh_port": "not-a-number"},
+        )
+        assert resp.status_code == 400
+        assert "ssh_port must be an integer" in resp.json["error"]
+
+
 # ---------------------------------------------------------------------------
 # PUT /api/servers/<hostname> — update server
 # ---------------------------------------------------------------------------
@@ -566,6 +591,18 @@ def test_web_provision_server_invalid_port(auth_client):
         )
         assert resp.status_code == 400
         assert "ssh_port must be between 1 and 65535" in resp.json["error"]
+
+
+def test_web_provision_server_ssh_port_not_integer(auth_client):
+    """ssh_port type validation — string should return 400."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            "/api/servers/server-test-01/provision",
+            json={"ssh_user": "root", "ssh_password": "secret", "ssh_port": "abc"},
+        )
+        assert resp.status_code == 400
+        assert "ssh_port must be an integer" in resp.json["error"]
 
 
 def test_web_provision_server_not_found(auth_client):
@@ -1133,6 +1170,25 @@ def test_web_deploy_key_hours_not_integer_returns_400(auth_client):
             },
         )
         assert resp.status_code == 400
+
+
+def test_web_deploy_key_expires_at_invalid_format_returns_400(auth_client):
+    """expires_at must be in ISO 8601 format — invalid format should return 400."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "admin", "role": "sysadmin"}
+        for bad_date in ["invalid-date", "2026-99-99T25:00:00Z", "12345", "2026/05/07"]:
+            resp = auth_client.post(
+                "/api/access/deploy",
+                json={
+                    "public_key": "ssh-ed25519 AAAA test",
+                    "unix_user": "alice",
+                    "hostname": "server-01",
+                    "justification": "Test",
+                    "expires_at": bad_date,
+                },
+            )
+            assert resp.status_code == 400, f"Expected 400 for expires_at={bad_date!r}"
+            assert "ISO 8601" in resp.json["error"] or "format" in resp.json["error"]
 
 
 # ---------------------------------------------------------------------------
