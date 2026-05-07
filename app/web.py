@@ -726,7 +726,10 @@ def api_deploy_key():
             return jsonify({"error": "hours must be between 1 and 8760"}), 400
         expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=hours)
     elif date_str:
-        expires_at = datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
+        try:
+            expires_at = datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
+        except ValueError:
+            return jsonify({"error": "expires_at must be in ISO 8601 format (e.g., 2026-05-07T16:00:00)"}), 400
 
     try:
         result = actions.deploy_key(
