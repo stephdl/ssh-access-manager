@@ -43,7 +43,7 @@ def _make_client(stdout_data=b"", stderr_data=b"", exit_status=0, sha_out=None):
 
 
 # ---------------------------------------------------------------------------
-# RejectPolicy présent sur chaque connexion
+# RejectPolicy present on every connection
 # ---------------------------------------------------------------------------
 
 def test_ssh_connect_uses_reject_policy():
@@ -75,7 +75,7 @@ def test_ssh_connect_never_uses_auto_add_policy():
 
 
 # ---------------------------------------------------------------------------
-# ensure_scripts — déploie si hash différent
+# ensure_scripts — deploys if hash differs
 # ---------------------------------------------------------------------------
 
 def test_ssh_ensure_scripts_deploys_when_hash_differs(sample_server):
@@ -140,7 +140,7 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
 
 
 # ---------------------------------------------------------------------------
-# revoke_on_server — appelle sam-revoke avec le bon fingerprint
+# revoke_on_server — calls sam-revoke with the correct fingerprint
 # ---------------------------------------------------------------------------
 
 def test_ssh_revoke_on_server_calls_sam_revoke_with_fingerprint(sample_key):
@@ -198,7 +198,7 @@ def test_ssh_revoke_on_server_raises_on_nonzero_exit(sample_key):
 
 
 # ---------------------------------------------------------------------------
-# SAM_COLLECT et SAM_REVOKE — vérifications de contenu
+# SAM_COLLECT and SAM_REVOKE — content checks
 # ---------------------------------------------------------------------------
 
 def test_ssh_sam_collect_is_bytes():
@@ -233,11 +233,11 @@ def test_ssh_sam_revoke_atomic_rewrite_only_when_changed():
 
 
 # ---------------------------------------------------------------------------
-# Sécurité déploiement — staging hors /tmp, destination exacte
+# Deployment security — staging outside /tmp, exact destination
 # ---------------------------------------------------------------------------
 
 def test_ssh_ensure_scripts_staging_not_in_tmp(sample_server):
-    """Le fichier staging doit être dans le home de l'utilisateur, pas /tmp."""
+    """The staging file must be in the user's home directory, not /tmp."""
     wrong_hash = "0" * 64
     with patch("ssh._connect") as mock_connect, patch("ssh.db"):
         client = MagicMock()
@@ -254,12 +254,12 @@ def test_ssh_ensure_scripts_staging_not_in_tmp(sample_server):
         ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
 
         staged_path = sftp.putfo.call_args[0][1]
-        assert not staged_path.startswith("/tmp"), "Staging ne doit pas utiliser /tmp (world-writable)"
+        assert not staged_path.startswith("/tmp"), "Staging must not use /tmp (world-writable)"
         assert "/home/" in staged_path
 
 
 def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
-    """sudo install doit spécifier le chemin de destination exact, pas un répertoire."""
+    """sudo install must specify the exact destination path, not a directory."""
     wrong_hash = "0" * 64
     with patch("ssh._connect") as mock_connect, patch("ssh.db"):
         client = MagicMock()
@@ -277,7 +277,7 @@ def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
 
         commands = [c[0][0] for c in client.exec_command.call_args_list]
         install_cmds = [c for c in commands if "/usr/bin/install" in c]
-        assert install_cmds, "Aucune commande install trouvée"
+        assert install_cmds, "No install command found"
         valid_destinations = (
             "/usr/local/bin/sam-collect",
             "/usr/local/bin/sam-revoke",
@@ -289,12 +289,12 @@ def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
         for cmd in install_cmds:
             dest = cmd.split()[-1]
             assert dest in valid_destinations, (
-                f"La destination install doit être un chemin exact, pas un répertoire : {cmd}"
+                f"Install destination must be an exact path, not a directory: {cmd}"
             )
 
 
 def test_ssh_ensure_scripts_install_uses_mode_750(sample_server):
-    """sudo install doit utiliser -m 750 pour interdire la lecture aux autres utilisateurs."""
+    """sudo install must use -m 750 to prevent others from reading the files."""
     wrong_hash = "0" * 64
     with patch("ssh._connect") as mock_connect, patch("ssh.db"):
         client = MagicMock()
@@ -312,14 +312,14 @@ def test_ssh_ensure_scripts_install_uses_mode_750(sample_server):
 
         commands = [c[0][0] for c in client.exec_command.call_args_list]
         install_cmds = [c for c in commands if "/usr/bin/install" in c]
-        assert install_cmds, "Aucune commande install trouvée"
+        assert install_cmds, "No install command found"
         for cmd in install_cmds:
-            assert "-m 750" in cmd, f"install doit utiliser -m 750, pas -m 755 : {cmd}"
+            assert "-m 750" in cmd, f"install must use -m 750, not -m 755: {cmd}"
             assert "-m 755" not in cmd
 
 
 def test_ssh_deploy_script_sets_staging_permissions(sample_server):
-    """Le fichier staging doit être chmod 600 avant sudo install."""
+    """The staging file must be chmod 600 before sudo install."""
     wrong_hash = "0" * 64
     with patch("ssh._connect") as mock_connect, patch("ssh.db"):
         client = MagicMock()
@@ -340,7 +340,7 @@ def test_ssh_deploy_script_sets_staging_permissions(sample_server):
 
 
 def test_ssh_deploy_script_removes_staging_file_after_install(sample_server):
-    """Le fichier staging doit être supprimé après sudo install."""
+    """The staging file must be removed after sudo install."""
     wrong_hash = "0" * 64
     with patch("ssh._connect") as mock_connect, patch("ssh.db"):
         client = MagicMock()
@@ -360,12 +360,12 @@ def test_ssh_deploy_script_removes_staging_file_after_install(sample_server):
         commands = [c[0][0] for c in client.exec_command.call_args_list]
         cleanup_cmds = [c for c in commands if c.startswith("rm -f")]
         assert any(staged_path in c for c in cleanup_cmds), (
-            f"Le fichier staging {staged_path} doit être supprimé après install"
+            f"The staging file {staged_path} must be removed after install"
         )
 
 
 # ---------------------------------------------------------------------------
-# SAM_ADD — vérifications de contenu
+# SAM_ADD — content checks
 # ---------------------------------------------------------------------------
 
 def test_ssh_sam_add_is_bytes():
@@ -428,11 +428,11 @@ def test_ssh_add_key_on_server_raises_on_nonzero_exit(sample_server):
 
 
 # ---------------------------------------------------------------------------
-# Sécurité — JSON injection : audit_log.details sérialisé avec json.dumps
+# Security — JSON injection: audit_log.details serialized with json.dumps
 # ---------------------------------------------------------------------------
 
 def test_ssh_ensure_scripts_audit_details_valid_json(sample_server):
-    """audit_log.details doit être du JSON valide même avec des caractères spéciaux."""
+    """audit_log.details must be valid JSON even with special characters."""
     import json
     hostile_server = dict(sample_server)
     hostile_server["hostname"] = 'server"}, "injected": "true'
@@ -460,7 +460,7 @@ def test_ssh_ensure_scripts_audit_details_valid_json(sample_server):
 
 
 # ---------------------------------------------------------------------------
-# SAM_LOCK_USER et SAM_UNLOCK_USER — vérifications de contenu
+# SAM_LOCK_USER and SAM_UNLOCK_USER — content checks
 # ---------------------------------------------------------------------------
 
 def test_ssh_sam_lock_user_is_bytes():
@@ -515,7 +515,7 @@ def test_ssh_unlock_user_on_server_calls_sam_unlock_user(sample_server):
 
 
 # ---------------------------------------------------------------------------
-# SAM_SESSIONS — vérifications de contenu et fonctions
+# SAM_SESSIONS — content checks and functions
 # ---------------------------------------------------------------------------
 
 def test_ssh_sam_sessions_is_bytes():

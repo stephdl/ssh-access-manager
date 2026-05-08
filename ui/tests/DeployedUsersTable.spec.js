@@ -52,7 +52,7 @@ afterEach(() => {
 })
 
 describe('DeployedUsersTable', () => {
-  it('se monte sans erreur et appelle GET /api/access/deployed-users', async () => {
+  it('mounts without error and calls GET /api/access/deployed-users', async () => {
     const fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(MOCK_USERS),
@@ -66,7 +66,7 @@ describe('DeployedUsersTable', () => {
     expect(w.find('[data-testid="table-deployed-users"]').exists()).toBe(true)
   })
 
-  it('affiche les lignes avec unix_user et hostname', async () => {
+  it('renders rows with unix_user and hostname', async () => {
     const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
@@ -82,7 +82,7 @@ describe('DeployedUsersTable', () => {
     expect(row2.text()).toContain('staging-01')
   })
 
-  it('le hostname est un lien vers /servers/{hostname}', async () => {
+  it('hostname is a link to /servers/{hostname}', async () => {
     const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
@@ -92,7 +92,7 @@ describe('DeployedUsersTable', () => {
     expect(hrefs).toContain('/servers/staging-01')
   })
 
-  it('affiche la colonne IP avec ip_address', async () => {
+  it('shows IP column with ip_address', async () => {
     const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
@@ -100,7 +100,7 @@ describe('DeployedUsersTable', () => {
     expect(w.find('[data-testid="row-bob-staging-01"]').text()).toContain('10.0.0.2')
   })
 
-  it('affiche "—" si ip_address est null', async () => {
+  it('shows "—" if ip_address is null', async () => {
     const usersNoIp = [{ ...MOCK_USERS[0], ip_address: null }]
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(usersNoIp) }))
 
@@ -111,7 +111,7 @@ describe('DeployedUsersTable', () => {
     expect(row.text()).toContain('—')
   })
 
-  it('affiche "Unlimited" si expires_at null', async () => {
+  it('shows "Unlimited" if expires_at null', async () => {
     const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
@@ -119,7 +119,7 @@ describe('DeployedUsersTable', () => {
     expect(row1.text()).toContain('Unlimited')
   })
 
-  it('affiche la date formatée si expires_at non null', async () => {
+  it('shows formatted date if expires_at non null', async () => {
     const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
 
@@ -128,7 +128,7 @@ describe('DeployedUsersTable', () => {
     expect(row2.text()).not.toContain('—')
   })
 
-  it('affiche le message "empty" si liste vide', async () => {
+  it('shows "empty" message if list empty', async () => {
     vi.stubGlobal('fetch', () =>
       Promise.resolve({
         ok: true,
@@ -143,7 +143,7 @@ describe('DeployedUsersTable', () => {
     expect(w.find('[data-testid="empty-state"]').text()).toBe('No deployed users.')
   })
 
-  it('bouton Lock appelle POST /api/access/lock-user avec bons paramètres', async () => {
+  it('Lock button calls POST /api/access/lock-user with correct parameters', async () => {
     let capturedUrl = null
     let capturedPayload = null
 
@@ -182,7 +182,7 @@ describe('DeployedUsersTable', () => {
     })
   })
 
-  it('bouton Unlock appelle POST /api/access/unlock-user avec bons paramètres', async () => {
+  it('Unlock button calls POST /api/access/unlock-user with correct parameters', async () => {
     let capturedUrl = null
     let capturedPayload = null
 
@@ -223,7 +223,7 @@ describe('DeployedUsersTable', () => {
     })
   })
 
-  it('affiche succès lock inline sur la ligne', async () => {
+  it('shows lock success inline on row', async () => {
     vi.stubGlobal('fetch', (url, opts) => {
       if (url === '/api/access/deployed-users') {
         return Promise.resolve({
@@ -256,7 +256,7 @@ describe('DeployedUsersTable', () => {
     expect(success.text()).toContain('prod-01')
   })
 
-  it('affiche succès unlock inline sur la ligne', async () => {
+  it('shows unlock success inline on row', async () => {
     const lockedUsers = [{ ...MOCK_USERS[1], lock_status: 'USER_LOCKED' }]
 
     vi.stubGlobal('fetch', (url, opts) => {
@@ -291,7 +291,7 @@ describe('DeployedUsersTable', () => {
     expect(success.text()).toContain('staging-01')
   })
 
-  it("affiche erreur inline si l'API répond en erreur", async () => {
+  it("shows inline error if API responds with error", async () => {
     vi.stubGlobal('fetch', (url, opts) => {
       if (url === '/api/access/deployed-users') {
         return Promise.resolve({
@@ -319,7 +319,7 @@ describe('DeployedUsersTable', () => {
     expect(error.text()).toContain('User not found')
   })
 
-  it('operator voit le bouton Lock', async () => {
+  it('operator sees Lock button', async () => {
     mockAdmin.value = { username: 'operator', role: 'operator' }
     const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()
@@ -327,7 +327,7 @@ describe('DeployedUsersTable', () => {
     expect(w.find('[data-testid="btn-lock-alice-prod-01"]').exists()).toBe(true)
   })
 
-  it('viewer ne voit pas le bouton Lock ni la colonne Actions', async () => {
+  it('viewer does not see Lock button nor Actions column', async () => {
     mockAdmin.value = { username: 'viewer', role: 'viewer' }
     const w = mount(DeployedUsersTable, mountOpts)
     await flushPromises()

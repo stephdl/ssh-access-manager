@@ -40,7 +40,7 @@ def auth_client(client):
 
 
 # ---------------------------------------------------------------------------
-# Authentification
+# Authentication
 # ---------------------------------------------------------------------------
 
 def test_web_no_auth_returns_401(client):
@@ -57,7 +57,7 @@ def test_web_invalid_admin_returns_401(auth_client):
 
 
 # ---------------------------------------------------------------------------
-# GET /api/keys — retourne 200 + liste JSON
+# GET /api/keys — returns 200 + JSON list
 # ---------------------------------------------------------------------------
 
 def test_web_get_keys_returns_200_and_list(auth_client):
@@ -86,7 +86,7 @@ def test_web_get_keys_with_status_filter(auth_client):
 
 
 # ---------------------------------------------------------------------------
-# GET /api/keys — champ owner présent dans la réponse
+# GET /api/keys — owner field present in response
 # ---------------------------------------------------------------------------
 
 def test_web_get_keys_includes_owner_field(auth_client):
@@ -131,7 +131,7 @@ def test_web_get_keys_sql_includes_revocation_and_server_fields(auth_client):
 
 
 # ---------------------------------------------------------------------------
-# POST /api/keys/validate/<fp> — 200 si authentifié, 401 sinon, scoped
+# POST /api/keys/validate/<fp> — 200 if authenticated, 401 otherwise, scoped
 # ---------------------------------------------------------------------------
 
 def test_web_validate_key_returns_200_if_authenticated(auth_client):
@@ -163,7 +163,7 @@ def test_web_validate_key_passes_none_when_fields_absent(auth_client):
 
 
 # ---------------------------------------------------------------------------
-# POST /api/keys/revoke/<fp> — fingerprint malformé rejeté avec 400
+# POST /api/keys/revoke/<fp> — malformed fingerprint rejected with 400
 # ---------------------------------------------------------------------------
 
 def test_web_revoke_key_rejects_invalid_fingerprint_format(auth_client):
@@ -178,7 +178,7 @@ def test_web_revoke_key_rejects_invalid_fingerprint_format(auth_client):
 
 
 # ---------------------------------------------------------------------------
-# POST /api/keys/revoke/<fp> — 200 si authentifie, 401 si non authentifie
+# POST /api/keys/revoke/<fp> — 200 if authenticated, 401 if not authenticated
 # ---------------------------------------------------------------------------
 
 def test_web_revoke_key_returns_200_if_authenticated(auth_client):
@@ -224,7 +224,7 @@ def test_web_revoke_key_returns_404_if_key_not_found(auth_client):
 
 
 # ---------------------------------------------------------------------------
-# POST /api/access/grant — 201 avec expires_at calculé
+# POST /api/access/grant — 201 with expires_at computed
 # ---------------------------------------------------------------------------
 
 def test_web_grant_access_returns_201_with_expires_at(auth_client):
@@ -262,7 +262,7 @@ def test_web_grant_access_returns_400_without_expiry(auth_client):
 
 
 # ---------------------------------------------------------------------------
-# POST /api/keys/set-expiry — datetime-local format (sans secondes)
+# POST /api/keys/set-expiry — datetime-local format (without seconds)
 # ---------------------------------------------------------------------------
 
 def test_web_set_expiry_accepts_datetime_local_format(auth_client):
@@ -1121,7 +1121,7 @@ def test_web_deploy_key_returns_201(auth_client):
                 "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI test",
                 "unix_user": "alice",
                 "hostname": "server-01",
-                "justification": "Accès maintenance",
+                "justification": "Maintenance access",
             },
         )
         assert resp.status_code == 201
@@ -1205,11 +1205,11 @@ def test_web_deploy_key_expires_at_invalid_format_returns_400(auth_client):
 
 
 # ---------------------------------------------------------------------------
-# Sécurité — log injection : newlines sanitisées avant logging
+# Security — log injection: newlines sanitized before logging
 # ---------------------------------------------------------------------------
 
 def test_web_log_injection_newlines_sanitized_in_warning(auth_client):
-    """Une ValueError avec \\n ne doit pas produire de fausses lignes de log."""
+    """A ValueError containing \n must not produce fake log lines."""
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions, \
          patch("web.logging") as mock_logging:
         mock_db.query_one.return_value = _admin_row()
@@ -1228,7 +1228,7 @@ def test_web_log_injection_newlines_sanitized_in_warning(auth_client):
 
 
 def test_web_log_injection_carriage_return_sanitized(auth_client):
-    """Une ValueError avec \\r ne doit pas produire de fausses lignes de log."""
+    """A ValueError containing \r must not produce fake log lines."""
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions, \
          patch("web.logging") as mock_logging:
         mock_db.query_one.return_value = _admin_row()
@@ -1246,7 +1246,7 @@ def test_web_log_injection_carriage_return_sanitized(auth_client):
 
 
 # ---------------------------------------------------------------------------
-# Sécurité — GET /api/admins ne doit pas exposer password_hash
+# Security — GET /api/admins must not expose password_hash
 # ---------------------------------------------------------------------------
 
 def test_web_list_admins_does_not_expose_password_hash(auth_client):

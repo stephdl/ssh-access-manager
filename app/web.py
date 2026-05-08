@@ -260,7 +260,7 @@ def _ssh_error_code(msg: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Serveurs
+# Servers
 # ---------------------------------------------------------------------------
 
 @app.route("/api/servers", methods=["GET"])
@@ -515,7 +515,7 @@ def get_server_sessions_history(hostname):
 
 
 # ---------------------------------------------------------------------------
-# Cles SSH
+# SSH Keys
 # ---------------------------------------------------------------------------
 
 @app.route("/api/keys", methods=["GET"])
@@ -656,7 +656,7 @@ def bulk_revoke_keys():
 
 
 # ---------------------------------------------------------------------------
-# Acces temporaires
+# Temporary access
 # ---------------------------------------------------------------------------
 
 @app.route("/api/access", methods=["GET"])
@@ -874,7 +874,7 @@ def revoke_request(request_id):
     actions.revoke_request(request_id, g.admin_id)
     return jsonify({"status": "revoked"})
 # ---------------------------------------------------------------------------
-# Administrateurs
+# Administrators
 # ---------------------------------------------------------------------------
 
 @app.route("/api/admins", methods=["GET"])

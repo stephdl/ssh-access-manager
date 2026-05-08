@@ -28,7 +28,7 @@ function mk(admins, meUsername = 'admin', meRole = 'sysadmin') {
 }
 
 describe('Admins', () => {
-  it('affiche le bouton Disable pour un admin actif autre que soi', async () => {
+  it('shows Disable button for an active admin other than self', async () => {
     const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE])
     await flushPromises()
     const rows = w.findAll('tr')
@@ -36,7 +36,7 @@ describe('Admins', () => {
     expect(aliceRow.find('.btn-danger').exists()).toBe(true)
   })
 
-  it('masque le bouton Disable pour le compte courant', async () => {
+  it('hides Disable button for the current account', async () => {
     const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE])
     await flushPromises()
     const rows = w.findAll('tr')
@@ -44,7 +44,7 @@ describe('Admins', () => {
     expect(adminRow.find('.btn-danger').exists()).toBe(false)
   })
 
-  it('affiche les boutons Enable et Delete pour un admin désactivé', async () => {
+  it('shows Enable and Delete buttons for a disabled admin', async () => {
     const w = mk([DISABLED_ADMIN])
     await flushPromises()
     const rows = w.findAll('tr')
@@ -53,7 +53,7 @@ describe('Admins', () => {
     expect(bobRow.find('.btn-danger').exists()).toBe(true)
   })
 
-  it('ouvre la modal Enable au clic sur Enable', async () => {
+  it('opens Enable modal when clicking Enable', async () => {
     const w = mk([DISABLED_ADMIN])
     await flushPromises()
     const rows = w.findAll('tr')
@@ -62,7 +62,7 @@ describe('Admins', () => {
     expect(w.find('.modal').exists()).toBe(true)
   })
 
-  it('ouvre la modal Delete au clic sur Delete', async () => {
+  it('opens Delete modal when clicking Delete', async () => {
     const w = mk([DISABLED_ADMIN])
     await flushPromises()
     const rows = w.findAll('tr')
@@ -71,7 +71,7 @@ describe('Admins', () => {
     expect(w.find('.modal').exists()).toBe(true)
   })
 
-  it('appelle PUT /enable à la confirmation Enable', async () => {
+  it('calls PUT /enable on Enable confirmation', async () => {
     const fetchMock = mkFetch([DISABLED_ADMIN])
     global.fetch = fetchMock
     const w = mount(Admins, { global: { plugins: [i18n] } })
@@ -86,7 +86,7 @@ describe('Admins', () => {
     expect(calls).toContain('/api/admins/bob/enable|PUT')
   })
 
-  it('appelle DELETE à la confirmation Delete', async () => {
+  it('calls DELETE on Delete confirmation', async () => {
     const fetchMock = mkFetch([DISABLED_ADMIN])
     global.fetch = fetchMock
     const w = mount(Admins, { global: { plugins: [i18n] } })
@@ -101,7 +101,7 @@ describe('Admins', () => {
     expect(calls).toContain('/api/admins/bob|DELETE')
   })
 
-  it('ferme la modal Enable au clic sur annuler', async () => {
+  it('closes Enable modal when clicking cancel', async () => {
     const w = mk([DISABLED_ADMIN])
     await flushPromises()
     const rows = w.findAll('tr')
@@ -114,7 +114,7 @@ describe('Admins', () => {
     expect(w.find('.modal').exists()).toBe(false)
   })
 
-  it('affiche le bouton Edit pour un admin actif', async () => {
+  it('shows Edit button for an active admin', async () => {
     const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE])
     await flushPromises()
     const rows = w.findAll('tr')
@@ -123,7 +123,7 @@ describe('Admins', () => {
     expect(editBtn).toBeTruthy()
   })
 
-  it('ouvre la modal Edit au clic sur Edit', async () => {
+  it('opens Edit modal when clicking Edit', async () => {
     const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE])
     await flushPromises()
     const rows = w.findAll('tr')
@@ -134,7 +134,7 @@ describe('Admins', () => {
     expect(w.find('.modal h3').text()).toContain('Edit administrator')
   })
 
-  it('le champ role est désactivé si admin édité est le courant', async () => {
+  it('role field is disabled if the edited admin is the current one', async () => {
     const w = mk([ACTIVE_ADMIN])
     await flushPromises()
     const rows = w.findAll('tr')
@@ -145,7 +145,7 @@ describe('Admins', () => {
     expect(roleInput.element.disabled).toBe(true)
   })
 
-  it('le champ role est activé si admin édité n\'est pas le courant', async () => {
+  it('role field is enabled if the edited admin is not the current one', async () => {
     const w = mk([ACTIVE_ADMIN, OTHER_ACTIVE])
     await flushPromises()
     const rows = w.findAll('tr')
@@ -156,7 +156,7 @@ describe('Admins', () => {
     expect(roleInput.element.disabled).toBe(false)
   })
 
-  it('appelle PUT /api/admins/<username> à la confirmation Edit', async () => {
+  it('calls PUT /api/admins/<username> on Edit confirmation', async () => {
     const fetchMock = mkFetch([OTHER_ACTIVE], 'admin', 'sysadmin')
     global.fetch = fetchMock
     const w = mount(Admins, { global: { plugins: [i18n] } })
