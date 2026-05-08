@@ -30,6 +30,7 @@ RUN apk update && apk add --no-cache \
     py3-setuptools \
     supervisor \
     nginx \
+    openssl \
     msmtp \
     openssh-client \
     busybox-extras \
@@ -50,7 +51,8 @@ COPY app/            /app/app/
 COPY sql/            /app/sql/
 COPY supervisord.conf          /etc/supervisord.conf
 COPY bootstrap.sh              /app/bootstrap.sh
-COPY nginx.conf.template       /app/nginx.conf.template
+COPY nginx.conf.http.template    /app/nginx.conf.http.template
+COPY nginx.conf.https.template   /app/nginx.conf.https.template
 COPY crontab                   /etc/crontabs/root
 COPY provision-host.sh         /app/provision-host.sh
 
