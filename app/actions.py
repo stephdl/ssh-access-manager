@@ -41,6 +41,19 @@ def _validate_ip(ip: str) -> str:
         raise UserError(f"Invalid IP address: {ip!r} (expected IPv4 or IPv6)")
 
 
+def _normalize_environment(environment: str | None) -> str | None:
+    if environment is None:
+        return None
+    normalized = environment.strip()
+    if not normalized:
+        return None
+    if normalized not in {"production", "staging", "lab"}:
+        raise UserError(
+            f"Invalid environment: {normalized!r}. Must be one of: production, staging, lab"
+        )
+    return normalized
+
+
 def _check_fingerprint(fp: str) -> None:
     if not _FP_RE.match(fp):
         raise UserError(f"Invalid fingerprint format: {fp}")
@@ -422,6 +435,54 @@ def warn_expiring_key(key_id: str, server_id: str, expires_at: datetime) -> dict
     return {"fingerprint": fp, "hostname": hostname, "expires_at": expires_at}
 
 
+def check_session_limit(server_id: str, hostname: str, session_count: int, max_sessions: int) -> bool:
+    """
+    Send a WARNING alert if session_count > max_sessions, with 24h anti-spam.
+    Logs SESSION_LIMIT_EXCEEDED to audit_log.
+    Returns True if an alert was sent, False if already warned within 24h or under limit.
+    """
+    if session_count <= max_sessions:
+        return False
+
+    already_warned = db.query_one(
+        """
+        SELECT id FROM audit_log
+        WHERE action = 'SESSION_LIMIT_EXCEEDED'
+          AND target_server = %s
+          AND performed_at > now() - INTERVAL '24 hours'
+        """,
+        (server_id,),
+    )
+    if already_warned:
+        return False
+
+    db.execute(
+        """
+        INSERT INTO audit_log (action, target_server, details)
+        VALUES ('SESSION_LIMIT_EXCEEDED', %s, %s::jsonb)
+        """,
+        (
+            server_id,
+            json.dumps({
+                "hostname": hostname,
+                "session_count": session_count,
+                "max_sessions": max_sessions,
+            }),
+        ),
+    )
+    alerts.send_alert(
+        "WARNING",
+        f"[ssh-access-manager] Session limit exceeded on {hostname}",
+        (
+            f"Server: {hostname}\n"
+            f"Active sessions: {session_count}\n"
+            f"Configured limit: {max_sessions}\n\n"
+            f"Please review active connections on this server."
+        ),
+    )
+    return True
+
+
 def assign_key(fingerprint: str, owner_name: str) -> None:
     """Set the free-text owner of a key."""
     _check_fingerprint(fingerprint)
@@ -710,6 +771,7 @@ def add_server(
 ) -> dict:
     """Add and provision a server atomically. Server is only created in DB if SSH provisioning succeeds."""
     ip = _validate_ip(ip)
+    env = _normalize_environment(env)
     existing = db.query_one(
         "SELECT hostname FROM servers WHERE ip_address = %s", (ip,)
     )
@@ -784,13 +846,14 @@ def disable_server(hostname: str, admin_id: str | None = None) -> None:
 
 def update_server(
     hostname: str, new_ip: str, new_env: str, new_os_family: str | None,
-    ssh_port: int = 22, admin_id: str | None = None,
+    ssh_port: int = 22, admin_id: str | None = None, max_sessions: int = 2,
 ) -> dict:
-    """Update server IP, environment, OS, SSH port. If IP changes, run ssh-keyscan."""
+    """Update server IP, environment, OS, SSH port, max_sessions. If IP changes, run ssh-keyscan."""
     new_ip = _validate_ip(new_ip)
+    new_env = _normalize_environment(new_env)
     import servers as servers_mod
     server = db.query_one(
-        "SELECT id, ip_address, environment, os_family, ssh_port FROM servers WHERE hostname = %s",
+        "SELECT id, ip_address, environment, os_family, ssh_port, max_sessions FROM servers WHERE hostname = %s",
         (hostname,),
     )
     if not server:
@@ -807,6 +870,7 @@ def update_server(
     old_env = server["environment"]
     old_os = server["os_family"]
     old_port = server["ssh_port"]
+    old_max_sessions = server["max_sessions"]
 
     if new_ip != old_ip:
         try:
@@ -815,8 +879,8 @@ def update_server(
             raise UserError(f"Cannot reach {hostname} ({new_ip}) for keyscan: {e}") from e
 
     db.execute(
-        "UPDATE servers SET ip_address = %s, environment = %s, os_family = %s, ssh_port = %s WHERE hostname = %s",
-        (new_ip, new_env, new_os_family, ssh_port, hostname),
+        "UPDATE servers SET ip_address = %s, environment = %s, os_family = %s, ssh_port = %s, max_sessions = %s WHERE hostname = %s",
+        (new_ip, new_env, new_os_family, ssh_port, max_sessions, hostname),
     )
     db.execute(
         """
@@ -832,6 +896,7 @@ def update_server(
                 "old_env": old_env, "new_env": new_env,
                 "old_os": old_os, "new_os": new_os_family,
                 "old_port": old_port, "new_port": ssh_port,
+                "old_max_sessions": old_max_sessions, "new_max_sessions": max_sessions,
             }),
         ),
     )

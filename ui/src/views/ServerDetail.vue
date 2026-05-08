@@ -88,6 +88,8 @@
           </dd>
           <dt>{{ $t('server_detail.field_added') }}</dt>
           <dd>{{ formatDate(server.added_at) }}</dd>
+          <dt>{{ $t('server_detail.field_max_sessions') }}</dt>
+          <dd>{{ server.max_sessions ?? 2 }}</dd>
         </dl>
       </section>
 

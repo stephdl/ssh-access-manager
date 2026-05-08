@@ -190,6 +190,14 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
     # Collect SSH sessions (non-fatal)
     try:
         ssh.collect_sessions_on_server(hostname, server_id, ip=ip, port=ssh_port)
+        # Check session limit and send alert if exceeded (24h anti-spam)
+        max_sessions = server.get("max_sessions", 2)
+        active_count = db.query_one(
+            "SELECT COUNT(*) AS n FROM ssh_sessions WHERE server_id = %s AND is_active = true",
+            (server_id,),
+        )
+        session_count = active_count["n"] if active_count else 0
+        actions.check_session_limit(server_id, hostname, session_count, max_sessions)
     except Exception as exc:
         logging.warning("collect_sessions_on_server failed on %s (%s): %s", hostname, ip, exc)
 

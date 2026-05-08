@@ -371,9 +371,15 @@ def provision_server_route(hostname):
 def update_server(hostname):
     data = request.get_json(force=True) or {}
     try:
+        max_sessions = int(data.get("max_sessions", 2))
+    except (TypeError, ValueError):
+        return jsonify({"error": "max_sessions must be an integer"}), 400
+    if max_sessions < 1:
+        return jsonify({"error": "max_sessions must be at least 1"}), 400
+    try:
         actions.update_server(
-            hostname, data["ip"], data["environment"],
-            data.get("os_family"), data.get("ssh_port", 22), g.admin_id,
+            hostname, data["ip"], data.get("environment") or None,
+            data.get("os_family"), data.get("ssh_port", 22), g.admin_id, max_sessions,
         )
         return jsonify({"message": "Server updated"})
     except KeyError as e:

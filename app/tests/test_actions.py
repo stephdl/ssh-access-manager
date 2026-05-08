@@ -1104,10 +1104,10 @@ def test_actions_validate_key_scoped_raises_if_server_not_found(sample_key):
 
 def test_actions_update_server_success():
     """update_server met à jour les champs et log SERVER_UPDATED."""
-    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22}
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22, "max_sessions": 2}
     with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"):
         mock_db.query_one.side_effect = [server, None]
-        actions.update_server("server-test-01", "192.168.1.20", "production", "debian", 22, ADMIN_ID)
+        actions.update_server("server-test-01", "192.168.1.20", "production", "debian", 22, ADMIN_ID, 2)
         update_call = mock_db.execute.call_args_list[0]
         assert "UPDATE servers" in update_call[0][0]
         assert "192.168.1.20" in update_call[0][1]
@@ -1117,12 +1117,21 @@ def test_actions_update_server_success():
         assert "SERVER_UPDATED" in audit_call[0][0]
 
 
+def test_actions_update_server_blank_environment_is_stored_as_null():
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22, "max_sessions": 2}
+    with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"):
+        mock_db.query_one.side_effect = [server, None]
+        actions.update_server("server-test-01", "192.168.1.10", "   ", "debian", 22, ADMIN_ID, 4)
+        update_call = mock_db.execute.call_args_list[0]
+        assert update_call[0][1][1] is None
+
+
 def test_actions_update_server_ip_change_calls_keyscan():
     """Si l'IP change, add_to_known_hosts est appelé."""
-    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22}
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22, "max_sessions": 2}
     with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts") as mock_keyscan:
         mock_db.query_one.side_effect = [server, None]
-        actions.update_server("server-test-01", "192.168.1.99", "lab", "rhel", 22, ADMIN_ID)
+        actions.update_server("server-test-01", "192.168.1.99", "lab", "rhel", 22, ADMIN_ID, 2)
         mock_keyscan.assert_called_once_with("192.168.1.99", 22)
 
 
@@ -1153,11 +1162,19 @@ def test_actions_add_server_rejects_duplicate_ip():
 
 
 def test_actions_update_server_rejects_duplicate_ip():
-    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22}
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22, "max_sessions": 2}
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [server, {"hostname": "other-server"}]
         with pytest.raises(UserError, match="already used by server"):
             actions.update_server("server-test-01", "10.0.0.2", "lab", None, 22, ADMIN_ID)
+
+
+def test_actions_update_server_rejects_invalid_environment():
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22, "max_sessions": 2}
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = server
+        with pytest.raises(UserError, match="Invalid environment"):
+            actions.update_server("server-test-01", "192.168.1.10", "dev", None, 22, ADMIN_ID, 2)
 
 
 # ---------------------------------------------------------------------------
@@ -1339,3 +1356,65 @@ def test_actions_bulk_revoke_rejects_empty_reason():
     fp = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     with pytest.raises(UserError, match="reason"):
         actions.bulk_revoke_keys([fp], "", ADMIN_ID)
+
+
+# ---------------------------------------------------------------------------
+# check_session_limit
+# ---------------------------------------------------------------------------
+
+def test_check_session_limit_under_limit_returns_false():
+    """No alert when session_count <= max_sessions."""
+    with patch("actions.db") as mock_db, patch("actions.alerts") as mock_alerts:
+        result = actions.check_session_limit(SERVER_ID, "server-test-01", 2, 2)
+        assert result is False
+        mock_alerts.send_alert.assert_not_called()
+        mock_db.execute.assert_not_called()
+
+
+def test_check_session_limit_exceeded_sends_warning():
+    """Alert sent and audit logged when session_count > max_sessions."""
+    with patch("actions.db") as mock_db, patch("actions.alerts") as mock_alerts:
+        mock_db.query_one.return_value = None  # no prior warning in last 24h
+        result = actions.check_session_limit(SERVER_ID, "server-test-01", 5, 2)
+        assert result is True
+        mock_alerts.send_alert.assert_called_once()
+        call_args = mock_alerts.send_alert.call_args[0]
+        assert call_args[0] == "WARNING"
+        assert "server-test-01" in call_args[1]
+        assert "server-test-01" in call_args[2]
+        # audit log must include SESSION_LIMIT_EXCEEDED
+        logged_sql = mock_db.execute.call_args_list[0][0][0]
+        assert "SESSION_LIMIT_EXCEEDED" in logged_sql
+
+
+def test_check_session_limit_anti_spam_blocks_second_alert():
+    """No second alert when already warned within 24h."""
+    with patch("actions.db") as mock_db, patch("actions.alerts") as mock_alerts:
+        mock_db.query_one.return_value = {"id": "existing-log-id"}
+        result = actions.check_session_limit(SERVER_ID, "server-test-01", 5, 2)
+        assert result is False
+        mock_alerts.send_alert.assert_not_called()
+        mock_db.execute.assert_not_called()
+
+
+def test_check_session_limit_exactly_one_over_triggers():
+    """Alert fires when session count is exactly one above the limit."""
+    with patch("actions.db") as mock_db, patch("actions.alerts") as mock_alerts:
+        mock_db.query_one.return_value = None
+        result = actions.check_session_limit(SERVER_ID, "server-test-01", 3, 2)
+        assert result is True
+        mock_alerts.send_alert.assert_called_once()
+
+
+def test_check_session_limit_details_logged_correctly():
+    """Audit log details include hostname, session_count and max_sessions."""
+    import json as _json
+    with patch("actions.db") as mock_db, patch("actions.alerts"):
+        mock_db.query_one.return_value = None
+        actions.check_session_limit(SERVER_ID, "my-server", 7, 3)
+        logged_params = mock_db.execute.call_args_list[0][0][1]
+        # logged_params: (server_id, json_details)
+        details = _json.loads(logged_params[1])
+        assert details["hostname"] == "my-server"
+        assert details["session_count"] == 7
+        assert details["max_sessions"] == 3
