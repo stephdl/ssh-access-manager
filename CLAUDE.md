@@ -59,6 +59,7 @@ Voir `ui/CLAUDE.md` pour le frontend Vue.js (vues, composants, i18n, tests Vites
 ```
 POSTGRES_DB=ssh_manager  POSTGRES_USER=ssh_manager  POSTGRES_PASSWORD=changeme
 NGINX_PORT=8080
+NGINX_TLS_CERT_PATH=/data/certs/server.crt  NGINX_TLS_KEY_PATH=/data/certs/server.key  (optional — enables HTTPS)
 FLASK_SECRET_KEY=changeme
 SMTP_HOST  SMTP_PORT=587  SMTP_USERNAME  SMTP_PASSWORD  SMTP_FROM
 SMTP_ENCRYPTION=starttls  SMTP_TLSVERIFY=1  SMTP_ENABLED=1
@@ -68,6 +69,7 @@ ADMIN_USERNAME=admin  ADMIN_EMAIL  ADMIN_PASSWORD=admin
 
 Notes : pas de NGINX_USER/NGINX_PASSWORD (#54). Pas de TZ (UTC en base, conversion navigateur — #228).
 Pas de EXPIRE_WARN_DAYS* (configurables en base via settings — #230).
+NGINX_TLS_CERT_PATH / NGINX_TLS_KEY_PATH : optionnel — si les deux sont définis, Nginx passe en HTTPS (TLSv1.2/1.3, chiffrement fort). Un certificat auto-signé est généré automatiquement si les fichiers n'existent pas.
 SMTP_ENCRYPTION : `none` / `starttls` / `tls` — contrôle le mode TLS de msmtp.
 SMTP_USERNAME : si vide → `auth off` dans msmtp (relay sans authentification).
 SMTP_TLSVERIFY : `1` (on) / `` (off) — vérifie les certificats TLS.
