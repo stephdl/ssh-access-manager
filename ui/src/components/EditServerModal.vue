@@ -56,6 +56,13 @@
             placeholder="22"
           />
         </div>
+
+        <!-- Max sessions (half width) -->
+        <div class="form-field">
+          <label>{{ $t('edit_server.max_sessions_label') }}</label>
+          <input v-model.number="editForm.max_sessions" type="number" min="1" placeholder="2" />
+          <span class="field-hint">{{ $t('edit_server.max_sessions_hint') }}</span>
+        </div>
       </div>
 
       <div class="modal-actions">
@@ -85,7 +92,7 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 
 const { t } = useI18n()
 
-const editForm = ref({ ip: '', environment: '', os_family: '', ssh_port: 22 })
+const editForm = ref({ ip: '', environment: '', os_family: '', ssh_port: 22, max_sessions: 2 })
 const editing = ref(false)
 const editError = ref('')
 
@@ -98,6 +105,7 @@ watch(
         environment: props.server.environment || '',
         os_family: props.server.os_family || '',
         ssh_port: props.server.ssh_port || 22,
+        max_sessions: props.server.max_sessions ?? 2,
       }
       editError.value = ''
     }
@@ -146,9 +154,10 @@ async function confirm() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ip: editForm.value.ip.trim(),
-        environment: editForm.value.environment,
+        environment: editForm.value.environment || null,
         os_family: editForm.value.os_family.trim() || null,
         ssh_port: editForm.value.ssh_port || 22,
+        max_sessions: editForm.value.max_sessions || 2,
       }),
     })
     const data = await res.json().catch(() => ({}))
@@ -258,6 +267,13 @@ async function confirm() {
 .field-error {
   font-size: 0.8rem;
   color: #ff6b6b;
+  margin-top: 0.2rem;
+  display: block;
+}
+
+.field-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
   margin-top: 0.2rem;
   display: block;
 }
