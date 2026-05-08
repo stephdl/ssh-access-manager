@@ -388,6 +388,7 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `FLASK_SECRET_KEY` | Clé secrète Flask (sessions) — **obligatoire**, le container refuse de démarrer si absente | — |
 | `FLASK_TLS_CERT_PATH` | Chemin vers le certificat TLS Flask (HTTPS activé seulement si cette variable **et** `FLASK_TLS_KEY_PATH` sont définies) | — |
 | `FLASK_TLS_KEY_PATH` | Chemin vers la clé privée TLS Flask (HTTPS activé seulement si cette variable **et** `FLASK_TLS_CERT_PATH` sont définies) | — |
+| `FLASK_TLS_ALLOW_DEV_SERVER` | Doit valoir `1` si TLS Flask est activé (accepte explicitement l'usage du serveur HTTPS Werkzeug) | — |
 | `SMTP_HOST` | Serveur SMTP | — |
 | `SMTP_PORT` | Port SMTP | `587` |
 | `SMTP_USERNAME` | Utilisateur SMTP — si vide, `auth off` dans msmtp (relay sans authentification) | — |
@@ -407,7 +408,7 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 >
 > **Fuseau horaire** : les dates sont stockées en UTC dans PostgreSQL. L'interface web affiche automatiquement les dates dans le fuseau du navigateur.
 >
-> **HTTPS Flask direct** : `FLASK_TLS_CERT_PATH`/`FLASK_TLS_KEY_PATH` active un mode HTTPS direct côté Flask (utile pour exposition directe). En production, privilégier la terminaison TLS sur un reverse proxy dédié.
+> **HTTPS Flask direct** : `FLASK_TLS_CERT_PATH`/`FLASK_TLS_KEY_PATH` active un mode HTTPS direct côté Flask (utile pour exposition directe) et requiert `FLASK_TLS_ALLOW_DEV_SERVER=1`. En production, privilégier la terminaison TLS sur un reverse proxy dédié.
 
 > **Secrets obligatoires avant un déploiement en production** — ne jamais laisser les valeurs d'exemple :
 > ```bash

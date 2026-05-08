@@ -145,6 +145,11 @@ def _run_web_server() -> None:
     tls_context = _get_flask_tls_context()
 
     if tls_context:
+        if os.environ.get("FLASK_TLS_ALLOW_DEV_SERVER", "") != "1":
+            raise RuntimeError(
+                "FLASK_TLS_ALLOW_DEV_SERVER=1 is required when TLS is enabled because Flask HTTPS uses the "
+                "Werkzeug development server"
+            )
         logging.warning(
             "FLASK_TLS_CERT_PATH and FLASK_TLS_KEY_PATH are set; running Flask HTTPS server directly"
         )
