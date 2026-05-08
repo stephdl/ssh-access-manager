@@ -713,8 +713,8 @@ h2 {
 
 .btn-back {
   background: none;
-  border: 1px solid #ccc;
-  color: #555;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 0.25rem 0.6rem;
   border-radius: 4px;
@@ -722,8 +722,8 @@ h2 {
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 1.25rem;
   margin-bottom: 1.25rem;
@@ -736,7 +736,7 @@ h2 {
 }
 dt {
   font-weight: 600;
-  color: #555;
+  color: var(--text-secondary);
   font-size: 0.85rem;
 }
 dd {
@@ -752,19 +752,19 @@ dd {
 }
 .revoke-user-info {
   font-size: 0.85rem;
-  color: #555;
+  color: var(--text-secondary);
   margin: 0 0 0.75rem;
 }
 
 .empty {
-  color: #888;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   padding: 0.5rem 0;
 }
 .loading {
   text-align: center;
   padding: 2rem;
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .alert-error {
@@ -841,7 +841,7 @@ dd {
 }
 .hint {
   font-size: 0.85rem;
-  color: #555;
+  color: var(--text-secondary);
   margin: 0 0 0.75rem;
 }
 .password-wrapper {
@@ -860,12 +860,12 @@ dd {
   background: none;
   border: none;
   cursor: pointer;
-  color: #666;
+  color: var(--text-secondary);
   padding: 0.2rem;
   display: flex;
   align-items: center;
 }
 .btn-eye:hover {
-  color: #333;
+  color: var(--text-primary);
 }
 </style>

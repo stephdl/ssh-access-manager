@@ -323,10 +323,10 @@ code {
 }
 
 :global(html[data-theme='dark'] .row-danger) {
-  background: #3a1515 !important;
+  background: rgba(220, 53, 69, 0.15) !important;
 }
 
 :global(html[data-theme='dark'] .row-warning) {
-  background: #3a3010 !important;
+  background: rgba(255, 193, 7, 0.12) !important;
 }
 </style>
