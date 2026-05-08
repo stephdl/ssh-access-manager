@@ -151,7 +151,7 @@ def test_web_run_web_server_rejects_tls_without_explicit_dev_server_opt_in(monke
     monkeypatch.setattr(web, "_parse_flask_bind_config", lambda: ("127.0.0.1", 5443))
     monkeypatch.setattr(web, "_get_flask_tls_context", lambda: ("/tmp/cert.pem", "/tmp/key.pem"))
 
-    with pytest.raises(RuntimeError, match="FLASK_TLS_ALLOW_DEV_SERVER=1"):
+    with pytest.raises(RuntimeError, match="set to exactly '1'"):
         web._run_web_server()
 
 
