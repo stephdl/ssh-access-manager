@@ -106,60 +106,13 @@ if not _flask_secret or _flask_secret == "changeme":
 app.secret_key = _flask_secret
 
 
-def _parse_flask_bind_config() -> tuple[str, int]:
-    host = os.environ.get("FLASK_HOST", "127.0.0.1").strip() or "127.0.0.1"
-    port_raw = os.environ.get("FLASK_PORT", "5000").strip() or "5000"
-    try:
-        port = int(port_raw)
-    except ValueError as exc:
-        raise RuntimeError("FLASK_PORT must be a valid integer") from exc
-    if not (1 <= port <= 65535):
-        raise RuntimeError("FLASK_PORT must be between 1 and 65535")
-    return host, port
-
-
-def _get_flask_tls_context() -> tuple[str, str] | None:
-    cert_path = os.environ.get("FLASK_TLS_CERT_PATH", "").strip()
-    key_path = os.environ.get("FLASK_TLS_KEY_PATH", "").strip()
-
-    if not cert_path and not key_path:
-        return None
-
-    if not cert_path or not key_path:
-        raise RuntimeError("FLASK_TLS_CERT_PATH and FLASK_TLS_KEY_PATH must both be set")
-
-    if not os.path.isfile(cert_path):
-        raise RuntimeError("FLASK_TLS_CERT_PATH does not point to an existing file")
-
-    if not os.path.isfile(key_path):
-        raise RuntimeError("FLASK_TLS_KEY_PATH does not point to an existing file")
-
-    return cert_path, key_path
-
-
 def _run_web_server() -> None:
     if not os.environ.get("FLASK_SECRET_KEY"):
         raise RuntimeError("FLASK_SECRET_KEY environment variable is required")
 
-    host, port = _parse_flask_bind_config()
-    tls_context = _get_flask_tls_context()
-
-    if tls_context:
-        if os.environ.get("FLASK_TLS_ALLOW_DEV_SERVER", "") != "1":
-            raise RuntimeError(
-                "FLASK_TLS_ALLOW_DEV_SERVER must be set to exactly '1' to explicitly acknowledge that Flask "
-                "app.run() uses Werkzeug's development server, which is not recommended for production environments"
-            )
-        logging.warning(
-            "FLASK_TLS_CERT_PATH and FLASK_TLS_KEY_PATH are set; running Flask HTTPS server directly"
-        )
-        app.config["SESSION_COOKIE_SECURE"] = True
-        app.run(host=host, port=port, ssl_context=tls_context)
-        return
-
     from waitress import serve
 
-    serve(app, host=host, port=port)
+    serve(app, host="127.0.0.1", port=5000)
 
 
 @app.errorhandler(UserError)

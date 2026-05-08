@@ -138,21 +138,16 @@ Les durées sont des constantes dans `web.py` — pas de redémarrage nécessair
 
 ## HTTPS — Configuration TLS
 
-Par défaut, Flask écoute en HTTP sur `127.0.0.1:5000` (uniquement accessible à Nginx via proxy interne). Il est possible d'activer **HTTPS directement sur Flask** en fournissant un certificat et une clé privée via variables d'environnement.
+Par défaut, Nginx écoute en HTTP sur `NGINX_PORT` (8080). Il est possible d'activer **HTTPS directement sur Nginx** en fournissant un certificat et une clé privée via variables d'environnement. Flask continue d'écouter en HTTP sur `127.0.0.1:5000` (loopback, jamais exposé à l'extérieur).
 
-> **Note** : ce mode utilise le serveur de développement Werkzeug. Il convient pour des expositions directes simples ou des tests. **En production avec charge élevée, privilégier la terminaison TLS sur un reverse proxy dédié** (Nginx, Traefik, Caddy…).
-
-### Variables d'environnement Flask
+### Variables d'environnement Nginx TLS
 
 | Variable | Description | Défaut |
 |---|---|---|
-| `FLASK_HOST` | Adresse d'écoute Flask | `127.0.0.1` |
-| `FLASK_PORT` | Port d'écoute Flask | `5000` |
-| `FLASK_TLS_CERT_PATH` | Chemin **dans le container** vers le certificat PEM | — |
-| `FLASK_TLS_KEY_PATH` | Chemin **dans le container** vers la clé privée PEM | — |
-| `FLASK_TLS_ALLOW_DEV_SERVER` | Doit valoir `1` pour activer le mode HTTPS (opt-in explicite) | — |
+| `NGINX_TLS_CERT_PATH` | Chemin **dans le container** vers le certificat PEM | — |
+| `NGINX_TLS_KEY_PATH` | Chemin **dans le container** vers la clé privée PEM | — |
 
-Les variables `FLASK_TLS_CERT_PATH` et `FLASK_TLS_KEY_PATH` doivent **toutes les deux** être définies et pointer vers des fichiers existants pour que le mode HTTPS s'active. Si l'une seulement est définie, le container refuse de démarrer.
+Les variables `NGINX_TLS_CERT_PATH` et `NGINX_TLS_KEY_PATH` doivent **toutes les deux** être définies et pointer vers des fichiers existants pour que le mode HTTPS s'active. Si l'une seulement est définie, le container refuse de démarrer.
 
 ### Exemple de démarrage en HTTPS
 
@@ -166,28 +161,22 @@ cp server.key /opt/sam-tls/server.key
 podman run -d \
   --name sam-server \
   --env-file .env \
-  -e FLASK_HOST=0.0.0.0 \
-  -e FLASK_PORT=5443 \
-  -e FLASK_TLS_CERT_PATH=/tls/server.crt \
-  -e FLASK_TLS_KEY_PATH=/tls/server.key \
-  -e FLASK_TLS_ALLOW_DEV_SERVER=1 \
+  -e NGINX_TLS_CERT_PATH=/tls/server.crt \
+  -e NGINX_TLS_KEY_PATH=/tls/server.key \
   -v ssh_data:/data \
   -v /opt/sam-tls:/tls:ro \
-  -p 5443:5443 \
+  -p 8443:8080 \
   sam-server
 ```
 
 Ou via `.env` :
 
 ```env
-FLASK_HOST=0.0.0.0
-FLASK_PORT=5443
-FLASK_TLS_CERT_PATH=/tls/server.crt
-FLASK_TLS_KEY_PATH=/tls/server.key
-FLASK_TLS_ALLOW_DEV_SERVER=1
+NGINX_TLS_CERT_PATH=/tls/server.crt
+NGINX_TLS_KEY_PATH=/tls/server.key
 ```
 
-En mode HTTPS, Flask positionne automatiquement le flag `SESSION_COOKIE_SECURE=True`, ce qui interdit la transmission du cookie de session sur HTTP.
+En mode HTTPS, Nginx ajoute automatiquement l'en-tête `X-Forwarded-Proto: https` vers Flask.
 
 ---
 
@@ -440,12 +429,9 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `POSTGRES_USER` | Utilisateur PostgreSQL | `ssh_manager` |
 | `POSTGRES_PASSWORD` | Mot de passe PostgreSQL | — |
 | `NGINX_PORT` | Port d'écoute Nginx | `8080` |
+| `NGINX_TLS_CERT_PATH` | Chemin vers le certificat TLS Nginx (HTTPS activé seulement si cette variable **et** `NGINX_TLS_KEY_PATH` sont définies) | — |
+| `NGINX_TLS_KEY_PATH` | Chemin vers la clé privée TLS Nginx (HTTPS activé seulement si cette variable **et** `NGINX_TLS_CERT_PATH` sont définies) | — |
 | `FLASK_SECRET_KEY` | Clé secrète Flask (sessions) — **obligatoire**, le container refuse de démarrer si absente | — |
-| `FLASK_HOST` | Adresse d'écoute Flask | `127.0.0.1` |
-| `FLASK_PORT` | Port d'écoute Flask | `5000` |
-| `FLASK_TLS_CERT_PATH` | Chemin vers le certificat TLS Flask (HTTPS activé seulement si cette variable **et** `FLASK_TLS_KEY_PATH` sont définies) | — |
-| `FLASK_TLS_KEY_PATH` | Chemin vers la clé privée TLS Flask (HTTPS activé seulement si cette variable **et** `FLASK_TLS_CERT_PATH` sont définies) | — |
-| `FLASK_TLS_ALLOW_DEV_SERVER` | Doit valoir `1` si TLS Flask est activé (accepte explicitement l'usage du serveur HTTPS Werkzeug) | — |
 | `SMTP_HOST` | Serveur SMTP | — |
 | `SMTP_PORT` | Port SMTP | `587` |
 | `SMTP_USERNAME` | Utilisateur SMTP — si vide, `auth off` dans msmtp (relay sans authentification) | — |

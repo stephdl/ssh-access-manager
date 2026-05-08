@@ -40,73 +40,6 @@ def auth_client(client):
     return client
 
 
-def test_web_get_flask_tls_context_returns_none_when_env_is_unset(monkeypatch):
-    monkeypatch.delenv("FLASK_TLS_CERT_PATH", raising=False)
-    monkeypatch.delenv("FLASK_TLS_KEY_PATH", raising=False)
-
-    assert web._get_flask_tls_context() is None
-
-
-def test_web_get_flask_tls_context_requires_both_env_vars(monkeypatch):
-    monkeypatch.setenv("FLASK_TLS_CERT_PATH", "/tmp/cert.pem")
-    monkeypatch.delenv("FLASK_TLS_KEY_PATH", raising=False)
-
-    with pytest.raises(RuntimeError, match="must both be set"):
-        web._get_flask_tls_context()
-
-
-def test_web_get_flask_tls_context_requires_existing_files(monkeypatch, tmp_path):
-    cert_path = tmp_path / "cert.pem"
-    cert_path.write_text("cert")
-    key_path = tmp_path / "missing.key"
-
-    monkeypatch.setenv("FLASK_TLS_CERT_PATH", str(cert_path))
-    monkeypatch.setenv("FLASK_TLS_KEY_PATH", str(key_path))
-
-    with pytest.raises(RuntimeError, match="existing file"):
-        web._get_flask_tls_context()
-
-
-def test_web_get_flask_tls_context_returns_tuple_for_existing_files(monkeypatch, tmp_path):
-    cert_path = tmp_path / "cert.pem"
-    key_path = tmp_path / "key.pem"
-    cert_path.write_text("cert")
-    key_path.write_text("key")
-
-    monkeypatch.setenv("FLASK_TLS_CERT_PATH", str(cert_path))
-    monkeypatch.setenv("FLASK_TLS_KEY_PATH", str(key_path))
-
-    assert web._get_flask_tls_context() == (str(cert_path), str(key_path))
-
-
-def test_web_parse_flask_bind_config_defaults(monkeypatch):
-    monkeypatch.delenv("FLASK_HOST", raising=False)
-    monkeypatch.delenv("FLASK_PORT", raising=False)
-
-    assert web._parse_flask_bind_config() == ("127.0.0.1", 5000)
-
-
-def test_web_parse_flask_bind_config_with_custom_values(monkeypatch):
-    monkeypatch.setenv("FLASK_HOST", "0.0.0.0")
-    monkeypatch.setenv("FLASK_PORT", "5443")
-
-    assert web._parse_flask_bind_config() == ("0.0.0.0", 5443)
-
-
-def test_web_parse_flask_bind_config_rejects_non_integer_port(monkeypatch):
-    monkeypatch.setenv("FLASK_PORT", "not-a-number")
-
-    with pytest.raises(RuntimeError, match="valid integer"):
-        web._parse_flask_bind_config()
-
-
-def test_web_parse_flask_bind_config_rejects_out_of_range_port(monkeypatch):
-    monkeypatch.setenv("FLASK_PORT", "70000")
-
-    with pytest.raises(RuntimeError, match="between 1 and 65535"):
-        web._parse_flask_bind_config()
-
-
 def test_web_run_web_server_requires_flask_secret_key(monkeypatch):
     monkeypatch.delenv("FLASK_SECRET_KEY", raising=False)
 
@@ -114,10 +47,8 @@ def test_web_run_web_server_requires_flask_secret_key(monkeypatch):
         web._run_web_server()
 
 
-def test_web_run_web_server_uses_waitress_without_tls(monkeypatch):
+def test_web_run_web_server_uses_waitress(monkeypatch):
     monkeypatch.setenv("FLASK_SECRET_KEY", "test-secret")
-    monkeypatch.setattr(web, "_parse_flask_bind_config", lambda: ("127.0.0.1", 5000))
-    monkeypatch.setattr(web, "_get_flask_tls_context", lambda: None)
 
     waitress_serve = MagicMock()
     monkeypatch.setitem(sys.modules, "waitress", types.SimpleNamespace(serve=waitress_serve))
@@ -125,34 +56,6 @@ def test_web_run_web_server_uses_waitress_without_tls(monkeypatch):
     web._run_web_server()
 
     waitress_serve.assert_called_once_with(web.app, host="127.0.0.1", port=5000)
-
-
-def test_web_run_web_server_uses_flask_https_when_tls_configured(monkeypatch):
-    monkeypatch.setenv("FLASK_SECRET_KEY", "test-secret")
-    monkeypatch.setenv("FLASK_TLS_ALLOW_DEV_SERVER", "1")
-    monkeypatch.setattr(web, "_parse_flask_bind_config", lambda: ("127.0.0.1", 5443))
-    monkeypatch.setattr(web, "_get_flask_tls_context", lambda: ("/tmp/cert.pem", "/tmp/key.pem"))
-
-    with patch.object(web.app, "run") as mock_run:
-        web.app.config["SESSION_COOKIE_SECURE"] = False
-        web._run_web_server()
-
-    assert web.app.config["SESSION_COOKIE_SECURE"] is True
-    mock_run.assert_called_once_with(
-        host="127.0.0.1",
-        port=5443,
-        ssl_context=("/tmp/cert.pem", "/tmp/key.pem"),
-    )
-
-
-def test_web_run_web_server_rejects_tls_without_explicit_dev_server_opt_in(monkeypatch):
-    monkeypatch.setenv("FLASK_SECRET_KEY", "test-secret")
-    monkeypatch.setenv("FLASK_TLS_ALLOW_DEV_SERVER", "0")
-    monkeypatch.setattr(web, "_parse_flask_bind_config", lambda: ("127.0.0.1", 5443))
-    monkeypatch.setattr(web, "_get_flask_tls_context", lambda: ("/tmp/cert.pem", "/tmp/key.pem"))
-
-    with pytest.raises(RuntimeError, match="set to exactly '1'"):
-        web._run_web_server()
 
 
 # ---------------------------------------------------------------------------

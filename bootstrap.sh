@@ -5,9 +5,69 @@ set -e
 # Generate nginx.conf from template + ENV
 # ---------------------------------------------------------------------------
 generate_nginx_conf() {
-    sed \
-        -e "s|{{NGINX_PORT}}|${NGINX_PORT:-8080}|g" \
-        /app/nginx.conf.template > /etc/nginx/nginx.conf
+    local port="${NGINX_PORT:-8080}"
+    local cert="${NGINX_TLS_CERT_PATH:-}"
+    local key="${NGINX_TLS_KEY_PATH:-}"
+
+    if [ -n "${cert}" ] && [ -n "${key}" ]; then
+        # TLS mode — validate that both files are present
+        if [ ! -f "${cert}" ]; then
+            echo "ERROR: NGINX_TLS_CERT_PATH does not point to an existing file: ${cert}" >&2
+            exit 1
+        fi
+        if [ ! -f "${key}" ]; then
+            echo "ERROR: NGINX_TLS_KEY_PATH does not point to an existing file: ${key}" >&2
+            exit 1
+        fi
+        cat > /etc/nginx/nginx.conf << EOF
+worker_processes 1;
+error_log /dev/stderr warn;
+pid /tmp/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    access_log    /dev/stdout;
+    sendfile      on;
+
+    server {
+        listen ${port} ssl;
+        server_name _;
+
+        ssl_certificate     ${cert};
+        ssl_certificate_key ${key};
+        ssl_protocols       TLSv1.2 TLSv1.3;
+        ssl_ciphers         HIGH:!aNULL:!MD5;
+        ssl_session_cache   shared:SSL:10m;
+        ssl_session_timeout 10m;
+
+        # API Flask — proxy to 127.0.0.1:5000
+        location /api/ {
+            proxy_pass         http://127.0.0.1:5000;
+            proxy_set_header   Host \$host;
+            proxy_set_header   X-Real-IP \$remote_addr;
+            proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto https;
+        }
+
+        # Frontend Vue.js — static files
+        location / {
+            root      /app/static;
+            try_files \$uri \$uri/ /index.html;
+        }
+    }
+}
+EOF
+    else
+        # HTTP mode (default)
+        sed \
+            -e "s|{{NGINX_PORT}}|${port}|g" \
+            /app/nginx.conf.template > /etc/nginx/nginx.conf
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -95,6 +155,20 @@ if [ -z "${POSTGRES_PASSWORD}" ] || [ "${POSTGRES_PASSWORD}" = "changeme" ]; the
     echo " ERROR: POSTGRES_PASSWORD is missing or set to 'changeme'." >&2
     echo " Set a strong password in your .env file:" >&2
     echo "   POSTGRES_PASSWORD=<strong password>" >&2
+    echo "================================================================" >&2
+    _fail=1
+fi
+if [ -n "${NGINX_TLS_CERT_PATH}" ] && [ -z "${NGINX_TLS_KEY_PATH}" ]; then
+    echo "================================================================" >&2
+    echo " ERROR: NGINX_TLS_CERT_PATH is set but NGINX_TLS_KEY_PATH is missing." >&2
+    echo " Both variables must be set together to enable HTTPS on Nginx." >&2
+    echo "================================================================" >&2
+    _fail=1
+fi
+if [ -z "${NGINX_TLS_CERT_PATH}" ] && [ -n "${NGINX_TLS_KEY_PATH}" ]; then
+    echo "================================================================" >&2
+    echo " ERROR: NGINX_TLS_KEY_PATH is set but NGINX_TLS_CERT_PATH is missing." >&2
+    echo " Both variables must be set together to enable HTTPS on Nginx." >&2
     echo "================================================================" >&2
     _fail=1
 fi
