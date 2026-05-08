@@ -136,6 +136,61 @@ Les durées sont des constantes dans `web.py` — pas de redémarrage nécessair
 
 ---
 
+## HTTPS — Configuration TLS
+
+Par défaut, Flask écoute en HTTP sur `127.0.0.1:5000` (uniquement accessible à Nginx via proxy interne). Il est possible d'activer **HTTPS directement sur Flask** en fournissant un certificat et une clé privée via variables d'environnement.
+
+> **Note** : ce mode utilise le serveur de développement Werkzeug. Il convient pour des expositions directes simples ou des tests. **En production avec charge élevée, privilégier la terminaison TLS sur un reverse proxy dédié** (Nginx, Traefik, Caddy…).
+
+### Variables d'environnement Flask
+
+| Variable | Description | Défaut |
+|---|---|---|
+| `FLASK_HOST` | Adresse d'écoute Flask | `127.0.0.1` |
+| `FLASK_PORT` | Port d'écoute Flask | `5000` |
+| `FLASK_TLS_CERT_PATH` | Chemin **dans le container** vers le certificat PEM | — |
+| `FLASK_TLS_KEY_PATH` | Chemin **dans le container** vers la clé privée PEM | — |
+| `FLASK_TLS_ALLOW_DEV_SERVER` | Doit valoir `1` pour activer le mode HTTPS (opt-in explicite) | — |
+
+Les variables `FLASK_TLS_CERT_PATH` et `FLASK_TLS_KEY_PATH` doivent **toutes les deux** être définies et pointer vers des fichiers existants pour que le mode HTTPS s'active. Si l'une seulement est définie, le container refuse de démarrer.
+
+### Exemple de démarrage en HTTPS
+
+```bash
+# 1. Placer les fichiers TLS dans un dossier local
+mkdir -p /opt/sam-tls
+cp server.crt /opt/sam-tls/server.crt
+cp server.key /opt/sam-tls/server.key
+
+# 2. Démarrer le container avec montage du dossier TLS
+podman run -d \
+  --name sam-server \
+  --env-file .env \
+  -e FLASK_HOST=0.0.0.0 \
+  -e FLASK_PORT=5443 \
+  -e FLASK_TLS_CERT_PATH=/tls/server.crt \
+  -e FLASK_TLS_KEY_PATH=/tls/server.key \
+  -e FLASK_TLS_ALLOW_DEV_SERVER=1 \
+  -v ssh_data:/data \
+  -v /opt/sam-tls:/tls:ro \
+  -p 5443:5443 \
+  sam-server
+```
+
+Ou via `.env` :
+
+```env
+FLASK_HOST=0.0.0.0
+FLASK_PORT=5443
+FLASK_TLS_CERT_PATH=/tls/server.crt
+FLASK_TLS_KEY_PATH=/tls/server.key
+FLASK_TLS_ALLOW_DEV_SERVER=1
+```
+
+En mode HTTPS, Flask positionne automatiquement le flag `SESSION_COOKIE_SECURE=True`, ce qui interdit la transmission du cookie de session sur HTTP.
+
+---
+
 ## Workflow — Ajout d'un serveur distant
 
 ### Via l'interface web (recommandé — provisionnement automatique)
@@ -410,7 +465,7 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 >
 > **Fuseau horaire** : les dates sont stockées en UTC dans PostgreSQL. L'interface web affiche automatiquement les dates dans le fuseau du navigateur.
 >
-> **HTTPS Flask direct** : `FLASK_TLS_CERT_PATH`/`FLASK_TLS_KEY_PATH` active un mode HTTPS direct côté Flask (utile pour exposition directe) et requiert `FLASK_TLS_ALLOW_DEV_SERVER=1`. En production, privilégier la terminaison TLS sur un reverse proxy dédié.
+> **HTTPS Flask direct** : voir la section [HTTPS — Configuration TLS](#https--configuration-tls) pour le détail et un exemple complet.
 
 > **Secrets obligatoires avant un déploiement en production** — ne jamais laisser les valeurs d'exemple :
 > ```bash

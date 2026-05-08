@@ -60,6 +60,8 @@ Voir `ui/CLAUDE.md` pour le frontend Vue.js (vues, composants, i18n, tests Vites
 POSTGRES_DB=ssh_manager  POSTGRES_USER=ssh_manager  POSTGRES_PASSWORD=changeme
 NGINX_PORT=8080
 FLASK_SECRET_KEY=changeme
+FLASK_HOST=127.0.0.1  FLASK_PORT=5000
+FLASK_TLS_CERT_PATH=  FLASK_TLS_KEY_PATH=  FLASK_TLS_ALLOW_DEV_SERVER=
 SMTP_HOST  SMTP_PORT=587  SMTP_USERNAME  SMTP_PASSWORD  SMTP_FROM
 SMTP_ENCRYPTION=starttls  SMTP_TLSVERIFY=1  SMTP_ENABLED=1
 SSH_USER=audit-collector
@@ -72,6 +74,10 @@ SMTP_ENCRYPTION : `none` / `starttls` / `tls` — contrôle le mode TLS de msmtp
 SMTP_USERNAME : si vide → `auth off` dans msmtp (relay sans authentification).
 SMTP_TLSVERIFY : `1` (on) / `` (off) — vérifie les certificats TLS.
 SMTP_ENABLED : `1` / `` (off) — désactive l'envoi d'emails si vide.
+FLASK_HOST : adresse d'écoute Flask (défaut `127.0.0.1`).
+FLASK_PORT : port d'écoute Flask (défaut `5000`).
+FLASK_TLS_CERT_PATH + FLASK_TLS_KEY_PATH : si les deux sont définis → mode HTTPS Flask (Werkzeug dev server).
+FLASK_TLS_ALLOW_DEV_SERVER : doit valoir `1` pour activer le mode HTTPS (opt-in explicite).
 
 ## Langue du code — English only
 
