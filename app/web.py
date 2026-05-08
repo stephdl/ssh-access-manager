@@ -147,7 +147,7 @@ def _run_web_server() -> None:
     if tls_context:
         if os.environ.get("FLASK_TLS_ALLOW_DEV_SERVER", "") != "1":
             raise RuntimeError(
-                "FLASK_TLS_ALLOW_DEV_SERVER=1 is required to explicitly acknowledge that Flask HTTPS mode uses "
+                "FLASK_TLS_ALLOW_DEV_SERVER=1 is required to explicitly acknowledge that Flask app.run() uses "
                 "Werkzeug's development server, which is not recommended for production environments"
             )
         logging.warning(

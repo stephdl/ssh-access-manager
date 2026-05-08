@@ -386,6 +386,8 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `POSTGRES_PASSWORD` | Mot de passe PostgreSQL | — |
 | `NGINX_PORT` | Port d'écoute Nginx | `8080` |
 | `FLASK_SECRET_KEY` | Clé secrète Flask (sessions) — **obligatoire**, le container refuse de démarrer si absente | — |
+| `FLASK_HOST` | Adresse d'écoute Flask | `127.0.0.1` |
+| `FLASK_PORT` | Port d'écoute Flask | `5000` |
 | `FLASK_TLS_CERT_PATH` | Chemin vers le certificat TLS Flask (HTTPS activé seulement si cette variable **et** `FLASK_TLS_KEY_PATH` sont définies) | — |
 | `FLASK_TLS_KEY_PATH` | Chemin vers la clé privée TLS Flask (HTTPS activé seulement si cette variable **et** `FLASK_TLS_CERT_PATH` sont définies) | — |
 | `FLASK_TLS_ALLOW_DEV_SERVER` | Doit valoir `1` si TLS Flask est activé (accepte explicitement l'usage du serveur HTTPS Werkzeug) | — |
