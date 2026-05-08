@@ -35,13 +35,13 @@ function mountTable(servers = SERVERS, currentRole = 'sysadmin') {
 }
 
 describe('ServerTable', () => {
-  it('affiche une ligne par serveur', () => {
+  it('displays one row per server', () => {
     const w = mountTable()
     const rows = w.findAll('tbody tr').filter(r => !r.classes('empty'))
     expect(rows.length).toBe(SERVERS.length)
   })
 
-  it('filtre par hostname', async () => {
+  it('filters by hostname', async () => {
     const w = mountTable()
     await w.find('input').setValue('prod')
     const rows = w.findAll('tbody tr')
@@ -49,7 +49,7 @@ describe('ServerTable', () => {
     expect(rows[0].text()).toContain('prod-01')
   })
 
-  it('filtre par adresse IP', async () => {
+  it('filters by IP address', async () => {
     const w = mountTable()
     await w.find('input').setValue('10.0.0.2')
     const rows = w.findAll('tbody tr')
@@ -57,7 +57,7 @@ describe('ServerTable', () => {
     expect(rows[0].text()).toContain('staging-01')
   })
 
-  it('filtre par environment', async () => {
+  it('filters by environment', async () => {
     const w = mountTable()
     await w.find('input').setValue('lab')
     const rows = w.findAll('tbody tr')
@@ -65,66 +65,66 @@ describe('ServerTable', () => {
     expect(rows[0].text()).toContain('disabled-01')
   })
 
-  it('affiche le badge DÉSACTIVÉ pour un serveur inactif', () => {
+  it('shows DISABLED badge for inactive server', () => {
     const w = mountTable()
     const badges = w.findAll('.badge-disabled')
     expect(badges.length).toBe(1)
   })
 
-  it('applique la classe row-danger pour un serveur désactivé', () => {
+  it('applies row-danger class for disabled server', () => {
     const w = mountTable()
     const dangerRows = w.findAll('tr.row-danger')
     expect(dangerRows.length).toBe(1)
     expect(dangerRows[0].text()).toContain('disabled-01')
   })
 
-  it('applique la classe row-warning pour un serveur avec anomalies', () => {
+  it('applies row-warning class for server with anomalies', () => {
     const w = mountTable()
     const warningRows = w.findAll('tr.row-warning')
     expect(warningRows.length).toBe(1)
     expect(warningRows[0].text()).toContain('staging-01')
   })
 
-  it('affiche ✅ pour un serveur actif sans anomalies', () => {
+  it('shows ✅ for an active server without anomalies', () => {
     const w = mountTable([SERVERS[0]])
     expect(w.text()).toContain('✅')
   })
 
-  it('affiche 🔴 pour un serveur désactivé', () => {
+  it('shows 🔴 for a disabled server', () => {
     const w = mountTable([SERVERS[2]])
     expect(w.text()).toContain('🔴')
   })
 
-  it('affiche 🟡 pour un serveur actif avec anomalies', () => {
+  it('shows 🟡 for an active server with anomalies', () => {
     const w = mountTable([SERVERS[1]])
     expect(w.text()).toContain('🟡')
   })
 
-  it('affiche le message vide quand aucun résultat', async () => {
+  it('displays empty message when no results', async () => {
     const w = mountTable()
     await w.find('input').setValue('xxxxxxnotfound')
     expect(w.find('.empty').exists()).toBe(true)
   })
 
-  it('le bouton scan émet scan avec le hostname', async () => {
+  it('scan button emits scan with hostname', async () => {
     const w = mountTable([SERVERS[0]])
     await w.find('button').trigger('click')
     expect(w.emitted('scan')).toBeTruthy()
     expect(w.emitted('scan')[0][0]).toBe('prod-01')
   })
 
-  it('affiche os_family ou — si absent', () => {
+  it('displays os_family or — if absent', () => {
     const w = mountTable([SERVERS[2]])
     expect(w.text()).toContain('—')
   })
 
-  it('affiche le bouton Edit dans chaque ligne', () => {
+  it('displays Edit button in each row', () => {
     const w = mountTable()
     const editButtons = w.findAll('button').filter((btn) => btn.text().includes('Edit'))
     expect(editButtons.length).toBe(SERVERS.length)
   })
 
-  it('le bouton Edit émet edit avec le serveur correspondant', async () => {
+  it('Edit button emits edit with corresponding server', async () => {
     const w = mountTable([SERVERS[0]])
     const buttons = w.findAll('button')
     const editButton = buttons.find((btn) => btn.text().includes('Edit'))
@@ -133,7 +133,7 @@ describe('ServerTable', () => {
     expect(w.emitted('edit')[0][0]).toEqual(SERVERS[0])
   })
 
-  it('affiche seulement 10 items par défaut sur la première page', () => {
+  it('shows only 10 items by default on the first page', () => {
     const manyServers = Array.from({ length: 25 }, (_, i) => ({
       id: String(i + 1),
       hostname: `server-${i + 1}`,
@@ -218,7 +218,7 @@ describe('ServerTable', () => {
     expect(hostnameHeader.text()).toContain('↕')
   })
 
-  it('affiche 🟠 pour un serveur actif dont le dernier scan a échoué', () => {
+  it('shows 🟠 for an active server whose last scan failed', () => {
     const server = {
       id: '4', hostname: 'fail-01', ip_address: '10.0.0.4',
       environment: 'lab', os_family: null, added_at: null,
@@ -228,7 +228,7 @@ describe('ServerTable', () => {
     expect(w.text()).toContain('🟠')
   })
 
-  it('applique la classe row-scan-fail quand last_scan_ok est false', () => {
+  it('applies row-scan-fail class when last_scan_ok is false', () => {
     const server = {
       id: '4', hostname: 'fail-01', ip_address: '10.0.0.4',
       environment: 'lab', os_family: null, added_at: null,
@@ -239,7 +239,7 @@ describe('ServerTable', () => {
     expect(row.classes()).toContain('row-scan-fail')
   })
 
-  it('🟠 a priorité sur 🟡 (scan failed + anomalies)', () => {
+  it('🟠 takes precedence over 🟡 (scan failed + anomalies)', () => {
     const server = {
       id: '5', hostname: 'fail-anomaly', ip_address: '10.0.0.5',
       environment: 'lab', os_family: null, added_at: null,

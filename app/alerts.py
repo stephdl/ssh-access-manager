@@ -1,12 +1,12 @@
 """
-alerts.py — envoi d'emails via msmtp.
+alerts.py — send emails via msmtp.
 
-Niveaux :
-  CRITICAL  → email immediat
-  WARNING   → email immediat (anti-spam 24h gere par actions.py)
-  INFO      → log uniquement, pas d'email
+Levels:
+    CRITICAL  → immediate email
+    WARNING   → immediate email (24h anti-spam handled by actions.py)
+    INFO      → log only, no email
 
-Les destinataires sont les administrateurs actifs avec receive_alerts=true.
+Recipients are active administrators with receive_alerts=true.
 """
 import logging
 import os

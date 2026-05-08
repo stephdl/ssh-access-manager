@@ -1,9 +1,9 @@
 """
-expire.py — gestion des expirations de cles SSH.
-Appelee par cron a chaque cycle (SCAN_INTERVAL_HOURS).
+expire.py — manage SSH key expirations.
+Called by cron on each cycle (SCAN_INTERVAL_HOURS).
 
-warn_expiring_keys() : alerte J-7 et J-2 avec anti-spam 24h
-expire_keys()        : scenario 4 — revocation automatique a echeance
+warn_expiring_keys(): send warnings at J-7 and J-2 with 24h anti-spam
+expire_keys(): scenario 4 — automatic revocation on expiry
 """
 import json
 
