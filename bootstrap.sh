@@ -3,11 +3,61 @@ set -e
 
 # ---------------------------------------------------------------------------
 # Generate nginx.conf from template + ENV
+# If NGINX_TLS_CERT_PATH and NGINX_TLS_KEY_PATH are set, use the HTTPS
+# template (nginx.conf.https.template).  Otherwise use the HTTP-only
+# template (nginx.conf.http.template) which contains no SSL directives.
 # ---------------------------------------------------------------------------
 generate_nginx_conf() {
-    sed \
-        -e "s|{{NGINX_PORT}}|${NGINX_PORT:-8080}|g" \
-        /app/nginx.conf.template > /etc/nginx/nginx.conf
+    _cert="${NGINX_TLS_CERT_PATH:-}"
+    _key="${NGINX_TLS_KEY_PATH:-}"
+    _port="${NGINX_PORT:-8080}"
+    _https_port_suffix=""
+
+    if [ -n "$_cert" ] && [ -n "$_key" ]; then
+        if [ "$_port" != "443" ]; then
+            _https_port_suffix=":${_port}"
+        fi
+        sed \
+            -e "s|{{NGINX_PORT}}|${_port}|g" \
+            -e "s|{{SSL_CERT}}|${_cert}|g" \
+            -e "s|{{SSL_KEY}}|${_key}|g" \
+            -e "s|{{HTTPS_PORT_SUFFIX}}|${_https_port_suffix}|g" \
+            /app/nginx.conf.https.template > /etc/nginx/nginx.conf
+        echo "[bootstrap] Nginx configured with TLS on port ${_port} (HTTP redirected to HTTPS)."
+    else
+        sed "s|{{NGINX_PORT}}|${_port}|g" \
+            /app/nginx.conf.http.template > /etc/nginx/nginx.conf
+        echo "[bootstrap] Nginx configured in HTTP mode on port ${_port}."
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Generate a self-signed TLS certificate if cert/key paths are configured
+# but the files do not yet exist (idempotent — no-op when files are present).
+# ---------------------------------------------------------------------------
+generate_tls_cert() {
+    _cert="${NGINX_TLS_CERT_PATH:-}"
+    _key="${NGINX_TLS_KEY_PATH:-}"
+
+    if [ -z "$_cert" ] || [ -z "$_key" ]; then
+        return 0
+    fi
+
+    if [ -f "$_cert" ] && [ -f "$_key" ]; then
+        echo "[bootstrap] TLS certificate found at ${_cert}."
+        return 0
+    fi
+
+    echo "[bootstrap] TLS certificate not found — generating a self-signed certificate."
+    mkdir -p "$(dirname "$_cert")" "$(dirname "$_key")"
+    openssl req -x509 -nodes -newkey rsa:2048 \
+        -keyout "$_key" \
+        -out "$_cert" \
+        -days 365 \
+        -subj "/CN=ssh-access-manager" \
+        -addext "subjectAltName=IP:127.0.0.1,DNS:localhost" 2>/dev/null
+    chmod 600 "$_key"
+    echo "[bootstrap] Self-signed TLS certificate generated (valid 365 days)."
 }
 
 # ---------------------------------------------------------------------------
@@ -197,16 +247,20 @@ PYEOF
     # 10. Generate msmtprc
     generate_msmtprc
 
-    # 11. Generate nginx.conf
+    # 11. Generate TLS certificate if enabled
+    generate_tls_cert
+
+    # 12. Generate nginx.conf
     generate_nginx_conf
 
-    # 12. Generate crontab
+    # 13. Generate crontab
     generate_crontab
 
 else
     echo "[bootstrap] Normal startup (existing data)."
 
     # Regenerate configuration from ENV on each startup
+    generate_tls_cert
     generate_nginx_conf
     generate_msmtprc
     generate_crontab

@@ -1,0 +1,51 @@
+worker_processes 1;
+error_log /dev/stderr warn;
+pid /tmp/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    access_log    /dev/stdout;
+    sendfile      on;
+
+    server {
+        listen 80;
+        server_name _;
+        return 301 https://$host{{HTTPS_PORT_SUFFIX}}$request_uri;
+    }
+
+    server {
+        listen {{NGINX_PORT}} ssl;
+        server_name _;
+        error_page 497 =301 https://$host{{HTTPS_PORT_SUFFIX}}$request_uri;
+
+        ssl_certificate      {{SSL_CERT}};
+        ssl_certificate_key  {{SSL_KEY}};
+        ssl_protocols        TLSv1.2 TLSv1.3;
+        ssl_ciphers          ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+        ssl_prefer_server_ciphers off;
+        ssl_session_timeout  1d;
+        ssl_session_cache    shared:SSL:10m;
+        ssl_session_tickets  off;
+        add_header           Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+
+        # Flask API — proxy to 127.0.0.1:5000
+        location /api/ {
+            proxy_pass         http://127.0.0.1:5000;
+            proxy_set_header   Host $host;
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto $scheme;
+        }
+
+        # Vue.js frontend — static files
+        location / {
+            root      /app/static;
+            try_files $uri $uri/ /index.html;
+        }
+    }
+}
