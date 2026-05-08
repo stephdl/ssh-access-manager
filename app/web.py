@@ -145,6 +145,9 @@ def _run_web_server() -> None:
     tls_context = _get_flask_tls_context()
 
     if tls_context:
+        logging.warning(
+            "FLASK_TLS_CERT_PATH and FLASK_TLS_KEY_PATH are set; running Flask HTTPS server directly"
+        )
         app.config["SESSION_COOKIE_SECURE"] = True
         app.run(host=host, port=port, ssl_context=tls_context)
         return

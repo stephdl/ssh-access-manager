@@ -406,6 +406,8 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 > **Seuils d'alerte expiration** : `expire_warn_days` (défaut 7) et `expire_warn_days_2` (défaut 2) sont configurables sans redémarrage depuis **Settings → Expiry warnings**.
 >
 > **Fuseau horaire** : les dates sont stockées en UTC dans PostgreSQL. L'interface web affiche automatiquement les dates dans le fuseau du navigateur.
+>
+> **HTTPS Flask direct** : `FLASK_TLS_CERT_PATH`/`FLASK_TLS_KEY_PATH` active un mode HTTPS direct côté Flask (utile pour exposition directe). En production, privilégier la terminaison TLS sur un reverse proxy dédié.
 
 > **Secrets obligatoires avant un déploiement en production** — ne jamais laisser les valeurs d'exemple :
 > ```bash
