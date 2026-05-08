@@ -218,7 +218,7 @@ function envBadge(env) {
 
 .empty {
   text-align: center;
-  color: #888;
+  color: var(--text-secondary);
   padding: 1rem 0;
 }
 
@@ -237,10 +237,10 @@ function envBadge(env) {
 }
 
 .link-disabled {
-  color: #999;
+  color: var(--text-secondary);
 }
 .link-disabled:hover {
-  color: #777;
+  color: var(--text-secondary);
 }
 
 .badge-disabled {

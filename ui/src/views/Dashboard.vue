@@ -636,7 +636,7 @@ h1 {
 .deploy-hint {
   margin: 0;
   font-size: 0.85rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 .deploy-hint.small {
   font-size: 0.8rem;

@@ -357,7 +357,7 @@ select {
 }
 
 .success-panel code {
-  background: #fff;
+  background: var(--bg-secondary);
   padding: 2px 4px;
   border-radius: 3px;
   font-size: 0.85rem;

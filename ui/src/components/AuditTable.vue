@@ -310,7 +310,7 @@ code {
 
 .empty {
   text-align: center;
-  color: #888;
+  color: var(--text-secondary);
   padding: 1rem 0;
 }
 

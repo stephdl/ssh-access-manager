@@ -310,7 +310,7 @@ h2 {
 }
 
 .card {
-  background: #fff;
+  background: var(--bg-secondary);
   padding: 1.5rem;
   border-radius: 6px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -320,7 +320,7 @@ h2 {
   margin-bottom: 1rem;
   font-size: 1.1rem;
   font-weight: 600;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 0.5rem;
 }
 

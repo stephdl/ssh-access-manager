@@ -437,7 +437,7 @@ code {
 }
 
 .empty {
-  color: #888;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   padding: 0.5rem 0;
 }

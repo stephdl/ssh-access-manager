@@ -235,13 +235,13 @@ const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSi
 }
 
 .badge-off {
-  background: #e9ecef;
-  color: #6c757d;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .empty {
   text-align: center;
-  color: #888;
+  color: var(--text-secondary);
   padding: 1rem 0;
 }
 </style>

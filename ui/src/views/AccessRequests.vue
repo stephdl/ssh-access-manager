@@ -79,7 +79,7 @@ h1 {
   margin-bottom: 1rem;
 }
 .info-text {
-  color: #555;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   margin-bottom: 1rem;
 }
