@@ -422,6 +422,10 @@ code {
   text-decoration: underline;
 }
 
+:global(html[data-theme='dark'] .server-link) {
+  color: #60a5fa;
+}
+
 .non-compliant {
   cursor: help;
 }

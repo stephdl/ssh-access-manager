@@ -82,7 +82,9 @@
           >
             <td>{{ user.unix_user }}</td>
             <td>
-              <RouterLink :to="`/servers/${user.hostname}`">{{ user.hostname }}</RouterLink>
+              <RouterLink :to="`/servers/${user.hostname}`" class="server-link">{{
+                user.hostname
+              }}</RouterLink>
             </td>
             <td>{{ user.ip_address || '—' }}</td>
             <td>{{ formatExpiry(user.expires_at) }}</td>
@@ -425,6 +427,20 @@ td {
   padding: 0.25rem 0.5rem;
   border-radius: 3px;
   font-size: 0.8rem;
+}
+
+.server-link {
+  color: #0d6efd;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.server-link:hover {
+  text-decoration: underline;
+}
+
+:global(html[data-theme='dark'] .server-link) {
+  color: #60a5fa;
 }
 
 .empty-state,
