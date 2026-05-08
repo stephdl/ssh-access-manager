@@ -1,6 +1,6 @@
 """
-collect.py — orchestration du scan SSH complet.
-Appelee par cron et via manage.py / web.py.
+collect.py — orchestration of the full SSH scan.
+Called by cron and via manage.py / web.py.
 """
 import base64
 import hashlib

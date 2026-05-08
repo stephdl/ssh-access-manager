@@ -78,11 +78,11 @@ def test_collect_parse_key_line_root_user():
 
 
 # ---------------------------------------------------------------------------
-# Tests unix_user — même clé pour plusieurs utilisateurs
+# Tests unix_user — same key for multiple users
 # ---------------------------------------------------------------------------
 
 def test_collect_scan_server_same_key_two_users_creates_two_auth_rows():
-    """La même clé déployée pour alice et bob → deux lignes key_authorizations."""
+    """The same key deployed for alice and bob → two key_authorizations rows."""
     alice_line = f"alice\tssh-ed25519 {ED25519_B64} alice@host"
     bob_line = f"bob\tssh-ed25519 {ED25519_B64} bob@host"
 
@@ -112,7 +112,7 @@ def test_collect_scan_server_same_key_two_users_creates_two_auth_rows():
 
 
 def test_collect_scan_server_unix_user_passed_to_handle_unknown_key():
-    """unix_user est passé à handle_unknown_key pour les clés inconnues."""
+    """unix_user is passed to handle_unknown_key for unknown keys."""
     with patch("collect.ssh") as mock_ssh, \
          patch("collect.db") as mock_db, \
          patch("collect.actions") as mock_actions, \
@@ -130,7 +130,7 @@ def test_collect_scan_server_unix_user_passed_to_handle_unknown_key():
 
 def test_collect_scan_server_only_disappeared_unix_user_row_triggers_scenario2():
     """
-    Si alice disparaît mais bob est encore présent, seul alice est détecté comme disparu.
+    If alice disappears but bob remains present, only alice is detected as disappeared.
     """
     fp = collect._compute_fingerprint(ED25519_B64)
     bob_line = f"bob\tssh-ed25519 {ED25519_B64} bob@host"
@@ -161,7 +161,7 @@ def test_collect_scan_server_only_disappeared_unix_user_row_triggers_scenario2()
 
 
 # ---------------------------------------------------------------------------
-# Tests scan_server() — scenario 3 (cle inconnue)
+# Tests scan_server() — scenario 3 (unknown key)
 # ---------------------------------------------------------------------------
 
 def test_collect_scan_server_scenario3_unknown_key_calls_handle_unknown_key():
@@ -200,7 +200,7 @@ def test_collect_scan_server_scenario3_logs_scan_completed():
 
 
 # ---------------------------------------------------------------------------
-# Tests scan_server() — scenario 2 (cle disparue)
+# Tests scan_server() — scenario 2 (disappeared key)
 # ---------------------------------------------------------------------------
 
 def test_collect_scan_server_scenario2_disappeared_key_calls_handle_disappeared():
@@ -225,7 +225,7 @@ def test_collect_scan_server_scenario2_disappeared_key_calls_handle_disappeared(
 
 
 # ---------------------------------------------------------------------------
-# Tests scan_server() — scenario 5 (cle revoquee/expiree reapparue)
+# Tests scan_server() — scenario 5 (revoked/expired key reappeared)
 # ---------------------------------------------------------------------------
 
 def test_collect_scan_server_scenario5_revoked_key_reappeared_calls_handle_reappeared():
@@ -551,7 +551,7 @@ def test_collect_scan_server_updates_key_size_bits_on_rescan():
 
 
 # ---------------------------------------------------------------------------
-# Tests _should_run() — skip si dernier scan trop récent
+# Tests _should_run() — skip if last scan is too recent
 # ---------------------------------------------------------------------------
 
 def test_collect_should_run_true_when_no_scan_completed():

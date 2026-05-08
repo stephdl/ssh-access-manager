@@ -8,20 +8,20 @@ const i18n = createI18n({ legacy: false, locale: 'en', messages: { en } })
 const mk = () => mount(ExpiryPicker, { global: { plugins: [i18n] } })
 
 describe('ExpiryPicker', () => {
-  it('démarre en mode heures', () => {
+  it('starts in hours mode', () => {
     const w = mk()
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(true)
     expect(w.find('[data-testid="input-date"]').exists()).toBe(false)
   })
 
-  it('passe en mode date quand on sélectionne date précise', async () => {
+  it('switches to date mode when date selected', async () => {
     const w = mk()
     await w.find('[data-testid="mode-date"]').setChecked(true)
     expect(w.find('[data-testid="input-date"]').exists()).toBe(true)
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(false)
   })
 
-  it('repasse en mode heures depuis le mode date', async () => {
+  it('switches back to hours mode from date mode', async () => {
     const w = mk()
     await w.find('[data-testid="mode-date"]').setChecked(true)
     await w.find('[data-testid="mode-hours"]').setChecked(true)
@@ -29,7 +29,7 @@ describe('ExpiryPicker', () => {
     expect(w.find('[data-testid="input-date"]').exists()).toBe(false)
   })
 
-  it('les deux modes ne sont jamais affichés simultanément', async () => {
+  it('both modes are never shown at the same time', async () => {
     const w = mk()
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(true)
     expect(w.find('[data-testid="input-date"]').exists()).toBe(false)
@@ -39,7 +39,7 @@ describe('ExpiryPicker', () => {
     expect(w.find('[data-testid="input-date"]').exists()).toBe(true)
   })
 
-  it('émet { hours } valide quand une durée positive est saisie', async () => {
+  it('emits { hours } when a positive duration is entered', async () => {
     const w = mk()
     await w.find('[data-testid="input-hours"]').setValue('48')
     await w.find('[data-testid="input-hours"]').trigger('input')
@@ -48,7 +48,7 @@ describe('ExpiryPicker', () => {
     expect(emitted[emitted.length - 1][0]).toEqual({ hours: 48 })
   })
 
-  it('émet null si la durée est 0 ou négative', async () => {
+  it('emits null if duration is 0 or negative', async () => {
     const w = mk()
     await w.find('[data-testid="input-hours"]').setValue('0')
     await w.find('[data-testid="input-hours"]').trigger('input')
@@ -56,7 +56,7 @@ describe('ExpiryPicker', () => {
     expect(emitted[emitted.length - 1][0]).toBeNull()
   })
 
-  it('émet null quand on change de mode', async () => {
+  it('emits null when switching mode', async () => {
     const w = mk()
     await w.find('[data-testid="input-hours"]').setValue('10')
     await w.find('[data-testid="input-hours"]').trigger('input')
@@ -65,14 +65,14 @@ describe('ExpiryPicker', () => {
     expect(emitted[emitted.length - 1][0]).toBeNull()
   })
 
-  it('affiche une erreur si durée < 1', async () => {
+  it('shows an error if duration < 1', async () => {
     const w = mk()
     await w.find('[data-testid="input-hours"]').setValue('0')
     await w.find('[data-testid="input-hours"]').trigger('input')
     expect(w.find('.field-error').exists()).toBe(true)
   })
 
-  it('n\'affiche pas d\'erreur si durée >= 1', async () => {
+  it('does not show an error if duration >= 1', async () => {
     const w = mk()
     await w.find('[data-testid="input-hours"]').setValue('1')
     await w.find('[data-testid="input-hours"]').trigger('input')

@@ -14,13 +14,13 @@ def _make_recipients(*emails):
 
 
 # ---------------------------------------------------------------------------
-# CRITICAL — envoie un email via msmtp pour chaque destinataire éligible
+# CRITICAL — send an email via msmtp to each eligible recipient
 # ---------------------------------------------------------------------------
 
 def test_alerts_critical_sends_to_single_recipient(mock_smtp):
     with patch("alerts.db") as mock_db:
         mock_db.query.return_value = _make_recipients("admin@example.com")
-        alerts.send_alert("CRITICAL", "Cle inconnue detectee", "Fingerprint: SHA256:abc")
+        alerts.send_alert("CRITICAL", "Unknown key detected", "Fingerprint: SHA256:abc")
     mock_smtp.assert_called_once()
     args = mock_smtp.call_args[0][0]
     assert "msmtp" in args
@@ -71,13 +71,13 @@ def test_alerts_critical_to_header_matches_recipient(mock_smtp):
 
 
 # ---------------------------------------------------------------------------
-# WARNING — envoie un email via msmtp
+# WARNING — send an email via msmtp
 # ---------------------------------------------------------------------------
 
 def test_alerts_warning_sends_email(mock_smtp):
     with patch("alerts.db") as mock_db:
         mock_db.query.return_value = _make_recipients("admin@example.com")
-        alerts.send_alert("WARNING", "Cle expirant bientot", "Expires dans 2 jours")
+        alerts.send_alert("WARNING", "Key expiring soon", "Expires in 2 days")
     mock_smtp.assert_called_once()
 
 
@@ -98,7 +98,7 @@ def test_alerts_warning_sets_normal_priority(mock_smtp):
 
 
 # ---------------------------------------------------------------------------
-# INFO — log uniquement, pas d'email
+# INFO — log only, no email
 # ---------------------------------------------------------------------------
 
 def test_alerts_info_does_not_send_email(mock_smtp):
@@ -112,7 +112,7 @@ def test_alerts_info_unknown_level_does_not_send_email(mock_smtp):
 
 
 # ---------------------------------------------------------------------------
-# Robustesse — msmtp manquant ou erreur
+# Robustness — msmtp missing or error
 # ---------------------------------------------------------------------------
 
 def test_alerts_msmtp_not_found_does_not_raise():

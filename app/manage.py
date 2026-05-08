@@ -1,6 +1,6 @@
 """
-manage.py — CLI click pour ssh-access-manager.
-Importe actions.py pour la logique metier — jamais de duplication.
+manage.py — CLI Click for ssh-access-manager.
+Imports `actions.py` for business logic — no duplication between CLI and API.
 """
 from datetime import datetime, timedelta, timezone
 
@@ -12,7 +12,7 @@ import db
 
 
 # ---------------------------------------------------------------------------
-# Helpers de formatage
+# Formatting helpers
 # ---------------------------------------------------------------------------
 
 def _table(rows: list[dict], columns: list[str]) -> None:
@@ -52,7 +52,7 @@ def _require_admin() -> str:
 
 
 # ---------------------------------------------------------------------------
-# CLI principal
+# Main CLI
 # ---------------------------------------------------------------------------
 
 @click.group()

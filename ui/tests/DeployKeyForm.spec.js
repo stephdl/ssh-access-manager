@@ -28,7 +28,7 @@ afterEach(() => {
 })
 
 describe('DeployKeyForm', () => {
-  it('affiche tous les champs requis', async () => {
+  it('renders all required fields', async () => {
     const w = mount(DeployKeyForm, { global: { plugins: [i18n] } })
     await flushPromises()
     expect(w.find('[data-testid="input-unix-user"]').exists()).toBe(true)
@@ -37,7 +37,7 @@ describe('DeployKeyForm', () => {
     expect(w.find('[data-testid="input-justification"]').exists()).toBe(true)
   })
 
-  it('peuple le dropdown serveur depuis l\'API', async () => {
+  it('populates server dropdown from API', async () => {
     const w = mount(DeployKeyForm, { global: { plugins: [i18n] } })
     await flushPromises()
     const options = w.findAll('[data-testid="select-server"] option')
@@ -46,7 +46,7 @@ describe('DeployKeyForm', () => {
     expect(options[2].text()).toBe('staging-01')
   })
 
-  it('filtre les serveurs inactifs du dropdown', async () => {
+  it('filters out inactive servers from dropdown', async () => {
     const w = mount(DeployKeyForm, { global: { plugins: [i18n] } })
     await flushPromises()
     const serverValues = w
@@ -57,20 +57,20 @@ describe('DeployKeyForm', () => {
     expect(serverValues).not.toContain('disabled-01')
   })
 
-  it('le bouton soumettre est désactivé par défaut', async () => {
+  it('submit button is disabled by default', async () => {
     const w = mount(DeployKeyForm, { global: { plugins: [i18n] } })
     await flushPromises()
     expect(w.find('[data-testid="submit-btn"]').attributes('disabled')).toBeDefined()
   })
 
-  it('démarre en mode heures', async () => {
+  it('starts in hours mode', async () => {
     const w = mount(DeployKeyForm, { global: { plugins: [i18n] } })
     await flushPromises()
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(true)
     expect(w.find('[data-testid="input-date"]').exists()).toBe(false)
   })
 
-  it('passe en mode date quand on sélectionne date précise', async () => {
+  it('switches to date mode when date selected', async () => {
     const w = mount(DeployKeyForm, { global: { plugins: [i18n] } })
     await flushPromises()
     await w.find('[data-testid="mode-date"]').setChecked(true)
@@ -78,7 +78,7 @@ describe('DeployKeyForm', () => {
     expect(w.find('[data-testid="input-hours"]').exists()).toBe(false)
   })
 
-  it('en mode illimité aucun champ de durée n\'est affiché', async () => {
+  it('in unlimited mode no duration fields are shown', async () => {
     const w = mount(DeployKeyForm, { global: { plugins: [i18n] } })
     await flushPromises()
     await w.find('[data-testid="mode-unlimited"]').setChecked(true)
@@ -86,7 +86,7 @@ describe('DeployKeyForm', () => {
     expect(w.find('[data-testid="input-date"]').exists()).toBe(false)
   })
 
-  it('le bouton soumettre est actif avec tous les champs valides (mode heures)', async () => {
+  it('submit button enabled when fields valid (hours mode)', async () => {
     const w = mount(DeployKeyForm, { global: { plugins: [i18n] } })
     await flushPromises()
     await w.find('[data-testid="input-unix-user"]').setValue('alice')
@@ -97,7 +97,7 @@ describe('DeployKeyForm', () => {
     expect(w.find('[data-testid="submit-btn"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('appelle POST /api/access/deploy avec le bon payload en mode heures', async () => {
+  it('calls POST /api/access/deploy with correct payload in hours mode', async () => {
     let capturedPayload = null
     vi.stubGlobal('fetch', (url, opts) => {
       if (url.includes('/api/servers')) {
@@ -141,7 +141,7 @@ describe('DeployKeyForm', () => {
     })
   })
 
-  it('appelle POST /api/access/deploy avec expires_at en mode date', async () => {
+  it('calls POST /api/access/deploy with expires_at in date mode', async () => {
     let capturedPayload = null
     const future = new Date(Date.now() + 86400000).toISOString().slice(0, 16)
     vi.stubGlobal('fetch', (url, opts) => {
@@ -188,7 +188,7 @@ describe('DeployKeyForm', () => {
     expect(capturedPayload.hours).toBeUndefined()
   })
 
-  it('en mode illimité le payload n\'a ni hours ni expires_at', async () => {
+  it('in unlimited mode payload has neither hours nor expires_at', async () => {
     let capturedPayload = null
     vi.stubGlobal('fetch', (url, opts) => {
       if (url.includes('/api/servers')) {
@@ -219,7 +219,7 @@ describe('DeployKeyForm', () => {
     await w.find('[data-testid="input-pubkey"]').setValue(VALID_KEY)
     await w.find('[data-testid="select-server"]').setValue('prod-01')
     await w.find('[data-testid="mode-unlimited"]').setChecked(true)
-    await w.find('[data-testid="input-justification"]').setValue('Accès permanent')
+    await w.find('[data-testid="input-justification"]').setValue('Permanent access')
     await w.find('form').trigger('submit')
     await flushPromises()
 
@@ -227,13 +227,13 @@ describe('DeployKeyForm', () => {
       unix_user: 'alice',
       public_key: VALID_KEY,
       hostname: 'prod-01',
-      justification: 'Accès permanent',
+      justification: 'Permanent access',
     })
     expect(capturedPayload.hours).toBeUndefined()
     expect(capturedPayload.expires_at).toBeUndefined()
   })
 
-  it('affiche le résultat de succès avec le fingerprint', async () => {
+  it('shows success result with fingerprint', async () => {
     vi.stubGlobal('fetch', (url, opts) => {
       if (url.includes('/api/servers')) {
         return Promise.resolve({
@@ -271,7 +271,7 @@ describe('DeployKeyForm', () => {
     expect(w.find('[data-testid="success-panel"]').text()).toContain('alice')
   })
 
-  it('affiche un message d\'erreur en cas d\'échec de l\'API', async () => {
+  it('shows error message on API failure', async () => {
     vi.stubGlobal('fetch', (url, opts) => {
       if (url.includes('/api/servers')) {
         return Promise.resolve({
@@ -302,7 +302,7 @@ describe('DeployKeyForm', () => {
     expect(w.find('[data-testid="error-msg"]').text()).toBe('Invalid key format')
   })
 
-  it('désactive le bouton soumettre pendant la soumission', async () => {
+  it('disables submit button during submission', async () => {
     vi.stubGlobal('fetch', (url, opts) => {
       if (url.includes('/api/servers')) {
         return Promise.resolve({
@@ -347,7 +347,7 @@ describe('DeployKeyForm', () => {
     expect(submitBtn.attributes('disabled')).toBeDefined()
   })
 
-  it('le bouton "New deployment" réinitialise le formulaire', async () => {
+  it('the "New deployment" button resets the form', async () => {
     vi.stubGlobal('fetch', (url, opts) => {
       if (url.includes('/api/servers')) {
         return Promise.resolve({
@@ -390,14 +390,14 @@ describe('DeployKeyForm', () => {
     expect(w.find('[data-testid="input-unix-user"]').element.value).toBe('')
   })
 
-  it('valide que tous les champs sont requis', async () => {
+  it('validates that all fields are required', async () => {
     const w = mount(DeployKeyForm, { global: { plugins: [i18n] } })
     await flushPromises()
 
-    // Remplir seulement quelques champs
+    // Fill only some fields
     await w.find('[data-testid="input-unix-user"]').setValue('alice')
     await w.find('[data-testid="input-pubkey"]').setValue(VALID_KEY)
-    // Laisser serveur et justification vides
+    // Leave server and justification empty
 
     expect(w.find('[data-testid="submit-btn"]').attributes('disabled')).toBeDefined()
   })

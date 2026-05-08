@@ -1,312 +1,312 @@
 -- =============================================================================
--- ssh-access-manager — schéma PostgreSQL 18
--- Ordre de création respectant les dépendances FK :
---   servers → administrators → ssh_keys →
---   key_authorizations → access_requests → audit_log
+-- ssh-access-manager - PostgreSQL 18 schema
+-- Creation order respecting FK dependencies:
+--   servers -> administrators -> ssh_keys ->
+--   key_authorizations -> access_requests -> audit_log
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
 -- TABLE : servers
--- Inventaire déclaratif des serveurs SSH surveillés.
--- Alimenté depuis /data/config/servers.yml via servers.py.
+-- Declarative inventory of monitored SSH servers.
+-- Populated from /data/config/servers.yml by servers.py.
 -- ---------------------------------------------------------------------------
 CREATE TABLE servers (
-    -- Identifiant unique généré automatiquement
+    -- Auto-generated unique identifier
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    -- Nom d'hôte unique du serveur (correspond à servers.yml)
+    -- Unique server hostname (matches servers.yml)
     hostname    VARCHAR(255) NOT NULL UNIQUE,
-    -- Adresse IP au format INET (supporte IPv4 et IPv6)
+    -- IP address in INET format (supports IPv4 and IPv6)
     ip_address  INET NOT NULL,
-    -- Port SSH du serveur (défaut 22)
+    -- SSH port of the server (default 22)
     ssh_port    INTEGER NOT NULL DEFAULT 22,
-    -- Famille d'OS : rhel, debian, alpine, etc.
+    -- OS family: rhel, debian, alpine, etc.
     os_family   VARCHAR(50),
-    -- Version précise de l'OS (ex: "RHEL 9.3", "Debian 12")
+    -- Precise OS version (e.g., 'RHEL 9.3', 'Debian 12')
     os_version  VARCHAR(50),
-    -- Environnement du serveur — valeurs contrôlées
+    -- Server environment - controlled values
     environment VARCHAR(20) CHECK (environment IN (
                     'production',
                     'staging',
                     'lab'
                 )),
-    -- Serveur actif dans le périmètre de collecte
+    -- Server active in the collection scope
     is_active   BOOLEAN DEFAULT true,
-    -- Nombre maximum de sessions SSH simultanées autorisées (alerte si dépassé)
+    -- Maximum allowed concurrent SSH sessions (alert if exceeded)
     max_sessions INTEGER NOT NULL DEFAULT 2,
-    -- Date d'enregistrement dans le système
+    -- Timestamp when added to the system
     added_at    TIMESTAMPTZ DEFAULT now()
 );
 
-COMMENT ON TABLE servers IS 'Inventaire des serveurs SSH surveillés, alimenté depuis servers.yml';
-COMMENT ON COLUMN servers.id IS 'UUID généré automatiquement';
-COMMENT ON COLUMN servers.hostname IS 'Nom d''hôte unique, clé de réconciliation avec servers.yml';
-COMMENT ON COLUMN servers.ip_address IS 'Adresse IP (INET, supporte IPv4 et IPv6)';
-COMMENT ON COLUMN servers.ssh_port IS 'Port SSH du serveur (défaut 22)';
-COMMENT ON COLUMN servers.os_family IS 'Famille d''OS : rhel, debian, alpine...';
-COMMENT ON COLUMN servers.os_version IS 'Version précise de l''OS';
-COMMENT ON COLUMN servers.environment IS 'Environnement : production, staging ou lab';
-COMMENT ON COLUMN servers.is_active IS 'False = exclu du périmètre de collecte SSH';
-COMMENT ON COLUMN servers.max_sessions IS 'Seuil max de sessions SSH simultanées — alerte WARNING si dépassé (anti-spam 24h)';
-COMMENT ON COLUMN servers.added_at IS 'Horodatage d''enregistrement dans le système';
+COMMENT ON TABLE servers IS 'Inventory of monitored SSH servers, populated from servers.yml';
+COMMENT ON COLUMN servers.id IS 'Auto-generated UUID';
+COMMENT ON COLUMN servers.hostname IS 'Unique hostname, reconciliation key with servers.yml';
+COMMENT ON COLUMN servers.ip_address IS 'IP address (INET, supports IPv4 and IPv6)';
+COMMENT ON COLUMN servers.ssh_port IS 'SSH port of the server (default 22)';
+COMMENT ON COLUMN servers.os_family IS 'OS family: rhel, debian, alpine...';
+COMMENT ON COLUMN servers.os_version IS 'Precise OS version';
+COMMENT ON COLUMN servers.environment IS 'Environment: production, staging or lab';
+COMMENT ON COLUMN servers.is_active IS 'False = excluded from SSH collection scope';
+COMMENT ON COLUMN servers.max_sessions IS 'Max concurrent SSH sessions threshold - WARNING alert if exceeded (24h anti-spam)';
+COMMENT ON COLUMN servers.added_at IS 'Record timestamp in the system';
 
 -- ---------------------------------------------------------------------------
 -- TABLE : administrators
--- Utilisateurs autorisés à gérer le système (valider, révoquer, approuver).
--- L'administrateur initial est inséré par bootstrap.sh depuis ENV.
+-- Users authorized to manage the system (validate, revoke, approve).
+-- The initial administrator is inserted by bootstrap.sh from ENV.
 -- ---------------------------------------------------------------------------
 CREATE TABLE administrators (
-    -- Identifiant unique généré automatiquement
+    -- Auto-generated unique identifier
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    -- Login unique de l'administrateur
+    -- Administrator unique login
     username    VARCHAR(100) NOT NULL UNIQUE,
-    -- Adresse email pour les notifications
+    -- Email address for notifications
     email       VARCHAR(255),
-    -- Rôle fonctionnel (extensible)
-    role          VARCHAR(50) DEFAULT 'sysadmin' CHECK (role IN ('sysadmin', 'operator', 'viewer')),
-    -- Hash du mot de passe (werkzeug generate_password_hash)
+    -- Functional role (extensible)
+    role        VARCHAR(50) DEFAULT 'sysadmin' CHECK (role IN ('sysadmin', 'operator', 'viewer')),
+    -- Password hash (werkzeug generate_password_hash)
     password_hash VARCHAR(255),
-    -- Compte actif ou désactivé (jamais supprimé pour préserver l'audit)
+    -- Account active or disabled (never deleted to preserve audit)
     is_active     BOOLEAN DEFAULT true,
-    -- Reçoit les emails d'alerte CRITICAL/WARNING
+    -- Receives CRITICAL/WARNING alert emails
     receive_alerts BOOLEAN DEFAULT true NOT NULL,
-    -- Date de création du compte
+    -- Account creation timestamp
     created_at    TIMESTAMPTZ DEFAULT now(),
     -- NULL = password never changed since account creation
     password_changed_at TIMESTAMPTZ
 );
 
-COMMENT ON TABLE administrators IS 'Utilisateurs autorisés à gérer les accès SSH';
-COMMENT ON COLUMN administrators.id IS 'UUID généré automatiquement';
-COMMENT ON COLUMN administrators.username IS 'Login unique de l''administrateur';
-COMMENT ON COLUMN administrators.email IS 'Email pour les alertes et notifications';
-COMMENT ON COLUMN administrators.role IS 'Rôle fonctionnel, défaut : sysadmin';
-COMMENT ON COLUMN administrators.password_hash IS 'Hash werkzeug (pbkdf2:sha256) du mot de passe';
-COMMENT ON COLUMN administrators.is_active IS 'False = compte désactivé (jamais supprimé)';
-COMMENT ON COLUMN administrators.receive_alerts IS 'True = reçoit les emails CRITICAL/WARNING';
-COMMENT ON COLUMN administrators.created_at IS 'Horodatage de création du compte';
+COMMENT ON TABLE administrators IS 'Users authorized to manage SSH access';
+COMMENT ON COLUMN administrators.id IS 'Auto-generated UUID';
+COMMENT ON COLUMN administrators.username IS 'Administrator unique login';
+COMMENT ON COLUMN administrators.email IS 'Email for alerts and notifications';
+COMMENT ON COLUMN administrators.role IS 'Functional role, default: sysadmin';
+COMMENT ON COLUMN administrators.password_hash IS 'Werkzeug hash (pbkdf2:sha256) of the password';
+COMMENT ON COLUMN administrators.is_active IS 'False = account disabled (never deleted)';
+COMMENT ON COLUMN administrators.receive_alerts IS 'True = receives CRITICAL/WARNING emails';
+COMMENT ON COLUMN administrators.created_at IS 'Account creation timestamp';
 
 -- ---------------------------------------------------------------------------
 -- TABLE : ssh_keys
--- Clés SSH collectées sur les serveurs distants via sam-collect.
--- La colonne is_compliant est calculée automatiquement (GENERATED STORED).
+-- SSH keys collected from remote servers via sam-collect.
+-- The is_compliant column is computed automatically (GENERATED STORED).
 -- ---------------------------------------------------------------------------
 CREATE TABLE ssh_keys (
-    -- Identifiant unique généré automatiquement
+    -- Auto-generated unique identifier
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    -- Fingerprint SHA256 au format "SHA256:<base64>" — identifiant technique unique
+    -- SHA256 fingerprint in format 'SHA256:<base64>' - unique technical identifier
     fingerprint     VARCHAR(64) NOT NULL UNIQUE,
-    -- Type de clé — valeurs contrôlées par politique de sécurité
+    -- Key type - values controlled by security policy
     key_type        VARCHAR(30) NOT NULL CHECK (key_type IN (
                         'ssh-ed25519',
                         'ssh-rsa',
                         'ecdsa-sha2-nistp256'
                     )),
-    -- Taille en bits (pertinent pour RSA : doit être >= 4096 pour être conforme)
+    -- Size in bits (relevant for RSA: must be >= 4096 to be compliant)
     key_size_bits   SMALLINT,
-    -- Contenu complet de la clé publique (type + base64 + commentaire)
+    -- Full public key content (type + base64 + comment)
     public_key      TEXT NOT NULL,
-    -- Commentaire extrait de la clé publique (champ libre)
+    -- Comment field extracted from the public key (free text)
     comment         VARCHAR(255),
-    -- Propriétaire libre de la clé (nom complet ou identifiant quelconque, nullable)
+    -- Free-form owner of the key (full name or any identifier, nullable)
     owner           VARCHAR(255),
-    -- Conformité calculée : ED25519 toujours conforme, RSA conforme si >= 4096 bits
-    -- GENERATED ALWAYS AS STORED : jamais à écrire manuellement
+    -- Compliance computed: ED25519 always compliant, RSA compliant if >= 4096 bits
+    -- GENERATED ALWAYS AS STORED: never write this column manually
     is_compliant    BOOLEAN GENERATED ALWAYS AS (
                         key_type = 'ssh-ed25519'
                         OR (key_type = 'ssh-rsa' AND key_size_bits >= 4096)
                     ) STORED,
-    -- Première détection de la clé sur un serveur
+    -- First detection of the key on a server
     first_seen      TIMESTAMPTZ DEFAULT now(),
-    -- Dernière détection lors du dernier scan
+    -- Last detection during the latest scan
     last_seen       TIMESTAMPTZ DEFAULT now()
 );
 
-COMMENT ON TABLE ssh_keys IS 'Clés SSH collectées sur les serveurs via sam-collect';
-COMMENT ON COLUMN ssh_keys.id IS 'UUID généré automatiquement';
-COMMENT ON COLUMN ssh_keys.fingerprint IS 'SHA256:<base64> — calculé par compute_fingerprint() dans ssh.py';
-COMMENT ON COLUMN ssh_keys.key_type IS 'Type de clé : ssh-ed25519, ssh-rsa ou ecdsa-sha2-nistp256';
-COMMENT ON COLUMN ssh_keys.key_size_bits IS 'Taille en bits, NULL pour ED25519, obligatoire pour RSA';
-COMMENT ON COLUMN ssh_keys.public_key IS 'Clé publique complète au format authorized_keys';
-COMMENT ON COLUMN ssh_keys.comment IS 'Commentaire extrait de la clé (souvent user@host)';
-COMMENT ON COLUMN ssh_keys.owner IS 'Nom libre du propriétaire (peut être un non-admin), NULL si inconnu';
-COMMENT ON COLUMN ssh_keys.is_compliant IS 'GENERATED: ED25519=true, RSA>=4096=true, sinon false';
-COMMENT ON COLUMN ssh_keys.first_seen IS 'Premier horodatage de détection de la clé';
-COMMENT ON COLUMN ssh_keys.last_seen IS 'Dernier horodatage de détection lors d''un scan';
+COMMENT ON TABLE ssh_keys IS 'SSH keys collected from servers via sam-collect';
+COMMENT ON COLUMN ssh_keys.id IS 'Auto-generated UUID';
+COMMENT ON COLUMN ssh_keys.fingerprint IS 'SHA256:<base64> - computed by compute_fingerprint() in ssh.py';
+COMMENT ON COLUMN ssh_keys.key_type IS 'Key type: ssh-ed25519, ssh-rsa or ecdsa-sha2-nistp256';
+COMMENT ON COLUMN ssh_keys.key_size_bits IS 'Size in bits, NULL for ED25519, required for RSA';
+COMMENT ON COLUMN ssh_keys.public_key IS 'Full public key in authorized_keys format';
+COMMENT ON COLUMN ssh_keys.comment IS 'Comment extracted from the key (often user@host)';
+COMMENT ON COLUMN ssh_keys.owner IS 'Free-form owner name (may be non-admin), NULL if unknown';
+COMMENT ON COLUMN ssh_keys.is_compliant IS 'GENERATED: ED25519=true, RSA>=4096=true, otherwise false';
+COMMENT ON COLUMN ssh_keys.first_seen IS 'First timestamp the key was detected';
+COMMENT ON COLUMN ssh_keys.last_seen IS 'Last timestamp the key was detected during a scan';
 
 -- ---------------------------------------------------------------------------
 -- TABLE : key_authorizations
--- Association clé SSH ↔ serveur ↔ utilisateur Unix avec statut du cycle de vie.
--- Clé primaire composite (key_id, server_id, unix_user) : la même clé peut
--- être déployée pour plusieurs utilisateurs Unix sur le même serveur.
+-- Association between SSH key -> server -> unix user with lifecycle status.
+-- Composite primary key (key_id, server_id, unix_user): the same key can
+-- be deployed for multiple unix users on the same server.
 -- ---------------------------------------------------------------------------
 CREATE TABLE key_authorizations (
-    -- Référence vers la clé SSH concernée
+    -- Reference to the SSH key
     key_id                   UUID NOT NULL REFERENCES ssh_keys(id),
-    -- Référence vers le serveur concerné
+    -- Reference to the related server
     server_id                UUID NOT NULL REFERENCES servers(id),
-    -- Utilisateur Unix propriétaire de la clé sur ce serveur
+    -- Unix user owning the key on that server
     unix_user                VARCHAR(100) NOT NULL DEFAULT '',
-    -- Administrateur ayant validé l'autorisation (NULL si détection automatique)
+    -- Administrator who authorized it (NULL if auto-detected)
     authorized_by            UUID REFERENCES administrators(id) ON DELETE SET NULL,
-    -- Date de première autorisation ou détection
+    -- Date of first authorization or detection
     authorized_at            TIMESTAMPTZ DEFAULT now(),
-    -- Date d'expiration programmée (NULL = pas d'expiration)
+    -- Scheduled expiration date (NULL = no expiration)
     expires_at               TIMESTAMPTZ,
-    -- Statut du cycle de vie de l'autorisation
+    -- Lifecycle status of the authorization
     status                   VARCHAR(20) NOT NULL DEFAULT 'PENDING_REVIEW'
                                  CHECK (status IN (
-                                     'ACTIVE',           -- clé validée et active
-                                     'REVOKED',          -- révoquée manuellement ou hors système
-                                     'PENDING_REVIEW',   -- détectée, en attente de validation
-                                     'UNAUTHORIZED',     -- non autorisée explicitement
-                                     'EXPIRED'           -- expiration programmée atteinte
+                                     'ACTIVE',
+                                     'REVOKED',
+                                     'PENDING_REVIEW',
+                                     'UNAUTHORIZED',
+                                     'EXPIRED'
                                  )),
-    -- Date effective de révocation
+    -- Effective revocation date
     revoked_at               TIMESTAMPTZ,
-    -- Administrateur ayant révoqué (NULL si révocation automatique hors système)
+    -- Administrator who revoked (NULL if automatic/revoked outside system)
     revoked_by               UUID REFERENCES administrators(id) ON DELETE SET NULL,
-    -- True si révocation déclenchée automatiquement (expiration ou hors système)
+    -- True if revocation was triggered automatically (expiration or external)
     revoked_automatically    BOOLEAN DEFAULT false,
-    -- Justification de révocation ou d'anomalie
+    -- Justification for revocation or anomaly description
     revocation_justification TEXT,
-    -- Clé primaire composite : une clé par utilisateur Unix par serveur
+    -- Composite primary key: one key per unix user per server
     PRIMARY KEY (key_id, server_id, unix_user)
 );
 
-COMMENT ON TABLE key_authorizations IS 'Association clé SSH↔serveur↔unix_user avec statut du cycle de vie';
-COMMENT ON COLUMN key_authorizations.key_id IS 'FK vers ssh_keys — partie de la PK composite';
-COMMENT ON COLUMN key_authorizations.server_id IS 'FK vers servers — partie de la PK composite';
-COMMENT ON COLUMN key_authorizations.unix_user IS 'Utilisateur Unix sur le serveur — partie de la PK composite';
-COMMENT ON COLUMN key_authorizations.authorized_by IS 'FK vers administrators, NULL si détection automatique';
-COMMENT ON COLUMN key_authorizations.authorized_at IS 'Date de première autorisation ou détection';
-COMMENT ON COLUMN key_authorizations.expires_at IS 'Expiration programmée, NULL si permanente';
+COMMENT ON TABLE key_authorizations IS 'Association key_authorizations: SSH key->server->unix_user with lifecycle status';
+COMMENT ON COLUMN key_authorizations.key_id IS 'FK to ssh_keys - part of composite PK';
+COMMENT ON COLUMN key_authorizations.server_id IS 'FK to servers - part of composite PK';
+COMMENT ON COLUMN key_authorizations.unix_user IS 'Unix user on the server - part of composite PK';
+COMMENT ON COLUMN key_authorizations.authorized_by IS 'FK to administrators, NULL if auto-detected';
+COMMENT ON COLUMN key_authorizations.authorized_at IS 'Timestamp of first authorization or detection';
+COMMENT ON COLUMN key_authorizations.expires_at IS 'Scheduled expiration, NULL if permanent';
 COMMENT ON COLUMN key_authorizations.status IS 'ACTIVE|REVOKED|PENDING_REVIEW|UNAUTHORIZED|EXPIRED';
-COMMENT ON COLUMN key_authorizations.revoked_at IS 'Horodatage effectif de révocation';
-COMMENT ON COLUMN key_authorizations.revoked_by IS 'FK administrateur révocateur, NULL si automatique';
-COMMENT ON COLUMN key_authorizations.revoked_automatically IS 'True = révocation par expiration ou anomalie hors système';
-COMMENT ON COLUMN key_authorizations.revocation_justification IS 'Motif de révocation ou description de l''anomalie';
+COMMENT ON COLUMN key_authorizations.revoked_at IS 'Actual revocation timestamp';
+COMMENT ON COLUMN key_authorizations.revoked_by IS 'FK to administrator who revoked, NULL if automatic';
+COMMENT ON COLUMN key_authorizations.revoked_automatically IS 'True = revoked by expiration or external anomaly';
+COMMENT ON COLUMN key_authorizations.revocation_justification IS 'Reason for revocation or anomaly description';
 
 -- ---------------------------------------------------------------------------
 -- TABLE : access_requests
--- Demandes d'accès temporaire — workflow de validation.
--- Une demande approuvée crée ou met à jour une key_authorization.
+-- Temporary access requests - approval workflow.
+-- An approved request creates or updates a key_authorization.
 -- ---------------------------------------------------------------------------
 CREATE TABLE access_requests (
-    -- Identifiant unique généré automatiquement
+    -- Auto-generated unique identifier
     id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    -- Administrateur demandeur
+    -- Requesting administrator
     requested_by         UUID REFERENCES administrators(id) ON DELETE SET NULL,
-    -- Administrateur approbateur (NULL tant que non traité)
+    -- Approving administrator (NULL while pending)
     approved_by          UUID REFERENCES administrators(id) ON DELETE SET NULL,
-    -- Clé SSH pour laquelle l'accès est demandé
+    -- SSH key for which access is requested
     key_id               UUID REFERENCES ssh_keys(id),
-    -- Serveur cible de la demande
+    -- Target server of the request
     server_id            UUID REFERENCES servers(id),
-    -- Durée demandée en heures (alternatif à expires_at_requested)
+    -- Requested duration in hours (alternative to expires_at_requested)
     duration_hours       SMALLINT,
-    -- Date d'expiration explicitement demandée (alternatif à duration_hours)
+    -- Explicitly requested expiration date (alternative to duration_hours)
     expires_at_requested TIMESTAMPTZ,
-    -- Justification métier obligatoire
+    -- Business justification (required)
     justification        TEXT NOT NULL,
-    -- Statut de la demande dans le workflow
+    -- Request status in the workflow
     status               VARCHAR(20) NOT NULL DEFAULT 'PENDING'
                              CHECK (status IN (
-                                 'PENDING',   -- en attente de traitement
-                                 'APPROVED',  -- approuvée par un administrateur
-                                 'REJECTED',  -- rejetée par un administrateur
-                                 'EXPIRED'    -- expirée sans traitement
+                                 'PENDING',
+                                 'APPROVED',
+                                 'REJECTED',
+                                 'EXPIRED'
                              )),
-    -- Date de soumission de la demande
+    -- Submission timestamp
     requested_at         TIMESTAMPTZ DEFAULT now(),
-    -- Date d'approbation ou de rejet
+    -- Decision timestamp (approval or rejection)
     approved_at          TIMESTAMPTZ,
-    -- Date d'expiration de l'accès accordé (calculée à l'approbation)
+    -- Expiration date of the granted access (computed at approval)
     expires_at           TIMESTAMPTZ
 );
 
-COMMENT ON TABLE access_requests IS 'Demandes d''accès temporaire avec workflow de validation';
-COMMENT ON COLUMN access_requests.id IS 'UUID généré automatiquement';
-COMMENT ON COLUMN access_requests.requested_by IS 'FK vers administrators — demandeur';
-COMMENT ON COLUMN access_requests.approved_by IS 'FK vers administrators — approbateur, NULL si non traité';
-COMMENT ON COLUMN access_requests.key_id IS 'FK vers ssh_keys — clé concernée par la demande';
-COMMENT ON COLUMN access_requests.server_id IS 'FK vers servers — serveur cible';
-COMMENT ON COLUMN access_requests.duration_hours IS 'Durée en heures, alternatif à expires_at_requested';
-COMMENT ON COLUMN access_requests.expires_at_requested IS 'Date d''expiration demandée, alternatif à duration_hours';
-COMMENT ON COLUMN access_requests.justification IS 'Motif métier obligatoire de la demande';
+COMMENT ON TABLE access_requests IS 'Temporary access requests with approval workflow';
+COMMENT ON COLUMN access_requests.id IS 'Auto-generated UUID';
+COMMENT ON COLUMN access_requests.requested_by IS 'FK to administrators - requester';
+COMMENT ON COLUMN access_requests.approved_by IS 'FK to administrators - approver, NULL if pending';
+COMMENT ON COLUMN access_requests.key_id IS 'FK to ssh_keys - key concerned by the request';
+COMMENT ON COLUMN access_requests.server_id IS 'FK to servers - target server';
+COMMENT ON COLUMN access_requests.duration_hours IS 'Duration in hours, alternative to expires_at_requested';
+COMMENT ON COLUMN access_requests.expires_at_requested IS 'Requested expiration date, alternative to duration_hours';
+COMMENT ON COLUMN access_requests.justification IS 'Required business justification for the request';
 COMMENT ON COLUMN access_requests.status IS 'PENDING|APPROVED|REJECTED|EXPIRED';
-COMMENT ON COLUMN access_requests.requested_at IS 'Horodatage de soumission';
-COMMENT ON COLUMN access_requests.approved_at IS 'Horodatage de décision (approbation ou rejet)';
-COMMENT ON COLUMN access_requests.expires_at IS 'Expiration de l''accès accordé, calculée à l''approbation';
+COMMENT ON COLUMN access_requests.requested_at IS 'Submission timestamp';
+COMMENT ON COLUMN access_requests.approved_at IS 'Decision timestamp (approval or rejection)';
+COMMENT ON COLUMN access_requests.expires_at IS 'Expiration of granted access, computed at approval';
 
 -- ---------------------------------------------------------------------------
 -- TABLE : audit_log
--- Journal immuable de toutes les actions sensibles du système.
--- Aucune ligne n'est jamais modifiée ou supprimée.
+-- Immutable journal of all sensitive system actions.
+-- No row is ever updated or deleted.
 -- ---------------------------------------------------------------------------
 CREATE TABLE audit_log (
-    -- Identifiant unique généré automatiquement
+    -- Auto-generated unique identifier
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    -- Type d'action — valeurs contrôlées et exhaustives
+    -- Action type - controlled and exhaustive values
     action        VARCHAR(50) NOT NULL CHECK (action IN (
-                      'KEY_ADDED',          -- clé validée (PENDING_REVIEW → ACTIVE)
-                      'KEY_REVOKED',        -- révocation manuelle via le système
-                      'KEY_EXPIRED',        -- expiration programmée atteinte
-                      'EXPIRY_WARNING',     -- alerte d'expiration imminente (anti-spam 24h)
-                      'REQUEST_APPROVED',   -- demande d'accès approuvée
-                      'REQUEST_REJECTED',   -- demande d'accès rejetée
-                      'ANOMALY_DETECTED',   -- clé inconnue ou révocation hors système
-                      'SCAN_COMPLETED',     -- scan SSH terminé avec succès
-                      'SCAN_FAILED',        -- scan SSH échoué (serveur injoignable)
-                      'SCRIPT_DEPLOYED',    -- sam-collect ou sam-revoke redéployé
-                      'SERVER_ADDED',       -- nouveau serveur enregistré
-                      'SERVER_DISABLED',    -- serveur désactivé du périmètre
-                      'SERVER_UPDATED',     -- serveur modifié (IP, env, OS)
-                      'ADMIN_ADDED',        -- nouvel administrateur créé
-                      'ADMIN_DISABLED',     -- administrateur désactivé
-                      'ADMIN_ENABLED',      -- administrateur réactivé
-                      'ADMIN_DELETED',      -- administrateur supprimé définitivement
-                      'ADMIN_UPDATED',      -- administrateur modifié (email, rôle)
-                      'USER_LOCKED',        -- compte Unix verrouillé (SSH bloqué)
-                      'USER_UNLOCKED',      -- compte Unix déverrouillé
-                      'LOGIN_FAILED',       -- tentative de connexion échouée (mauvais mot de passe)
-                      'LOGIN_BANNED',       -- IP bannie après trop de tentatives échouées
-                      'PASSWORD_RESET',     -- réinitialisation de mot de passe via CLI
-                      'SERVER_PROVISIONED',  -- provisionnement automatique via SSH password
-                      'SESSION_LIMIT_EXCEEDED' -- nombre de sessions actives > max_sessions (anti-spam 24h)
+                      'KEY_ADDED',
+                      'KEY_REVOKED',
+                      'KEY_EXPIRED',
+                      'EXPIRY_WARNING',
+                      'REQUEST_APPROVED',
+                      'REQUEST_REJECTED',
+                      'ANOMALY_DETECTED',
+                      'SCAN_COMPLETED',
+                      'SCAN_FAILED',
+                      'SCRIPT_DEPLOYED',
+                      'SERVER_ADDED',
+                      'SERVER_DISABLED',
+                      'SERVER_UPDATED',
+                      'ADMIN_ADDED',
+                      'ADMIN_DISABLED',
+                      'ADMIN_ENABLED',
+                      'ADMIN_DELETED',
+                      'ADMIN_UPDATED',
+                      'USER_LOCKED',
+                      'USER_UNLOCKED',
+                      'LOGIN_FAILED',
+                      'LOGIN_BANNED',
+                      'PASSWORD_RESET',
+                      'SERVER_PROVISIONED',
+                      'SESSION_LIMIT_EXCEEDED'
                   )),
-    -- Administrateur ayant déclenché l'action (NULL si automatique)
+    -- Administrator who triggered the action (NULL if automatic)
     performed_by  UUID REFERENCES administrators(id) ON DELETE SET NULL,
-    -- Clé SSH concernée par l'action (NULL si non applicable)
+    -- SSH key targeted by the action (NULL if not applicable)
     target_key    UUID REFERENCES ssh_keys(id),
-    -- Serveur concerné par l'action (NULL si non applicable)
+    -- Server targeted by the action (NULL if not applicable)
     target_server UUID REFERENCES servers(id),
-    -- Horodatage de l'action
+    -- Timestamp of the action
     performed_at  TIMESTAMPTZ DEFAULT now(),
-    -- Données contextuelles libres (fingerprint, hostname, raison, etc.)
+    -- Free-form contextual data (fingerprint, hostname, reason, etc.)
     details       JSONB
 );
 
-COMMENT ON TABLE audit_log IS 'Journal immuable de toutes les actions — jamais modifié ni supprimé';
-COMMENT ON COLUMN audit_log.id IS 'UUID généré automatiquement';
-COMMENT ON COLUMN audit_log.action IS 'Type d''action parmi 18 valeurs contrôlées';
-COMMENT ON COLUMN audit_log.performed_by IS 'FK administrateur, NULL si action automatique (cron, expiration)';
-COMMENT ON COLUMN audit_log.target_key IS 'FK ssh_keys, NULL si action non liée à une clé';
-COMMENT ON COLUMN audit_log.target_server IS 'FK servers, NULL si action non liée à un serveur';
-COMMENT ON COLUMN audit_log.performed_at IS 'Horodatage précis de l''action (TIMESTAMPTZ)';
-COMMENT ON COLUMN audit_log.details IS 'Contexte JSON libre : fingerprint, hostname, raison, etc.';
+COMMENT ON TABLE audit_log IS 'Immutable journal of all actions - never modified or deleted';
+COMMENT ON COLUMN audit_log.id IS 'Auto-generated UUID';
+COMMENT ON COLUMN audit_log.action IS 'Action type among controlled values';
+COMMENT ON COLUMN audit_log.performed_by IS 'FK to administrator, NULL if automatic (cron, expiry)';
+COMMENT ON COLUMN audit_log.target_key IS 'FK to ssh_keys, NULL if action not related to a key';
+COMMENT ON COLUMN audit_log.target_server IS 'FK to servers, NULL if action not related to a server';
+COMMENT ON COLUMN audit_log.performed_at IS 'Precise timestamp of the action (TIMESTAMPTZ)';
+COMMENT ON COLUMN audit_log.details IS 'Free JSON context: fingerprint, hostname, reason, etc.';
 
 -- ---------------------------------------------------------------------------
 -- TABLE : settings
--- Configuration dynamique modifiable via l'API sans redémarrer le container.
+-- Dynamic configuration editable via the API without restarting the container.
 -- ---------------------------------------------------------------------------
 CREATE TABLE settings (
     key   VARCHAR(100) PRIMARY KEY,
     value TEXT NOT NULL
 );
 
-COMMENT ON TABLE settings IS 'Configuration dynamique du système — clé/valeur';
-COMMENT ON COLUMN settings.key IS 'Clé de configuration (ex: scan_interval_hours)';
-COMMENT ON COLUMN settings.value IS 'Valeur texte';
+COMMENT ON TABLE settings IS 'Dynamic system configuration - key/value';
+COMMENT ON COLUMN settings.key IS 'Configuration key (e.g., scan_interval_hours)';
+COMMENT ON COLUMN settings.value IS 'Text value';
 
 INSERT INTO settings (key, value) VALUES ('scan_interval_hours', '4');
 INSERT INTO settings (key, value) VALUES ('expire_warn_days', '7');
@@ -317,45 +317,46 @@ INSERT INTO settings (key, value) VALUES ('audit_retention_days', '365');
 
 -- =============================================================================
 -- INDEX
--- Optimisent les requêtes fréquentes : filtres sur statut, expiration,
--- audit récent, et recherche par fingerprint.
+-- Optimize frequent queries: status filters, expiration, recent audit,
+-- and fingerprint lookup.
 -- =============================================================================
 
--- Filtrage par statut dans key_authorizations (ACTIVE, PENDING_REVIEW, etc.)
+-- Filter by status in key_authorizations (ACTIVE, PENDING_REVIEW, etc.)
 CREATE INDEX idx_key_auth_status
     ON key_authorizations(status);
 
--- Clés avec expiration définie — index partiel pour exclure les NULL
+-- Keys with expiration defined - partial index to exclude NULL
 CREATE INDEX idx_key_auth_expires
     ON key_authorizations(expires_at)
     WHERE expires_at IS NOT NULL;
 
--- Audit log trié par date décroissante (vue Audit.vue, rapports)
+-- Audit log sorted by descending date (Audit.vue view, reports)
 CREATE INDEX idx_audit_log_performed_at
     ON audit_log(performed_at DESC);
 
--- Filtrage combiné action + date (requêtes anti-spam EXPIRY_WARNING)
+-- Combined filter action + date (anti-spam EXPIRY_WARNING queries)
 CREATE INDEX idx_audit_log_action
     ON audit_log(action, performed_at DESC);
 
--- Filtrage des clés conformes / non conformes (rapport sécurité)
+-- Filter compliant / non-compliant keys (security report)
 CREATE INDEX idx_ssh_keys_compliant
     ON ssh_keys(is_compliant);
 
--- Recherche par fingerprint (opération la plus fréquente sur ssh_keys)
+-- Lookup by fingerprint (most frequent operation on ssh_keys)
 CREATE INDEX idx_ssh_keys_fingerprint
     ON ssh_keys(fingerprint);
 
--- Une IP ne peut appartenir qu'à un seul serveur (désactivé = temporaire, pas libéré)
+-- An IP can belong to only one server (disabled = temporary, not freed)
 CREATE UNIQUE INDEX servers_ip_unique
     ON servers (ip_address);
 
 -- ---------------------------------------------------------------------------
 -- TABLE : ssh_sessions
--- Sessions SSH collectées sur les serveurs lors du scan ou à la demande.
+-- SSH sessions collected from servers during scans or on demand.
 -- Upsert via ON CONFLICT (server_id, unix_user, tty, login_at).
 -- ---------------------------------------------------------------------------
 CREATE TABLE ssh_sessions (
+    -- Auto-generated unique identifier
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     server_id    UUID NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
     unix_user    VARCHAR(100) NOT NULL,
@@ -368,7 +369,7 @@ CREATE TABLE ssh_sessions (
     UNIQUE (server_id, unix_user, tty, login_at)
 );
 
-COMMENT ON TABLE ssh_sessions IS 'Sessions SSH collectées via sam-sessions lors des scans';
+COMMENT ON TABLE ssh_sessions IS 'SSH sessions collected via sam-sessions during scans';
 
 CREATE INDEX idx_sessions_server ON ssh_sessions(server_id, is_active, login_at DESC);
 CREATE INDEX idx_sessions_collected ON ssh_sessions(collected_at DESC);

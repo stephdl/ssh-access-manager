@@ -1,6 +1,6 @@
 """
-actions.py — logique metier partagee entre web.py (API) et manage.py (CLI).
-Jamais de duplication entre les deux consommateurs.
+actions.py — business logic shared between web.py (API) and manage.py (CLI).
+Never duplicate logic between the two consumers.
 """
 import ipaddress
 import json
@@ -60,7 +60,7 @@ def _check_fingerprint(fp: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Cles SSH
+# SSH Keys
 # ---------------------------------------------------------------------------
 
 def validate_key(
@@ -71,9 +71,9 @@ def validate_key(
 ) -> dict:
     """PENDING_REVIEW → ACTIVE. Logs KEY_ADDED for each authorization.
 
-    Si unix_user ET hostname sont fournis : validation ciblée — une seule
-    autorisation (key_id, server_id, unix_user). Sinon : toutes les
-    autorisations PENDING_REVIEW du fingerprint (usage CLI).
+    If unix_user AND hostname are provided: targeted validation — a single
+    authorization (key_id, server_id, unix_user). Otherwise: all
+    PENDING_REVIEW authorizations for the fingerprint (CLI usage).
     """
     _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
@@ -520,7 +520,7 @@ def remove_key_expiry(fingerprint: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Acces temporaires
+# Temporary access
 # ---------------------------------------------------------------------------
 
 def grant_access(
@@ -761,7 +761,7 @@ def revoke_request(request_id: str, admin_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Serveurs
+# Servers
 # ---------------------------------------------------------------------------
 
 def add_server(
@@ -933,7 +933,7 @@ def delete_server(hostname: str, admin_id: str | None = None) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Administrateurs
+# Administrators
 # ---------------------------------------------------------------------------
 
 def _validate_password_strength(password: str) -> None:

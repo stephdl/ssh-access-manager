@@ -96,7 +96,7 @@ def test_actions_revoke_key_raises_if_key_not_found(sample_key):
 
 
 def test_actions_revoke_key_scoped_calls_sam_revoke_with_unix_user(sample_key):
-    """Revocation ciblée (hostname + unix_user) appelle revoke_on_server avec unix_user."""
+    """Targeted revocation (hostname + unix_user) calls revoke_on_server with unix_user."""
     server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22}
     auth = {"status": "ACTIVE"}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
@@ -112,7 +112,7 @@ def test_actions_revoke_key_scoped_calls_sam_revoke_with_unix_user(sample_key):
 
 
 def test_actions_revoke_key_scoped_sets_revoked_for_unix_user_only(sample_key):
-    """Revocation ciblée — l'UPDATE inclut unix_user dans le WHERE."""
+    """Targeted revocation — the UPDATE includes unix_user in the WHERE clause."""
     server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22}
     auth = {"status": "ACTIVE"}
     with patch("actions.db") as mock_db, patch("actions.ssh"):
@@ -127,7 +127,7 @@ def test_actions_revoke_key_scoped_sets_revoked_for_unix_user_only(sample_key):
 
 
 # ---------------------------------------------------------------------------
-# handle_disappeared_key — scenario 2 (hors systeme, revoked_automatically=True)
+# handle_disappeared_key — scenario 2 (out-of-system, revoked_automatically=True)
 # ---------------------------------------------------------------------------
 
 def test_actions_handle_disappeared_key_scenario2_sets_revoked_automatically():
@@ -699,7 +699,7 @@ def test_actions_delete_admin_raises_if_not_found():
 # ---------------------------------------------------------------------------
 
 def test_actions_update_admin_success():
-    """update_admin met à jour email et role, log ADMIN_UPDATED."""
+    """update_admin updates email and role, logs ADMIN_UPDATED."""
     admin = {"id": ADMIN_ID, "email": "old@example.com", "role": "sysadmin"}
     current_admin = {"username": "admin"}
     with patch("actions.db") as mock_db:
@@ -719,7 +719,7 @@ def test_actions_update_admin_success():
 
 
 def test_actions_update_admin_not_found():
-    """update_admin lève ValueError si admin introuvable."""
+    """update_admin raises UserError if admin not found."""
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
         with pytest.raises(UserError, match="Admin not found"):
@@ -727,7 +727,7 @@ def test_actions_update_admin_not_found():
 
 
 def test_actions_update_admin_self_role_change_raises():
-    """update_admin lève ValueError si admin modifie son propre rôle."""
+    """update_admin raises UserError if admin changes their own role."""
     admin = {"id": ADMIN_ID, "email": "admin@example.com", "role": "sysadmin"}
     current_admin = {"username": "admin"}
     with patch("actions.db") as mock_db:
@@ -737,7 +737,7 @@ def test_actions_update_admin_self_role_change_raises():
 
 
 def test_actions_update_admin_prevents_demoting_last_sysadmin():
-    """update_admin lève ValueError si on dégrade le dernier sysadmin actif."""
+    """update_admin raises UserError when demoting the last active sysadmin."""
     admin = {"id": ADMIN_ID, "email": "admin@example.com", "role": "sysadmin"}
     current_admin = {"username": "other-admin"}
     with patch("actions.db") as mock_db:
@@ -747,7 +747,7 @@ def test_actions_update_admin_prevents_demoting_last_sysadmin():
 
 
 def test_actions_update_admin_allows_demotion_with_other_sysadmin():
-    """update_admin autorise la dégradation si un autre sysadmin actif existe."""
+    """update_admin allows demotion if another active sysadmin exists."""
     admin = {"id": ADMIN_ID, "email": "admin@example.com", "role": "sysadmin"}
     current_admin = {"username": "other-admin"}
     with patch("actions.db") as mock_db:
@@ -898,7 +898,7 @@ def test_actions_remove_expiry_rejects_invalid_fingerprint_format():
 
 
 def test_actions_fingerprint_valid_format_passes_check():
-    """Un fingerprint SHA256 valide ne lève pas d'exception au niveau du format."""
+    """A valid SHA256 fingerprint does not raise a formatting error."""
     import actions as act
     act._check_fingerprint("SHA256:abc123+/=ABCXYZ")
 
@@ -969,7 +969,7 @@ def test_actions_unlock_user_ssh_user_raises():
 # ---------------------------------------------------------------------------
 
 def test_actions_deploy_key_includes_unix_user_in_key_authorization(sample_server, sample_key):
-    """deploy_key insère unix_user dans key_authorizations."""
+    """deploy_key inserts unix_user into key_authorizations."""
     with patch("actions.db") as mock_db, patch("actions.ssh"):
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
@@ -991,7 +991,7 @@ def test_actions_deploy_key_includes_unix_user_in_key_authorization(sample_serve
 
 
 def test_actions_deploy_key_on_conflict_uses_three_column_pk(sample_server, sample_key):
-    """Le ON CONFLICT doit référencer (key_id, server_id, unix_user)."""
+    """ON CONFLICT must reference (key_id, server_id, unix_user)."""
     with patch("actions.db") as mock_db, patch("actions.ssh"):
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
@@ -1053,7 +1053,7 @@ def test_actions_handle_reappeared_key_includes_unix_user_in_where():
 
 
 def test_actions_validate_key_includes_unix_user_in_update(sample_key):
-    """validate_key met à jour chaque ligne par (key_id, server_id, unix_user)."""
+    """validate_key updates each row by (key_id, server_id, unix_user)."""
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"id": KEY_ID}
         mock_db.query.return_value = [
@@ -1071,7 +1071,7 @@ def test_actions_validate_key_includes_unix_user_in_update(sample_key):
 
 
 def test_actions_validate_key_scoped_only_validates_target_unix_user(sample_key):
-    """Avec unix_user+hostname, seule l'autorisation ciblée est validée."""
+    """With unix_user+hostname, only the targeted authorization is validated."""
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},          # ssh_keys
@@ -1088,7 +1088,7 @@ def test_actions_validate_key_scoped_only_validates_target_unix_user(sample_key)
 
 
 def test_actions_validate_key_scoped_raises_if_server_not_found(sample_key):
-    """Avec hostname inconnu, ValueError levée."""
+    """With unknown hostname, ValueError is raised."""
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},  # ssh_keys found
@@ -1103,7 +1103,7 @@ def test_actions_validate_key_scoped_raises_if_server_not_found(sample_key):
 # ---------------------------------------------------------------------------
 
 def test_actions_update_server_success():
-    """update_server met à jour les champs et log SERVER_UPDATED."""
+    """update_server updates fields and logs SERVER_UPDATED."""
     server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22, "max_sessions": 2}
     with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts"):
         mock_db.query_one.side_effect = [server, None]
@@ -1127,7 +1127,7 @@ def test_actions_update_server_blank_environment_is_stored_as_null():
 
 
 def test_actions_update_server_ip_change_calls_keyscan():
-    """Si l'IP change, add_to_known_hosts est appelé."""
+    """If the IP changes, add_to_known_hosts is called."""
     server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "environment": "lab", "os_family": "rhel", "ssh_port": 22, "max_sessions": 2}
     with patch("actions.db") as mock_db, patch("servers.add_to_known_hosts") as mock_keyscan:
         mock_db.query_one.side_effect = [server, None]
@@ -1136,7 +1136,7 @@ def test_actions_update_server_ip_change_calls_keyscan():
 
 
 def test_actions_update_server_not_found():
-    """Si le serveur n'existe pas, ValueError levée."""
+    """If the server does not exist, ValueError is raised."""
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
         with pytest.raises(UserError, match="Server not found"):

@@ -27,7 +27,7 @@ afterEach(() => {
 })
 
 describe('UserLockForm', () => {
-  it('se monte sans erreur', async () => {
+  it('mounts without error', async () => {
     const w = mount(UserLockForm, { global: { plugins: [i18n] } })
     await flushPromises()
     expect(w.find('[data-testid="input-unix-user"]').exists()).toBe(true)
@@ -36,30 +36,30 @@ describe('UserLockForm', () => {
     expect(w.find('[data-testid="btn-unlock"]').exists()).toBe(true)
   })
 
-  it('charge les serveurs depuis /api/servers', async () => {
+  it('loads servers from /api/servers', async () => {
     const w = mount(UserLockForm, { global: { plugins: [i18n] } })
     await flushPromises()
     const options = w.findAll('[data-testid="select-server"] option')
-    expect(options.length).toBe(3) // 1 placeholder + 2 actifs
+    expect(options.length).toBe(3) // 1 placeholder + 2 active
     expect(options[1].text()).toBe('prod-01')
     expect(options[2].text()).toBe('staging-01')
   })
 
-  it('les boutons Lock et Unlock sont désactivés si le formulaire est vide', async () => {
+  it('Lock and Unlock buttons disabled when form empty', async () => {
     const w = mount(UserLockForm, { global: { plugins: [i18n] } })
     await flushPromises()
     expect(w.find('[data-testid="btn-lock"]').attributes('disabled')).toBeDefined()
     expect(w.find('[data-testid="btn-unlock"]').attributes('disabled')).toBeDefined()
   })
 
-  it('affiche une erreur de validation pour un username invalide avec espace', async () => {
+  it('shows validation error for username with space', async () => {
     const w = mount(UserLockForm, { global: { plugins: [i18n] } })
     await flushPromises()
     await w.find('[data-testid="input-unix-user"]').setValue('alice bob')
     expect(w.find('[data-testid="error-unix-user"]').exists()).toBe(true)
   })
 
-  it('active les boutons avec un username valide + serveur sélectionné', async () => {
+  it('enables buttons with valid username + selected server', async () => {
     const w = mount(UserLockForm, { global: { plugins: [i18n] } })
     await flushPromises()
     await w.find('[data-testid="input-unix-user"]').setValue('alice')
@@ -68,7 +68,7 @@ describe('UserLockForm', () => {
     expect(w.find('[data-testid="btn-unlock"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('clic sur Lock envoie POST /api/access/lock-user avec le bon payload', async () => {
+  it('clicking Lock sends POST /api/access/lock-user with correct payload', async () => {
     let capturedUrl = null
     let capturedPayload = null
     vi.stubGlobal('fetch', (url, opts) => {
@@ -107,7 +107,7 @@ describe('UserLockForm', () => {
     })
   })
 
-  it('clic sur Unlock envoie POST /api/access/unlock-user avec le bon payload', async () => {
+  it('clicking Unlock sends POST /api/access/unlock-user with correct payload', async () => {
     let capturedUrl = null
     let capturedPayload = null
     vi.stubGlobal('fetch', (url, opts) => {
@@ -146,7 +146,7 @@ describe('UserLockForm', () => {
     })
   })
 
-  it('succès Lock affiche le message de succès', async () => {
+  it('Lock success shows success message', async () => {
     vi.stubGlobal('fetch', (url, opts) => {
       if (url.includes('/api/servers')) {
         return Promise.resolve({
@@ -179,7 +179,7 @@ describe('UserLockForm', () => {
     expect(w.find('[data-testid="success-msg"]').text()).toContain('prod-01')
   })
 
-  it('succès Unlock affiche le message de succès', async () => {
+  it('Unlock success shows success message', async () => {
     vi.stubGlobal('fetch', (url, opts) => {
       if (url.includes('/api/servers')) {
         return Promise.resolve({
@@ -212,7 +212,7 @@ describe('UserLockForm', () => {
     expect(w.find('[data-testid="success-msg"]').text()).toContain('prod-01')
   })
 
-  it('erreur API affiche le message d\'erreur', async () => {
+  it('API error shows error message', async () => {
     vi.stubGlobal('fetch', (url, opts) => {
       if (url.includes('/api/servers')) {
         return Promise.resolve({
