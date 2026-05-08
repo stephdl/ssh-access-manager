@@ -489,7 +489,20 @@ def test_web_update_server_authenticated_returns_200(auth_client):
         )
         assert resp.status_code == 200
         mock_actions.update_server.assert_called_once_with(
-            "server-test-01", "10.0.0.2", "production", "debian", 22, ADMIN_ID
+            "server-test-01", "10.0.0.2", "production", "debian", 22, ADMIN_ID, 2
+        )
+
+
+def test_web_update_server_blank_environment_is_normalized_to_none(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put(
+            "/api/servers/server-test-01",
+            json={"ip": "10.0.0.2", "environment": "", "os_family": None},
+        )
+        assert resp.status_code == 200
+        mock_actions.update_server.assert_called_once_with(
+            "server-test-01", "10.0.0.2", None, None, 22, ADMIN_ID, 2
         )
 
 
