@@ -39,6 +39,45 @@ def auth_client(client):
     return client
 
 
+def test_web_get_flask_tls_context_returns_none_when_env_is_unset(monkeypatch):
+    monkeypatch.delenv("FLASK_TLS_CERT_PATH", raising=False)
+    monkeypatch.delenv("FLASK_TLS_KEY_PATH", raising=False)
+
+    assert web._get_flask_tls_context() is None
+
+
+def test_web_get_flask_tls_context_requires_both_env_vars(monkeypatch):
+    monkeypatch.setenv("FLASK_TLS_CERT_PATH", "/tmp/cert.pem")
+    monkeypatch.delenv("FLASK_TLS_KEY_PATH", raising=False)
+
+    with pytest.raises(RuntimeError, match="must both be set"):
+        web._get_flask_tls_context()
+
+
+def test_web_get_flask_tls_context_requires_existing_files(monkeypatch, tmp_path):
+    cert_path = tmp_path / "cert.pem"
+    cert_path.write_text("cert")
+    key_path = tmp_path / "missing.key"
+
+    monkeypatch.setenv("FLASK_TLS_CERT_PATH", str(cert_path))
+    monkeypatch.setenv("FLASK_TLS_KEY_PATH", str(key_path))
+
+    with pytest.raises(RuntimeError, match="existing file"):
+        web._get_flask_tls_context()
+
+
+def test_web_get_flask_tls_context_returns_tuple_for_existing_files(monkeypatch, tmp_path):
+    cert_path = tmp_path / "cert.pem"
+    key_path = tmp_path / "key.pem"
+    cert_path.write_text("cert")
+    key_path.write_text("key")
+
+    monkeypatch.setenv("FLASK_TLS_CERT_PATH", str(cert_path))
+    monkeypatch.setenv("FLASK_TLS_KEY_PATH", str(key_path))
+
+    assert web._get_flask_tls_context() == (str(cert_path), str(key_path))
+
+
 # ---------------------------------------------------------------------------
 # Authentification
 # ---------------------------------------------------------------------------
