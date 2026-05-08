@@ -776,8 +776,8 @@ h2 {
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 1.25rem;
   margin-bottom: 1.25rem;
@@ -795,7 +795,7 @@ h2 {
 }
 .my-account-hint {
   font-size: 0.875rem;
-  color: #555;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -836,13 +836,13 @@ label {
   border: none;
   padding: 0;
   cursor: pointer;
-  color: #6c757d;
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   line-height: 1;
 }
 .eye-btn:hover {
-  color: #343a40;
+  color: var(--text-primary);
 }
 
 input[type='text'],
@@ -858,14 +858,14 @@ select {
 }
 
 input.input-readonly {
-  background-color: #f5f5f5;
-  color: #666;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
   cursor: not-allowed;
 }
 
 .field-hint {
   font-size: 0.8rem;
-  color: #666;
+  color: var(--text-secondary);
   margin-top: 0.25rem;
   display: block;
 }
@@ -903,13 +903,13 @@ input.input-error {
 
 .empty {
   text-align: center;
-  color: #888;
+  color: var(--text-secondary);
   padding: 1rem 0;
 }
 .loading {
   text-align: center;
   padding: 2rem;
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .alert-error {
@@ -938,7 +938,7 @@ input.input-error {
   padding: 0.3rem 0.7rem;
   border: 1px solid #6c757d;
   border-radius: 4px;
-  background: #fff;
+  background: var(--bg-secondary);
   color: #6c757d;
   cursor: pointer;
   font-size: 0.85rem;

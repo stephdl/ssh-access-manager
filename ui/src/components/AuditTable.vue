@@ -226,8 +226,8 @@ function exportCsv() {
 
 <style scoped>
 .card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 1.25rem;
   margin-bottom: 1.25rem;
@@ -266,7 +266,7 @@ function exportCsv() {
 label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 input[type='text'],
@@ -296,20 +296,21 @@ table {
 
 .details {
   font-size: 0.8rem;
-  color: #555;
+  color: var(--text-secondary);
   overflow-wrap: break-word;
   word-break: break-word;
 }
 
 code {
-  background: #f4f4f4;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   padding: 0 3px;
   border-radius: 3px;
 }
 
 .empty {
   text-align: center;
-  color: #888;
+  color: var(--text-secondary);
   padding: 1rem 0;
 }
 
@@ -319,5 +320,13 @@ code {
 
 .row-warning {
   background: #fffbf0;
+}
+
+:global(html[data-theme='dark'] .row-danger) {
+  background: rgba(220, 53, 69, 0.15) !important;
+}
+
+:global(html[data-theme='dark'] .row-warning) {
+  background: rgba(255, 193, 7, 0.12) !important;
 }
 </style>

@@ -358,7 +358,7 @@ h2 {
 
 .last-collected {
   font-size: 0.85rem;
-  color: #666;
+  color: var(--text-secondary);
   margin: 0 0 1rem 0;
 }
 
@@ -366,7 +366,7 @@ h2 {
   font-weight: 600;
   font-size: 0.95rem;
   margin: 1.25rem 0 0.5rem 0;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .section-title:first-of-type {
@@ -386,18 +386,22 @@ table {
 th {
   text-align: left;
   padding: 0.5rem;
-  border-bottom: 2px solid #ddd;
+  border-bottom: 2px solid var(--border-color);
   font-weight: 600;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 td {
   padding: 0.5rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .row-active {
   background: #f0f9ff;
+}
+
+:global(html[data-theme='dark'] .row-active) {
+  background: rgba(37, 99, 235, 0.12) !important;
 }
 
 .badge {
@@ -445,11 +449,11 @@ td {
 .loading {
   text-align: center;
   padding: 1rem;
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .empty {
-  color: #888;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   padding: 0.75rem 0;
 }
@@ -508,7 +512,7 @@ td {
   flex: 1;
   min-width: 150px;
   padding: 0.4rem 0.6rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   font-size: 0.9rem;
 }

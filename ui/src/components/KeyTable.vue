@@ -375,8 +375,8 @@ function exportCsv() {
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 1rem;
-  background: #e8f4fd;
-  border: 1px solid #b8d9f5;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 0.875rem;
 }
@@ -454,7 +454,7 @@ function exportCsv() {
 }
 .empty {
   text-align: center;
-  color: #888;
+  color: var(--text-secondary);
   padding: 1rem 0;
 }
 .actions {
@@ -473,7 +473,8 @@ td {
 }
 code {
   font-size: 0.8rem;
-  background: #f4f4f4;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   padding: 0 3px;
   border-radius: 3px;
 }

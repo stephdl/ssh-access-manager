@@ -83,7 +83,7 @@ const to = computed(() => {
 
 .page-size-label {
   font-size: 0.875rem;
-  color: #444;
+  color: var(--text-secondary);
 }
 
 .page-size-select {
@@ -96,13 +96,14 @@ const to = computed(() => {
 
 .showing-info {
   font-size: 0.875rem;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .btn-pagination {
   padding: 0.35rem 0.75rem;
-  border: 1px solid #ccc;
-  background: #fff;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   border-radius: 4px;
   font-size: 0.875rem;
   cursor: pointer;
@@ -110,12 +111,12 @@ const to = computed(() => {
 }
 
 .btn-pagination:hover:not(:disabled) {
-  background: #f0f0f0;
+  background: var(--bg-tertiary);
 }
 
 .btn-pagination:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-  background: #f9f9f9;
+  background: var(--bg-secondary);
 }
 </style>

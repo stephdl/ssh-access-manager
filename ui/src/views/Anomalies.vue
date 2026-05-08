@@ -287,8 +287,8 @@ h2 {
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 1.25rem;
   margin-bottom: 1.25rem;
@@ -320,7 +320,7 @@ h2 {
 
 .subtitle {
   font-size: 0.8rem;
-  color: #888;
+  color: var(--text-secondary);
   font-weight: normal;
 }
 
@@ -331,7 +331,8 @@ h2 {
 }
 
 code {
-  background: #f4f4f4;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   padding: 0 3px;
   border-radius: 3px;
   font-size: 0.8rem;

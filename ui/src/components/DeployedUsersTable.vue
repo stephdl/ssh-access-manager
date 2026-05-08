@@ -82,7 +82,9 @@
           >
             <td>{{ user.unix_user }}</td>
             <td>
-              <RouterLink :to="`/servers/${user.hostname}`">{{ user.hostname }}</RouterLink>
+              <RouterLink :to="`/servers/${user.hostname}`" class="server-link">{{
+                user.hostname
+              }}</RouterLink>
             </td>
             <td>{{ user.ip_address || '—' }}</td>
             <td>{{ formatExpiry(user.expires_at) }}</td>
@@ -344,15 +346,16 @@ table {
 th {
   text-align: left;
   padding: 0.75rem;
-  background: #f8f9fa;
-  border-bottom: 2px solid #dee2e6;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
   font-weight: 600;
   font-size: 0.85rem;
 }
 
 td {
   padding: 0.75rem;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--border-color);
   font-size: 0.9rem;
 }
 
@@ -424,6 +427,20 @@ td {
   padding: 0.25rem 0.5rem;
   border-radius: 3px;
   font-size: 0.8rem;
+}
+
+.server-link {
+  color: #0d6efd;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.server-link:hover {
+  text-decoration: underline;
+}
+
+:global(html[data-theme='dark'] .server-link) {
+  color: #60a5fa;
 }
 
 .empty-state,

@@ -343,8 +343,8 @@ function exportCsv() {
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 1rem;
-  background: #e8f4fd;
-  border: 1px solid #b8d9f5;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 0.875rem;
   margin-bottom: 0.75rem;
@@ -405,7 +405,8 @@ function exportCsv() {
 }
 
 code {
-  background: #f4f4f4;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   padding: 0 3px;
   border-radius: 3px;
   font-size: 0.8rem;
@@ -421,6 +422,10 @@ code {
   text-decoration: underline;
 }
 
+:global(html[data-theme='dark'] .server-link) {
+  color: #60a5fa;
+}
+
 .non-compliant {
   cursor: help;
 }
@@ -432,7 +437,7 @@ code {
 }
 
 .empty {
-  color: #888;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   padding: 0.5rem 0;
 }

@@ -48,7 +48,7 @@ h1 {
 .loading {
   text-align: center;
   padding: 2rem;
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .alert-error {
