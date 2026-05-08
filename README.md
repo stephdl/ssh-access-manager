@@ -195,7 +195,7 @@ Depuis la vue détail d'un serveur (**Dashboard > clic sur hostname**) :
 
 | Action | Effet |
 |---|---|
-| **Modifier** | Modifie l'adresse IP, l'environnement, la famille d'OS ou le port SSH du serveur (rôle `sysadmin`). |
+| **Modifier** | Modifie l'adresse IP, l'environnement, la famille d'OS, le port SSH ou le seuil `max_sessions` du serveur (rôle `sysadmin`). |
 | **Désactiver** | Le serveur n'est plus scanné automatiquement. Indicateur rouge visible dans le dashboard et la vue détail. |
 | **Réactiver** | Le serveur reprend le cycle de scan automatique. |
 | **Supprimer** | Suppression définitive du serveur et de toutes ses clés, autorisations et logs associés (action irréversible). |
@@ -374,6 +374,45 @@ Si un scan détecte qu'une clé `ACTIVE` a disparu de `authorized_keys` sans act
 4. La clé apparaît dans **Anomalies > Révocations hors système**
 
 Action recommandée : investiguer l'origine de la suppression (accès root direct ? compromission ?).
+
+---
+
+## Alerte dépassement de sessions SSH
+
+Chaque serveur possède un seuil configurable **`max_sessions`** (défaut : **2**). À la fin de chaque scan, le nombre de sessions SSH actives est comparé à ce seuil.
+
+### Comportement
+
+- Si le nombre de sessions actives **dépasse** `max_sessions`, une alerte email **WARNING** est envoyée à tous les administrateurs ayant `receive_alerts=true`.
+- Un **anti-spam 24 h** est appliqué : si une alerte `SESSION_LIMIT_EXCEEDED` a déjà été envoyée dans les dernières 24 heures pour ce serveur, l'email est supprimé. Cela évite de spammer à chaque cycle cron (toutes les 4 heures).
+- L'alerte est tracée dans l'`audit_log` avec l'action `SESSION_LIMIT_EXCEEDED` et les détails `{ hostname, session_count, max_sessions }`.
+
+### Contenu de l'email
+
+```
+[WARNING] [ssh-access-manager] Session limit exceeded on <hostname>
+
+Server: <hostname>
+Active sessions: <N>
+Configured limit: <max_sessions>
+
+Please review active connections on this server.
+```
+
+### Configurer le seuil par serveur
+
+**Via l'interface web** : vue détail du serveur → bouton **Modifier** → champ **Sessions max** (min. 1).
+
+**Via l'API REST** :
+
+```bash
+curl -s -X PUT https://<host>/api/servers/<hostname> \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"ip": "192.168.1.10", "environment": "production", "max_sessions": 5}'
+```
+
+La valeur est retournée dans tous les endpoints `GET /api/servers` et `GET /api/servers/<hostname>`.
 
 ---
 
