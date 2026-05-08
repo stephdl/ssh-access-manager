@@ -83,6 +83,8 @@
     "os_family": "OS Family",
     "os_placeholder": "e.g.: rhel, debian (optional)",
     "ssh_port_label": "SSH Port",
+    "max_sessions_label": "Max sessions",
+    "max_sessions_hint": "Alert sent when active SSH sessions exceed this limit.",
     "submitting": "Saving…",
     "submit": "Save"
   },
@@ -118,6 +120,7 @@
     "field_os": "OS",
     "field_active": "Active",
     "field_added": "Added on",
+    "field_max_sessions": "Max sessions",
     "active_yes": "✅ Yes",
     "active_no": "🔴 No",
     "section_keys": "SSH Keys",
