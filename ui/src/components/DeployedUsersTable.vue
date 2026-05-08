@@ -344,15 +344,16 @@ table {
 th {
   text-align: left;
   padding: 0.75rem;
-  background: #f8f9fa;
-  border-bottom: 2px solid #dee2e6;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
   font-weight: 600;
   font-size: 0.85rem;
 }
 
 td {
   padding: 0.75rem;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--border-color);
   font-size: 0.9rem;
 }
 
