@@ -45,7 +45,7 @@ http {
         ssl_session_cache   shared:SSL:10m;
         ssl_session_timeout 10m;
 
-        # API Flask — proxy to 127.0.0.1:5000
+        # API — proxy to 127.0.0.1:5000
         location /api/ {
             proxy_pass         http://127.0.0.1:5000;
             proxy_set_header   Host \$host;

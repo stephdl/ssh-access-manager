@@ -451,7 +451,7 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 >
 > **Fuseau horaire** : les dates sont stockées en UTC dans PostgreSQL. L'interface web affiche automatiquement les dates dans le fuseau du navigateur.
 >
-> **HTTPS Flask direct** : voir la section [HTTPS — Configuration TLS](#https--configuration-tls) pour le détail et un exemple complet.
+> **HTTPS sur Nginx** : voir la section [HTTPS — Configuration TLS](#https--configuration-tls) pour le détail et un exemple complet.
 
 > **Secrets obligatoires avant un déploiement en production** — ne jamais laisser les valeurs d'exemple :
 > ```bash
