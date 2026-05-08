@@ -31,6 +31,8 @@ CREATE TABLE servers (
                 )),
     -- Serveur actif dans le périmètre de collecte
     is_active   BOOLEAN DEFAULT true,
+    -- Nombre maximum de sessions SSH simultanées autorisées (alerte si dépassé)
+    max_sessions INTEGER NOT NULL DEFAULT 2,
     -- Date d'enregistrement dans le système
     added_at    TIMESTAMPTZ DEFAULT now()
 );
@@ -44,6 +46,7 @@ COMMENT ON COLUMN servers.os_family IS 'Famille d''OS : rhel, debian, alpine...'
 COMMENT ON COLUMN servers.os_version IS 'Version précise de l''OS';
 COMMENT ON COLUMN servers.environment IS 'Environnement : production, staging ou lab';
 COMMENT ON COLUMN servers.is_active IS 'False = exclu du périmètre de collecte SSH';
+COMMENT ON COLUMN servers.max_sessions IS 'Seuil max de sessions SSH simultanées — alerte WARNING si dépassé (anti-spam 24h)';
 COMMENT ON COLUMN servers.added_at IS 'Horodatage d''enregistrement dans le système';
 
 -- ---------------------------------------------------------------------------
@@ -268,7 +271,8 @@ CREATE TABLE audit_log (
                       'LOGIN_FAILED',       -- tentative de connexion échouée (mauvais mot de passe)
                       'LOGIN_BANNED',       -- IP bannie après trop de tentatives échouées
                       'PASSWORD_RESET',     -- réinitialisation de mot de passe via CLI
-                      'SERVER_PROVISIONED'  -- provisionnement automatique via SSH password
+                      'SERVER_PROVISIONED',  -- provisionnement automatique via SSH password
+                      'SESSION_LIMIT_EXCEEDED' -- nombre de sessions actives > max_sessions (anti-spam 24h)
                   )),
     -- Administrateur ayant déclenché l'action (NULL si automatique)
     performed_by  UUID REFERENCES administrators(id) ON DELETE SET NULL,
