@@ -17,7 +17,7 @@ Premier démarrage :
 10. Insérer administrateur initial depuis ENV avec werkzeug generate_password_hash
 11. Arrêter PostgreSQL temporaire
 12. Générer /etc/msmtprc depuis msmtp.conf.template + ENV
-13. Générer /etc/nginx/nginx.conf depuis nginx.conf.template + ENV
+13. Générer /etc/nginx/nginx.conf depuis nginx.conf.http.template ou nginx.conf.https.template + ENV
 14. Afficher collector_key.pub dans les logs
 
 Non premier démarrage : régénérer nginx.conf + msmtprc depuis ENV.
@@ -221,7 +221,7 @@ Scénarios critiques à ne jamais casser :
 - test_web.py : session expirée → 401, remember_me=true → expires_at dans ~8h
 - test_web.py : deploy retourne 400 si hours hors plage (0, -1, 8761) ou non entier
 
-Non testé unitairement : bootstrap.sh, Dockerfile, nginx.conf.template, provision-host.sh.
+Non testé unitairement : bootstrap.sh, Dockerfile, nginx.conf.http.template, nginx.conf.https.template, provision-host.sh.
 
 ## sudoers et provision-host.sh
 
