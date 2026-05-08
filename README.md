@@ -385,6 +385,8 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 | `POSTGRES_USER` | Utilisateur PostgreSQL | `ssh_manager` |
 | `POSTGRES_PASSWORD` | Mot de passe PostgreSQL | — |
 | `NGINX_PORT` | Port d'écoute Nginx | `8080` |
+| `NGINX_TLS_CERT_PATH` | Chemin du certificat TLS (active le mode HTTPS si défini avec `NGINX_TLS_KEY_PATH`) | — |
+| `NGINX_TLS_KEY_PATH` | Chemin de la clé privée TLS (active le mode HTTPS si défini avec `NGINX_TLS_CERT_PATH`) | — |
 | `FLASK_SECRET_KEY` | Clé secrète Flask (sessions) — **obligatoire**, le container refuse de démarrer si absente | — |
 | `SMTP_HOST` | Serveur SMTP | — |
 | `SMTP_PORT` | Port SMTP | `587` |
@@ -404,6 +406,21 @@ Action recommandée : investiguer l'origine de la suppression (accès root direc
 > **Seuils d'alerte expiration** : `expire_warn_days` (défaut 7) et `expire_warn_days_2` (défaut 2) sont configurables sans redémarrage depuis **Settings → Expiry warnings**.
 >
 > **Fuseau horaire** : les dates sont stockées en UTC dans PostgreSQL. L'interface web affiche automatiquement les dates dans le fuseau du navigateur.
+>
+> **HTTPS (optionnel)** : si `NGINX_TLS_CERT_PATH` et `NGINX_TLS_KEY_PATH` sont tous deux définis, Nginx utilise `nginx.conf.https.template` (TLSv1.2/1.3, ciphers ECDHE, HSTS) et active une redirection `HTTP -> HTTPS` (`301`), y compris si une requête HTTP arrive par erreur sur le port TLS. Ces chemins sont **des chemins internes au conteneur** : vos certificats doivent donc être présents (ou montés) à cet emplacement dans le conteneur. Si les fichiers n'existent pas encore, un certificat auto-signé est généré automatiquement au démarrage. Sans ces variables, Nginx utilise `nginx.conf.http.template` (HTTP pur, aucune directive SSL).
+>
+> **Exemple docker-compose (certificats montés)** :
+> ```yaml
+> services:
+>   sam-server:
+>     volumes:
+>       - ssh_data:/data
+>       - ./certs:/data/certs:ro
+>     environment:
+>       - NGINX_TLS_CERT_PATH=/data/certs/server.crt
+>       - NGINX_TLS_KEY_PATH=/data/certs/server.key
+> ```
+> Dans cet exemple, `server.crt` et `server.key` sont stockés sur l'hôte dans `./certs` puis exposés en lecture seule dans le conteneur.
 
 > **Secrets obligatoires avant un déploiement en production** — ne jamais laisser les valeurs d'exemple :
 > ```bash
