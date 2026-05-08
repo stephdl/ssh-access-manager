@@ -70,7 +70,7 @@ describe('KeyActions', () => {
     await w.find('textarea').setValue('Test reason')
     await w.find('[data-testid="confirm-revoke"]').trigger('click')
     expect(w.emitted('revoke')).toBeTruthy()
-    expect(w.emitted('revoke')[0][0]).toEqual({ fingerprint: FP, reason: 'Motif test' })
+    expect(w.emitted('revoke')[0][0]).toEqual({ fingerprint: FP, reason: 'Test reason' })
   })
 
   it('closes modal after cancel', async () => {
