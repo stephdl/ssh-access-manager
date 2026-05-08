@@ -162,7 +162,7 @@ if [ -z "$USER" ]; then
     echo "Usage: sam-unlock-user <username>" >&2
     exit 1
 fi
-usermod -s /bin/bash "$USER"
+usermod -U -s /bin/bash "$USER"
 """
 
 SAM_SESSIONS_PATH = "/usr/local/bin/sam-sessions"
