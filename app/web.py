@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from functools import wraps
 
 from flask import Flask, g, jsonify, request, session
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash
 
 import actions
@@ -110,6 +111,14 @@ app.secret_key = _flask_secret
 def handle_user_error(e):
     logging.warning("UserError: %s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
     return jsonify({"error": str(e)}), e.status
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(e):
+    if isinstance(e, HTTPException):
+        return jsonify({"error": e.name}), e.code
+    logging.exception("Unhandled exception")
+    return jsonify({"error": "Internal server error"}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -243,20 +252,6 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return None
 
 
-def _ssh_error_code(msg: str) -> str:
-    if "Authentication failed" in msg:
-        return "SSH_AUTH_FAILED"
-    if "timed out" in msg:
-        return "SSH_TIMEOUT"
-    if "unreachable" in msg or "could not get host key" in msg:
-        return "SSH_UNREACHABLE"
-    if "refused" in msg:
-        return "SSH_PORT_REFUSED"
-    if "sudo privileges" in msg:
-        return "SSH_SUDO_FAILED"
-    if "Provisioning script failed" in msg:
-        return "SSH_SCRIPT_FAILED"
-    return "SSH_FAILED"
 
 
 # ---------------------------------------------------------------------------
@@ -337,11 +332,11 @@ def add_server():
             ssh_port, g.admin_id,
         )
         return jsonify(server), 201
-    except KeyError as e:
-        return jsonify({"error": f"Missing field: {e}"}), 400
-    except RuntimeError as e:
+    except KeyError:
+        return jsonify({"error": "Missing required field: hostname and ip are required"}), 400
+    except ssh.SSHError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": "SSH operation failed", "error_code": _ssh_error_code(str(e))}), 422
+        return jsonify({"error": "SSH operation failed", "error_code": e.error_code}), 422
 
 
 @app.route("/api/servers/<hostname>/provision", methods=["POST"])
@@ -360,9 +355,9 @@ def provision_server_route(hostname):
     try:
         actions.provision_server(hostname, ssh_user, ssh_password, ssh_port, g.admin_id)
         return jsonify({"message": "Server provisioned successfully"})
-    except RuntimeError as exc:
+    except ssh.SSHError as exc:
         logging.warning("%s", str(exc).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": "SSH operation failed", "error_code": _ssh_error_code(str(exc))}), 422
+        return jsonify({"error": "SSH operation failed", "error_code": exc.error_code}), 422
 
 
 @app.route("/api/servers/<hostname>", methods=["PUT"])
@@ -382,9 +377,8 @@ def update_server(hostname):
             data.get("os_family"), data.get("ssh_port", 22), g.admin_id, max_sessions,
         )
         return jsonify({"message": "Server updated"})
-    except KeyError as e:
-        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": str(e)}), 400
+    except KeyError:
+        return jsonify({"error": "Missing required field: ip is required"}), 400
 
 
 @app.route("/api/servers/<hostname>/disable", methods=["PUT"])
@@ -469,7 +463,7 @@ def refresh_server_sessions(hostname):
         ssh.collect_sessions_on_server(hostname, server["id"], ip, port=port)
         return jsonify({"status": "refreshed"})
     except RuntimeError as e:
-        logging.warning("collect_sessions_on_server failed on %s (%s): %s", hostname, ip, str(e).replace("\n", " ").replace("\r", ""))
+        logging.warning("collect_sessions_on_server failed on %s (%s): %s", hostname.replace("\n", "").replace("\r", ""), ip, str(e).replace("\n", " ").replace("\r", ""))
         return jsonify({"error": "Session collection failed"}), 502
     except Exception:
         logging.warning("collect_sessions_on_server failed on %s (%s): unexpected error", hostname.replace("\n", "").replace("\r", ""), ip.replace("\n", "").replace("\r", ""))
@@ -596,9 +590,8 @@ def assign_key(fingerprint):
     try:
         actions.assign_key(fingerprint, data["owner_name"])
         return jsonify({"status": "assigned"})
-    except KeyError as e:
-        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": str(e)}), 400
+    except KeyError:
+        return jsonify({"error": "Missing required field: owner_name is required"}), 400
 
 
 @app.route("/api/keys/set-expiry/<path:fingerprint>", methods=["POST"])
@@ -701,9 +694,8 @@ def grant_access():
         )
         result["expires_at"] = result["expires_at"].isoformat()
         return jsonify(result), 201
-    except KeyError as e:
-        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": str(e)}), 400
+    except KeyError:
+        return jsonify({"error": "Missing required field: key_fp and hostname are required"}), 400
 
 
 @app.route("/api/access/deploy", methods=["POST"])
@@ -847,12 +839,8 @@ def request_access():
             ),
         )
         return jsonify({"status": "requested"}), 201
-    except KeyError as e:
-        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": str(e)}), 400
-    except Exception:
-        logging.warning("request_access failed: unexpected error")
-        return jsonify({"error": "Internal server error"}), 400
+    except KeyError:
+        return jsonify({"error": "Missing required field: key_fp, hostname, and justification are required"}), 400
 
 
 @app.route("/api/access/<request_id>/approve", methods=["POST"])
@@ -899,12 +887,8 @@ def add_admin():
             role=data.get("role", "operator"),
         )
         return jsonify(admin), 201
-    except KeyError as e:
-        logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": str(e)}), 400
-    except Exception:
-        logging.warning("add_admin failed: unexpected error")
-        return jsonify({"error": "Internal server error"}), 400
+    except KeyError:
+        return jsonify({"error": "Missing required field: username and password are required"}), 400
 
 
 @app.route("/api/admins/<username>", methods=["PUT"])

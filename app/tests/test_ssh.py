@@ -193,7 +193,7 @@ def test_ssh_revoke_on_server_raises_on_nonzero_exit(sample_key):
         stderr.read.return_value = b"error"
         client.exec_command.return_value = (MagicMock(), stdout, stderr)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ssh.SSHError):
             ssh.revoke_on_server("server-test-01", sample_key["fingerprint"], ip="192.168.1.10")
 
 
@@ -418,7 +418,7 @@ def test_ssh_add_key_on_server_raises_on_nonzero_exit(sample_server):
         stderr.read.return_value = b"error"
         client.exec_command.return_value = (MagicMock(), stdout, stderr)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ssh.SSHError):
             ssh.add_key_on_server(
                 sample_server["hostname"],
                 "alice",
@@ -797,7 +797,7 @@ def test_ssh_fetch_host_key_non_standard_port_brackets():
 
 
 def test_ssh_fetch_host_key_raises_on_unreachable():
-    """_fetch_host_key raises RuntimeError when Transport cannot connect (generic error)."""
+    """_fetch_host_key raises SSHUnreachableError when Transport cannot connect (generic error)."""
     import tempfile
     from unittest.mock import MagicMock, patch
 
@@ -808,7 +808,7 @@ def test_ssh_fetch_host_key_raises_on_unreachable():
         path = f.name
     try:
         with patch("ssh.paramiko.Transport", return_value=mock_transport):
-            with pytest.raises(RuntimeError, match="unreachable"):
+            with pytest.raises(ssh.SSHUnreachableError, match="unreachable"):
                 ssh._fetch_host_key("10.0.0.1", 22, known_hosts_path=path)
         mock_transport.close.assert_called_once()
     finally:
@@ -816,7 +816,7 @@ def test_ssh_fetch_host_key_raises_on_unreachable():
 
 
 def test_ssh_fetch_host_key_connection_refused_raises_runtime_error():
-    """_fetch_host_key raises RuntimeError with 'refused' when Transport constructor gets connection refused."""
+    """_fetch_host_key raises SSHPortRefusedError with 'refused' when Transport constructor gets connection refused."""
     import tempfile
     from unittest.mock import patch
     import paramiko as paramiko_mod
@@ -828,14 +828,14 @@ def test_ssh_fetch_host_key_connection_refused_raises_runtime_error():
             "ssh.paramiko.Transport",
             side_effect=paramiko_mod.SSHException("Unable to connect: [Errno 111] Connection refused"),
         ):
-            with pytest.raises(RuntimeError, match="refused"):
+            with pytest.raises(ssh.SSHPortRefusedError, match="refused"):
                 ssh._fetch_host_key("10.0.0.1", 22, known_hosts_path=path)
     finally:
         os.unlink(path)
 
 
 def test_ssh_fetch_host_key_generic_ssh_exception_raises_runtime_error():
-    """_fetch_host_key raises RuntimeError with 'unreachable' for non-refused SSHException."""
+    """_fetch_host_key raises SSHUnreachableError with 'unreachable' for non-refused SSHException."""
     import tempfile
     from unittest.mock import patch
     import paramiko as paramiko_mod
@@ -847,7 +847,7 @@ def test_ssh_fetch_host_key_generic_ssh_exception_raises_runtime_error():
             "ssh.paramiko.Transport",
             side_effect=paramiko_mod.SSHException("Network unreachable"),
         ):
-            with pytest.raises(RuntimeError, match="unreachable"):
+            with pytest.raises(ssh.SSHUnreachableError, match="unreachable"):
                 ssh._fetch_host_key("10.0.0.1", 22, known_hosts_path=path)
     finally:
         os.unlink(path)
@@ -916,7 +916,7 @@ def test_ssh_provision_server_uses_paramiko_for_host_key():
 
 
 def test_ssh_provision_server_auth_failed():
-    """provision_server raises RuntimeError on authentication failure."""
+    """provision_server raises SSHAuthError on authentication failure."""
     from unittest.mock import MagicMock, patch, mock_open
     import paramiko
 
@@ -928,12 +928,12 @@ def test_ssh_provision_server_auth_failed():
         mock_cls.return_value = mock_client
         mock_client.connect.side_effect = paramiko.AuthenticationException("Auth failed")
 
-        with pytest.raises(RuntimeError, match="Authentication failed"):
+        with pytest.raises(ssh.SSHAuthError, match="Authentication failed"):
             ssh.provision_server("192.168.1.10", "root", "wrongpass", 22)
 
 
 def test_ssh_provision_server_timeout():
-    """provision_server raises RuntimeError on timeout."""
+    """provision_server raises SSHTimeoutError on timeout."""
     from unittest.mock import MagicMock, patch, mock_open
     import socket
 
@@ -945,12 +945,12 @@ def test_ssh_provision_server_timeout():
         mock_cls.return_value = mock_client
         mock_client.connect.side_effect = socket.timeout("Timeout")
 
-        with pytest.raises(RuntimeError, match="timed out"):
+        with pytest.raises(ssh.SSHTimeoutError, match="timed out"):
             ssh.provision_server("192.168.1.10", "root", "password123", 22)
 
 
 def test_ssh_provision_server_no_route():
-    """provision_server raises RuntimeError on no route to host."""
+    """provision_server raises SSHUnreachableError on no route to host."""
     from unittest.mock import MagicMock, patch, mock_open
 
     with patch("ssh._fetch_host_key"), \
@@ -961,12 +961,12 @@ def test_ssh_provision_server_no_route():
         mock_cls.return_value = mock_client
         mock_client.connect.side_effect = Exception("No route to host")
 
-        with pytest.raises(RuntimeError, match="unreachable"):
+        with pytest.raises(ssh.SSHUnreachableError, match="unreachable"):
             ssh.provision_server("192.168.1.10", "root", "password123", 22)
 
 
 def test_ssh_provision_server_refused():
-    """provision_server raises RuntimeError on connection refused."""
+    """provision_server raises SSHPortRefusedError on connection refused."""
     from unittest.mock import MagicMock, patch, mock_open
 
     with patch("ssh._fetch_host_key"), \
@@ -977,21 +977,21 @@ def test_ssh_provision_server_refused():
         mock_cls.return_value = mock_client
         mock_client.connect.side_effect = Exception("Connection refused")
 
-        with pytest.raises(RuntimeError, match="refused"):
+        with pytest.raises(ssh.SSHPortRefusedError, match="refused"):
             ssh.provision_server("192.168.1.10", "root", "password123", 22)
 
 
 def test_ssh_provision_server_keyscan_unreachable():
-    """provision_server raises RuntimeError when host key fetch fails."""
+    """provision_server raises SSHUnreachableError when host key fetch fails."""
     from unittest.mock import patch
 
-    with patch("ssh._fetch_host_key", side_effect=RuntimeError("Server unreachable")):
-        with pytest.raises(RuntimeError, match="unreachable"):
+    with patch("ssh._fetch_host_key", side_effect=ssh.SSHUnreachableError("Server unreachable")):
+        with pytest.raises(ssh.SSHUnreachableError, match="unreachable"):
             ssh.provision_server("192.168.1.10", "root", "password123", 22)
 
 
 def test_ssh_provision_server_script_failed():
-    """provision_server raises RuntimeError when provision script fails with sudo error."""
+    """provision_server raises SSHSudoError when provision script fails with sudo error."""
     from unittest.mock import MagicMock, patch, mock_open
 
     def mock_open_side_effect(filename, *args, **kwargs):
@@ -1018,7 +1018,7 @@ def test_ssh_provision_server_script_failed():
         mock_sftp = MagicMock()
         mock_client.open_sftp.return_value = mock_sftp
 
-        with pytest.raises(RuntimeError, match="sudo privileges"):
+        with pytest.raises(ssh.SSHSudoError, match="sudo privileges"):
             ssh.provision_server("192.168.1.10", "root", "password123", 22)
 
 
@@ -1058,14 +1058,14 @@ def test_ssh_provision_server_no_password_uses_collector_key():
 
 
 def test_ssh_provision_server_no_password_key_auth_failed():
-    """provision_server with empty password raises RuntimeError when collector key is not authorized."""
+    """provision_server with empty password raises SSHAuthError when collector key is not authorized."""
     from unittest.mock import patch
     import paramiko
 
     with patch("ssh._fetch_host_key"), \
          patch("ssh._connect", side_effect=paramiko.AuthenticationException("no key")):
 
-        with pytest.raises(RuntimeError, match="collector key is not authorized"):
+        with pytest.raises(ssh.SSHAuthError, match="collector key is not authorized"):
             ssh.provision_server("192.168.1.10", "root", "", 22)
 
 

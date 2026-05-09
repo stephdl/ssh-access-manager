@@ -9,6 +9,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+import ssh
 import web
 from actions import ForbiddenError, NotFoundError, UserError
 
@@ -422,7 +423,7 @@ def test_web_add_server_no_password_succeeds(auth_client):
 def test_web_add_server_ssh_failure_returns_422(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.add_server.side_effect = RuntimeError("Authentication failed")
+        mock_actions.add_server.side_effect = ssh.SSHAuthError("Authentication failed")
         resp = auth_client.post(
             "/api/servers",
             json={"hostname": "new-srv", "ip": "10.0.0.1",
@@ -435,7 +436,7 @@ def test_web_add_server_ssh_port_refused_returns_422(auth_client):
     """POST /api/servers returns 422 with SSH_PORT_REFUSED when port is refused."""
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.add_server.side_effect = RuntimeError(
+        mock_actions.add_server.side_effect = ssh.SSHPortRefusedError(
             "SSH port 22 refused — check that SSH is running on that port"
         )
         resp = auth_client.post(
@@ -632,7 +633,7 @@ def test_web_provision_server_not_found(auth_client):
 def test_web_provision_server_ssh_error(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
-        mock_actions.provision_server.side_effect = RuntimeError("Connection failed")
+        mock_actions.provision_server.side_effect = ssh.SSHError("Connection failed")
         resp = auth_client.post(
             "/api/servers/server-test-01/provision",
             json={"ssh_user": "root", "ssh_password": "secret", "ssh_port": 22},
