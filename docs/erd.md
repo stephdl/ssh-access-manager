@@ -5,11 +5,13 @@ erDiagram
     servers {
         UUID id PK
         VARCHAR hostname UK
-        INET ip_address
+        INET ip_address UK
+        INTEGER ssh_port
         VARCHAR os_family
         VARCHAR os_version
         VARCHAR environment
         BOOLEAN is_active
+        INTEGER max_sessions
         TIMESTAMPTZ added_at
     }
 
@@ -22,6 +24,7 @@ erDiagram
         BOOLEAN is_active
         BOOLEAN receive_alerts
         TIMESTAMPTZ created_at
+        TIMESTAMPTZ password_changed_at
     }
 
     ssh_keys {
@@ -81,6 +84,18 @@ erDiagram
         TEXT value
     }
 
+    ssh_sessions {
+        UUID id PK
+        UUID server_id FK
+        VARCHAR unix_user
+        VARCHAR tty
+        INET login_ip
+        TIMESTAMPTZ login_at
+        TIMESTAMPTZ logout_at
+        BOOLEAN is_active
+        TIMESTAMPTZ collected_at
+    }
+
     ssh_keys ||--o{ key_authorizations : "autorisée via"
     servers ||--o{ key_authorizations : "héberge"
     administrators ||--o{ key_authorizations : "autorisée par"
@@ -92,6 +107,7 @@ erDiagram
     administrators ||--o{ audit_log : "effectuée par"
     ssh_keys ||--o{ audit_log : "clé cible"
     servers ||--o{ audit_log : "serveur cible"
+    servers ||--o{ ssh_sessions : "sessions actives"
 ```
 
 ## Description des relations
@@ -107,6 +123,7 @@ erDiagram
 | `administrators` → `audit_log` | 1:N | Un admin génère des entrées d'audit |
 | `ssh_keys` → `audit_log` | 1:N | Une clé est référencée dans l'audit |
 | `servers` → `audit_log` | 1:N | Un serveur est référencé dans l'audit |
+| `servers` → `ssh_sessions` | 1:N | Un serveur peut avoir plusieurs sessions SSH collectées |
 
 ## Clé primaire composite — key_authorizations
 
@@ -145,15 +162,28 @@ Clés présentes par défaut :
 | `expire_warn_days_2` | `2` | Second avertissement avant expiration (jours) |
 | `login_max_attempts` | `10` | Tentatives max avant bannissement IP (brute-force) |
 | `login_ban_seconds` | `300` | Durée du bannissement en secondes |
+| `audit_retention_days` | `365` | Rétention des entrées d'audit (jours) |
 
 ## Colonne receive_alerts — administrators
 
 `administrators.receive_alerts` contrôle si un administrateur reçoit les emails d'alerte.
 Modifiable par un sysadmin via `PUT /api/admins/<username>/alerts` ou le toggle dans l'UI Admins.
 
+## Colonne max_sessions — servers
+
+`servers.max_sessions` définit le seuil de sessions SSH simultanées autorisées par serveur.
+Si le nombre de sessions actives collectées dépasse cette valeur, une alerte `SESSION_LIMIT_EXCEEDED`
+est émise (anti-spam 24h via `audit_log`).
+
+## Table ssh_sessions
+
+Collectée lors des scans via le script `sam-sessions` déployé sur chaque serveur.
+Upsert via `ON CONFLICT (server_id, unix_user, tty, login_at)`.
+Utilisée pour détecter le dépassement de `max_sessions` et afficher les sessions actives dans l'UI.
+
 ## Index
 
-Six index optimisent les requêtes fréquentes :
+Neuf index optimisent les requêtes fréquentes :
 
 | Index | Table | Colonne(s) | Objectif |
 |-------|-------|------------|----------|
@@ -163,10 +193,13 @@ Six index optimisent les requêtes fréquentes :
 | `idx_audit_log_action` | `audit_log` | `(action, performed_at DESC)` | Anti-spam EXPIRY_WARNING : NOT EXISTS dans les 24h |
 | `idx_ssh_keys_compliant` | `ssh_keys` | `is_compliant` | Filtrage conformité (rapport sécurité) |
 | `idx_ssh_keys_fingerprint` | `ssh_keys` | `fingerprint` | Recherche par fingerprint — opération la plus fréquente |
+| `servers_ip_unique` | `servers` | `ip_address` | Unicité IP — une IP ne peut appartenir qu'à un seul serveur |
+| `idx_sessions_server` | `ssh_sessions` | `(server_id, is_active, login_at DESC)` | Sessions actives par serveur, triées par date |
+| `idx_sessions_collected` | `ssh_sessions` | `collected_at DESC` | Tri par date de collecte |
 
 ## Valeurs de la contrainte CHECK — audit_log.action
 
-20 valeurs contrôlées :
+25 valeurs contrôlées :
 
 | Action | Déclencheur |
 |--------|-------------|
@@ -192,3 +225,6 @@ Six index optimisent les requêtes fréquentes :
 | `USER_UNLOCKED` | Compte Unix déverrouillé |
 | `LOGIN_FAILED` | Échec d'authentification (IP enregistrée) |
 | `LOGIN_BANNED` | IP bannie après trop d'échecs (rate limiter) |
+| `PASSWORD_RESET` | Mot de passe réinitialisé par un administrateur |
+| `SERVER_PROVISIONED` | Serveur provisionné (scripts SAM déployés) |
+| `SESSION_LIMIT_EXCEEDED` | Nombre de sessions SSH actives dépasse max_sessions |
