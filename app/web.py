@@ -252,20 +252,6 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return None
 
 
-def _ssh_error_code(msg: str) -> str:
-    if "Authentication failed" in msg:
-        return "SSH_AUTH_FAILED"
-    if "timed out" in msg:
-        return "SSH_TIMEOUT"
-    if "unreachable" in msg or "could not get host key" in msg:
-        return "SSH_UNREACHABLE"
-    if "refused" in msg:
-        return "SSH_PORT_REFUSED"
-    if "sudo privileges" in msg:
-        return "SSH_SUDO_FAILED"
-    if "Provisioning script failed" in msg:
-        return "SSH_SCRIPT_FAILED"
-    return "SSH_FAILED"
 
 
 # ---------------------------------------------------------------------------
@@ -348,9 +334,9 @@ def add_server():
         return jsonify(server), 201
     except KeyError:
         return jsonify({"error": "Missing required field: hostname and ip are required"}), 400
-    except RuntimeError as e:
+    except ssh.SSHError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": "SSH operation failed", "error_code": _ssh_error_code(str(e))}), 422
+        return jsonify({"error": "SSH operation failed", "error_code": e.error_code}), 422
 
 
 @app.route("/api/servers/<hostname>/provision", methods=["POST"])
@@ -369,9 +355,9 @@ def provision_server_route(hostname):
     try:
         actions.provision_server(hostname, ssh_user, ssh_password, ssh_port, g.admin_id)
         return jsonify({"message": "Server provisioned successfully"})
-    except RuntimeError as exc:
+    except ssh.SSHError as exc:
         logging.warning("%s", str(exc).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": "SSH operation failed", "error_code": _ssh_error_code(str(exc))}), 422
+        return jsonify({"error": "SSH operation failed", "error_code": exc.error_code}), 422
 
 
 @app.route("/api/servers/<hostname>", methods=["PUT"])

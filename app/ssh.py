@@ -9,6 +9,40 @@ import paramiko
 
 import db
 
+
+# ---------------------------------------------------------------------------
+# SSH exceptions — typed hierarchy for safer error handling
+# ---------------------------------------------------------------------------
+
+class SSHError(RuntimeError):
+    """Base SSH error — catch this to handle all SSH failures."""
+    error_code = "SSH_FAILED"
+
+
+class SSHAuthError(SSHError):
+    error_code = "SSH_AUTH_FAILED"
+
+
+class SSHTimeoutError(SSHError):
+    error_code = "SSH_TIMEOUT"
+
+
+class SSHUnreachableError(SSHError):
+    error_code = "SSH_UNREACHABLE"
+
+
+class SSHPortRefusedError(SSHError):
+    error_code = "SSH_PORT_REFUSED"
+
+
+class SSHSudoError(SSHError):
+    error_code = "SSH_SUDO_FAILED"
+
+
+class SSHScriptError(SSHError):
+    error_code = "SSH_SCRIPT_FAILED"
+
+
 KNOWN_HOSTS = os.environ.get("KNOWN_HOSTS", "/data/keys/known_hosts")
 COLLECTOR_KEY = os.environ.get("COLLECTOR_KEY", "/data/keys/collector_key")
 SSH_USER = os.environ.get("SSH_USER", "audit-collector")
@@ -333,7 +367,7 @@ def revoke_on_server(hostname: str, fingerprint: str, ip: str, unix_user: str = 
             cmd += f" {shlex.quote(unix_user)}"
         _, err, rc = _run(client, cmd)
         if rc != 0:
-            raise RuntimeError(
+            raise SSHError(
                 f"sam-revoke failed on {hostname} (rc={rc}): {err}"
             )
     finally:
@@ -346,7 +380,7 @@ def collect_keys(hostname: str, ip: str, port: int = 22) -> list[str]:
     try:
         out, _, rc = _run(client, f"sudo {SAM_COLLECT_PATH}")
         if rc != 0:
-            raise RuntimeError(f"sam-collect failed on {hostname}")
+            raise SSHError(f"sam-collect failed on {hostname}")
         return [line for line in out.splitlines() if line.strip()]
     finally:
         client.close()
@@ -361,7 +395,7 @@ def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str, p
             client, f"sudo {SAM_ADD_PATH} {shlex.quote(unix_user)} {shlex.quote(public_key)}"
         )
         if rc != 0:
-            raise RuntimeError(f"sam-add failed on {hostname} (rc={rc}): {err}")
+            raise SSHError(f"sam-add failed on {hostname} (rc={rc}): {err}")
     finally:
         client.close()
 
@@ -375,7 +409,7 @@ def lock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22) 
             client, f"sudo {SAM_LOCK_USER_PATH} {shlex.quote(unix_user)}"
         )
         if rc != 0:
-            raise RuntimeError(f"sam-lock-user failed on {hostname} (rc={rc}): {err}")
+            raise SSHError(f"sam-lock-user failed on {hostname} (rc={rc}): {err}")
     finally:
         client.close()
 
@@ -389,7 +423,7 @@ def unlock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22
             client, f"sudo {SAM_UNLOCK_USER_PATH} {shlex.quote(unix_user)}"
         )
         if rc != 0:
-            raise RuntimeError(f"sam-unlock-user failed on {hostname} (rc={rc}): {err}")
+            raise SSHError(f"sam-unlock-user failed on {hostname} (rc={rc}): {err}")
     finally:
         client.close()
 
@@ -461,15 +495,15 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
     try:
         client = _connect(ip, port)
     except paramiko.AuthenticationException:
-        raise RuntimeError("Authentication failed — check collector key authorization")
+        raise SSHAuthError("Authentication failed — check collector key authorization")
     except paramiko.SSHException as exc:
-        raise RuntimeError(f"SSH error connecting to {hostname}: {exc}")
+        raise SSHError(f"SSH error connecting to {hostname}: {exc}")
     except socket.timeout:
-        raise RuntimeError("Connection timed out — server did not respond within 15 seconds")
+        raise SSHTimeoutError("Connection timed out — server did not respond within 15 seconds")
     except OSError as exc:
         if "Connection refused" in str(exc):
-            raise RuntimeError("Server unreachable — check the IP and network connectivity")
-        raise RuntimeError(f"Connection failed: {exc}")
+            raise SSHUnreachableError("Server unreachable — check the IP and network connectivity")
+        raise SSHError(f"Connection failed: {exc}")
     try:
         out, err, rc = _run(client, f"sudo {SAM_SESSIONS_PATH}")
         if rc != 0:
@@ -554,10 +588,10 @@ def _fetch_host_key(ip: str, port: int, known_hosts_path: str | None = None) -> 
     except Exception as exc:
         msg = str(exc)
         if "Connection refused" in msg or "refused" in msg:
-            raise RuntimeError(
+            raise SSHPortRefusedError(
                 f"SSH port {port} refused — check that SSH is running on that port"
             ) from exc
-        raise RuntimeError(
+        raise SSHUnreachableError(
             f"Server unreachable — could not get host key on port {port}. "
             "Check the IP address and that SSH is running."
         ) from exc
@@ -588,21 +622,21 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
             client = _connect(ip, ssh_port)
             client.close()
         except paramiko.AuthenticationException:
-            raise RuntimeError(
+            raise SSHAuthError(
                 "Key authentication failed — the collector key is not authorized on this server. "
                 "Provide an SSH password to provision it automatically."
             )
         except socket.timeout:
-            raise RuntimeError("Connection timed out — server did not respond within 15 seconds")
+            raise SSHTimeoutError("Connection timed out — server did not respond within 15 seconds")
         except Exception as exc:
             msg = str(exc)
             if any(k in msg for k in ("No route to host", "Network unreachable", "No address associated")):
-                raise RuntimeError("Server unreachable — check the IP and network connectivity")
+                raise SSHUnreachableError("Server unreachable — check the IP and network connectivity")
             if "Connection refused" in msg:
-                raise RuntimeError(
+                raise SSHPortRefusedError(
                     f"SSH port {ssh_port} refused — check that SSH is running on that port"
                 )
-            raise RuntimeError(f"Connection failed: {exc}")
+            raise SSHError(f"Connection failed: {exc}")
         return
 
     # Step 2 — connect with password auth
@@ -621,18 +655,18 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
             allow_agent=False,
         )
     except paramiko.AuthenticationException:
-        raise RuntimeError("Authentication failed — check your username and password")
+        raise SSHAuthError("Authentication failed — check your username and password")
     except socket.timeout:
-        raise RuntimeError("Connection timed out — server did not respond within 15 seconds")
+        raise SSHTimeoutError("Connection timed out — server did not respond within 15 seconds")
     except Exception as exc:
         msg = str(exc)
         if any(k in msg for k in ("No route to host", "Network unreachable", "No address associated")):
-            raise RuntimeError("Server unreachable — check the IP and network connectivity")
+            raise SSHUnreachableError("Server unreachable — check the IP and network connectivity")
         if "Connection refused" in msg:
-            raise RuntimeError(
+            raise SSHPortRefusedError(
                 f"SSH port {ssh_port} refused — check that SSH is running on that port"
             )
-        raise RuntimeError(f"Connection failed: {exc}")
+        raise SSHError(f"Connection failed: {exc}")
 
     try:
         # Step 3 — read provision script and collector public key
@@ -670,10 +704,10 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
             if "sudo:" in err_out and any(
                 k in err_out.lower() for k in ("incorrect password", "no password", "not allowed")
             ):
-                raise RuntimeError(
+                raise SSHSudoError(
                     "Provisioning failed — check that the user has sudo privileges"
                 )
-            raise RuntimeError(
+            raise SSHScriptError(
                 f"Provisioning script failed (exit {exit_code}): {err_out[:300]}"
             )
     finally:
