@@ -126,7 +126,7 @@ describe('DeployedUsersTable', () => {
     const row2 = w.find('[data-testid="row-bob-staging-01"]')
     expect(row2.text()).not.toContain('Unlimited')
     // Note: '—' may appear in the group column when sam_group is null — only check expiry text
-    expect(row2.text()).toMatch(/\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}|202[0-9]/)
+    expect(row2.text()).toMatch(/\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{2}-\d{2}/)
   })
 
   it('shows "empty" message if list empty', async () => {
