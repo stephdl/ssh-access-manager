@@ -199,8 +199,8 @@
   },
   "access": {
     "title": "Accès temporaires",
-    "info_deploy": "Le formulaire ci-dessous déploie une clé SSH sur un serveur cible. Si l'utilisateur Unix n'existe pas, il sera créé automatiquement.",
-    "info_no_sudo": "L'utilisateur est créé sans droits d'administration (pas de sudo/wheel). Pour accorder des privilèges élevés, intervenez manuellement sur le serveur.",
+    "info_deploy": "Le formulaire ci-dessous déploie une clé SSH sur un serveur cible. Si l'utilisateur Unix n'existe pas, il sera créé automatiquement avec un mot de passe temporaire affiché à la première connexion SSH.",
+    "info_no_sudo": "Utilisez le champ Groupe Sudo SAM pour accorder des privilèges élevés (sam-operator, sam-pkg ou sam-root). La connexion SSH par mot de passe est désactivée pour tous les utilisateurs gérés par SAM — seule l'authentification par clé est autorisée.",
     "lock_title": "Verrouiller / Déverrouiller un compte Unix",
     "lock_info": "Verrouille un compte Unix pour bloquer toutes les connexions SSH (même avec une clé valide). Déverrouiller pour rétablir l'accès.",
     "readonly_message": "Accès en lecture seule. Contactez un sysadmin pour effectuer des actions."

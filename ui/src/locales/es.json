@@ -199,8 +199,8 @@
   },
   "access": {
     "title": "Acceso temporal",
-    "info_deploy": "El formulario a continuación despliega una clave SSH en un servidor destino. Si el usuario Unix no existe, se creará automáticamente.",
-    "info_no_sudo": "El usuario se crea sin derechos de administración (sin sudo/wheel). Para otorgar privilegios elevados, intervenga manualmente en el servidor.",
+    "info_deploy": "El formulario a continuación despliega una clave SSH en un servidor destino. Si el usuario Unix no existe, se creará automáticamente con una contraseña temporal mostrada en el primer inicio de sesión SSH.",
+    "info_no_sudo": "Use el campo Grupo Sudo SAM para otorgar privilegios elevados (sam-operator, sam-pkg o sam-root). El inicio de sesión SSH por contraseña está desactivado para todos los usuarios gestionados por SAM — solo se permite la autenticación por clave.",
     "lock_title": "Bloquear / Desbloquear cuenta Unix",
     "lock_info": "Bloquea una cuenta Unix para impedir todas las conexiones SSH (incluso con clave válida). Desbloquear para restaurar el acceso.",
     "readonly_message": "Acceso de solo lectura. Contacte a un administrador para realizar acciones."

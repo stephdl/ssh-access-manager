@@ -199,8 +199,8 @@
   },
   "access": {
     "title": "Accesso temporaneo",
-    "info_deploy": "Il modulo seguente distribuisce una chiave SSH su un server di destinazione. Se l'utente Unix non esiste, verrà creato automaticamente.",
-    "info_no_sudo": "L'utente viene creato senza diritti di amministrazione (nessun sudo/wheel). Per concedere privilegi elevati, intervenire manualmente sul server.",
+    "info_deploy": "Il modulo seguente distribuisce una chiave SSH su un server di destinazione. Se l'utente Unix non esiste, verrà creato automaticamente con una password temporanea visualizzata al primo accesso SSH.",
+    "info_no_sudo": "Utilizzare il campo Gruppo Sudo SAM per concedere privilegi elevati (sam-operator, sam-pkg o sam-root). L'accesso SSH tramite password è disabilitato per tutti gli utenti gestiti da SAM — è consentita solo l'autenticazione tramite chiave.",
     "lock_title": "Bloccare / Sbloccare account Unix",
     "lock_info": "Blocca un account Unix per impedire tutte le connessioni SSH (anche con chiave valida). Sbloccare per ripristinare l'accesso.",
     "readonly_message": "Accesso in sola lettura. Contattare un amministratore per eseguire azioni."

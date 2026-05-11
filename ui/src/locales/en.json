@@ -199,8 +199,8 @@
   },
   "access": {
     "title": "Temporary Access",
-    "info_deploy": "The form below deploys an SSH key on a target server. If the Unix user does not exist, it will be created automatically.",
-    "info_no_sudo": "The user is created without administrative rights (no sudo/wheel). To grant elevated privileges, intervene manually on the server.",
+    "info_deploy": "The form below deploys an SSH key on a target server. If the Unix user does not exist, it will be created automatically with a temporary password displayed on first SSH login.",
+    "info_no_sudo": "Use the SAM Sudo Group field to grant elevated privileges (sam-operator, sam-pkg, or sam-root). SSH password login is disabled for all SAM-managed users — only key-based authentication is allowed.",
     "lock_title": "Lock / Unlock Unix Account",
     "lock_info": "Lock a Unix account to prevent all SSH connections (even with a valid key). Unlock to restore access.",
     "readonly_message": "You have read-only access. Contact a sysadmin to perform actions."

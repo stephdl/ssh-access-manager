@@ -199,8 +199,8 @@
   },
   "access": {
     "title": "Temporärer Zugriff",
-    "info_deploy": "Das folgende Formular stellt einen SSH-Schlüssel auf einem Zielserver bereit. Falls der Unix-Benutzer nicht existiert, wird er automatisch erstellt.",
-    "info_no_sudo": "Der Benutzer wird ohne Administratorrechte erstellt (kein sudo/wheel). Um erhöhte Rechte zu erteilen, greifen Sie manuell auf den Server zu.",
+    "info_deploy": "Das folgende Formular stellt einen SSH-Schlüssel auf einem Zielserver bereit. Falls der Unix-Benutzer nicht existiert, wird er automatisch mit einem temporären Passwort erstellt, das beim ersten SSH-Login angezeigt wird.",
+    "info_no_sudo": "Verwenden Sie das Feld SAM Sudo-Gruppe, um erhöhte Rechte zu erteilen (sam-operator, sam-pkg oder sam-root). SSH-Passwort-Login ist für alle SAM-verwalteten Benutzer deaktiviert — nur schlüsselbasierte Authentifizierung ist erlaubt.",
     "lock_title": "Unix-Konto sperren / entsperren",
     "lock_info": "Sperrt ein Unix-Konto, um alle SSH-Verbindungen zu blockieren (auch mit gültigem Schlüssel). Entsperren, um den Zugang wiederherzustellen.",
     "readonly_message": "Nur-Lese-Zugriff. Wenden Sie sich an einen Sysadmin, um Aktionen auszuführen."
