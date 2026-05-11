@@ -154,7 +154,6 @@ fi
 
 if ! id "$TARGET_USER" >/dev/null 2>&1; then
     useradd -m -s /bin/bash "$TARGET_USER"
-    passwd -d "$TARGET_USER" >/dev/null 2>&1 || true
 fi
 
 home=$(getent passwd "$TARGET_USER" | cut -d: -f6)
