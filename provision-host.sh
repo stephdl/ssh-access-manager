@@ -62,8 +62,8 @@ printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke-group *
 chmod 440 "${SUDOERS_FILE}"
 echo "[provision] Sudoers configured in ${SUDOERS_FILE}."
 
-# 5. Create SAM sudo groups
-for grp in sam-operator sam-pkg sam-root; do
+# 5. Create SAM groups
+for grp in sam-operator sam-pkg sam-root sam-users; do
     if ! getent group "$grp" >/dev/null 2>&1; then
         groupadd "$grp"
         echo "[provision] Group $grp created."
@@ -71,6 +71,24 @@ for grp in sam-operator sam-pkg sam-root; do
         echo "[provision] Group $grp already exists."
     fi
 done
+
+# Disable SSH password authentication for sam-users group.
+# sam-add adds every SAM-managed user to this group so they can only connect
+# via SSH key — even if they have a Unix password set (for sudo PASSWD:).
+SAM_SSHD_CONF="Match Group sam-users
+    PasswordAuthentication no"
+SSHD_D="/etc/ssh/sshd_config.d"
+if [ -d "$SSHD_D" ] && grep -qE "^Include.*sshd_config\.d" /etc/ssh/sshd_config 2>/dev/null; then
+    printf '%s\n' "${SAM_SSHD_CONF}" > "${SSHD_D}/50-sam-users.conf"
+    chmod 600 "${SSHD_D}/50-sam-users.conf"
+    echo "[provision] ${SSHD_D}/50-sam-users.conf written."
+elif ! grep -q "Match Group sam-users" /etc/ssh/sshd_config 2>/dev/null; then
+    printf '\n# ssh-access-manager\n%s\n' "${SAM_SSHD_CONF}" >> /etc/ssh/sshd_config
+    echo "[provision] /etc/ssh/sshd_config updated (Match Group sam-users)."
+fi
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true
+fi
 
 # 6. Detect binary paths for sudoers rules
 # command -v searches PATH; also check /usr/local/bin explicitly (NS8 tools may not be in sudo PATH)
