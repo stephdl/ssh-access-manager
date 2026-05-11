@@ -192,4 +192,20 @@ install -m 440 "${ROOT_FILE}.tmp" "${ROOT_FILE}"
 rm -f "${ROOT_FILE}.tmp"
 echo "[provision] Sudoers sam-root configured in ${ROOT_FILE}."
 
+# 10. Harden PAM sudo on Debian/Ubuntu — prevent nullok from accepting empty passwords
+# Debian's /etc/pam.d/common-auth includes pam_unix.so nullok, which allows sudo with
+# an empty password (passwd -d) even when PASSWD: is set in sudoers.
+# We replace the sudo PAM stack with an explicit pam_unix.so (no nullok) so that:
+#   - users with no password yet cannot sudo (PASSWD: is enforced)
+#   - users set their password once via `passwd` (passwd -d enables this on first login)
+if grep -q '@include common-auth' /etc/pam.d/sudo 2>/dev/null; then
+    cat > /etc/pam.d/sudo << 'EOF'
+#%PAM-1.0
+auth    required    pam_unix.so
+@include common-account
+@include common-session-noninteractive
+EOF
+    echo "[provision] PAM sudo hardened: nullok disabled (Debian/Ubuntu)."
+fi
+
 echo "[provision] Host ready for SSH collection by ${COLLECTOR_USER}."
