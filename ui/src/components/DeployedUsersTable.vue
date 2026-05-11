@@ -151,13 +151,23 @@
               <span
                 v-if="lockStates[`${user.unix_user}-${user.hostname}`] !== 'USER_LOCKED'"
                 class="btn-tooltip-wrapper"
-                :title="user.unix_user === 'root' ? $t('deployedUsers.root_user_tooltip') : user.has_active_session ? $t('deployedUsers.active_session_tooltip') : undefined"
+                :title="
+                  user.unix_user === 'root'
+                    ? $t('deployedUsers.root_user_tooltip')
+                    : user.has_active_session
+                      ? $t('deployedUsers.active_session_tooltip')
+                      : undefined
+                "
               >
                 <button
                   type="button"
                   class="btn-danger btn-sm"
                   :data-testid="`btn-lock-${user.unix_user}-${user.hostname}`"
-                  :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`] || user.has_active_session || user.unix_user === 'root'"
+                  :disabled="
+                    actionInProgress[`${user.unix_user}-${user.hostname}`] ||
+                    user.has_active_session ||
+                    user.unix_user === 'root'
+                  "
                   @click="!user.has_active_session && user.unix_user !== 'root' && lockUser(user)"
                 >
                   {{ $t('userLock.btnLock') }}
@@ -166,13 +176,18 @@
               <span
                 v-else
                 class="btn-tooltip-wrapper"
-                :title="user.unix_user === 'root' ? $t('deployedUsers.root_user_tooltip') : undefined"
+                :title="
+                  user.unix_user === 'root' ? $t('deployedUsers.root_user_tooltip') : undefined
+                "
               >
                 <button
                   type="button"
                   class="btn-success btn-sm"
                   :data-testid="`btn-unlock-${user.unix_user}-${user.hostname}`"
-                  :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`] || user.unix_user === 'root'"
+                  :disabled="
+                    actionInProgress[`${user.unix_user}-${user.hostname}`] ||
+                    user.unix_user === 'root'
+                  "
                   @click="user.unix_user !== 'root' && unlockUser(user)"
                 >
                   {{ $t('userLock.btnUnlock') }}
@@ -180,14 +195,26 @@
               </span>
               <span
                 class="btn-tooltip-wrapper"
-                :title="user.unix_user === 'root' ? $t('deployedUsers.root_user_tooltip') : user.has_active_session ? $t('deployedUsers.active_session_tooltip') : undefined"
+                :title="
+                  user.unix_user === 'root'
+                    ? $t('deployedUsers.root_user_tooltip')
+                    : user.has_active_session
+                      ? $t('deployedUsers.active_session_tooltip')
+                      : undefined
+                "
               >
                 <button
                   type="button"
                   class="btn-group btn-sm"
                   :data-testid="`btn-group-${user.unix_user}-${user.hostname}`"
-                  :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`] || user.has_active_session || user.unix_user === 'root'"
-                  @click="!user.has_active_session && user.unix_user !== 'root' && openGroupModal(user)"
+                  :disabled="
+                    actionInProgress[`${user.unix_user}-${user.hostname}`] ||
+                    user.has_active_session ||
+                    user.unix_user === 'root'
+                  "
+                  @click="
+                    !user.has_active_session && user.unix_user !== 'root' && openGroupModal(user)
+                  "
                 >
                   {{ $t('deployedUsers.btn_group') }}
                 </button>
@@ -395,9 +422,11 @@ async function loadUsers() {
         uniqueServers.map((hostname) =>
           apiFetch(`/api/servers/${hostname}/sessions/refresh`, { method: 'POST' })
         )
-      ).then(() => _fetchUsers().catch(() => {})).finally(() => {
-        refreshingSessions.value = false
-      })
+      )
+        .then(() => _fetchUsers().catch(() => {}))
+        .finally(() => {
+          refreshingSessions.value = false
+        })
     }
   } catch (e) {
     loadError.value = e.message
@@ -512,9 +541,9 @@ async function submitGroupChange() {
 
     const result = await res.json()
     const key = `${user.unix_user}-${user.hostname}`
-    const serverGroups = (result.actual_groups || [])
-      .filter((g) => g.startsWith('sam-'))
-      .join(', ') || t('deployedUsers.group_none')
+    const serverGroups =
+      (result.actual_groups || []).filter((g) => g.startsWith('sam-')).join(', ') ||
+      t('deployedUsers.group_none')
     successMessages.value[key] = t('deployedUsers.group_success_verified', {
       user: user.unix_user,
       server: user.hostname,
@@ -595,8 +624,12 @@ async function submitGroupChange() {
 }
 
 @keyframes progress-sweep {
-  0%   { left: -40%; }
-  100% { left: 100%; }
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
 }
 
 .alert-error {

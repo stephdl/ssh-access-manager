@@ -39,7 +39,11 @@
         <span v-if="unixUser && isRootUser" class="field-error" data-testid="error-root-user">
           {{ $t('deployKey.error_root_user') }}
         </span>
-        <span v-else-if="unixUser && !unixUserValid" class="field-error" data-testid="error-unix-user">
+        <span
+          v-else-if="unixUser && !unixUserValid"
+          class="field-error"
+          data-testid="error-unix-user"
+        >
           {{ $t('deployKey.error_unix_user') }}
         </span>
       </div>
