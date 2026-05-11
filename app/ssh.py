@@ -152,9 +152,12 @@ if [ -z "$TARGET_USER" ] || [ -z "$PUBKEY" ]; then
     exit 1
 fi
 
+TMPPASS=""
 if ! id "$TARGET_USER" >/dev/null 2>&1; then
     useradd -m -s /bin/bash "$TARGET_USER"
-    passwd -d "$TARGET_USER" >/dev/null 2>&1 || true
+    TMPPASS=$(openssl rand -base64 12 | tr -d '\\n')
+    printf '%s:%s\\n' "$TARGET_USER" "$TMPPASS" | chpasswd
+    chage -d 0 "$TARGET_USER"
     usermod -aG sam-users "$TARGET_USER" 2>/dev/null || true
 fi
 
@@ -162,6 +165,12 @@ home=$(getent passwd "$TARGET_USER" | cut -d: -f6)
 if [ -z "$home" ]; then
     echo "Cannot get home for $TARGET_USER" >&2
     exit 1
+fi
+
+if [ -n "$TMPPASS" ]; then
+    printf 'Temporary password: %s\\nRun: passwd\\n' "$TMPPASS" > "${home}/README_first_login.txt"
+    chmod 600 "${home}/README_first_login.txt"
+    chown "${TARGET_USER}:${TARGET_USER}" "${home}/README_first_login.txt"
 fi
 
 ssh_dir="${home}/.ssh"
