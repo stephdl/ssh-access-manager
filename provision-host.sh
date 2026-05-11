@@ -98,6 +98,7 @@ _rule() {
 # 7. Sudoers for sam-operator
 OP_FILE="/etc/sudoers.d/sam-operator"
 printf "# ssh-access-manager — sam-operator sudo rights\n" > "${OP_FILE}.tmp"
+printf "Defaults:%%sam-operator secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n" >> "${OP_FILE}.tmp"
 _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} restart"
 _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} reload"
 _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} status"
@@ -124,6 +125,7 @@ echo "[provision] Sudoers sam-operator configured in ${OP_FILE}."
 # 8. Sudoers for sam-pkg (sam-operator commands + package manager)
 PKG_FILE="/etc/sudoers.d/sam-pkg"
 printf "# ssh-access-manager — sam-pkg sudo rights\n" > "${PKG_FILE}.tmp"
+printf "Defaults:%%sam-pkg secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n" >> "${PKG_FILE}.tmp"
 _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"
 _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} reload"
 _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} status"
