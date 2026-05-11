@@ -88,11 +88,12 @@ DMESG=$(_bin dmesg)
 LSOF=$(_bin lsof)
 DU=$(_bin du)
 
-# Write both the bare command and the wildcard variant so users can omit arguments
+# Write both the bare command and the wildcard variant so users can omit arguments.
+# PASSWD: is explicit to override any host-level NOPASSWD defaults.
 _rule() {
     local file="$1" group="$2" cmd="$3"
-    printf "%%${group} ALL=(root) ${cmd}\n"     >> "${file}"
-    printf "%%${group} ALL=(root) ${cmd} *\n"   >> "${file}"
+    printf "%%${group} ALL=(root) PASSWD: ${cmd}\n"     >> "${file}"
+    printf "%%${group} ALL=(root) PASSWD: ${cmd} *\n"   >> "${file}"
 }
 
 # 7. Sudoers for sam-operator
@@ -109,11 +110,11 @@ _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -n"
 _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} --since"
 _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -b"
 _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -e"
-printf "%%sam-operator ALL=(root) ${SS} -tlnp\n"                    >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${DMESG}\n"                       >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${LSOF}\n"                        >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${LSOF} -i\n"                     >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${DU} -sh /var/* /opt/* /home/*\n" >> "${OP_FILE}.tmp"
+printf "%%sam-operator ALL=(root) PASSWD: ${SS} -tlnp\n"                    >> "${OP_FILE}.tmp"
+printf "%%sam-operator ALL=(root) PASSWD: ${DMESG}\n"                       >> "${OP_FILE}.tmp"
+printf "%%sam-operator ALL=(root) PASSWD: ${LSOF}\n"                        >> "${OP_FILE}.tmp"
+printf "%%sam-operator ALL=(root) PASSWD: ${LSOF} -i\n"                     >> "${OP_FILE}.tmp"
+printf "%%sam-operator ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\n" >> "${OP_FILE}.tmp"
 for bin in runagent api-cli; do
     bin_path=$(_bin "$bin")
     [ -x "$bin_path" ] && _rule "${OP_FILE}.tmp" "sam-operator" "${bin_path}"
@@ -137,11 +138,11 @@ _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -n"
 _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} --since"
 _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -b"
 _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -e"
-printf "%%sam-pkg ALL=(root) ${SS} -tlnp\n"                    >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${DMESG}\n"                       >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${LSOF}\n"                        >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${LSOF} -i\n"                     >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${DU} -sh /var/* /opt/* /home/*\n" >> "${PKG_FILE}.tmp"
+printf "%%sam-pkg ALL=(root) PASSWD: ${SS} -tlnp\n"                    >> "${PKG_FILE}.tmp"
+printf "%%sam-pkg ALL=(root) PASSWD: ${DMESG}\n"                       >> "${PKG_FILE}.tmp"
+printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF}\n"                        >> "${PKG_FILE}.tmp"
+printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF} -i\n"                     >> "${PKG_FILE}.tmp"
+printf "%%sam-pkg ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\n" >> "${PKG_FILE}.tmp"
 for bin in runagent api-cli; do
     bin_path=$(_bin "$bin")
     [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
