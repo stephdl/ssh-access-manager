@@ -73,7 +73,14 @@ for grp in sam-operator sam-pkg sam-root; do
 done
 
 # 6. Detect binary paths for sudoers rules
-_bin() { command -v "$1" 2>/dev/null || echo "/usr/bin/$1"; }
+# command -v searches PATH; also check /usr/local/bin explicitly (NS8 tools may not be in sudo PATH)
+_bin() {
+    local p
+    p=$(command -v "$1" 2>/dev/null)
+    [ -n "$p" ] && echo "$p" && return
+    [ -x "/usr/local/bin/$1" ] && echo "/usr/local/bin/$1" && return
+    echo "/usr/bin/$1"
+}
 SYSTEMCTL=$(_bin systemctl)
 JOURNALCTL=$(_bin journalctl)
 SS=$(_bin ss)
@@ -89,6 +96,7 @@ printf "%%sam-operator ALL=(root) ${SYSTEMCTL} reload *\n" >> "${OP_FILE}.tmp"
 printf "%%sam-operator ALL=(root) ${SYSTEMCTL} status *\n" >> "${OP_FILE}.tmp"
 printf "%%sam-operator ALL=(root) ${SYSTEMCTL} start *\n" >> "${OP_FILE}.tmp"
 printf "%%sam-operator ALL=(root) ${JOURNALCTL} -u *\n" >> "${OP_FILE}.tmp"
+printf "%%sam-operator ALL=(root) ${JOURNALCTL} -f\n" >> "${OP_FILE}.tmp"
 printf "%%sam-operator ALL=(root) ${JOURNALCTL} -f *\n" >> "${OP_FILE}.tmp"
 printf "%%sam-operator ALL=(root) ${JOURNALCTL} -n *\n" >> "${OP_FILE}.tmp"
 printf "%%sam-operator ALL=(root) ${JOURNALCTL} --since *\n" >> "${OP_FILE}.tmp"
@@ -115,6 +123,7 @@ printf "%%sam-pkg ALL=(root) ${SYSTEMCTL} reload *\n" >> "${PKG_FILE}.tmp"
 printf "%%sam-pkg ALL=(root) ${SYSTEMCTL} status *\n" >> "${PKG_FILE}.tmp"
 printf "%%sam-pkg ALL=(root) ${SYSTEMCTL} start *\n" >> "${PKG_FILE}.tmp"
 printf "%%sam-pkg ALL=(root) ${JOURNALCTL} -u *\n" >> "${PKG_FILE}.tmp"
+printf "%%sam-pkg ALL=(root) ${JOURNALCTL} -f\n" >> "${PKG_FILE}.tmp"
 printf "%%sam-pkg ALL=(root) ${JOURNALCTL} -f *\n" >> "${PKG_FILE}.tmp"
 printf "%%sam-pkg ALL=(root) ${JOURNALCTL} -n *\n" >> "${PKG_FILE}.tmp"
 printf "%%sam-pkg ALL=(root) ${JOURNALCTL} --since *\n" >> "${PKG_FILE}.tmp"
