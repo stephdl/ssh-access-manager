@@ -40,8 +40,9 @@ Schéma complet dans sql/schema.sql. Points non-évidents :
 - `ssh_keys.is_compliant` : colonne GENERATED ALWAYS AS — `key_type = 'ssh-ed25519' OR (key_type = 'ssh-rsa' AND key_size_bits >= 4096)`
 - `key_authorizations` PK = **(key_id, server_id, unix_user)** — même clé déployable pour plusieurs users Unix sur même serveur (#185)
 - `key_authorizations.unix_user` DEFAULT '' — champ obligatoire dans toutes les requêtes
-- Table `settings` : lire en DB, jamais depuis ENV. Clés : `scan_interval_hours` (4), `expire_warn_days` (7), `expire_warn_days_2` (2), `login_max_attempts` (10), `login_ban_seconds` (300)
+- Table `settings` : lire en DB, jamais depuis ENV. Clés : `scan_interval_hours` (4), `expire_warn_days` (7), `expire_warn_days_2` (2), `login_max_attempts` (10), `login_ban_seconds` (300), `audit_retention_days` (365)
 - `servers.ip_address` : index unique global (`servers_ip_unique`) — une IP ne peut appartenir qu'à un seul serveur, actif ou désactivé. Désactivation = maintenance temporaire, le serveur peut revenir. Seule la suppression libère l'IP.
+- `servers.max_sessions` : INTEGER DEFAULT 2 — seuil alertes SESSION_LIMIT_EXCEEDED (alerte WARNING par serveur avec anti-spam 24h, #360)
 
 ## Logique métier — fingerprint SHA256
 
@@ -96,6 +97,12 @@ Récupération de clé hôte si absent de known_hosts — `_fetch_host_key(ip, p
 - **Requête SQL doit sélectionner s.ip_address** (#114)
 - sam-revoke sur serveur distant via IP
 - status=EXPIRED, revoked_automatically=TRUE, audit_log KEY_EXPIRED, email INFO
+
+`purge_old_audit_logs()` :
+- Lit `audit_retention_days` depuis settings en DB (défaut 365 jours)
+- DELETE FROM audit_log WHERE performed_at < NOW() - INTERVAL N days
+- Retourne le nombre d'entrées supprimées
+- Appelée par expire.py main() après expire_keys()
 
 ## Les 5 scénarios de révocation / détection
 
@@ -158,6 +165,8 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 
 ### Clés SSH
 - `validate_key(fingerprint, admin_id, unix_user=None, hostname=None)` — sans args : valide toutes PENDING_REVIEW du fingerprint ; avec args : valide uniquement (fingerprint, server, unix_user) (#193)
+- `bulk_validate_keys(fingerprints, admin_id)` — valide en masse une liste de fingerprints PENDING_REVIEW ; retourne `{validated: N, errors: [...]}`
+- `bulk_revoke_keys(fingerprints, reason, admin_id)` — révoque en masse ; retourne `{revoked: N, errors: [...]}`
 - `revoke_key(fingerprint, admin_id, reason, db)` — ACTIVE et PENDING_REVIEW (#85)
 - `handle_disappeared_key`, `handle_unknown_key`, `handle_reappeared_key`
 - `warn_expiring_key`, `assign_key`, `set_key_expiry`, `remove_key_expiry`
@@ -171,7 +180,11 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 ### Serveurs
 - `add_server(hostname, ip, ssh_user, ssh_password, env=None, os_family=None, ssh_port=22, admin_id=None)` — provisionnement atomique : `add_to_known_hosts(ip)` → `ssh.provision_server()` → INSERT servers → audit SERVER_ADDED + SERVER_PROVISIONED. Si le SSH échoue, aucune donnée n'est écrite (#299, #301). Le SSH password n'est jamais stocké.
 - `provision_server(hostname, ip, ssh_user, ssh_password, ssh_port)` — re-provisionne un serveur existant (#302). Même garantie : ssh password non stocké.
+- `update_server(hostname, ip, env, os_family, ssh_port, admin_id, max_sessions)` — met à jour IP, env, OS, port, max_sessions. Si l'IP change, relance ssh-keyscan atomiquement (#339)
 - `disable_server`, `enable_server` (#88), `delete_server` (#88 — hard delete + cascade)
+
+### Sessions
+- `check_session_limit(server_id, hostname, session_count, max_sessions)` — envoie alerte WARNING si session_count > max_sessions, avec anti-spam 24h via audit_log (SESSION_LIMIT_EXCEEDED, #360)
 
 ### Administrateurs
 - `add_admin(username, email, password, admin_id, role='operator')` — email obligatoire, valide role, hash werkzeug
@@ -191,7 +204,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 | POST /api/servers/\*/scan, /api/system/scan | ✓ | ✓ | 403 |
 | GET /api/servers/\*/sessions, /api/servers/\*/sessions/history | ✓ | ✓ | 403 |
 | POST /api/servers/\*/sessions/refresh | ✓ | ✓ | 403 |
-| POST /api/keys/validate, revoke, assign, set-expiry, remove-expiry | ✓ | ✓ | 403 |
+| POST /api/keys/validate, revoke, assign, set-expiry, remove-expiry, bulk-validate, bulk-revoke | ✓ | ✓ | 403 |
 | POST /api/access/grant, deploy, lock-user, unlock-user, request, approve, reject, revoke | ✓ | ✓ | 403 |
 | POST /api/admins | ✓ | 403 | 403 |
 | PUT /api/admins/\* (sauf password) | ✓ | 403 | 403 |
@@ -211,7 +224,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 - Couverture minimale actions.py : 80%
 - pytest doit passer avant tout commit
 
-Fichiers : conftest.py, test_db.py (7), test_servers.py (9), test_ssh.py (49), test_actions.py (114), test_collect.py (35), test_expire.py (12), test_alerts.py (23), test_web.py (130), test_manage.py (38), test_rbac.py (54).
+Fichiers : conftest.py, test_db.py (7), test_servers.py (10), test_ssh.py (61), test_actions.py (131), test_collect.py (35), test_expire.py (16), test_alerts.py (23), test_web.py (157), test_manage.py (38), test_rbac.py (54).
 
 Fixtures obligatoires dans conftest.py : `mock_db`, `mock_ssh_client`, `mock_smtp`, `sample_server`, `sample_key`.
 

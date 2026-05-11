@@ -506,7 +506,7 @@ Le scénario 3 concerne les clés totalement inconnues.
 ```
 ┌─────────────────────────────────┐
 │  actions.py  (logique métier)   │
-│  552 lignes — source unique     │
+│  1185 lignes — source unique    │
 └───────────────┬─────────────────┘
                 │ importé par
        ┌────────┴────────┐
@@ -514,7 +514,7 @@ Le scénario 3 concerne les clés totalement inconnues.
 ┌──────▼──────┐   ┌──────▼──────┐
 │  web.py     │   │  manage.py  │
 │  (API REST) │   │  (CLI)      │
-│  516 lignes │   │  508 lignes │
+│  1174 lignes│   │  631 lignes │
 └─────────────┘   └─────────────┘
 ```
 
@@ -655,12 +655,15 @@ Les alertes email sont envoyées aux administrateurs dont `receive_alerts=true`
 
 ### Composition API et composables
 
-Vue.js 3 avec `<script setup>` est utilisé systématiquement. Deux composables
+Vue.js 3 avec `<script setup>` est utilisé systématiquement. Cinq composables
 encapsulent la logique partagée :
 
 - **`useAuth.js`** — état d'authentification partagé entre toutes les vues
 - **`useFormatDate.js`** — `formatDate()` et `formatDateOnly()` avec locale du navigateur
   (`toLocaleString(undefined, ...)` — s'adapte automatiquement au fuseau du navigateur)
+- **`usePagination.js`** — pagination côté client réutilisable (reset auto sur filtre)
+- **`useSort.js`** — tri de colonnes réutilisable (`sortKey`, `toggleSort`, `sorted`, `sortIndicator`) — utilisé dans KeyTable, ServerTable, AuditTable, DeployedUsersTable, AdminsTable, AnomaliesTable
+- **`useTheme.js`** — thème sombre/clair avec persistance `localStorage` ; initialise `data-theme` sur `<html>` au chargement ; défaut : dark (#363)
 
 Le composable `useAuth.js` encapsule l'état d'authentification partagé entre toutes les vues :
 
@@ -1159,7 +1162,7 @@ coûteuse en temps).
 | `test_collect.py` | 35 | 4 scénarios détection, RSA parsing |
 | `test_expire.py` | 12 | Anti-spam 24h, expiration auto |
 | `test_alerts.py` | 23 | Niveaux CRITICAL/WARNING/INFO, anti-spam |
-| Vue.js specs | 262 | 18 fichiers : Dashboard (provisionnement, validation hostname), ServerDetail (re-provision), KeyTable, ServerTable, Admins, SessionsCard, et tous composants |
+| Vue.js specs | 325 | 19 fichiers : Dashboard (provisionnement, validation hostname), ServerDetail (re-provision), KeyTable (bulk select), ServerTable, Admins, SessionsCard, useSort, et tous composants |
 
 ---
 
@@ -1369,6 +1372,11 @@ permet de modifier `NGINX_PORT` ou `SMTP_HOST` sans reconstruire l'image — un
 | Provisionnement atomique (provision-first) | Aucun serveur zombie en DB — INSERT uniquement si SSH réussit | SSH obligatoire à l'ajout (pas de déclaration purement déclarative via UI) |
 | SSH password non stocké | Sécurité : credential éphémère, jamais en base ni en audit | Pas de re-connexion automatique — re-provisionnement via bouton UI si nécessaire |
 | `error_code` API + traduction frontend | Messages d'erreur SSH dans la langue du navigateur sans hard-coder les traductions côté serveur | 7 codes à maintenir synchronisés entre backend et fichiers i18n |
+| Waitress WSGI server | Serveur de production thread-safe ; Flask dev server interdit en production | Dépendance supplémentaire (`waitress` dans pip) |
+| Bulk validate/revoke | Réduction du nombre de requêtes HTTP pour les opérations de masse ; transactions atomiques | Limite 200 fingerprints par appel |
+| Rétention audit configurable | `audit_retention_days` (défaut 365) évite la croissance illimitée de `audit_log` | Perte des entrées purgées (irréversible) |
+| Seuil sessions par serveur (`max_sessions`) | Alerte WARNING si sessions SSH actives > seuil ; anti-spam 24h via `audit_log` | Seuil par serveur à maintenir dans l'UI |
+| Thème sombre par défaut | Réduction de la fatigue visuelle pour les opérateurs ; persistance via `localStorage` | CSS variables à synchroniser entre composants |
 
 ---
 
@@ -1385,7 +1393,7 @@ d'ingénierie logicielle niveau 7 :
 - **Idempotence** : sync YAML, keyscan, bootstrap, déploiement de scripts.
 - **Traçabilité complète** : les 4 scénarios de révocation sont distingués par des
   colonnes dédiées et des entrées `audit_log` de types différents.
-- **Qualité mesurée** : couverture ≥ 80 % imposée par CI, 733 tests (471 Python +
-  262 Vue.js), isolation totale.
+- **Qualité mesurée** : couverture ≥ 80 % imposée par CI, 857 tests (532 Python +
+  325 Vue.js), isolation totale.
 - **Déploiement continu** : 5 workflows GitHub Actions (tests, build PR, build main,
   publication semver, nettoyage GHCR).

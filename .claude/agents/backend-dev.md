@@ -57,27 +57,30 @@ known_hosts : `/data/keys/known_hosts`. Clé privée : `/data/keys/collector_key
 **Connexions SSH via ip_address uniquement** — pas le hostname (non résolvable depuis le container, #80, #84).
 known_hosts indexé par IP : `ssh-keyscan -H -T 10 <ip_address>`.
 
-### Scripts distants — 5 constantes Python `bytes` dans ssh.py
+### Scripts distants — 6 constantes Python `bytes` dans ssh.py
 
 | Constante | Path distant | Action |
 |-----------|-------------|--------|
-| SAM_COLLECT | /usr/local/bin/sam-collect (root, 755) | Lit toutes les authorized_keys → stdout : `unix_user\tkey_type key_b64 [comment]` |
-| SAM_REVOKE | /usr/local/bin/sam-revoke \<fp_hex\> (root, 755) | Révoque par fingerprint SHA256 hex. Atomique mktemp+mv. Préserve ownership (#104) |
-| SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> (root, 755) | Crée user Unix + authorized_keys idempotent (#164) |
-| SAM_LOCK_USER | /usr/local/bin/sam-lock-user \<unix_user\> (root, 755) | `usermod -L -s /sbin/nologin` (#181) |
-| SAM_UNLOCK_USER | /usr/local/bin/sam-unlock-user \<unix_user\> (root, 755) | `usermod -U -s /bin/bash` (#181) |
+| SAM_COLLECT | /usr/local/bin/sam-collect (root, 750) | Lit toutes les authorized_keys → stdout : `unix_user\tkey_type key_b64 [comment]` |
+| SAM_REVOKE | /usr/local/bin/sam-revoke \<fp_hex\> (root, 750) | Révoque par fingerprint SHA256 hex. Atomique mktemp+mv. Préserve ownership (#104) |
+| SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> (root, 750) | Crée user Unix + authorized_keys idempotent (#164) |
+| SAM_LOCK_USER | /usr/local/bin/sam-lock-user \<unix_user\> (root, 750) | `usermod -L -s /sbin/nologin` (#181) |
+| SAM_UNLOCK_USER | /usr/local/bin/sam-unlock-user \<unix_user\> (root, 750) | `usermod -U -s /bin/bash` (#181) |
+| SAM_SESSIONS | /usr/local/bin/sam-sessions (root, 750) | Collecte sessions SSH actives + historique → stdout : `A\|H\tuser\ttty\tip\trest`. `utmpdump /var/run/utmp` + fallback `LANG=C last -F` (#253, #322) |
 
 ### ensure_scripts()
 
 - Compare hash SHA256 du script distant avec la constante locale
-- Si absent ou hash différent : déploie via SFTP puis `sudo install -m 755 -o root -g root` (#161 — évite ":" dans sudoers)
+- Si absent ou hash différent : déploie via SFTP puis `sudo install -m 750 -o root -g root` (#161 — évite ":" dans sudoers)
 - Trace dans audit_log : `SCRIPT_DEPLOYED`
 
 ## actions.py — fonctions complètes
 
 ### Clés SSH
 - `validate_key(fingerprint, admin_id, unix_user=None, hostname=None)` — sans args : toutes PENDING_REVIEW ; avec args : uniquement (fp, server, unix_user) (#193)
+- `bulk_validate_keys(fingerprints, admin_id)` — valide en masse ; retourne `{validated: N, errors: [...]}`
 - `revoke_key(fingerprint, admin_id, reason, db)` — ACTIVE et PENDING_REVIEW (#85)
+- `bulk_revoke_keys(fingerprints, reason, admin_id)` — révoque en masse ; retourne `{revoked: N, errors: [...]}`
 - `handle_disappeared_key`, `handle_unknown_key`, `handle_reappeared_key` (#123)
 - `warn_expiring_key`, `assign_key`, `set_key_expiry`, `remove_key_expiry`
 
@@ -88,8 +91,13 @@ known_hosts indexé par IP : `ssh-keyscan -H -T 10 <ip_address>`.
 - `unlock_user(unix_user, hostname, admin_id)` — valide POSIX, sam-unlock-user, USER_UNLOCKED (#181)
 
 ### Serveurs
-- `add_server(hostname, ip, env, os_family, db)` — add_to_known_hosts(ip) avant INSERT (#70)
+- `add_server(hostname, ip, ssh_user, ssh_password, env, os_family, ssh_port, admin_id)` — provisionnement atomique : keyscan → SSH → INSERT (#299, #301). SSH password non stocké.
+- `provision_server(hostname, ssh_user, ssh_password, ssh_port, admin_id)` — re-provisionne un serveur existant (#302)
+- `update_server(hostname, ip, env, os_family, ssh_port, admin_id, max_sessions)` — met à jour IP, env, OS, port, max_sessions. Relance keyscan si IP change (#339)
 - `disable_server`, `enable_server` (#88), `delete_server` (#88 — hard + cascade)
+
+### Sessions
+- `check_session_limit(server_id, hostname, session_count, max_sessions)` — alerte WARNING si session_count > max_sessions, anti-spam 24h via audit_log SESSION_LIMIT_EXCEEDED (#360)
 
 ### Administrateurs
 - `add_admin(username, email, password, admin_id, role='operator')` — hash werkzeug, valide role
@@ -117,6 +125,10 @@ Scénarios 2, 3, 5 : **1 seul email CRITIQUE par scan** (#119).
 `warn_expiring_keys()` : lit `expire_warn_days` et `expire_warn_days_2` **depuis la table settings en DB** (#230) — pas depuis ENV.
 Anti-spam : NOT EXISTS EXPIRY_WARNING sur 24h. 1 seul email WARNING groupé par cycle (#119).
 
+`expire_keys()` : clés ACTIVE avec `expires_at < NOW()`. Requête SQL doit sélectionner `s.ip_address` (#114). Statut → EXPIRED, `revoked_automatically=TRUE`.
+
+`purge_old_audit_logs()` : lit `audit_retention_days` depuis settings (défaut 365). DELETE audit_log > N jours. Appelée après `expire_keys()` dans le main cron (#346).
+
 ## Authentification Flask (web.py)
 
 Session : `require_auth` (401 si absent), `require_role(*roles)` (403 si rôle insuffisant).
@@ -132,14 +144,18 @@ Print `[LOGIN_FAILED]` / `[LOGIN_BANNED]` (compatible fail2ban). Configurable vi
 POST /api/auth/login      POST /api/auth/logout     GET /api/auth/me
 
 GET    /api/servers                                  POST /api/servers
-GET    /api/servers/<hostname>                       PUT  /api/servers/<hostname>/disable
+GET    /api/servers/<hostname>                       PUT  /api/servers/<hostname>
+POST   /api/servers/<hostname>/provision             PUT  /api/servers/<hostname>/disable
 PUT    /api/servers/<hostname>/enable                DELETE /api/servers/<hostname>
 POST   /api/servers/<hostname>/scan
+GET    /api/servers/<hostname>/sessions              POST /api/servers/<hostname>/sessions/refresh
+GET    /api/servers/<hostname>/sessions/history
 
 GET  /api/keys                                       GET  /api/keys/get/<fingerprint>
 GET  /api/keys/search?q=                             POST /api/keys/validate/<fingerprint>
 POST /api/keys/revoke/<fingerprint>                  POST /api/keys/assign/<fingerprint>
 POST /api/keys/set-expiry/<fingerprint>              POST /api/keys/remove-expiry/<fingerprint>
+POST /api/keys/bulk-validate                         POST /api/keys/bulk-revoke
 
 GET  /api/access                                     GET  /api/access/<id>
 GET  /api/access/deployed-users                      POST /api/access/grant
@@ -164,10 +180,10 @@ PUT  /api/system/config                              POST /api/system/test-smtp
 ## manage.py — commandes CLI actuelles
 
 ```
-servers list / add / disable / enable / show / scan
+servers list / add / update / disable / enable / show / scan
 keys list / show / validate / revoke / assign / set-expiry / remove-expiry / search
 access list / show / grant / request / approve / reject / revoke / lock-user / unlock-user
-admin list / add / update / disable / enable / delete / change-password
+admin list / add / update / disable / enable / delete / reset-password
 audit list
 system status / report
 ```

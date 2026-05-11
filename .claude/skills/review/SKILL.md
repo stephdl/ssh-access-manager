@@ -110,3 +110,16 @@ Produire un rapport structuré :
 ✅ Issue N validée — prête pour commit
 ❌ Issue N — corrections requises avant commit
 ```
+
+## Étape 8 — Revue de sécurité approfondie
+
+Après avoir produit le rapport ci-dessus, déléguer systématiquement au `security-reviewer` :
+
+```
+Utilise l'agent security-reviewer pour effectuer une revue de sécurité approfondie
+sur les fichiers modifiés dans cette issue. Contexte : [résumé des changements].
+```
+
+Le `security-reviewer` produit son propre rapport indépendant. Fusionner les deux verdicts :
+- Si `security-reviewer` lève un problème CRITIQUE ou ÉLEVÉ → verdict global ❌ bloquant
+- Si uniquement MOYEN ou INFO → mentionner dans le rapport mais ne pas bloquer
