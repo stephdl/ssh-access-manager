@@ -119,6 +119,7 @@ for bin in runagent api-cli; do
     bin_path=$(_bin "$bin")
     [ -x "$bin_path" ] && _rule "${OP_FILE}.tmp" "sam-operator" "${bin_path}"
 done
+visudo -c -f "${OP_FILE}.tmp" || { echo "[provision] ERROR: invalid sudoers ${OP_FILE} — aborting"; rm -f "${OP_FILE}.tmp"; exit 1; }
 install -m 440 "${OP_FILE}.tmp" "${OP_FILE}"
 rm -f "${OP_FILE}.tmp"
 echo "[provision] Sudoers sam-operator configured in ${OP_FILE}."
@@ -178,6 +179,7 @@ for bin in add-module remove-module; do
     bin_path="/usr/local/bin/$bin"
     [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
 done
+visudo -c -f "${PKG_FILE}.tmp" || { echo "[provision] ERROR: invalid sudoers ${PKG_FILE} — aborting"; rm -f "${PKG_FILE}.tmp"; exit 1; }
 install -m 440 "${PKG_FILE}.tmp" "${PKG_FILE}"
 rm -f "${PKG_FILE}.tmp"
 echo "[provision] Sudoers sam-pkg configured in ${PKG_FILE}."
@@ -186,6 +188,7 @@ echo "[provision] Sudoers sam-pkg configured in ${PKG_FILE}."
 ROOT_FILE="/etc/sudoers.d/sam-root"
 printf "# ssh-access-manager — sam-root sudo rights\n" > "${ROOT_FILE}.tmp"
 printf "%%sam-root ALL=(ALL) ALL\n" >> "${ROOT_FILE}.tmp"
+visudo -c -f "${ROOT_FILE}.tmp" || { echo "[provision] ERROR: invalid sudoers ${ROOT_FILE} — aborting"; rm -f "${ROOT_FILE}.tmp"; exit 1; }
 install -m 440 "${ROOT_FILE}.tmp" "${ROOT_FILE}"
 rm -f "${ROOT_FILE}.tmp"
 echo "[provision] Sudoers sam-root configured in ${ROOT_FILE}."
