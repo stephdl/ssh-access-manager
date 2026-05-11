@@ -164,7 +164,8 @@
     "reprovision_password_optional_hint": "Laisser vide si la clé collecteur a déjà été déployée manuellement (ssh-copy-id ou provision-host.sh).",
     "bulk_revoke_modal_title": "Révoquer les clés sélectionnées",
     "bulk_validated": "Clés validées : {validated}, ignorées : {skipped}",
-    "bulk_revoked": "Clés révoquées : {revoked}, ignorées : {skipped}"
+    "bulk_revoked": "Clés révoquées : {revoked}, ignorées : {skipped}",
+    "root_revoke_warning": "Révoquer la clé SSH de l'utilisateur <strong>root</strong> peut entraîner une perte définitive d'accès distant à ce serveur."
   },
   "key_table": {
     "col_status": "Statut",
@@ -195,7 +196,10 @@
     "bulk_selected": "{n} clé(s) sélectionnée(s)",
     "bulk_validate": "Valider la sélection",
     "bulk_revoke": "Révoquer la sélection",
-    "bulk_clear": "Effacer la sélection"
+    "bulk_clear": "Effacer la sélection",
+    "root_expiry_tooltip": "Impossible de définir une expiration pour root — la révocation automatique causerait une perte définitive d'accès",
+    "root_revoke_tooltip": "Compte root protégé — la révocation est désactivée pour éviter toute perte d'accès au serveur",
+    "root_protected_badge": "protégé"
   },
   "access": {
     "title": "Accès temporaires",
@@ -387,6 +391,7 @@
     "unixUser": "Utilisateur Unix",
     "unixUserPlaceholder": "ex: alice",
     "error_unix_user": "Nom d'utilisateur Unix invalide (minuscules, chiffres, _ et - uniquement, max 32 caractères)",
+    "error_root_user": "Impossible de déployer une clé pour le compte root",
     "publicKey": "Clé publique",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Serveur cible",
@@ -445,7 +450,12 @@
     "group_confirm": "Appliquer",
     "group_cancel": "Annuler",
     "group_success": "Groupe mis à jour pour '{user}' sur {server}",
-    "group_error": "Échec du changement de groupe : {error}"
+    "group_error": "Échec du changement de groupe : {error}",
+    "active_session_tooltip": "L'utilisateur a une session active — changement de groupe bloqué",
+    "active_session_badge": "Session active",
+    "group_success_verified": "Groupe mis à jour pour {user} sur {server} — serveur confirme : {groups}",
+    "root_user_tooltip": "L'utilisateur root ne peut pas être verrouillé ni changer de groupe",
+    "root_protected_badge": "protégé"
   },
   "pagination": {
     "rowsPerPage": "Lignes par page",

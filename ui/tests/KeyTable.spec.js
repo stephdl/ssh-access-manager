@@ -141,11 +141,25 @@ describe('KeyTable', () => {
     expect(w.emitted('set-expiry')).toBeTruthy()
   })
 
-  it('emits remove-expiry with fingerprint', async () => {
-    const w = mountTable([makeKey({ status: 'ACTIVE', expires_at: '2099-01-01T00:00:00' })])
+  it('disables Expiry button for root unix_user', () => {
+    const w = mountTable([makeKey({ status: 'ACTIVE', unix_user: 'root' })])
+    const btn = w.find('.btn-warning')
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.element.parentElement.title).toBeTruthy()
+  })
+
+  it('does not disable Expiry button for non-root unix_user', () => {
+    const w = mountTable([makeKey({ status: 'ACTIVE', unix_user: 'alice' })])
+    const btn = w.find('.btn-warning')
+    expect(btn.attributes('disabled')).toBeUndefined()
+  })
+
+  it('emits remove-expiry with full key object', async () => {
+    const key = makeKey({ status: 'ACTIVE', expires_at: '2099-01-01T00:00:00', unix_user: 'alice' })
+    const w = mountTable([key])
     await w.find('.btn-unlimited').trigger('click')
     expect(w.emitted('remove-expiry')).toBeTruthy()
-    expect(w.emitted('remove-expiry')[0][0]).toBe(FP)
+    expect(w.emitted('remove-expiry')[0][0]).toMatchObject({ fingerprint: FP, unix_user: 'alice' })
   })
 
   it('emits assign with fingerprint', async () => {
@@ -240,7 +254,7 @@ describe('KeyTable', () => {
     const revokeBtn = w.findAll('button').find((b) => b.text() === 'Revoke')
     expect(revokeBtn).toBeDefined()
     expect(revokeBtn.attributes('disabled')).toBeDefined()
-    expect(revokeBtn.attributes('title')).toContain('Cannot revoke')
+    expect(revokeBtn.element.parentElement.title).toContain('Cannot revoke')
   })
 
   it('keeps revoke button enabled when scanOk is true', () => {
@@ -350,13 +364,14 @@ describe('KeyTable', () => {
     expect(w.emitted('bulk-validate')[0][0]).toContain(FP)
   })
 
-  it('emits bulk-revoke with fingerprints', async () => {
+  it('emits bulk-revoke with compound keys (fingerprint|unix_user)', async () => {
     const key = makeKey({ status: 'ACTIVE' })
     const w = mountTable([key])
     await w.find('tbody input[type="checkbox"]').setChecked(true)
     await w.find('[data-testid="bulk-revoke-btn"]').trigger('click')
     expect(w.emitted('bulk-revoke')).toBeTruthy()
-    expect(w.emitted('bulk-revoke')[0][0]).toContain(FP)
+    const emitted = w.emitted('bulk-revoke')[0][0]
+    expect(emitted.some((k) => k.startsWith(FP))).toBe(true)
   })
 
   it('select-all checks all selectable rows on page', async () => {
@@ -372,5 +387,30 @@ describe('KeyTable', () => {
   it('REVOKED rows are not selectable', async () => {
     const w = mountTable([makeKey({ status: 'REVOKED' })])
     expect(w.find('tbody input[type="checkbox"]').exists()).toBe(false)
+  })
+
+  // --- Root protection ---
+
+  it('root ACTIVE row is not selectable (no checkbox)', () => {
+    const w = mountTable([makeKey({ status: 'ACTIVE', unix_user: 'root' })])
+    expect(w.find('tbody input[type="checkbox"]').exists()).toBe(false)
+  })
+
+  it('root ACTIVE row has Revoke button disabled', () => {
+    const w = mountTable([makeKey({ status: 'ACTIVE', unix_user: 'root' })])
+    const btn = w.find('.btn-danger')
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.element.parentElement.title).toBeTruthy()
+  })
+
+  it('root row shows protected badge', () => {
+    const w = mountTable([makeKey({ status: 'ACTIVE', unix_user: 'root' })])
+    expect(w.find('.badge-root-protected').exists()).toBe(true)
+  })
+
+  it('root row has row-root class', () => {
+    const w = mountTable([makeKey({ status: 'ACTIVE', unix_user: 'root' })])
+    const rows = w.findAll('tbody tr').filter((r) => r.find('code').exists())
+    expect(rows[0].classes()).toContain('row-root')
   })
 })

@@ -149,6 +149,11 @@
           </button>
         </div>
         <p>{{ $t('key_table.bulk_selected', { n: bulkRevokeFingerprints.length }) }}</p>
+        <div
+          v-if="bulkRevokeHasRoot"
+          class="root-warning"
+          v-html="$t('server_detail.root_revoke_warning')"
+        ></div>
         <label for="bulk-revoke-reason"
           >{{ $t('server_detail.revoke_reason_label') }}
           <span class="required">{{ $t('common.required') }}</span></label
@@ -190,6 +195,11 @@
           {{ $t('server_detail.revoke_user_label') }}
           <strong>{{ revokeTarget.unix_user }}</strong>
         </p>
+        <div
+          v-if="revokeTarget.unix_user === 'root'"
+          class="root-warning"
+          v-html="$t('server_detail.root_revoke_warning')"
+        ></div>
         <label
           >{{ $t('server_detail.revoke_reason_label') }}
           <span class="required">{{ $t('common.required') }}</span></label
@@ -408,6 +418,10 @@ const revokeTarget = ref(null)
 const revokeReason = ref('')
 const bulkRevokeFingerprints = ref(null)
 const bulkRevokeReason = ref('')
+const bulkRevokeHasRoot = computed(() => {
+  if (!bulkRevokeFingerprints.value) return false
+  return bulkRevokeFingerprints.value.some((key) => key.endsWith('|root'))
+})
 const assignTarget = ref(null)
 const assignUsername = ref('')
 const expiryTarget = ref(null)
@@ -561,7 +575,7 @@ async function confirmBulkRevoke() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      fingerprints: bulkRevokeFingerprints.value,
+      fingerprints: [...new Set(bulkRevokeFingerprints.value.map((key) => key.split('|')[0]))],
       reason: bulkRevokeReason.value,
     }),
   })
@@ -599,8 +613,13 @@ function openExpiry(key) {
 }
 
 async function confirmExpiry() {
-  const body =
+  const base =
     expiryMode.value === 'hours' ? { hours: expiryHours.value } : { date: expiryDate.value }
+  const body = {
+    ...base,
+    unix_user: expiryTarget.value.unix_user || undefined,
+    hostname,
+  }
   await apiAction(
     `/api/keys/set-expiry/${efp(expiryTarget.value.fingerprint)}`,
     body,
@@ -610,10 +629,10 @@ async function confirmExpiry() {
   expiryTarget.value = null
 }
 
-async function removeExpiry(fingerprint) {
+async function removeExpiry(key) {
   await apiAction(
-    `/api/keys/remove-expiry/${efp(fingerprint)}`,
-    null,
+    `/api/keys/remove-expiry/${efp(key.fingerprint)}`,
+    { unix_user: key.unix_user || undefined, hostname },
     'POST',
     t('server_detail.expiry_removed')
   )
@@ -756,6 +775,15 @@ dd {
   font-size: 0.85rem;
   color: var(--text-secondary);
   margin: 0 0 0.75rem;
+}
+
+.root-warning {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.85rem;
 }
 
 .empty {

@@ -1111,44 +1111,78 @@ def test_ssh_sam_revoke_group_is_bytes():
 # grant_group_on_server / revoke_group_on_server
 # ---------------------------------------------------------------------------
 
+def test_ssh_parse_groups_output():
+    """_parse_groups_output parses GROUPS: line correctly."""
+    assert ssh._parse_groups_output("GROUPS:sam-users sam-operator") == ["sam-users", "sam-operator"]
+    assert ssh._parse_groups_output("GROUPS:") == []
+    assert ssh._parse_groups_output("other output\nGROUPS:sam-root\nmore output") == ["sam-root"]
+    assert ssh._parse_groups_output("no groups line") == []
+
+
 def test_ssh_grant_group_on_server_calls_sam_grant_group():
-    """grant_group_on_server runs sam-grant-group with correct args."""
+    """grant_group_on_server runs sam-grant-group with correct args and returns groups."""
     from unittest.mock import MagicMock, patch
 
     with patch("ssh._connect") as mock_connect:
         client = MagicMock()
         mock_connect.return_value = client
         stdout = MagicMock()
-        stdout.read.return_value = b""
+        stdout.read.return_value = b"GROUPS:sam-users sam-operator\n"
         stdout.channel.recv_exit_status.return_value = 0
         client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
 
-        ssh.grant_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10")
+        result = ssh.grant_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10")
 
         cmd = client.exec_command.call_args[0][0]
         assert "sam-grant-group" in cmd
         assert "alice" in cmd
         assert "sam-operator" in cmd
+        assert result == ["sam-users", "sam-operator"]
 
 
 def test_ssh_revoke_group_on_server_calls_sam_revoke_group():
-    """revoke_group_on_server runs sam-revoke-group with correct args."""
+    """revoke_group_on_server runs sam-revoke-group with correct args and returns groups."""
     from unittest.mock import MagicMock, patch
 
     with patch("ssh._connect") as mock_connect:
         client = MagicMock()
         mock_connect.return_value = client
         stdout = MagicMock()
-        stdout.read.return_value = b""
+        stdout.read.return_value = b"GROUPS:sam-users\n"
         stdout.channel.recv_exit_status.return_value = 0
         client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
 
-        ssh.revoke_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10")
+        result = ssh.revoke_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10")
 
         cmd = client.exec_command.call_args[0][0]
         assert "sam-revoke-group" in cmd
         assert "alice" in cmd
         assert "sam-operator" in cmd
+        assert result == ["sam-users"]
+
+
+def test_ssh_revoke_group_on_server_with_none_strips_all():
+    """revoke_group_on_server with group=None strips all SAM groups."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("ssh._connect") as mock_connect:
+        client = MagicMock()
+        mock_connect.return_value = client
+        stdout = MagicMock()
+        stdout.read.return_value = b"GROUPS:sam-users\n"
+        stdout.channel.recv_exit_status.return_value = 0
+        client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
+
+        result = ssh.revoke_group_on_server("web-01", "alice", None, "192.168.1.10")
+
+        cmd = client.exec_command.call_args[0][0]
+        assert "sam-revoke-group" in cmd
+        assert "alice" in cmd
+        # Should NOT have a group argument when group=None
+        assert "sam-operator" not in cmd
+        assert "sam-pkg" not in cmd
+        assert "sam-root" not in cmd
+        assert result == ["sam-users"]
 
 
 def test_ssh_grant_group_on_server_raises_on_failure():

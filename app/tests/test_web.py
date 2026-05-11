@@ -299,6 +299,68 @@ def test_web_set_expiry_duration_hours_not_integer_returns_400(auth_client):
         assert "must be an integer" in resp.json["error"] or "error" in resp.json
 
 
+def test_web_set_expiry_scoped_to_unix_user_and_hostname(auth_client):
+    """set-expiry with unix_user and hostname passes them to actions."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            f"/api/keys/set-expiry/{FINGERPRINT}",
+            json={"hours": 24, "unix_user": "alice", "hostname": "server-01"},
+        )
+        assert resp.status_code == 200
+        mock_actions.set_key_expiry.assert_called_once()
+        call_args = mock_actions.set_key_expiry.call_args
+        assert call_args[0][0] == FINGERPRINT
+        assert call_args[1]["unix_user"] == "alice"
+        assert call_args[1]["hostname"] == "server-01"
+
+
+def test_web_remove_expiry_scoped_to_unix_user_and_hostname(auth_client):
+    """remove-expiry with unix_user and hostname passes them to actions."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            f"/api/keys/remove-expiry/{FINGERPRINT}",
+            json={"unix_user": "bob", "hostname": "server-02"},
+        )
+        assert resp.status_code == 200
+        mock_actions.remove_key_expiry.assert_called_once()
+        call_args = mock_actions.remove_key_expiry.call_args
+        assert call_args[0][0] == FINGERPRINT
+        assert call_args[1]["unix_user"] == "bob"
+        assert call_args[1]["hostname"] == "server-02"
+
+
+def test_web_set_expiry_without_scoping_params(auth_client):
+    """set-expiry without unix_user/hostname calls actions with None."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            f"/api/keys/set-expiry/{FINGERPRINT}",
+            json={"hours": 48},
+        )
+        assert resp.status_code == 200
+        mock_actions.set_key_expiry.assert_called_once()
+        call_args = mock_actions.set_key_expiry.call_args
+        assert call_args[1]["unix_user"] is None
+        assert call_args[1]["hostname"] is None
+
+
+def test_web_remove_expiry_without_scoping_params(auth_client):
+    """remove-expiry without unix_user/hostname calls actions with None."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post(
+            f"/api/keys/remove-expiry/{FINGERPRINT}",
+            json={},
+        )
+        assert resp.status_code == 200
+        mock_actions.remove_key_expiry.assert_called_once()
+        call_args = mock_actions.remove_key_expiry.call_args
+        assert call_args[1]["unix_user"] is None
+        assert call_args[1]["hostname"] is None
+
+
 # ---------------------------------------------------------------------------
 # GET /api/servers
 # ---------------------------------------------------------------------------
@@ -1710,6 +1772,28 @@ def test_web_login_max_attempts_triggers_ban(client):
     assert resp.status_code == 401
     assert entry is not None
     assert entry["banned_until"] > 0
+
+
+def test_web_get_client_ip_prefers_x_real_ip(client):
+    """X-Real-IP (set by Nginx, not spoofable) takes priority over X-Forwarded-For."""
+    with client.application.test_request_context(
+        headers={"X-Real-IP": "203.0.113.5", "X-Forwarded-For": "1.2.3.4, 5.6.7.8"}
+    ):
+        assert web._get_client_ip() == "203.0.113.5"
+
+
+def test_web_get_client_ip_fallback_rightmost_forwarded(client):
+    """Without X-Real-IP, take the rightmost X-Forwarded-For entry (most trustworthy)."""
+    with client.application.test_request_context(
+        headers={"X-Forwarded-For": "1.1.1.1, 203.0.113.5"}
+    ):
+        assert web._get_client_ip() == "203.0.113.5"
+
+
+def test_web_get_client_ip_fallback_remote_addr(client):
+    """Without any proxy headers, use remote_addr."""
+    with client.application.test_request_context("/", environ_base={"REMOTE_ADDR": "10.0.0.1"}):
+        assert web._get_client_ip() == "10.0.0.1"
 
 
 def test_web_config_update_login_max_attempts(auth_client):

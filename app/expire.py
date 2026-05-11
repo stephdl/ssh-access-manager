@@ -70,6 +70,7 @@ def expire_keys() -> int:
         WHERE ka.status = 'ACTIVE'
           AND ka.expires_at IS NOT NULL
           AND ka.expires_at <= now()
+          AND ka.unix_user != 'root'
         """,
         (),
     )

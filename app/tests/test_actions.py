@@ -59,7 +59,7 @@ def test_actions_validate_key_raises_if_no_pending(sample_key):
 def test_actions_revoke_key_scenario1_calls_sam_revoke(sample_key):
     auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10", "ssh_port": 22}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
-        mock_db.query_one.return_value = {"id": KEY_ID}
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, None]  # key found, no root auth
         mock_db.query.return_value = [auth]
         actions.revoke_key(sample_key["fingerprint"], ADMIN_ID, "test reason")
         mock_ssh.revoke_on_server.assert_called_once_with(
@@ -70,7 +70,7 @@ def test_actions_revoke_key_scenario1_calls_sam_revoke(sample_key):
 def test_actions_revoke_key_scenario1_sets_revoked_by_admin(sample_key):
     auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10", "ssh_port": 22}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
-        mock_db.query_one.return_value = {"id": KEY_ID}
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, None]
         mock_db.query.return_value = [auth]
         actions.revoke_key(sample_key["fingerprint"], ADMIN_ID, "test reason")
         update_call = mock_db.execute.call_args_list[0]
@@ -81,7 +81,7 @@ def test_actions_revoke_key_scenario1_sets_revoked_by_admin(sample_key):
 def test_actions_revoke_key_scenario1_logs_key_revoked(sample_key):
     auth = {"server_id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10", "ssh_port": 22}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
-        mock_db.query_one.return_value = {"id": KEY_ID}
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, None]
         mock_db.query.return_value = [auth]
         actions.revoke_key(sample_key["fingerprint"], ADMIN_ID, "test reason")
         audit_call = mock_db.execute.call_args_list[1]
@@ -282,12 +282,41 @@ def test_actions_assign_key_raises_if_key_not_found():
 # set_key_expiry / remove_key_expiry
 # ---------------------------------------------------------------------------
 
+def test_actions_set_key_expiry_root_raises():
+    with pytest.raises(UserError, match="Cannot set an expiry on root"):
+        actions.set_key_expiry("SHA256:abc", datetime.now(), unix_user="root", hostname="server")
+
+
 def test_actions_set_key_expiry_updates_active_auths(sample_key):
+    """set_key_expiry without unix_user/hostname updates all ACTIVE auths."""
     expires_at = _future()
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"id": KEY_ID}
         actions.set_key_expiry(sample_key["fingerprint"], expires_at)
-        assert expires_at in mock_db.execute.call_args[0][1]
+        sql = mock_db.execute.call_args[0][0]
+        params = mock_db.execute.call_args[0][1]
+        assert "UPDATE key_authorizations" in sql
+        assert "status = 'ACTIVE'" in sql
+        assert "unix_user != 'root'" in sql
+        assert expires_at in params
+
+
+def test_actions_set_key_expiry_scoped_to_unix_user(sample_key, sample_server):
+    """set_key_expiry with unix_user and hostname updates only that specific auth."""
+    expires_at = _future()
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},
+            {"id": SERVER_ID},
+        ]
+        actions.set_key_expiry(
+            sample_key["fingerprint"], expires_at, unix_user="alice", hostname=sample_server["hostname"]
+        )
+        sql = mock_db.execute.call_args[0][0]
+        params = mock_db.execute.call_args[0][1]
+        assert "UPDATE key_authorizations" in sql
+        assert "WHERE key_id = %s AND unix_user = %s AND server_id = %s AND status = 'ACTIVE'" in sql
+        assert params == (expires_at, KEY_ID, "alice", SERVER_ID)
 
 
 def test_actions_set_key_expiry_raises_if_key_not_found(sample_key):
@@ -297,11 +326,88 @@ def test_actions_set_key_expiry_raises_if_key_not_found(sample_key):
             actions.set_key_expiry(sample_key["fingerprint"], _future())
 
 
+def test_actions_set_key_expiry_raises_if_server_not_found(sample_key):
+    """set_key_expiry raises NotFoundError if hostname doesn't exist."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},
+            None,
+        ]
+        with pytest.raises(UserError, match="Server not found"):
+            actions.set_key_expiry(sample_key["fingerprint"], _future(), unix_user="alice", hostname="ghost")
+
+
 def test_actions_remove_key_expiry_sets_null(sample_key):
+    """remove_key_expiry without unix_user/hostname updates all ACTIVE auths."""
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {"id": KEY_ID}
         actions.remove_key_expiry(sample_key["fingerprint"])
-        assert "NULL" in mock_db.execute.call_args[0][0]
+        sql = mock_db.execute.call_args[0][0]
+        assert "NULL" in sql
+        assert "status = 'ACTIVE'" in sql
+        assert "unix_user != 'root'" in sql
+
+
+def test_actions_remove_key_expiry_scoped_to_unix_user(sample_key, sample_server):
+    """remove_key_expiry with unix_user and hostname updates only that specific auth."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},
+            {"id": SERVER_ID},
+        ]
+        actions.remove_key_expiry(
+            sample_key["fingerprint"], unix_user="bob", hostname=sample_server["hostname"]
+        )
+        sql = mock_db.execute.call_args[0][0]
+        params = mock_db.execute.call_args[0][1]
+        assert "UPDATE key_authorizations" in sql
+        assert "expires_at = NULL" in sql
+        assert "WHERE key_id = %s AND unix_user = %s AND server_id = %s AND status = 'ACTIVE'" in sql
+        assert params == (KEY_ID, "bob", SERVER_ID)
+
+
+def test_actions_remove_key_expiry_raises_if_server_not_found(sample_key):
+    """remove_key_expiry raises NotFoundError if hostname doesn't exist."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": KEY_ID},
+            None,
+        ]
+        with pytest.raises(UserError, match="Server not found"):
+            actions.remove_key_expiry(sample_key["fingerprint"], unix_user="alice", hostname="ghost")
+
+
+def test_actions_set_key_expiry_global_excludes_root(sample_key):
+    """set_key_expiry global UPDATE must exclude unix_user = 'root'."""
+    from datetime import datetime, timezone
+    expires = datetime.now(tz=timezone.utc)
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": KEY_ID}
+        actions.set_key_expiry(sample_key["fingerprint"], expires)
+        sql = mock_db.execute.call_args[0][0]
+        assert "unix_user != 'root'" in sql
+
+
+def test_actions_set_key_expiry_root_targeted_raises(sample_key):
+    """set_key_expiry with unix_user=root must raise UserError."""
+    from datetime import datetime, timezone
+    with pytest.raises(UserError, match="root"):
+        actions.set_key_expiry(sample_key["fingerprint"], datetime.now(tz=timezone.utc), unix_user="root")
+
+
+def test_actions_remove_key_expiry_root_targeted_raises(sample_key):
+    """remove_key_expiry with unix_user=root must raise UserError."""
+    with pytest.raises(UserError, match="root"):
+        actions.remove_key_expiry(sample_key["fingerprint"], unix_user="root")
+
+
+def test_actions_remove_key_expiry_global_excludes_root(sample_key):
+    """remove_key_expiry global UPDATE must exclude unix_user = 'root'."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": KEY_ID}
+        actions.remove_key_expiry(sample_key["fingerprint"])
+        sql = mock_db.execute.call_args[0][0]
+        assert "unix_user != 'root'" in sql
 
 
 # ---------------------------------------------------------------------------
@@ -881,6 +987,40 @@ def test_actions_revoke_key_rejects_invalid_fingerprint_format():
         actions.revoke_key("INVALID:abc", ADMIN_ID, "test")
 
 
+def test_actions_revoke_key_targeted_root_raises():
+    """Targeted revoke with unix_user=root must be rejected."""
+    fp = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": "key-uuid"}
+        with pytest.raises(UserError, match="root"):
+            actions.revoke_key(fp, ADMIN_ID, "test", hostname="server-01", unix_user="root")
+
+
+def test_actions_revoke_key_global_blocks_when_root_has_key():
+    """Global revoke must be rejected if root has this key deployed."""
+    fp = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "key-uuid"},   # ssh_keys lookup
+            {"1": 1},             # root_auth check → root has this key
+        ]
+        with pytest.raises(UserError, match="root"):
+            actions.revoke_key(fp, ADMIN_ID, "test")
+
+
+def test_actions_revoke_key_global_proceeds_when_no_root_auth():
+    """Global revoke proceeds normally when root does not have this key."""
+    fp = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": "key-uuid"},   # ssh_keys lookup
+            None,                 # root_auth check → root does NOT have this key
+        ]
+        mock_db.query.return_value = []
+        actions.revoke_key(fp, ADMIN_ID, "test")
+        mock_db.query.assert_called_once()
+
+
 def test_actions_assign_key_rejects_invalid_fingerprint_format():
     with pytest.raises(UserError, match="Invalid fingerprint format"):
         actions.assign_key("sha256:lowercase", "alice")
@@ -962,6 +1102,16 @@ def test_actions_unlock_user_ssh_user_raises():
         mock_ssh.SSH_USER = "audit-collector"
         with pytest.raises(UserError, match="Cannot unlock the collector account"):
             actions.unlock_user("audit-collector", "server-test-01", ADMIN_ID)
+
+
+def test_actions_lock_user_root_raises():
+    with pytest.raises(UserError, match="Cannot lock the root account"):
+        actions.lock_user("root", "server-test-01", ADMIN_ID)
+
+
+def test_actions_unlock_user_root_raises():
+    with pytest.raises(UserError, match="Cannot unlock the root account"):
+        actions.unlock_user("root", "server-test-01", ADMIN_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -1510,6 +1660,28 @@ def test_actions_deploy_key_invalid_sam_group_raises(sample_server, sample_key):
             )
 
 
+def test_actions_deploy_key_justification_stored_in_audit_log(sample_server, sample_key):
+    """deploy_key must include justification in the KEY_ADDED audit_log details."""
+    with patch("actions.db") as mock_db, patch("actions.ssh"):
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"id": sample_key["id"]},
+        ]
+        actions.deploy_key(
+            public_key=sample_key["public_key"],
+            unix_user="alice",
+            hostname=sample_server["hostname"],
+            expires_at=None,
+            justification="Security audit Q2",
+            admin_id=ADMIN_ID,
+        )
+        audit_call = mock_db.execute.call_args_list[-1]
+        assert "KEY_ADDED" in audit_call[0][0]
+        import json
+        details = json.loads(audit_call[0][1][-1])
+        assert details["justification"] == "Security audit Q2"
+
+
 def test_actions_deploy_key_no_sam_group_passes_none_to_add_key(sample_server, sample_key):
     """deploy_key with no group passes sam_group=None — sam-add strips all SAM groups."""
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
@@ -1539,8 +1711,10 @@ def test_actions_deploy_key_no_sam_group_passes_none_to_add_key(sample_server, s
 
 def test_actions_grant_group_success(sample_server):
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.grant_group_on_server.return_value = []
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,  # no active session
             {"id": "ka-id"},
         ]
         result = actions.grant_group("alice", sample_server["hostname"], "sam-operator", ADMIN_ID)
@@ -1550,6 +1724,11 @@ def test_actions_grant_group_success(sample_server):
             sample_server["hostname"], "alice", "sam-operator",
             sample_server["ip_address"], port=22,
         )
+
+
+def test_actions_grant_group_root_raises():
+    with pytest.raises(UserError, match="Cannot assign a SAM group to the root account"):
+        actions.grant_group("root", "server", "sam-pkg", ADMIN_ID)
 
 
 def test_actions_grant_group_invalid_group_raises():
@@ -1568,16 +1747,19 @@ def test_actions_grant_group_no_active_deployment_raises(sample_server):
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
-            None,
+            None,  # no active session
+            None,  # no key_authorization
         ]
         with pytest.raises(UserError, match="No active key deployment"):
             actions.grant_group("alice", sample_server["hostname"], "sam-root", ADMIN_ID)
 
 
 def test_actions_grant_group_logs_group_granted(sample_server):
-    with patch("actions.db") as mock_db, patch("actions.ssh"):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.grant_group_on_server.return_value = []
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,  # no active session
             {"id": "ka-id"},
         ]
         actions.grant_group("alice", sample_server["hostname"], "sam-pkg", ADMIN_ID)
@@ -1586,13 +1768,29 @@ def test_actions_grant_group_logs_group_granted(sample_server):
 
 
 # ---------------------------------------------------------------------------
+# grant_group — active session blocking
+# ---------------------------------------------------------------------------
+
+def test_actions_grant_group_active_session_blocks(sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"unix_user": "alice"},  # active session found
+        ]
+        with pytest.raises(UserError, match="active session"):
+            actions.grant_group("alice", sample_server["hostname"], "sam-operator", ADMIN_ID)
+
+
+# ---------------------------------------------------------------------------
 # revoke_group
 # ---------------------------------------------------------------------------
 
 def test_actions_revoke_group_success(sample_server):
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.revoke_group_on_server.return_value = []
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,  # no active session
             {"sam_group": "sam-operator"},
         ]
         result = actions.revoke_group("alice", sample_server["hostname"], ADMIN_ID)
@@ -1603,6 +1801,11 @@ def test_actions_revoke_group_success(sample_server):
         )
 
 
+def test_actions_revoke_group_root_raises():
+    with pytest.raises(UserError, match="Cannot modify the SAM group of the root account"):
+        actions.revoke_group("root", "server", ADMIN_ID)
+
+
 def test_actions_revoke_group_server_not_found_raises():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
@@ -1610,20 +1813,23 @@ def test_actions_revoke_group_server_not_found_raises():
             actions.revoke_group("alice", "unknown-server", ADMIN_ID)
 
 
-def test_actions_revoke_group_no_group_raises(sample_server):
+def test_actions_revoke_group_no_deployment_raises(sample_server):
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
-            None,
+            None,  # no active session
+            None,  # no key_authorization at all
         ]
-        with pytest.raises(UserError, match="no SAM group assigned"):
+        with pytest.raises(UserError, match="No active key deployment"):
             actions.revoke_group("alice", sample_server["hostname"], ADMIN_ID)
 
 
 def test_actions_revoke_group_logs_group_revoked(sample_server):
-    with patch("actions.db") as mock_db, patch("actions.ssh"):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.revoke_group_on_server.return_value = []
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,  # no active session
             {"sam_group": "sam-root"},
         ]
         actions.revoke_group("alice", sample_server["hostname"], ADMIN_ID)
@@ -1631,14 +1837,49 @@ def test_actions_revoke_group_logs_group_revoked(sample_server):
         assert "GROUP_REVOKED" in audit_call[0][0]
 
 
+def test_actions_revoke_group_active_session_blocks(sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"unix_user": "alice"},  # active session found
+        ]
+        with pytest.raises(UserError, match="active session"):
+            actions.revoke_group("alice", sample_server["hostname"], ADMIN_ID)
+
+
+def test_actions_revoke_group_no_group_in_db_still_strips_server(sample_server):
+    """revoke_group with sam_group=None in DB should still run strip command on server."""
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.revoke_group_on_server.return_value = ["sam-users"]
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,  # no active session
+            {"sam_group": None},  # no group in DB
+        ]
+        result = actions.revoke_group("alice", sample_server["hostname"], ADMIN_ID)
+        assert result["sam_group"] is None
+        mock_ssh.revoke_group_on_server.assert_called_once_with(
+            sample_server["hostname"], "alice", None,
+            sample_server["ip_address"], port=22,
+        )
+
+
 # ---------------------------------------------------------------------------
 # change_group
 # ---------------------------------------------------------------------------
 
+def test_actions_change_group_root_raises():
+    with pytest.raises(UserError, match="Cannot modify the SAM group of the root account"):
+        actions.change_group("root", "server", "sam-pkg", ADMIN_ID)
+
+
 def test_actions_change_group_success(sample_server):
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.grant_group_on_server.return_value = []
+        mock_ssh.revoke_group_on_server.return_value = []
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,  # no active session
             {"sam_group": "sam-operator"},
         ]
         result = actions.change_group("alice", sample_server["hostname"], "sam-pkg", ADMIN_ID)
@@ -1647,22 +1888,26 @@ def test_actions_change_group_success(sample_server):
         mock_ssh.grant_group_on_server.assert_called_once()
 
 
-def test_actions_change_group_noop_when_same(sample_server):
+def test_actions_change_group_reapplies_when_same(sample_server):
+    """change_group should re-apply even when group is identical (force sync)."""
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.grant_group_on_server.return_value = ["sam-users", "sam-pkg"]
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,  # no active session
             {"sam_group": "sam-pkg"},
         ]
         result = actions.change_group("alice", sample_server["hostname"], "sam-pkg", ADMIN_ID)
         assert result["sam_group"] == "sam-pkg"
-        mock_ssh.revoke_group_on_server.assert_not_called()
-        mock_ssh.grant_group_on_server.assert_not_called()
+        mock_ssh.grant_group_on_server.assert_called_once()
 
 
 def test_actions_change_group_from_none_does_not_revoke(sample_server):
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.grant_group_on_server.return_value = []
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,  # no active session
             {"sam_group": None},
         ]
         actions.change_group("alice", sample_server["hostname"], "sam-root", ADMIN_ID)
@@ -1686,18 +1931,32 @@ def test_actions_change_group_no_deployment_raises(sample_server):
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
-            None,
+            None,  # no active session
+            None,  # no key_authorization
         ]
         with pytest.raises(UserError, match="No active key deployment"):
             actions.change_group("alice", sample_server["hostname"], "sam-operator", ADMIN_ID)
 
 
 def test_actions_change_group_logs_group_changed(sample_server):
-    with patch("actions.db") as mock_db, patch("actions.ssh"):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.grant_group_on_server.return_value = []
+        mock_ssh.revoke_group_on_server.return_value = []
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,  # no active session
             {"sam_group": "sam-operator"},
         ]
         actions.change_group("alice", sample_server["hostname"], "sam-pkg", ADMIN_ID)
         audit_call = mock_db.execute.call_args_list[-1]
         assert "GROUP_CHANGED" in audit_call[0][0]
+
+
+def test_actions_change_group_active_session_blocks(sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"unix_user": "alice"},  # active session found
+        ]
+        with pytest.raises(UserError, match="active session"):
+            actions.change_group("alice", sample_server["hostname"], "sam-operator", ADMIN_ID)

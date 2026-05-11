@@ -195,6 +195,8 @@ def revoke_key(
 
     if hostname and unix_user:
         # --- Targeted revocation (one user on one server) ---
+        if unix_user == "root":
+            raise UserError("Cannot revoke the root account's SSH key — this would cause permanent loss of server access")
         server = db.query_one(
             "SELECT id, ip_address, ssh_port FROM servers WHERE hostname = %s",
             (hostname,),
@@ -240,6 +242,19 @@ def revoke_key(
         )
     else:
         # --- Global revocation (all servers, all users) ---
+        root_auth = db.query_one(
+            """
+            SELECT 1 FROM key_authorizations
+            WHERE key_id = %s AND unix_user = 'root'
+              AND status IN ('ACTIVE', 'PENDING_REVIEW')
+            """,
+            (key["id"],),
+        )
+        if root_auth:
+            raise UserError(
+                "Cannot revoke this key globally — it is deployed for the root account. "
+                "Use targeted revocation for specific non-root users."
+            )
         active_auths = db.query(
             """
             SELECT DISTINCT ka.server_id, s.hostname, s.ip_address, s.ssh_port
@@ -495,28 +510,75 @@ def assign_key(fingerprint: str, owner_name: str) -> None:
     )
 
 
-def set_key_expiry(fingerprint: str, expires_at: datetime) -> None:
-    """Set expiration on all ACTIVE authorizations for a key."""
+def set_key_expiry(
+    fingerprint: str,
+    expires_at: datetime,
+    unix_user: str | None = None,
+    hostname: str | None = None,
+) -> None:
+    """Set expiration on ACTIVE authorizations for a key.
+
+    If unix_user and hostname are provided, updates only the specific
+    (key, server, unix_user) authorization. Otherwise, updates all
+    ACTIVE authorizations for the key.
+    """
+    if unix_user == "root":
+        raise UserError("Cannot set an expiry on root's SSH key — this would revoke root access automatically")
     _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
         raise NotFoundError(f"Key not found: {fingerprint}")
-    db.execute(
-        "UPDATE key_authorizations SET expires_at = %s WHERE key_id = %s AND status = 'ACTIVE'",
-        (expires_at, key["id"]),
-    )
+
+    if unix_user is not None and hostname is not None:
+        server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
+        if not server:
+            raise NotFoundError(f"Server not found: {hostname}")
+        db.execute(
+            "UPDATE key_authorizations SET expires_at = %s"
+            " WHERE key_id = %s AND unix_user = %s AND server_id = %s AND status = 'ACTIVE'",
+            (expires_at, key["id"], unix_user, server["id"]),
+        )
+    else:
+        db.execute(
+            "UPDATE key_authorizations SET expires_at = %s"
+            " WHERE key_id = %s AND status = 'ACTIVE' AND unix_user != 'root'",
+            (expires_at, key["id"]),
+        )
 
 
-def remove_key_expiry(fingerprint: str) -> None:
-    """Remove expiration from all ACTIVE authorizations for a key."""
+def remove_key_expiry(
+    fingerprint: str,
+    unix_user: str | None = None,
+    hostname: str | None = None,
+) -> None:
+    """Remove expiration from ACTIVE authorizations for a key.
+
+    If unix_user and hostname are provided, updates only the specific
+    (key, server, unix_user) authorization. Otherwise, updates all
+    ACTIVE authorizations for the key (root excluded).
+    """
+    if unix_user == "root":
+        raise UserError("Cannot modify the expiry of the root account's SSH key")
     _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
         raise NotFoundError(f"Key not found: {fingerprint}")
-    db.execute(
-        "UPDATE key_authorizations SET expires_at = NULL WHERE key_id = %s AND status = 'ACTIVE'",
-        (key["id"],),
-    )
+
+    if unix_user is not None and hostname is not None:
+        server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
+        if not server:
+            raise NotFoundError(f"Server not found: {hostname}")
+        db.execute(
+            "UPDATE key_authorizations SET expires_at = NULL"
+            " WHERE key_id = %s AND unix_user = %s AND server_id = %s AND status = 'ACTIVE'",
+            (key["id"], unix_user, server["id"]),
+        )
+    else:
+        db.execute(
+            "UPDATE key_authorizations SET expires_at = NULL"
+            " WHERE key_id = %s AND status = 'ACTIVE' AND unix_user != 'root'",
+            (key["id"],),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -580,6 +642,15 @@ def _get_current_group(unix_user: str, hostname: str) -> str | None:
     return row["sam_group"] if row else None
 
 
+def _has_active_session(unix_user: str, server_id) -> bool:
+    """Return True if unix_user has an active SSH session on this server (from last scan)."""
+    row = db.query_one(
+        "SELECT 1 FROM ssh_sessions WHERE server_id = %s AND unix_user = %s AND is_active = true LIMIT 1",
+        (server_id, unix_user),
+    )
+    return row is not None
+
+
 def deploy_key(
     public_key: str,
     unix_user: str,
@@ -593,6 +664,8 @@ def deploy_key(
     Register public key in ssh_keys (if not exists), deploy via sam-add,
     create key_authorization ACTIVE with optional expiry.
     """
+    if unix_user == "root":
+        raise UserError("Cannot deploy a key for the root account")
     if not _UNIX_USER_RE.match(unix_user):
         raise UserError(
             f"Invalid Unix username: '{unix_user}' "
@@ -675,7 +748,7 @@ def deploy_key(
             admin_id,
             key["id"],
             server["id"],
-            json.dumps({"unix_user": unix_user, "fingerprint": fingerprint, "hostname": hostname, "sam_group": sam_group}),
+            json.dumps({"unix_user": unix_user, "fingerprint": fingerprint, "hostname": hostname, "sam_group": sam_group, "justification": justification}),
         ),
     )
     return {
@@ -690,6 +763,8 @@ def deploy_key(
 
 def grant_group(unix_user: str, hostname: str, group: str, admin_id: str) -> dict:
     """Assign a SAM sudo group to a unix_user on a server."""
+    if unix_user == "root":
+        raise UserError("Cannot assign a SAM group to the root account")
     if group not in VALID_SAM_GROUPS:
         raise UserError(f"Invalid SAM group: '{group}'. Must be one of: {', '.join(VALID_SAM_GROUPS)}")
     server = db.query_one(
@@ -698,13 +773,15 @@ def grant_group(unix_user: str, hostname: str, group: str, admin_id: str) -> dic
     )
     if not server:
         raise NotFoundError(f"Server not found or inactive: {hostname}")
-    active = db.query_one(
+    if _has_active_session(unix_user, server["id"]):
+        raise UserError(f"User '{unix_user}' has an active session on {hostname} — group change blocked to avoid interrupting ongoing operations")
+    row = db.query_one(
         "SELECT 1 FROM key_authorizations WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
         (server["id"], unix_user),
     )
-    if not active:
-        raise UserError(f"No active key deployment for user '{unix_user}' on {hostname}")
-    ssh.grant_group_on_server(hostname, unix_user, group, server["ip_address"], port=server["ssh_port"])
+    if not row:
+        raise UserError(f"No active key deployment for {unix_user} on {hostname}")
+    actual_groups = ssh.grant_group_on_server(hostname, unix_user, group, server["ip_address"], port=server["ssh_port"])
     db.execute(
         "UPDATE key_authorizations SET sam_group = %s WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
         (group, server["id"], unix_user),
@@ -714,43 +791,50 @@ def grant_group(unix_user: str, hostname: str, group: str, admin_id: str) -> dic
         INSERT INTO audit_log (action, performed_by, target_server, details)
         VALUES ('GROUP_GRANTED', %s, %s, %s::jsonb)
         """,
-        (admin_id, server["id"], json.dumps({"unix_user": unix_user, "group": group, "hostname": hostname})),
+        (admin_id, server["id"], json.dumps({"unix_user": unix_user, "hostname": hostname, "sam_group": group})),
     )
-    return {"unix_user": unix_user, "hostname": hostname, "sam_group": group}
+    return {"unix_user": unix_user, "hostname": hostname, "sam_group": group, "actual_groups": actual_groups}
 
 
 def revoke_group(unix_user: str, hostname: str, admin_id: str) -> dict:
-    """Remove the SAM sudo group from a unix_user on a server."""
+    """Remove SAM sudo group from unix_user on a server. Works even if no group is currently set (force-strips server)."""
+    if unix_user == "root":
+        raise UserError("Cannot modify the SAM group of the root account")
     server = db.query_one(
         "SELECT id, ip_address, ssh_port FROM servers WHERE hostname = %s AND is_active = true",
         (hostname,),
     )
     if not server:
         raise NotFoundError(f"Server not found or inactive: {hostname}")
+    if _has_active_session(unix_user, server["id"]):
+        raise UserError(f"User '{unix_user}' has an active session on {hostname} — group change blocked to avoid interrupting ongoing operations")
     row = db.query_one(
-        "SELECT sam_group FROM key_authorizations WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE' AND sam_group IS NOT NULL",
+        "SELECT sam_group FROM key_authorizations WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
         (server["id"], unix_user),
     )
     if not row:
-        raise UserError(f"User '{unix_user}' on {hostname} has no SAM group assigned")
+        raise UserError(f"No active key deployment for {unix_user} on {hostname}")
     current_group = row["sam_group"]
-    ssh.revoke_group_on_server(hostname, unix_user, current_group, server["ip_address"], port=server["ssh_port"])
-    db.execute(
-        "UPDATE key_authorizations SET sam_group = NULL WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
-        (server["id"], unix_user),
-    )
-    db.execute(
-        """
-        INSERT INTO audit_log (action, performed_by, target_server, details)
-        VALUES ('GROUP_REVOKED', %s, %s, %s::jsonb)
-        """,
-        (admin_id, server["id"], json.dumps({"unix_user": unix_user, "group": current_group, "hostname": hostname})),
-    )
-    return {"unix_user": unix_user, "hostname": hostname, "sam_group": None}
+    actual_groups = ssh.revoke_group_on_server(hostname, unix_user, current_group, server["ip_address"], port=server["ssh_port"])
+    if current_group is not None:
+        db.execute(
+            "UPDATE key_authorizations SET sam_group = NULL WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
+            (server["id"], unix_user),
+        )
+        db.execute(
+            """
+            INSERT INTO audit_log (action, performed_by, target_server, details)
+            VALUES ('GROUP_REVOKED', %s, %s, %s::jsonb)
+            """,
+            (admin_id, server["id"], json.dumps({"unix_user": unix_user, "hostname": hostname, "sam_group": current_group})),
+        )
+    return {"unix_user": unix_user, "hostname": hostname, "sam_group": None, "actual_groups": actual_groups}
 
 
 def change_group(unix_user: str, hostname: str, new_group: str, admin_id: str) -> dict:
-    """Change the SAM sudo group of a unix_user on a server."""
+    """Change SAM sudo group for unix_user on a server. Re-applies even if same group."""
+    if unix_user == "root":
+        raise UserError("Cannot modify the SAM group of the root account")
     if new_group not in VALID_SAM_GROUPS:
         raise UserError(f"Invalid SAM group: '{new_group}'. Must be one of: {', '.join(VALID_SAM_GROUPS)}")
     server = db.query_one(
@@ -759,18 +843,18 @@ def change_group(unix_user: str, hostname: str, new_group: str, admin_id: str) -
     )
     if not server:
         raise NotFoundError(f"Server not found or inactive: {hostname}")
+    if _has_active_session(unix_user, server["id"]):
+        raise UserError(f"User '{unix_user}' has an active session on {hostname} — group change blocked to avoid interrupting ongoing operations")
     row = db.query_one(
         "SELECT sam_group FROM key_authorizations WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
         (server["id"], unix_user),
     )
     if not row:
-        raise UserError(f"No active key deployment for user '{unix_user}' on {hostname}")
+        raise UserError(f"No active key deployment for {unix_user} on {hostname}")
     old_group = row["sam_group"]
-    if old_group == new_group:
-        return {"unix_user": unix_user, "hostname": hostname, "sam_group": new_group}
-    if old_group:
+    if old_group and old_group != new_group:
         ssh.revoke_group_on_server(hostname, unix_user, old_group, server["ip_address"], port=server["ssh_port"])
-    ssh.grant_group_on_server(hostname, unix_user, new_group, server["ip_address"], port=server["ssh_port"])
+    actual_groups = ssh.grant_group_on_server(hostname, unix_user, new_group, server["ip_address"], port=server["ssh_port"])
     db.execute(
         "UPDATE key_authorizations SET sam_group = %s WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
         (new_group, server["id"], unix_user),
@@ -780,11 +864,9 @@ def change_group(unix_user: str, hostname: str, new_group: str, admin_id: str) -
         INSERT INTO audit_log (action, performed_by, target_server, details)
         VALUES ('GROUP_CHANGED', %s, %s, %s::jsonb)
         """,
-        (admin_id, server["id"], json.dumps({
-            "unix_user": unix_user, "old_group": old_group, "new_group": new_group, "hostname": hostname,
-        })),
+        (admin_id, server["id"], json.dumps({"unix_user": unix_user, "hostname": hostname, "old_group": old_group, "new_group": new_group})),
     )
-    return {"unix_user": unix_user, "hostname": hostname, "sam_group": new_group}
+    return {"unix_user": unix_user, "hostname": hostname, "sam_group": new_group, "actual_groups": actual_groups}
 
 
 def approve_request(request_id: str, admin_id: str) -> None:
@@ -1266,6 +1348,8 @@ def delete_admin(username: str, admin_id: str | None = None) -> None:
 
 def lock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
     """Lock a Unix user account on a remote server."""
+    if unix_user == "root":
+        raise UserError("Cannot lock the root account")
     if unix_user == ssh.SSH_USER:
         raise UserError(f"Cannot lock the collector account '{ssh.SSH_USER}'")
     if not _UNIX_USER_RE.match(unix_user):
@@ -1288,6 +1372,8 @@ def lock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
 
 def unlock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
     """Unlock a Unix user account on a remote server."""
+    if unix_user == "root":
+        raise UserError("Cannot unlock the root account")
     if unix_user == ssh.SSH_USER:
         raise UserError(f"Cannot unlock the collector account '{ssh.SSH_USER}'")
     if not _UNIX_USER_RE.match(unix_user):

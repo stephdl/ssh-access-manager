@@ -30,9 +30,14 @@ _login_lock = threading.Lock()
 
 
 def _get_client_ip() -> str:
+    # X-Real-IP is set by Nginx to $remote_addr — not spoofable by the client
+    real_ip = request.headers.get("X-Real-IP", "").strip()
+    if real_ip:
+        return real_ip
+    # Fallback: take the rightmost entry of X-Forwarded-For (most trustworthy in a proxy chain)
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        return forwarded.split(",")[-1].strip()
     return request.remote_addr or "unknown"
 
 
@@ -105,6 +110,13 @@ if not _flask_secret or _flask_secret == "changeme":
         "FLASK_SECRET_KEY must be set to a strong secret (not 'changeme')"
     )
 app.secret_key = _flask_secret
+_tls_enabled = bool(
+    os.environ.get("NGINX_TLS_CERT_PATH", "").strip()
+    and os.environ.get("NGINX_TLS_KEY_PATH", "").strip()
+)
+app.config["SESSION_COOKIE_SECURE"] = _tls_enabled
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
 
 
 @app.errorhandler(UserError)
@@ -616,13 +628,20 @@ def set_key_expiry(fingerprint):
         expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=int(data["hours"]))
     if not expires_at:
         return jsonify({"error": "hours or date required"}), 400
-    actions.set_key_expiry(fingerprint, expires_at)
+    unix_user = data.get("unix_user") or None
+    hostname = data.get("hostname") or None
+    actions.set_key_expiry(fingerprint, expires_at, unix_user=unix_user, hostname=hostname)
     return jsonify({"status": "expiry set", "expires_at": expires_at.isoformat()})
+
+
 @app.route("/api/keys/remove-expiry/<path:fingerprint>", methods=["POST"])
 @require_auth
 @require_role("sysadmin", "operator")
 def remove_key_expiry(fingerprint):
-    actions.remove_key_expiry(fingerprint)
+    data = request.get_json() or {}
+    unix_user = data.get("unix_user") or None
+    hostname = data.get("hostname") or None
+    actions.remove_key_expiry(fingerprint, unix_user=unix_user, hostname=hostname)
     return jsonify({"status": "expiry removed"})
 @app.route("/api/keys/bulk-validate", methods=["POST"])
 @require_auth
@@ -871,7 +890,11 @@ def list_deployed_users():
                      AND al.action IN ('USER_LOCKED', 'USER_UNLOCKED')
                    ORDER BY al.performed_at DESC
                    LIMIT 1
-               ) AS lock_status
+               ) AS lock_status,
+               EXISTS(
+                   SELECT 1 FROM ssh_sessions ss
+                   WHERE ss.server_id = s.id AND ss.unix_user = ka.unix_user AND ss.is_active = true
+               ) AS has_active_session
         FROM key_authorizations ka
         JOIN ssh_keys sk ON sk.id = ka.key_id
         JOIN servers s ON ka.server_id = s.id
