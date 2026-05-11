@@ -28,8 +28,8 @@ Tu effectues des revues de sécurité sur le code du projet ssh-access-manager. 
 ### 2. Scripts distants (Critique)
 
 Vérifier dans `ssh.py` :
-- Les constantes `SAM_COLLECT` et `SAM_REVOKE` sont des strings Python (pas des fichiers)
-- Le déploiement se fait via SFTP dans `/tmp/`, puis `sudo mv` (jamais d'exécution directe depuis /tmp/)
+- Les constantes `SAM_COLLECT`, `SAM_REVOKE`, `SAM_ADD`, `SAM_LOCK_USER`, `SAM_UNLOCK_USER`, `SAM_SESSIONS` sont des **`bytes` Python** (pas des strings ni des fichiers)
+- Le déploiement se fait via SFTP dans le home du collector, puis `sudo /usr/bin/install -m 750 -o root -g root` (jamais `mv` + `chmod` séparés — atomique, #161)
 - `sam-revoke` utilise `mktemp` + `mv` atomique pour réécrire authorized_keys
 - Aucune injection de commande possible dans le fingerprint passé à sam-revoke
 
@@ -58,26 +58,27 @@ chown postgres:postgres /data/pg      # Propriétaire postgres
 chmod 440 /etc/sudoers.d/audit-collector  # sudoers
 ```
 
-### 6. Flask — surface d'attaque
+### 6. Flask / Waitress — surface d'attaque
 
-- Vérifier que l'API Flask écoute sur `127.0.0.1:5000` uniquement (pas `0.0.0.0`)
-- Vérifier que Nginx fait le Basic Auth (jamais dans Flask directement)
-- Vérifier que Flask est lancé avec `user=nobody` dans supervisord.conf
-- Vérifier l'absence de mode debug Flask en production
+- Vérifier que Waitress écoute sur `127.0.0.1:5000` uniquement (pas `0.0.0.0`)
+- **Pas de Basic Auth Nginx** — supprimé (#54). L'authentification est gérée par sessions Flask uniquement.
+- Vérifier que Flask/Waitress est lancé avec `user=nobody` dans supervisord.conf
+- Vérifier l'absence de mode debug Flask en production (jamais `app.run(debug=True)`)
 
 ### 7. Sudoers — principe de moindre privilège
 
-Le fichier `/etc/sudoers.d/audit-collector` doit autoriser **uniquement** :
+Le fichier `/etc/sudoers.d/${COLLECTOR_USER}` (chmod 440) doit autoriser **uniquement** :
 ```
-audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-collect
-audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke
-audit-collector ALL=(root) NOPASSWD: /bin/mv /tmp/sam-* /usr/local/bin/
-audit-collector ALL=(root) NOPASSWD: /bin/chmod 755 /usr/local/bin/sam-collect
-audit-collector ALL=(root) NOPASSWD: /bin/chmod 755 /usr/local/bin/sam-revoke
-audit-collector ALL=(root) NOPASSWD: /bin/chown root:root /usr/local/bin/sam-collect
-audit-collector ALL=(root) NOPASSWD: /bin/chown root:root /usr/local/bin/sam-revoke
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 ...
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-collect
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke *
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-add *
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-lock-user *
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-sessions
 ```
 Aucune règle `ALL=(ALL) NOPASSWD: ALL` ou équivalent permissif.
+Généré avec `printf` ligne par ligne (résistant au CRLF PTY). Créé via `install -m 440` (évite ":" dans les args — #161).
 
 ### 8. Audit trail — intégrité
 

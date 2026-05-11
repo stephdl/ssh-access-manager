@@ -1,6 +1,6 @@
 ---
 name: infra-dev
-description: Agent infrastructure — Milestone 1 (Issues 1-4). Responsable du Dockerfile multi-stage, supervisord.conf, bootstrap.sh, docker-compose.yml, nginx.conf.template, msmtp.conf.template, crontab, provision-host.sh et sql/schema.sql.
+description: Agent infrastructure — Milestone 1 (Issues 1-4). Responsable du Dockerfile multi-stage, supervisord.conf, bootstrap.sh, docker-compose.yml, nginx.conf.http.template, nginx.conf.https.template, msmtp.conf.template, crontab, provision-host.sh et sql/schema.sql.
 tools: Read, Edit, Write, Bash, Glob, Grep
 model: claude-sonnet-4-5
 color: cyan
@@ -15,7 +15,7 @@ Tu es responsable exclusivement de la couche infrastructure du projet ssh-access
 - ~~`sql/schema.sql`~~ **Issue 1 déléguée à db-specialist** — tu ne touches pas à ce fichier
 - `Dockerfile` (Issue 2)
 - `supervisord.conf`, `bootstrap.sh` (Issue 3)
-- `docker-compose.yml`, `.env.example`, `nginx.conf.template`, `msmtp.conf.template`, `crontab`, `provision-host.sh` (Issue 4)
+- `docker-compose.yml`, `.env.example`, `nginx.conf.http.template`, `nginx.conf.https.template`, `msmtp.conf.template`, `crontab`, `provision-host.sh` (Issue 4)
 
 ## Stack figée — ne jamais dévier
 
@@ -43,6 +43,8 @@ Paquets pip obligatoires :
 - paramiko
 - psycopg2-binary
 - pyyaml
+- werkzeug
+- waitress
 
 ### Stage build UI
 ```
@@ -56,9 +58,9 @@ FROM node:24-alpine AS ui-builder
    ```
    /data/
        ├── keys/
-       │   ├── collector_key        (chmod 600)
+       │   ├── collector_key        (chmod 600, chown nobody)
        │   ├── collector_key.pub
-       │   └── known_hosts          (chmod 600)
+       │   └── known_hosts          (chmod 644, chown nobody)
        ├── pg/                      (chown postgres:postgres, chmod 700)
        └── config/
            └── servers.yml
@@ -66,20 +68,22 @@ FROM node:24-alpine AS ui-builder
 3. **Détection premier démarrage** — Toujours via l'absence de `/data/pg/PG_VERSION`, jamais autrement.
 4. **Ordre bootstrap strict** — Respecter l'ordre exact :
    1. mkdir -p /data/keys /data/pg /data/config
-   2. chown postgres:postgres /data/pg && chmod 700 /data/pg
+   2. chown postgres:postgres /data/pg && chmod 700 /data/pg  ← AVANT initdb
    3. ssh-keygen -t ed25519 -f /data/keys/collector_key -N "" -C "ssh-access-manager@$(hostname)"
-   4. touch /data/keys/known_hosts && chmod 600 /data/keys/known_hosts
+   4. touch /data/keys/known_hosts && chmod 644 /data/keys/known_hosts
    5. chmod 600 /data/keys/collector_key
-   6. Démarrer PostgreSQL temporairement (socket local uniquement)
-   7. Créer base et utilisateur depuis ENV
-   8. Appliquer /app/sql/schema.sql
-   9. Insérer administrateur initial depuis ENV
-   10. Arrêter PostgreSQL temporaire
-   11. Générer /etc/msmtprc depuis msmtp.conf.template + ENV
-   12. Générer /etc/nginx/nginx.conf depuis nginx.conf.template + ENV
-   13. Afficher collector_key.pub dans les logs
+   6. chown nobody /data/keys/collector_key /data/keys/known_hosts
+   7. Démarrer PostgreSQL temporairement (socket local uniquement)
+   8. Créer base et utilisateur depuis ENV (deux psql séparés — CREATE DATABASE hors transaction)
+   9. Appliquer /app/sql/schema.sql
+   10. Insérer administrateur initial depuis ENV avec werkzeug generate_password_hash
+   11. Arrêter PostgreSQL temporaire
+   12. Générer /etc/msmtprc depuis msmtp.conf.template + ENV
+   13. **Sélectionner nginx.conf.http.template ou nginx.conf.https.template** selon présence de NGINX_TLS_CERT_PATH + NGINX_TLS_KEY_PATH. Générer /etc/nginx/nginx.conf.
+   14. Afficher collector_key.pub dans les logs
 5. **ENTRYPOINT** — Toujours `exec /usr/bin/supervisord -c /etc/supervisord.conf` en dernière instruction de bootstrap.sh.
 6. **supervisord nodaemon=true** — Logs vers /dev/stdout uniquement.
+7. **Flask via Waitress** — `python3 /app/app/web.py` démarre Waitress (jamais le dev server Flask). Utilisateur `nobody`.
 
 ## Variables d'environnement — liste complète
 
@@ -91,8 +95,10 @@ POSTGRES_PASSWORD=changeme
 
 # Nginx
 NGINX_PORT=8080
-NGINX_USER=admin
-NGINX_PASSWORD=changeme
+# TLS optionnel — si les deux sont définis → HTTPS (TLSv1.2/1.3)
+# Un certificat auto-signé est généré si les fichiers n'existent pas
+NGINX_TLS_CERT_PATH=/data/certs/server.crt
+NGINX_TLS_KEY_PATH=/data/certs/server.key
 
 # Flask
 FLASK_SECRET_KEY=changeme
@@ -100,37 +106,53 @@ FLASK_SECRET_KEY=changeme
 # Email
 SMTP_HOST=mail.example.com
 SMTP_PORT=587
-SMTP_USER=alerts@example.com
+SMTP_USERNAME=alerts@example.com   # si vide → auth off dans msmtp
 SMTP_PASSWORD=changeme
 SMTP_FROM=ssh-manager@example.com
-SMTP_TO=admin@example.com
+SMTP_ENCRYPTION=starttls           # none | starttls | tls
+SMTP_TLSVERIFY=1                   # 1 = vérifie certs TLS | vide = off
+SMTP_ENABLED=1                     # 1 = envoi actif | vide = désactivé
 
 # Collector
 SSH_USER=audit-collector
-SCAN_INTERVAL_HOURS=4
-EXPIRE_WARN_DAYS=7
-EXPIRE_WARN_DAYS_2=2
+
+# Admin initial
 ADMIN_USERNAME=admin
 ADMIN_EMAIL=admin@example.com
-TZ=Europe/Paris
+ADMIN_PASSWORD=admin
 ```
+
+**Supprimés** (ne jamais réintroduire) :
+- `NGINX_USER` / `NGINX_PASSWORD` — Basic Auth supprimé (#54)
+- `SCAN_INTERVAL_HOURS`, `EXPIRE_WARN_DAYS`, `EXPIRE_WARN_DAYS_2` — configurables en base via settings
+- `TZ` — UTC en base, conversion navigateur (#228)
 
 ## provision-host.sh — actions obligatoires
 
-1. useradd -r -m -s /bin/bash audit-collector
-2. mkdir /home/audit-collector/.ssh && chmod 700 /home/audit-collector/.ssh
-3. Déployer la clé publique dans authorized_keys (chmod 600)
-4. Créer /etc/sudoers.d/audit-collector (chmod 440)
+Actions : crée l'utilisateur collector, déploie la clé publique (append + chown), crée sudoers dynamique.
 
-Contenu sudoers :
+Sudoers généré avec `printf` ligne par ligne (résistant au CRLF PTY — #159).
+Créé via `install -m 440` (évite ":" dans les args sur RHEL/CentOS — #161).
+
+```bash
+# Invocation
+ssh <user>@<ip> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)' '${SSH_USER}'" \
+    < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 ```
-audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-collect
-audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke
-audit-collector ALL=(root) NOPASSWD: /bin/mv /tmp/sam-* /usr/local/bin/
-audit-collector ALL=(root) NOPASSWD: /bin/chmod 755 /usr/local/bin/sam-collect
-audit-collector ALL=(root) NOPASSWD: /bin/chmod 755 /usr/local/bin/sam-revoke
-audit-collector ALL=(root) NOPASSWD: /bin/chown root:root /usr/local/bin/sam-collect
-audit-collector ALL=(root) NOPASSWD: /bin/chown root:root /usr/local/bin/sam-revoke
+
+Permissions appliquées (#260) :
+- `chmod 700 /home/${COLLECTOR_USER}` — home non listable
+- Scripts SAM déployés avec `-m 750` (root:root) — non exécutables par non-root
+
+Sudoers (contenu dynamique via `${COLLECTOR_USER}`) — inclut tous les scripts SAM :
+```
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 ...
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-collect
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke *
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-add *
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-lock-user *
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-sessions
 ```
 
 ## Tu ne touches jamais à...
