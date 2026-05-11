@@ -431,6 +431,60 @@ def access_unlock_user(user, server):
 
 
 # ---------------------------------------------------------------------------
+# group
+# ---------------------------------------------------------------------------
+
+@cli.group()
+def group():
+    """SAM sudo group management."""
+
+
+@group.command("grant")
+@click.option("--user", required=True, help="Unix username")
+@click.option("--server", required=True, help="Server hostname")
+@click.option("--group", "sam_group", required=True,
+              type=click.Choice(["sam-operator", "sam-pkg", "sam-root"]),
+              help="SAM sudo group to assign")
+def group_grant(user, server, sam_group):
+    """Assign a SAM sudo group to a Unix user on a server."""
+    admin_id = _require_admin()
+    try:
+        result = actions.grant_group(user, server, sam_group, admin_id)
+        click.echo(f"User '{result['unix_user']}' assigned to {result['sam_group']} on {result['hostname']}")
+    except (ValueError, actions.UserError, actions.NotFoundError) as e:
+        raise click.ClickException(str(e))
+
+
+@group.command("revoke")
+@click.option("--user", required=True, help="Unix username")
+@click.option("--server", required=True, help="Server hostname")
+def group_revoke(user, server):
+    """Remove the SAM sudo group from a Unix user on a server."""
+    admin_id = _require_admin()
+    try:
+        result = actions.revoke_group(user, server, admin_id)
+        click.echo(f"SAM group revoked for '{result['unix_user']}' on {result['hostname']}")
+    except (ValueError, actions.UserError, actions.NotFoundError) as e:
+        raise click.ClickException(str(e))
+
+
+@group.command("change")
+@click.option("--user", required=True, help="Unix username")
+@click.option("--server", required=True, help="Server hostname")
+@click.option("--group", "sam_group", required=True,
+              type=click.Choice(["sam-operator", "sam-pkg", "sam-root"]),
+              help="New SAM sudo group")
+def group_change(user, server, sam_group):
+    """Change the SAM sudo group of a Unix user on a server."""
+    admin_id = _require_admin()
+    try:
+        result = actions.change_group(user, server, sam_group, admin_id)
+        click.echo(f"User '{result['unix_user']}' group changed to {result['sam_group']} on {result['hostname']}")
+    except (ValueError, actions.UserError, actions.NotFoundError) as e:
+        raise click.ClickException(str(e))
+
+
+# ---------------------------------------------------------------------------
 # admin
 # ---------------------------------------------------------------------------
 

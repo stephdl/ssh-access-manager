@@ -141,25 +141,47 @@ fi
 """
 
 SAM_ADD = b"""#!/bin/sh
-# sam-add <username> <pubkey> - create user if absent, add pubkey to authorized_keys
+# sam-add <username> <pubkey> [group] - create user if absent, add pubkey, set SAM group
 set -e
 
 TARGET_USER="${1}"
 PUBKEY="${2}"
+TARGET_GROUP="${3:-}"
 
 if [ -z "$TARGET_USER" ] || [ -z "$PUBKEY" ]; then
-    echo "Usage: sam-add <username> <pubkey>" >&2
+    echo "Usage: sam-add <username> <pubkey> [group]" >&2
     exit 1
 fi
 
+TMPPASS=""
 if ! id "$TARGET_USER" >/dev/null 2>&1; then
     useradd -m -s /bin/bash "$TARGET_USER"
+    TMPPASS=$(openssl rand -base64 12 | tr -d '\\n')
+    printf '%s:%s\\n' "$TARGET_USER" "$TMPPASS" | chpasswd
+    usermod -aG sam-users "$TARGET_USER" 2>/dev/null || true
+fi
+
+for grp in sam-operator sam-pkg sam-root; do
+    getent group "$grp" >/dev/null 2>&1 && gpasswd -d "$TARGET_USER" "$grp" 2>/dev/null || true
+done
+if [ -n "$TARGET_GROUP" ]; then
+    usermod -aG "$TARGET_GROUP" "$TARGET_USER"
 fi
 
 home=$(getent passwd "$TARGET_USER" | cut -d: -f6)
 if [ -z "$home" ]; then
     echo "Cannot get home for $TARGET_USER" >&2
     exit 1
+fi
+
+if [ -n "$TMPPASS" ]; then
+    printf 'Temporary password: %s\\nType it below as "Current password" to set your permanent password.\\n' "$TMPPASS" > "${home}/README_first_login.txt"
+    chmod 600 "${home}/README_first_login.txt"
+    chown "${TARGET_USER}:${TARGET_USER}" "${home}/README_first_login.txt"
+    profile="${home}/.profile"
+    touch "$profile"
+    printf '\\n# ssh-access-manager\\nif [ -f "$HOME/README_first_login.txt" ]; then\\n    echo ""; cat "$HOME/README_first_login.txt"; echo ""\\n    passwd && rm -f "$HOME/README_first_login.txt"\\nfi\\n' >> "$profile"
+    chown "${TARGET_USER}:${TARGET_USER}" "$profile"
 fi
 
 ssh_dir="${home}/.ssh"
@@ -200,6 +222,8 @@ usermod -U -s /bin/bash "$USER"
 """
 
 SAM_SESSIONS_PATH = "/usr/local/bin/sam-sessions"
+SAM_GRANT_GROUP_PATH = "/usr/local/bin/sam-grant-group"
+SAM_REVOKE_GROUP_PATH = "/usr/local/bin/sam-revoke-group"
 
 SAM_SESSIONS = b"""#!/bin/sh
 # sam-sessions - collect SSH session data
@@ -274,6 +298,38 @@ else
 fi
 """
 
+SAM_GRANT_GROUP = b"""#!/bin/sh
+# sam-grant-group <unix_user> <group> - add unix_user to a sam-* group
+set -e
+USERNAME="$1"
+GROUP="$2"
+if [ -z "$USERNAME" ] || [ -z "$GROUP" ]; then
+    echo "Usage: sam-grant-group <unix_user> <group>" >&2
+    exit 1
+fi
+case "$GROUP" in
+    sam-operator|sam-pkg|sam-root) ;;
+    *) echo "Error: group must be sam-operator, sam-pkg or sam-root" >&2; exit 1 ;;
+esac
+usermod -aG "$GROUP" "$USERNAME"
+"""
+
+SAM_REVOKE_GROUP = b"""#!/bin/sh
+# sam-revoke-group <unix_user> <group> - remove unix_user from a sam-* group
+set -e
+USERNAME="$1"
+GROUP="$2"
+if [ -z "$USERNAME" ] || [ -z "$GROUP" ]; then
+    echo "Usage: sam-revoke-group <unix_user> <group>" >&2
+    exit 1
+fi
+case "$GROUP" in
+    sam-operator|sam-pkg|sam-root) ;;
+    *) echo "Error: group must be sam-operator, sam-pkg or sam-root" >&2; exit 1 ;;
+esac
+gpasswd -d "$USERNAME" "$GROUP" 2>/dev/null || true
+"""
+
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -317,7 +373,7 @@ def _deploy_script(
 
 def ensure_scripts(hostname: str, server_id: str, ip: str, port: int = 22) -> None:
     """
-    Deploy SAM_COLLECT, SAM_REVOKE, SAM_ADD, SAM_LOCK_USER, and SAM_UNLOCK_USER on the remote host if absent or outdated.
+    Deploy all SAM_* scripts on the remote host if absent or outdated.
     Logs SCRIPT_DEPLOYED to audit_log for each script actually deployed.
     """
     client = _connect(ip, port)
@@ -330,6 +386,8 @@ def ensure_scripts(hostname: str, server_id: str, ip: str, port: int = 22) -> No
             (SAM_LOCK_USER, SAM_LOCK_USER_PATH),
             (SAM_UNLOCK_USER, SAM_UNLOCK_USER_PATH),
             (SAM_SESSIONS, SAM_SESSIONS_PATH),
+            (SAM_GRANT_GROUP, SAM_GRANT_GROUP_PATH),
+            (SAM_REVOKE_GROUP, SAM_REVOKE_GROUP_PATH),
         ):
             local_hash = _sha256(content)
             remote_hash = _remote_sha256(client, remote_path)
@@ -386,14 +444,15 @@ def collect_keys(hostname: str, ip: str, port: int = 22) -> list[str]:
         client.close()
 
 
-def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str, port: int = 22) -> None:
-    """Run sam-add on the remote host to deploy a public key for the given Unix user."""
+def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str, port: int = 22, sam_group: str = None) -> None:
+    """Run sam-add on the remote host to deploy a public key and set the SAM group."""
     import shlex
+    cmd = f"sudo {SAM_ADD_PATH} {shlex.quote(unix_user)} {shlex.quote(public_key)}"
+    if sam_group:
+        cmd += f" {shlex.quote(sam_group)}"
     client = _connect(ip, port)
     try:
-        _, err, rc = _run(
-            client, f"sudo {SAM_ADD_PATH} {shlex.quote(unix_user)} {shlex.quote(public_key)}"
-        )
+        _, err, rc = _run(client, cmd)
         if rc != 0:
             raise SSHError(f"sam-add failed on {hostname} (rc={rc}): {err}")
     finally:
@@ -424,6 +483,34 @@ def unlock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22
         )
         if rc != 0:
             raise SSHError(f"sam-unlock-user failed on {hostname} (rc={rc}): {err}")
+    finally:
+        client.close()
+
+
+def grant_group_on_server(hostname: str, unix_user: str, group: str, ip: str, port: int = 22) -> None:
+    """Run sam-grant-group on the remote host to add unix_user to a sam-* group."""
+    client = _connect(ip, port)
+    try:
+        _, err, rc = _run(
+            client,
+            f"sudo {SAM_GRANT_GROUP_PATH} {shlex.quote(unix_user)} {shlex.quote(group)}",
+        )
+        if rc != 0:
+            raise SSHError(f"sam-grant-group failed on {hostname} (rc={rc}): {err}")
+    finally:
+        client.close()
+
+
+def revoke_group_on_server(hostname: str, unix_user: str, group: str, ip: str, port: int = 22) -> None:
+    """Run sam-revoke-group on the remote host to remove unix_user from a sam-* group."""
+    client = _connect(ip, port)
+    try:
+        _, err, rc = _run(
+            client,
+            f"sudo {SAM_REVOKE_GROUP_PATH} {shlex.quote(unix_user)} {shlex.quote(group)}",
+        )
+        if rc != 0:
+            raise SSHError(f"sam-revoke-group failed on {hostname} (rc={rc}): {err}")
     finally:
         client.close()
 

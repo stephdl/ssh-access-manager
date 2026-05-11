@@ -852,7 +852,7 @@ def test_actions_deploy_key_invalid_unix_user_uppercase():
 
 def test_actions_deploy_key_valid_unix_user_passes_check(sample_server, sample_key):
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
-        mock_db.query_one.side_effect = [sample_server, {"id": KEY_ID}]
+        mock_db.query_one.side_effect = [sample_server, {"id": KEY_ID}, {"id": sample_server["id"]}, None]
         mock_db.execute.return_value = None
         mock_ssh.ensure_scripts.return_value = None
         mock_ssh.add_key_on_server.return_value = None
@@ -974,6 +974,8 @@ def test_actions_deploy_key_includes_unix_user_in_key_authorization(sample_serve
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
             {"id": sample_key["id"]},
+            {"id": sample_server["id"]},
+            None,
         ]
         actions.deploy_key(
             public_key=sample_key["public_key"],
@@ -996,6 +998,8 @@ def test_actions_deploy_key_on_conflict_uses_three_column_pk(sample_server, samp
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
             {"id": sample_key["id"]},
+            {"id": sample_server["id"]},
+            None,
         ]
         actions.deploy_key(
             public_key=sample_key["public_key"],
@@ -1418,3 +1422,282 @@ def test_check_session_limit_details_logged_correctly():
         assert details["hostname"] == "my-server"
         assert details["session_count"] == 7
         assert details["max_sessions"] == 3
+
+
+# ---------------------------------------------------------------------------
+# _get_current_group
+# ---------------------------------------------------------------------------
+
+def test_actions_get_current_group_returns_group(sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"]},
+            {"sam_group": "sam-operator"},
+        ]
+        result = actions._get_current_group("alice", sample_server["hostname"])
+        assert result == "sam-operator"
+
+
+def test_actions_get_current_group_returns_none_no_server():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        result = actions._get_current_group("alice", "unknown-server")
+        assert result is None
+
+
+def test_actions_get_current_group_returns_none_no_row(sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"]},
+            None,
+        ]
+        result = actions._get_current_group("alice", sample_server["hostname"])
+        assert result is None
+
+
+def test_actions_get_current_group_returns_none_when_null(sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"]},
+            {"sam_group": None},
+        ]
+        result = actions._get_current_group("alice", sample_server["hostname"])
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# deploy_key — sam_group parameter
+# ---------------------------------------------------------------------------
+
+def test_actions_deploy_key_with_sam_group_passes_group_to_add_key(sample_server, sample_key):
+    """deploy_key passes sam_group to add_key_on_server — sam-add handles group assignment."""
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"id": sample_key["id"]},
+        ]
+        result = actions.deploy_key(
+            public_key=sample_key["public_key"],
+            unix_user="alice",
+            hostname=sample_server["hostname"],
+            expires_at=None,
+            justification="Test",
+            admin_id=ADMIN_ID,
+            sam_group="sam-operator",
+        )
+        assert result["sam_group"] == "sam-operator"
+        mock_ssh.add_key_on_server.assert_called_once_with(
+            sample_server["hostname"], "alice", sample_key["public_key"],
+            sample_server["ip_address"], port=22, sam_group="sam-operator",
+        )
+        mock_ssh.grant_group_on_server.assert_not_called()
+
+
+def test_actions_deploy_key_invalid_sam_group_raises(sample_server, sample_key):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {
+            "id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22
+        }
+        with pytest.raises(UserError, match="Invalid SAM group"):
+            actions.deploy_key(
+                public_key=sample_key["public_key"],
+                unix_user="alice",
+                hostname=sample_server["hostname"],
+                expires_at=None,
+                justification="Test",
+                admin_id=ADMIN_ID,
+                sam_group="sam-invalid",
+            )
+
+
+def test_actions_deploy_key_no_sam_group_passes_none_to_add_key(sample_server, sample_key):
+    """deploy_key with no group passes sam_group=None — sam-add strips all SAM groups."""
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"id": sample_key["id"]},
+        ]
+        actions.deploy_key(
+            public_key=sample_key["public_key"],
+            unix_user="alice",
+            hostname=sample_server["hostname"],
+            expires_at=None,
+            justification="Test",
+            admin_id=ADMIN_ID,
+        )
+        mock_ssh.add_key_on_server.assert_called_once_with(
+            sample_server["hostname"], "alice", sample_key["public_key"],
+            sample_server["ip_address"], port=22, sam_group=None,
+        )
+        mock_ssh.grant_group_on_server.assert_not_called()
+        mock_ssh.revoke_group_on_server.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# grant_group
+# ---------------------------------------------------------------------------
+
+def test_actions_grant_group_success(sample_server):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"id": "ka-id"},
+        ]
+        result = actions.grant_group("alice", sample_server["hostname"], "sam-operator", ADMIN_ID)
+        assert result["sam_group"] == "sam-operator"
+        assert result["unix_user"] == "alice"
+        mock_ssh.grant_group_on_server.assert_called_once_with(
+            sample_server["hostname"], "alice", "sam-operator",
+            sample_server["ip_address"], port=22,
+        )
+
+
+def test_actions_grant_group_invalid_group_raises():
+    with pytest.raises(UserError, match="Invalid SAM group"):
+        actions.grant_group("alice", "server", "sam-hacker", ADMIN_ID)
+
+
+def test_actions_grant_group_server_not_found_raises():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(actions.NotFoundError, match="Server not found"):
+            actions.grant_group("alice", "unknown-server", "sam-pkg", ADMIN_ID)
+
+
+def test_actions_grant_group_no_active_deployment_raises(sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,
+        ]
+        with pytest.raises(UserError, match="No active key deployment"):
+            actions.grant_group("alice", sample_server["hostname"], "sam-root", ADMIN_ID)
+
+
+def test_actions_grant_group_logs_group_granted(sample_server):
+    with patch("actions.db") as mock_db, patch("actions.ssh"):
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"id": "ka-id"},
+        ]
+        actions.grant_group("alice", sample_server["hostname"], "sam-pkg", ADMIN_ID)
+        audit_call = mock_db.execute.call_args_list[-1]
+        assert "GROUP_GRANTED" in audit_call[0][0]
+
+
+# ---------------------------------------------------------------------------
+# revoke_group
+# ---------------------------------------------------------------------------
+
+def test_actions_revoke_group_success(sample_server):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"sam_group": "sam-operator"},
+        ]
+        result = actions.revoke_group("alice", sample_server["hostname"], ADMIN_ID)
+        assert result["sam_group"] is None
+        mock_ssh.revoke_group_on_server.assert_called_once_with(
+            sample_server["hostname"], "alice", "sam-operator",
+            sample_server["ip_address"], port=22,
+        )
+
+
+def test_actions_revoke_group_server_not_found_raises():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(actions.NotFoundError, match="Server not found"):
+            actions.revoke_group("alice", "unknown-server", ADMIN_ID)
+
+
+def test_actions_revoke_group_no_group_raises(sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,
+        ]
+        with pytest.raises(UserError, match="no SAM group assigned"):
+            actions.revoke_group("alice", sample_server["hostname"], ADMIN_ID)
+
+
+def test_actions_revoke_group_logs_group_revoked(sample_server):
+    with patch("actions.db") as mock_db, patch("actions.ssh"):
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"sam_group": "sam-root"},
+        ]
+        actions.revoke_group("alice", sample_server["hostname"], ADMIN_ID)
+        audit_call = mock_db.execute.call_args_list[-1]
+        assert "GROUP_REVOKED" in audit_call[0][0]
+
+
+# ---------------------------------------------------------------------------
+# change_group
+# ---------------------------------------------------------------------------
+
+def test_actions_change_group_success(sample_server):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"sam_group": "sam-operator"},
+        ]
+        result = actions.change_group("alice", sample_server["hostname"], "sam-pkg", ADMIN_ID)
+        assert result["sam_group"] == "sam-pkg"
+        mock_ssh.revoke_group_on_server.assert_called_once()
+        mock_ssh.grant_group_on_server.assert_called_once()
+
+
+def test_actions_change_group_noop_when_same(sample_server):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"sam_group": "sam-pkg"},
+        ]
+        result = actions.change_group("alice", sample_server["hostname"], "sam-pkg", ADMIN_ID)
+        assert result["sam_group"] == "sam-pkg"
+        mock_ssh.revoke_group_on_server.assert_not_called()
+        mock_ssh.grant_group_on_server.assert_not_called()
+
+
+def test_actions_change_group_from_none_does_not_revoke(sample_server):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"sam_group": None},
+        ]
+        actions.change_group("alice", sample_server["hostname"], "sam-root", ADMIN_ID)
+        mock_ssh.revoke_group_on_server.assert_not_called()
+        mock_ssh.grant_group_on_server.assert_called_once()
+
+
+def test_actions_change_group_invalid_group_raises():
+    with pytest.raises(UserError, match="Invalid SAM group"):
+        actions.change_group("alice", "server", "sam-xyz", ADMIN_ID)
+
+
+def test_actions_change_group_server_not_found_raises():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(actions.NotFoundError, match="Server not found"):
+            actions.change_group("alice", "unknown-server", "sam-operator", ADMIN_ID)
+
+
+def test_actions_change_group_no_deployment_raises(sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            None,
+        ]
+        with pytest.raises(UserError, match="No active key deployment"):
+            actions.change_group("alice", sample_server["hostname"], "sam-operator", ADMIN_ID)
+
+
+def test_actions_change_group_logs_group_changed(sample_server):
+    with patch("actions.db") as mock_db, patch("actions.ssh"):
+        mock_db.query_one.side_effect = [
+            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
+            {"sam_group": "sam-operator"},
+        ]
+        actions.change_group("alice", sample_server["hostname"], "sam-pkg", ADMIN_ID)
+        audit_call = mock_db.execute.call_args_list[-1]
+        assert "GROUP_CHANGED" in audit_call[0][0]

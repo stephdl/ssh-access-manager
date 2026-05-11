@@ -11,6 +11,10 @@
         <dd>{{ result.unix_user }}</dd>
         <dt>{{ $t('deployKey.successExpiry') }}</dt>
         <dd>{{ result.expires_at ? formatDate(result.expires_at) : $t('deployKey.unlimited') }}</dd>
+        <template v-if="result.sam_group">
+          <dt>{{ $t('deployKey.successGroup') }}</dt>
+          <dd>{{ $t(`samGroup.${result.sam_group}`) }}</dd>
+        </template>
       </dl>
       <button type="button" @click="reset" data-testid="new-deploy-btn">
         {{ $t('deployKey.newDeploy') }}
@@ -68,6 +72,18 @@
           </option>
           <option v-for="s in servers" :key="s.hostname" :value="s.hostname">
             {{ s.hostname }}
+          </option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="dk-samgroup">{{ $t('deployKey.samGroup') }}</label>
+        <select id="dk-samgroup" v-model="samGroup" data-testid="select-samgroup">
+          <option value="">{{ $t('deployKey.samGroupPlaceholder') }}</option>
+          <option value="sam-operator">{{ $t('samGroup.sam-operator') }}</option>
+          <option value="sam-pkg">{{ $t('samGroup.sam-pkg') }}</option>
+          <option v-if="currentRole === 'sysadmin'" value="sam-root">
+            {{ $t('samGroup.sam-root') }}
           </option>
         </select>
       </div>
@@ -140,17 +156,19 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { apiFetch } from '../composables/useAuth.js'
+import { useAuth, apiFetch } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import Spinner from './Spinner.vue'
 
 const { t } = useI18n()
 const { formatDate } = useFormatDate()
+const { admin } = useAuth()
 const emit = defineEmits(['deployed'])
 
 const unixUser = ref('')
 const publicKey = ref('')
 const server = ref('')
+const samGroup = ref('')
 const mode = ref('hours')
 const hours = ref('')
 const date = ref('')
@@ -162,6 +180,8 @@ const submitting = ref(false)
 const error = ref('')
 const success = ref(false)
 const result = ref(null)
+
+const currentRole = computed(() => admin.value?.role || 'viewer')
 
 onMounted(async () => {
   serversLoading.value = true
@@ -235,6 +255,10 @@ async function submit() {
     payload.expires_at = date.value
   }
 
+  if (samGroup.value) {
+    payload.sam_group = samGroup.value
+  }
+
   try {
     const res = await apiFetch('/api/access/deploy', {
       method: 'POST',
@@ -261,6 +285,7 @@ function reset() {
   unixUser.value = ''
   publicKey.value = ''
   server.value = ''
+  samGroup.value = ''
   mode.value = 'hours'
   hours.value = ''
   date.value = ''

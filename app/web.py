@@ -263,7 +263,18 @@ def _parse_datetime(value: str | None) -> datetime | None:
 def list_servers():
     rows = db.query(
         """
-        SELECT s.*, ls.action AS last_scan_action
+        SELECT s.*, ls.action AS last_scan_action,
+            (
+                EXISTS(
+                    SELECT 1 FROM key_authorizations
+                    WHERE server_id = s.id AND status = 'PENDING_REVIEW'
+                )
+                OR EXISTS(
+                    SELECT 1 FROM audit_log
+                    WHERE target_server = s.id AND action = 'ANOMALY_DETECTED'
+                    AND performed_at > NOW() - INTERVAL '30 days'
+                )
+            ) AS has_anomalies
         FROM servers s
         LEFT JOIN LATERAL (
             SELECT action FROM audit_log
@@ -709,6 +720,8 @@ def api_deploy_key():
     hostname = (data.get("hostname") or "").strip()
     justification = (data.get("justification") or "").strip()
 
+    sam_group = (data.get("sam_group") or "").strip() or None
+
     if not all([public_key, unix_user, hostname, justification]):
         return jsonify({"error": "public_key, unix_user, hostname, justification required"}), 400
 
@@ -737,10 +750,74 @@ def api_deploy_key():
             expires_at=expires_at,
             justification=justification,
             admin_id=g.admin_id,
+            sam_group=sam_group,
         )
         return jsonify(result), 201
     except Exception:
         logging.warning("deploy_key failed: unexpected error")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/access/grant-group", methods=["POST"])
+@require_auth
+@require_role("sysadmin", "operator")
+def api_grant_group():
+    data = request.json or {}
+    unix_user = (data.get("unix_user") or "").strip()
+    hostname = (data.get("hostname") or "").strip()
+    group = (data.get("sam_group") or "").strip()
+    if not all([unix_user, hostname, group]):
+        return jsonify({"error": "unix_user, hostname, sam_group required"}), 400
+    if group == "sam-root" and g.admin_role != "sysadmin":
+        return jsonify({"error": "Only sysadmin can assign sam-root"}), 403
+    try:
+        result = actions.grant_group(unix_user, hostname, group, g.admin_id)
+        return jsonify(result), 200
+    except Exception:
+        logging.warning("grant_group failed: unexpected error")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/access/revoke-group", methods=["POST"])
+@require_auth
+@require_role("sysadmin", "operator")
+def api_revoke_group():
+    data = request.json or {}
+    unix_user = (data.get("unix_user") or "").strip()
+    hostname = (data.get("hostname") or "").strip()
+    if not all([unix_user, hostname]):
+        return jsonify({"error": "unix_user and hostname required"}), 400
+    existing = actions._get_current_group(unix_user, hostname)
+    if existing == "sam-root" and g.admin_role != "sysadmin":
+        return jsonify({"error": "Only sysadmin can revoke sam-root"}), 403
+    try:
+        result = actions.revoke_group(unix_user, hostname, g.admin_id)
+        return jsonify(result), 200
+    except Exception:
+        logging.warning("revoke_group failed: unexpected error")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/access/change-group", methods=["PUT"])
+@require_auth
+@require_role("sysadmin", "operator")
+def api_change_group():
+    data = request.json or {}
+    unix_user = (data.get("unix_user") or "").strip()
+    hostname = (data.get("hostname") or "").strip()
+    new_group = (data.get("sam_group") or "").strip()
+    if not all([unix_user, hostname, new_group]):
+        return jsonify({"error": "unix_user, hostname, sam_group required"}), 400
+    if new_group == "sam-root" and g.admin_role != "sysadmin":
+        return jsonify({"error": "Only sysadmin can assign sam-root"}), 403
+    existing = actions._get_current_group(unix_user, hostname)
+    if existing == "sam-root" and g.admin_role != "sysadmin":
+        return jsonify({"error": "Only sysadmin can change sam-root"}), 403
+    try:
+        result = actions.change_group(unix_user, hostname, new_group, g.admin_id)
+        return jsonify(result), 200
+    except Exception:
+        logging.warning("change_group failed: unexpected error")
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -783,8 +860,9 @@ def api_unlock_user():
 def list_deployed_users():
     rows = db.query(
         """
-        SELECT ka.unix_user, s.hostname, s.ip_address,
-               ka.expires_at, sk.fingerprint,
+        SELECT DISTINCT ON (ka.unix_user, s.hostname)
+               ka.unix_user, s.hostname, s.ip_address,
+               ka.expires_at, sk.fingerprint, ka.sam_group,
                (
                    SELECT al.action
                    FROM audit_log al

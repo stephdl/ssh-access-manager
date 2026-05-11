@@ -43,6 +43,7 @@ Schéma complet dans sql/schema.sql. Points non-évidents :
 - Table `settings` : lire en DB, jamais depuis ENV. Clés : `scan_interval_hours` (4), `expire_warn_days` (7), `expire_warn_days_2` (2), `login_max_attempts` (10), `login_ban_seconds` (300), `audit_retention_days` (365)
 - `servers.ip_address` : index unique global (`servers_ip_unique`) — une IP ne peut appartenir qu'à un seul serveur, actif ou désactivé. Désactivation = maintenance temporaire, le serveur peut revenir. Seule la suppression libère l'IP.
 - `servers.max_sessions` : INTEGER DEFAULT 2 — seuil alertes SESSION_LIMIT_EXCEEDED (alerte WARNING par serveur avec anti-spam 24h, #360)
+- `key_authorizations.sam_group` : VARCHAR(20) nullable, CHECK IN ('sam-operator', 'sam-pkg', 'sam-root') — groupe sudo SAM assigné à l'utilisateur Unix (#383)
 
 ## Logique métier — fingerprint SHA256
 
@@ -62,17 +63,19 @@ Les routes clés sont structurées en `/api/keys/<action>/<fingerprint>` pour é
 
 ## Logique métier — scripts distants (ssh.py)
 
-Six constantes Python `bytes` dans ssh.py. Déployées via SFTP si absentes ou hash SHA256 différent.
+Huit constantes Python `bytes` dans ssh.py. Déployées via SFTP si absentes ou hash SHA256 différent.
 Tracées dans audit_log (SCRIPT_DEPLOYED).
 
 | Constante | Path distant | Droits | Action |
 |-----------|-------------|--------|--------|
 | SAM_COLLECT | /usr/local/bin/sam-collect | root, 750 | Lit toutes les authorized_keys → stdout : `unix_user\tkey_type key_b64 [comment]` |
 | SAM_REVOKE | /usr/local/bin/sam-revoke \<fp_hex\> | root, 750 | Révoque par fingerprint SHA256 hex. Réécriture atomique mktemp+mv. Préserve ownership (#104) |
-| SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> | root, 750 | Crée user Unix si absent, ajoute clé idempotent (#164) |
+| SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> | root, 750 | Crée user Unix si absent, ajoute clé idempotent (#164). À la création : génère un mot de passe temporaire (`openssl rand -base64 12`), le set via `chpasswd`, écrit `~/README_first_login.txt` (chmod 600). Pas de `chage -d 0` — le forçage avant shell bloque la lecture du README. `usermod -aG sam-users` — SSH par mot de passe impossible (bloc sshd `Match Group sam-users` créé par provision-host.sh). Les users SAM ne peuvent se connecter que par clé SSH (#383) |
 | SAM_LOCK_USER | /usr/local/bin/sam-lock-user \<unix_user\> | root, 750 | `usermod -L -s /sbin/nologin` — bloque mdp ET shell (#181) |
 | SAM_UNLOCK_USER | /usr/local/bin/sam-unlock-user \<unix_user\> | root, 750 | `usermod -U -s /bin/bash` (#181) |
 | SAM_SESSIONS | /usr/local/bin/sam-sessions | root, 750 | Collecte sessions SSH actives + historique → stdout : `A\|H\tuser\ttty\tip\trest`. Utilise `utmpdump /var/run/utmp` (ISO 8601, locale-safe), fallback `LANG=C last -F` (#253, #322) |
+| SAM_GRANT_GROUP | /usr/local/bin/sam-grant-group \<unix_user\> \<group\> | root, 750 | Valide groupe (sam-operator\|sam-pkg\|sam-root), `usermod -aG` (#383) |
+| SAM_REVOKE_GROUP | /usr/local/bin/sam-revoke-group \<unix_user\> \<group\> | root, 750 | Valide groupe, `gpasswd -d ... \|\| true` — idempotent (#383) |
 
 ## Logique métier — known_hosts et connexions SSH
 
@@ -186,6 +189,14 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 ### Sessions
 - `check_session_limit(server_id, hostname, session_count, max_sessions)` — envoie alerte WARNING si session_count > max_sessions, avec anti-spam 24h via audit_log (SESSION_LIMIT_EXCEEDED, #360)
 
+### Groupes SAM sudo (#383)
+- `VALID_SAM_GROUPS = ("sam-operator", "sam-pkg", "sam-root")` — constante partagée validation
+- `_get_current_group(unix_user, hostname) -> str | None` — helper interne, retourne le sam_group actif
+- `deploy_key(...)` — paramètre `sam_group: str = None` — si fourni, valide + appelle `ssh.grant_group_on_server()` après le déploiement
+- `grant_group(unix_user, hostname, group, admin_id)` — vérifie déploiement actif existant, appelle sam-grant-group, met à jour BDD, log GROUP_GRANTED
+- `revoke_group(unix_user, hostname, admin_id)` — récupère groupe actuel, appelle sam-revoke-group, nullifie BDD, log GROUP_REVOKED
+- `change_group(unix_user, hostname, new_group, admin_id)` — noop si même groupe, révoque ancien puis assigne nouveau, log GROUP_CHANGED
+
 ### Administrateurs
 - `add_admin(username, email, password, admin_id, role='operator')` — email obligatoire, valide role, hash werkzeug
 - `update_admin(username, email, role, admin_id)` — ne peut pas modifier son propre rôle
@@ -206,6 +217,11 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 | POST /api/servers/\*/sessions/refresh | ✓ | ✓ | 403 |
 | POST /api/keys/validate, revoke, assign, set-expiry, remove-expiry, bulk-validate, bulk-revoke | ✓ | ✓ | 403 |
 | POST /api/access/grant, deploy, lock-user, unlock-user, request, approve, reject, revoke | ✓ | ✓ | 403 |
+| POST /api/access/grant-group, revoke-group (sam-operator/sam-pkg) | ✓ | ✓ | 403 |
+| PUT /api/access/change-group (sam-operator/sam-pkg) | ✓ | ✓ | 403 |
+| POST /api/access/grant-group (sam-root) | ✓ | 403 | 403 |
+| POST /api/access/revoke-group (sam-root actuel) | ✓ | 403 | 403 |
+| PUT /api/access/change-group (sam-root en entrée ou sortie) | ✓ | 403 | 403 |
 | POST /api/admins | ✓ | 403 | 403 |
 | PUT /api/admins/\* (sauf password) | ✓ | 403 | 403 |
 | PUT /api/admins/\*/password | ✓ | ✓* | 403* |
@@ -224,7 +240,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 - Couverture minimale actions.py : 80%
 - pytest doit passer avant tout commit
 
-Fichiers : conftest.py, test_db.py (7), test_servers.py (10), test_ssh.py (61), test_actions.py (131), test_collect.py (35), test_expire.py (16), test_alerts.py (23), test_web.py (157), test_manage.py (38), test_rbac.py (54).
+Fichiers : conftest.py, test_db.py (7), test_servers.py (10), test_ssh.py (66), test_actions.py (154), test_collect.py (35), test_expire.py (16), test_alerts.py (23), test_web.py (172), test_manage.py (46), test_rbac.py (3).
 
 Fixtures obligatoires dans conftest.py : `mock_db`, `mock_ssh_client`, `mock_smtp`, `sample_server`, `sample_key`.
 

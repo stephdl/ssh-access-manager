@@ -175,7 +175,7 @@ tbody tr:hover {
 }
 
 /* Force ALL cards dark theme - override component scoped styles */
-:deep(.card) {
+.card {
   background: var(--bg-secondary) !important;
   border-color: var(--border-color) !important;
   color: var(--text-primary) !important;

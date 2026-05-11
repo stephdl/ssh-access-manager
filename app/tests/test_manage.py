@@ -429,3 +429,105 @@ def test_manage_admin_reset_password_weak_password(runner):
             "--password", "weak"
         ])
         assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# group grant / revoke / change
+# ---------------------------------------------------------------------------
+
+def test_manage_group_grant_success(runner):
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin()
+        mock_actions.grant_group.return_value = {
+            "unix_user": "alice", "hostname": HOSTNAME, "sam_group": "sam-operator"
+        }
+        result = runner.invoke(manage.cli, [
+            "group", "grant",
+            "--user", "alice", "--server", HOSTNAME, "--group", "sam-operator"
+        ])
+        assert result.exit_code == 0
+        assert "alice" in result.output
+        assert "sam-operator" in result.output
+        mock_actions.grant_group.assert_called_once_with("alice", HOSTNAME, "sam-operator", ADMIN_ID)
+
+
+def test_manage_group_grant_invalid_group(runner):
+    result = runner.invoke(manage.cli, [
+        "group", "grant",
+        "--user", "alice", "--server", HOSTNAME, "--group", "sam-invalid"
+    ])
+    assert result.exit_code != 0
+
+
+def test_manage_group_grant_user_error(runner):
+    import actions as _actions
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin()
+        mock_actions.UserError = _actions.UserError
+        mock_actions.NotFoundError = _actions.NotFoundError
+        mock_actions.grant_group.side_effect = _actions.UserError("No active key")
+        result = runner.invoke(manage.cli, [
+            "group", "grant",
+            "--user", "alice", "--server", HOSTNAME, "--group", "sam-pkg"
+        ])
+        assert result.exit_code != 0
+
+
+def test_manage_group_revoke_success(runner):
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin()
+        mock_actions.revoke_group.return_value = {
+            "unix_user": "alice", "hostname": HOSTNAME, "sam_group": None
+        }
+        result = runner.invoke(manage.cli, [
+            "group", "revoke",
+            "--user", "alice", "--server", HOSTNAME
+        ])
+        assert result.exit_code == 0
+        assert "alice" in result.output
+        mock_actions.revoke_group.assert_called_once_with("alice", HOSTNAME, ADMIN_ID)
+
+
+def test_manage_group_revoke_not_found(runner):
+    import actions as _actions
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin()
+        mock_actions.UserError = _actions.UserError
+        mock_actions.NotFoundError = _actions.NotFoundError
+        mock_actions.revoke_group.side_effect = _actions.NotFoundError("Server not found")
+        result = runner.invoke(manage.cli, [
+            "group", "revoke",
+            "--user", "alice", "--server", "unknown-server"
+        ])
+        assert result.exit_code != 0
+
+
+def test_manage_group_change_success(runner):
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin()
+        mock_actions.change_group.return_value = {
+            "unix_user": "alice", "hostname": HOSTNAME, "sam_group": "sam-pkg"
+        }
+        result = runner.invoke(manage.cli, [
+            "group", "change",
+            "--user", "alice", "--server", HOSTNAME, "--group", "sam-pkg"
+        ])
+        assert result.exit_code == 0
+        assert "sam-pkg" in result.output
+        mock_actions.change_group.assert_called_once_with("alice", HOSTNAME, "sam-pkg", ADMIN_ID)
+
+
+def test_manage_group_change_invalid_group(runner):
+    result = runner.invoke(manage.cli, [
+        "group", "change",
+        "--user", "alice", "--server", HOSTNAME, "--group", "sam-hacker"
+    ])
+    assert result.exit_code != 0
+
+
+def test_manage_group_help_available(runner):
+    result = runner.invoke(manage.cli, ["group", "--help"])
+    assert result.exit_code == 0
+    assert "grant" in result.output
+    assert "revoke" in result.output
+    assert "change" in result.output

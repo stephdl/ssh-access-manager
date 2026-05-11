@@ -112,6 +112,8 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
     local_hash_lock = ssh._sha256(ssh.SAM_LOCK_USER)
     local_hash_unlock = ssh._sha256(ssh.SAM_UNLOCK_USER)
     local_hash_sessions = ssh._sha256(ssh.SAM_SESSIONS)
+    local_hash_grant_group = ssh._sha256(ssh.SAM_GRANT_GROUP)
+    local_hash_revoke_group = ssh._sha256(ssh.SAM_REVOKE_GROUP)
 
     with patch("ssh._connect") as mock_connect, \
          patch("ssh.db") as mock_db:
@@ -121,11 +123,15 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
         client.open_sftp.return_value = sftp
 
         call_count = [0]
-        hashes = [local_hash_collect, local_hash_revoke, local_hash_add, local_hash_lock, local_hash_unlock, local_hash_sessions]
+        hashes = [
+            local_hash_collect, local_hash_revoke, local_hash_add,
+            local_hash_lock, local_hash_unlock, local_hash_sessions,
+            local_hash_grant_group, local_hash_revoke_group,
+        ]
 
         def exec_side_effect(cmd):
             stdout = MagicMock()
-            h = hashes[call_count[0] % 6]
+            h = hashes[call_count[0] % 8]
             stdout.read.return_value = f"{h}  path\n".encode()
             stdout.channel.recv_exit_status.return_value = 0
             call_count[0] += 1
@@ -285,6 +291,8 @@ def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
             "/usr/local/bin/sam-lock-user",
             "/usr/local/bin/sam-unlock-user",
             "/usr/local/bin/sam-sessions",
+            "/usr/local/bin/sam-grant-group",
+            "/usr/local/bin/sam-revoke-group",
         )
         for cmd in install_cmds:
             dest = cmd.split()[-1]
@@ -1083,3 +1091,77 @@ def test_ssh_provision_server_no_password_skips_provision_script():
         mock_connect.assert_called_once_with("192.168.1.10", 65500)
         mock_client.exec_command.assert_not_called()
         mock_client.open_sftp.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# SAM_GRANT_GROUP / SAM_REVOKE_GROUP — constants are bytes
+# ---------------------------------------------------------------------------
+
+def test_ssh_sam_grant_group_is_bytes():
+    """SAM_GRANT_GROUP must be a bytes constant."""
+    assert isinstance(ssh.SAM_GRANT_GROUP, bytes)
+
+
+def test_ssh_sam_revoke_group_is_bytes():
+    """SAM_REVOKE_GROUP must be a bytes constant."""
+    assert isinstance(ssh.SAM_REVOKE_GROUP, bytes)
+
+
+# ---------------------------------------------------------------------------
+# grant_group_on_server / revoke_group_on_server
+# ---------------------------------------------------------------------------
+
+def test_ssh_grant_group_on_server_calls_sam_grant_group():
+    """grant_group_on_server runs sam-grant-group with correct args."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("ssh._connect") as mock_connect:
+        client = MagicMock()
+        mock_connect.return_value = client
+        stdout = MagicMock()
+        stdout.read.return_value = b""
+        stdout.channel.recv_exit_status.return_value = 0
+        client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
+
+        ssh.grant_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10")
+
+        cmd = client.exec_command.call_args[0][0]
+        assert "sam-grant-group" in cmd
+        assert "alice" in cmd
+        assert "sam-operator" in cmd
+
+
+def test_ssh_revoke_group_on_server_calls_sam_revoke_group():
+    """revoke_group_on_server runs sam-revoke-group with correct args."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("ssh._connect") as mock_connect:
+        client = MagicMock()
+        mock_connect.return_value = client
+        stdout = MagicMock()
+        stdout.read.return_value = b""
+        stdout.channel.recv_exit_status.return_value = 0
+        client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
+
+        ssh.revoke_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10")
+
+        cmd = client.exec_command.call_args[0][0]
+        assert "sam-revoke-group" in cmd
+        assert "alice" in cmd
+        assert "sam-operator" in cmd
+
+
+def test_ssh_grant_group_on_server_raises_on_failure():
+    """grant_group_on_server raises SSHError when remote command fails."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("ssh._connect") as mock_connect:
+        client = MagicMock()
+        mock_connect.return_value = client
+        stdout = MagicMock()
+        stdout.read.return_value = b"group not found"
+        stdout.channel.recv_exit_status.return_value = 1
+        client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"error")))
+
+        with pytest.raises(ssh.SSHError):
+            ssh.grant_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10")

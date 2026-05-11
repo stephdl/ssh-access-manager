@@ -199,8 +199,8 @@
   },
   "access": {
     "title": "Accès temporaires",
-    "info_deploy": "Le formulaire ci-dessous déploie une clé SSH sur un serveur cible. Si l'utilisateur Unix n'existe pas, il sera créé automatiquement.",
-    "info_no_sudo": "L'utilisateur est créé sans droits d'administration (pas de sudo/wheel). Pour accorder des privilèges élevés, intervenez manuellement sur le serveur.",
+    "info_deploy": "Le formulaire ci-dessous déploie une clé SSH sur un serveur cible. Si l'utilisateur Unix n'existe pas, il sera créé automatiquement avec un mot de passe temporaire affiché à la première connexion SSH.",
+    "info_no_sudo": "Utilisez le champ Groupe Sudo SAM pour accorder des privilèges élevés (sam-operator, sam-pkg ou sam-root). La connexion SSH par mot de passe est désactivée pour tous les utilisateurs gérés par SAM — seule l'authentification par clé est autorisée.",
     "lock_title": "Verrouiller / Déverrouiller un compte Unix",
     "lock_info": "Verrouille un compte Unix pour bloquer toutes les connexions SSH (même avec une clé valide). Déverrouiller pour rétablir l'accès.",
     "readonly_message": "Accès en lecture seule. Contactez un sysadmin pour effectuer des actions."
@@ -390,6 +390,8 @@
     "publicKey": "Clé publique",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Serveur cible",
+    "samGroup": "Groupe SAM sudo (optionnel)",
+    "samGroupPlaceholder": "Aucun groupe (défaut)",
     "justification": "Justification",
     "justificationPlaceholder": "Motif d'accès",
     "submit": "Déployer la clé",
@@ -398,6 +400,7 @@
     "successFingerprint": "Empreinte",
     "successUser": "Utilisateur Unix",
     "successExpiry": "Expire le",
+    "successGroup": "Groupe SAM",
     "unlimited": "Illimité",
     "errorMissingFields": "Tous les champs sont requis",
     "newDeploy": "Nouveau déploiement"
@@ -418,9 +421,11 @@
     "col_server": "Serveur",
     "col_ip": "IP",
     "col_expires": "Expire le",
+    "col_group": "Groupe",
     "col_status": "Statut",
     "col_actions": "Actions",
     "unlimited": "Illimité",
+    "group_none": "Aucun",
     "status_active": "Actif",
     "status_locked": "Verrouillé",
     "filter_name_placeholder": "Rechercher par nom…",
@@ -432,7 +437,15 @@
     "lock_success": "Compte '{user}' verrouillé sur {server}.",
     "unlock_success": "Compte '{user}' déverrouillé sur {server}.",
     "lock_error": "Échec du verrouillage : {error}",
-    "unlock_error": "Échec du déverrouillage : {error}"
+    "unlock_error": "Échec du déverrouillage : {error}",
+    "btn_group": "Groupe",
+    "group_modal_title": "Gérer le groupe SAM",
+    "group_current": "Groupe actuel",
+    "group_new": "Nouveau groupe",
+    "group_confirm": "Appliquer",
+    "group_cancel": "Annuler",
+    "group_success": "Groupe mis à jour pour '{user}' sur {server}",
+    "group_error": "Échec du changement de groupe : {error}"
   },
   "pagination": {
     "rowsPerPage": "Lignes par page",
@@ -473,5 +486,15 @@
   },
   "smtp_banner": {
     "message": "Les notifications par email sont désactivées — configurez les paramètres SMTP pour activer les alertes."
+  },
+  "samGroup": {
+    "none": "Aucun",
+    "sam-operator": "sam-operator",
+    "sam-pkg": "sam-pkg",
+    "sam-root": "sam-root",
+    "warn_none": "Retire tous les privilèges sudo de cet utilisateur.",
+    "warn_operator": "Le groupe opérateur permet : diagnostics en lecture seule (logs, statut systemctl, journalctl). Ne peut pas modifier l'état du système.",
+    "warn_pkg": "Le groupe pkg permet la gestion des paquets (installation, mise à jour, suppression) et toutes les commandes opérateur. À utiliser avec précaution.",
+    "warn_root": "ATTENTION : Le groupe root accorde un accès root complet via sudo. À n'assigner qu'à des administrateurs de confiance."
   }
 }
