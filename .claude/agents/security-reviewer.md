@@ -51,11 +51,13 @@ Vérifier dans `ssh.py` :
 
 Vérifier dans `bootstrap.sh` :
 ```bash
-chmod 600 /data/keys/collector_key    # Clé privée
-chmod 600 /data/keys/known_hosts      # known_hosts
-chmod 700 /data/pg                    # PGDATA
-chown postgres:postgres /data/pg      # Propriétaire postgres
-chmod 440 /etc/sudoers.d/audit-collector  # sudoers
+chmod 600 /data/keys/collector_key         # Clé privée
+chmod 644 /data/keys/known_hosts           # known_hosts (lisible par nobody)
+chown nobody /data/keys/collector_key      # Propriétaire nobody (user Flask)
+chown nobody /data/keys/known_hosts        # Propriétaire nobody
+chmod 700 /data/pg                         # PGDATA
+chown postgres:postgres /data/pg           # Propriétaire postgres
+chmod 440 /etc/sudoers.d/audit-collector   # sudoers
 ```
 
 ### 6. Flask / Waitress — surface d'attaque
@@ -74,7 +76,7 @@ ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-collect
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-add *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-lock-user *
-${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-sessions
 ```
 Aucune règle `ALL=(ALL) NOPASSWD: ALL` ou équivalent permissif.
@@ -84,7 +86,7 @@ Généré avec `printf` ligne par ligne (résistant au CRLF PTY). Créé via `in
 
 - Toute action sensible doit être tracée dans `audit_log`
 - Les actions de révocation doivent inclure `performed_by` et `details` JSONB
-- Vérifier que `ANOMALY_DETECTED` est bien émis dans les 4 scénarios de révocation
+- Vérifier que `ANOMALY_DETECTED` est bien émis dans les 3 scénarios d'anomalie (scénario 2 : révocation hors système, scénario 3 : clé inconnue, scénario 5 : clé réapparue)
 
 ## Format de rapport
 
