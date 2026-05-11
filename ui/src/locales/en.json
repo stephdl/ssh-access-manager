@@ -164,7 +164,8 @@
     "reprovision_password_optional_hint": "Leave empty if the collector key was already deployed manually (ssh-copy-id or provision-host.sh).",
     "bulk_revoke_modal_title": "Revoke selected keys",
     "bulk_validated": "Keys validated: {validated}, skipped: {skipped}",
-    "bulk_revoked": "Keys revoked: {revoked}, skipped: {skipped}"
+    "bulk_revoked": "Keys revoked: {revoked}, skipped: {skipped}",
+    "root_revoke_warning": "Revoking the SSH key of user <strong>root</strong> may result in permanent loss of remote access to this server."
   },
   "key_table": {
     "col_status": "Status",
@@ -195,7 +196,10 @@
     "bulk_selected": "{n} key(s) selected",
     "bulk_validate": "Validate selected",
     "bulk_revoke": "Revoke selected",
-    "bulk_clear": "Clear selection"
+    "bulk_clear": "Clear selection",
+    "root_expiry_tooltip": "Cannot set expiry on root — automatic revocation would cause permanent loss of server access",
+    "root_revoke_tooltip": "Root account is protected — revocation is disabled to prevent loss of server access",
+    "root_protected_badge": "protected"
   },
   "access": {
     "title": "Temporary Access",
@@ -387,6 +391,7 @@
     "unixUser": "Unix Username",
     "unixUserPlaceholder": "e.g. alice",
     "error_unix_user": "Invalid Unix username (lowercase, digits, _ and - only, max 32 chars)",
+    "error_root_user": "Cannot deploy a key for the root account",
     "publicKey": "Public Key",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Target Server",
@@ -445,7 +450,13 @@
     "group_confirm": "Apply",
     "group_cancel": "Cancel",
     "group_success": "Group updated for '{user}' on {server}",
-    "group_error": "Group change failed: {error}"
+    "group_error": "Group change failed: {error}",
+    "active_session_tooltip": "User has an active session — group change blocked",
+    "active_session_badge": "Active session",
+    "refreshing_sessions": "Refreshing sessions…",
+    "group_success_verified": "Group updated for {user} on {server} — server confirms: {groups}",
+    "root_user_tooltip": "Root user cannot be locked or have its group changed",
+    "root_protected_badge": "protected"
   },
   "pagination": {
     "rowsPerPage": "Rows per page",

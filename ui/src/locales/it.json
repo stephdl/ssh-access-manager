@@ -164,7 +164,8 @@
     "reprovision_password_optional_hint": "Lasciare vuoto se la chiave del collettore è già stata distribuita manualmente (ssh-copy-id o provision-host.sh).",
     "bulk_revoke_modal_title": "Revocare le chiavi selezionate",
     "bulk_validated": "Chiavi validate: {validated}, saltate: {skipped}",
-    "bulk_revoked": "Chiavi revocate: {revoked}, saltate: {skipped}"
+    "bulk_revoked": "Chiavi revocate: {revoked}, saltate: {skipped}",
+    "root_revoke_warning": "La revoca della chiave SSH dell'utente <strong>root</strong> può causare la perdita permanente dell'accesso remoto a questo server."
   },
   "key_table": {
     "col_status": "Stato",
@@ -195,7 +196,10 @@
     "bulk_selected": "{n} chiave/i selezionata/e",
     "bulk_validate": "Valida selezionati",
     "bulk_revoke": "Revoca selezionati",
-    "bulk_clear": "Annulla selezione"
+    "bulk_clear": "Annulla selezione",
+    "root_expiry_tooltip": "Impossibile impostare scadenza per root — la revoca automatica causerebbe la perdita permanente dell'accesso",
+    "root_revoke_tooltip": "Account root protetto — la revoca è disabilitata per evitare la perdita di accesso al server",
+    "root_protected_badge": "protetto"
   },
   "access": {
     "title": "Accesso temporaneo",
@@ -387,6 +391,7 @@
     "unixUser": "Utente Unix",
     "unixUserPlaceholder": "es: alice",
     "error_unix_user": "Nome utente Unix non valido (solo minuscole, cifre, _ e -, max 32 caratteri)",
+    "error_root_user": "Impossibile distribuire una chiave per l'account root",
     "publicKey": "Chiave pubblica",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Server di destinazione",
@@ -445,7 +450,12 @@
     "group_confirm": "Applica",
     "group_cancel": "Annulla",
     "group_success": "Gruppo aggiornato per '{user}' su {server}",
-    "group_error": "Modifica gruppo fallita: {error}"
+    "group_error": "Modifica gruppo fallita: {error}",
+    "active_session_tooltip": "L'utente ha una sessione attiva — modifica gruppo bloccata",
+    "active_session_badge": "Sessione attiva",
+    "group_success_verified": "Gruppo aggiornato per {user} su {server} — il server conferma: {groups}",
+    "root_user_tooltip": "L'utente root non può essere bloccato né cambiare gruppo",
+    "root_protected_badge": "protetto"
   },
   "pagination": {
     "rowsPerPage": "Righe per pagina",

@@ -179,6 +179,17 @@ def test_expire_expire_keys_scenario4_sends_critical_on_revoke_failure():
         assert count == 0
 
 
+def test_expire_expire_keys_excludes_root_unix_user():
+    """expire_keys SQL must exclude unix_user = 'root' to protect server access."""
+    with patch("expire.db") as mock_db, \
+         patch("expire.ssh"), \
+         patch("expire.alerts"):
+        mock_db.query.return_value = []
+        expire.expire_keys()
+        sql = mock_db.query.call_args[0][0]
+        assert "unix_user != 'root'" in sql
+
+
 def test_expire_expire_keys_returns_zero_when_no_expired_keys():
     with patch("expire.db") as mock_db, \
          patch("expire.ssh") as mock_ssh, \

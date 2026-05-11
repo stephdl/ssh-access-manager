@@ -158,14 +158,14 @@ if ! id "$TARGET_USER" >/dev/null 2>&1; then
     useradd -m -s /bin/bash "$TARGET_USER"
     TMPPASS=$(openssl rand -base64 12 | tr -d '\\n')
     printf '%s:%s\\n' "$TARGET_USER" "$TMPPASS" | chpasswd
-    usermod -aG sam-users "$TARGET_USER" 2>/dev/null || true
+    gpasswd -a "$TARGET_USER" sam-users 2>/dev/null || true
 fi
 
 for grp in sam-operator sam-pkg sam-root; do
     getent group "$grp" >/dev/null 2>&1 && gpasswd -d "$TARGET_USER" "$grp" 2>/dev/null || true
 done
 if [ -n "$TARGET_GROUP" ]; then
-    usermod -aG "$TARGET_GROUP" "$TARGET_USER"
+    gpasswd -a "$TARGET_USER" "$TARGET_GROUP"
 fi
 
 home=$(getent passwd "$TARGET_USER" | cut -d: -f6)
@@ -311,28 +311,46 @@ case "$GROUP" in
     sam-operator|sam-pkg|sam-root) ;;
     *) echo "Error: group must be sam-operator, sam-pkg or sam-root" >&2; exit 1 ;;
 esac
-usermod -aG "$GROUP" "$USERNAME"
+gpasswd -a "$USERNAME" "$GROUP"
+printf 'GROUPS:%s\\n' "$(id -Gn "$USERNAME" 2>/dev/null || echo '')"
 """
 
 SAM_REVOKE_GROUP = b"""#!/bin/sh
-# sam-revoke-group <unix_user> <group> - remove unix_user from a sam-* group
+# sam-revoke-group <unix_user> [group]
+# If group given: remove from that group only.
+# If no group: remove from all sam-* groups (sync to none).
 set -e
 USERNAME="$1"
-GROUP="$2"
-if [ -z "$USERNAME" ] || [ -z "$GROUP" ]; then
-    echo "Usage: sam-revoke-group <unix_user> <group>" >&2
+GROUP="${2:-}"
+if [ -z "$USERNAME" ]; then
+    echo "Usage: sam-revoke-group <unix_user> [group]" >&2
     exit 1
 fi
-case "$GROUP" in
-    sam-operator|sam-pkg|sam-root) ;;
-    *) echo "Error: group must be sam-operator, sam-pkg or sam-root" >&2; exit 1 ;;
-esac
-gpasswd -d "$USERNAME" "$GROUP" 2>/dev/null || true
+if [ -n "$GROUP" ]; then
+    case "$GROUP" in
+        sam-operator|sam-pkg|sam-root) ;;
+        *) echo "Error: group must be sam-operator, sam-pkg or sam-root" >&2; exit 1 ;;
+    esac
+    gpasswd -d "$USERNAME" "$GROUP" 2>/dev/null || true
+else
+    for grp in sam-operator sam-pkg sam-root; do
+        getent group "$grp" >/dev/null 2>&1 && gpasswd -d "$USERNAME" "$grp" 2>/dev/null || true
+    done
+fi
+printf 'GROUPS:%s\\n' "$(id -Gn "$USERNAME" 2>/dev/null || echo '')"
 """
 
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _parse_groups_output(out: str) -> list[str]:
+    """Parse GROUPS: line from SAM script output and return list of groups."""
+    for line in out.splitlines():
+        if line.startswith("GROUPS:"):
+            return line[7:].split()
+    return []
 
 
 def _connect(ip: str, port: int = 22) -> paramiko.SSHClient:
@@ -487,30 +505,32 @@ def unlock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22
         client.close()
 
 
-def grant_group_on_server(hostname: str, unix_user: str, group: str, ip: str, port: int = 22) -> None:
-    """Run sam-grant-group on the remote host to add unix_user to a sam-* group."""
+def grant_group_on_server(hostname: str, unix_user: str, group: str, ip: str, port: int = 22) -> list[str]:
+    """Run sam-grant-group on the remote host. Returns actual groups of unix_user after change."""
     client = _connect(ip, port)
     try:
-        _, err, rc = _run(
+        out, err, rc = _run(
             client,
             f"sudo {SAM_GRANT_GROUP_PATH} {shlex.quote(unix_user)} {shlex.quote(group)}",
         )
         if rc != 0:
             raise SSHError(f"sam-grant-group failed on {hostname} (rc={rc}): {err}")
+        return _parse_groups_output(out)
     finally:
         client.close()
 
 
-def revoke_group_on_server(hostname: str, unix_user: str, group: str, ip: str, port: int = 22) -> None:
-    """Run sam-revoke-group on the remote host to remove unix_user from a sam-* group."""
+def revoke_group_on_server(hostname: str, unix_user: str, group: str | None, ip: str, port: int = 22) -> list[str]:
+    """Run sam-revoke-group on the remote host. group=None strips all sam-* groups. Returns actual groups."""
+    cmd = f"sudo {SAM_REVOKE_GROUP_PATH} {shlex.quote(unix_user)}"
+    if group:
+        cmd += f" {shlex.quote(group)}"
     client = _connect(ip, port)
     try:
-        _, err, rc = _run(
-            client,
-            f"sudo {SAM_REVOKE_GROUP_PATH} {shlex.quote(unix_user)} {shlex.quote(group)}",
-        )
+        out, err, rc = _run(client, cmd)
         if rc != 0:
             raise SSHError(f"sam-revoke-group failed on {hostname} (rc={rc}): {err}")
+        return _parse_groups_output(out)
     finally:
         client.close()
 

@@ -6,7 +6,7 @@
 |-----|------|
 | Login.vue | Connexion + checkbox "Keep me logged on this device" (#239) |
 | Dashboard.vue | Tableau serveurs + recherche + compteurs + modal ajout serveur (#71) + clé collecteur (#74). Provisionnement atomique via SSH (#299, #301) : SSH user/password obligatoires, serveur créé uniquement si SSH réussit. Validation hostname RFC 1123 (#303). Layout 2 colonnes. |
-| ServerDetail.vue | Détail serveur + clés + actions + bandeau rouge si désactivé (#91). Bouton **Edit** (sysadmin) : ouvre `EditServerModal` pour modifier IP, env, OS, port SSH (#339) ; `max_sessions` configurable via `EditServerModal` (seuil alertes sessions, #360). Bandeau orange si `last_scan_ok === false` (#324). Bouton **Re-provisionner** (violet, sysadmin + serveur actif) : modal SSH credentials, spinner, traduction error_code (#302). |
+| ServerDetail.vue | Détail serveur + clés + actions + bandeau rouge si désactivé (#91). Bouton **Edit** (sysadmin) : ouvre `EditServerModal` pour modifier IP, env, OS, port SSH (#339) ; `max_sessions` configurable via `EditServerModal` (seuil alertes sessions, #360). Bandeau orange si `last_scan_ok === false` (#324). Bouton **Re-provisionner** (violet, sysadmin + serveur actif) : modal SSH credentials, spinner, traduction error_code (#302). `bulkRevokeHasRoot` vérifie les clés composées (`\|root`) — évite faux positif quand un non-root partage le même fingerprint que root. Fingerprints dédupliqués uniquement au moment de l'appel API. |
 | Anomalies.vue | Anomalies actives + filtres texte/type/serveur/conformité + colonne unix_user (#195) |
 | AccessRequests.vue | DeployKeyForm + UserLockForm |
 | Audit.vue | Historique filtrable |
@@ -18,12 +18,12 @@
 | Composant | Rôle |
 |-----------|------|
 | ServerTable.vue | Tableau serveurs + ligne grisée + badge rouge si désactivé (#91) |
-| KeyTable.vue | Tableau clés + filtres texte + dropdown statut (#189) + bouton Illimité (#93) + tooltip non-conformité + sélection en masse (bulk validate/revoke, #345) |
+| KeyTable.vue | Tableau clés + filtres texte + dropdown statut (#189) + bouton Illimité (#93) + tooltip non-conformité + sélection en masse (bulk validate/revoke, #345) ; lignes root visuellement grisées (`.row-root`), badge "protected", Revoke et Expiry désactivés pour root, root exclu de `isSelectable` (pas de checkbox) ; sélection utilise clés composées `fingerprint\|unix_user` (fix bug multi-user même fingerprint) ; `bulk-revoke` émet clés composées brutes |
 | KeyActions.vue | Boutons valider/révoquer/expiry |
 | ExpiryPicker.vue | Modes exclusifs heures / date précise |
-| DeployKeyForm.vue | Formulaire déploiement clé SSH |
+| DeployKeyForm.vue | Formulaire déploiement clé SSH ; refuse `unix_user = 'root'` avec message d'erreur dédié |
 | UserLockForm.vue | Verrouillage/déverrouillage compte Unix (#181) |
-| DeployedUsersTable.vue | Utilisateurs Unix déployés + filtres + RBAC operator/viewer |
+| DeployedUsersTable.vue | Utilisateurs Unix déployés + filtres + RBAC operator/viewer ; lignes root visuellement grisées (`.row-root`), badge "protected", tooltips sur boutons désactivés via `<span class="btn-tooltip-wrapper">` (fix navigateur : buttons disabled ne reçoivent pas les événements souris) |
 | AdminsTable.vue | Tableau administrateurs + filtre texte + pagination + garde-fou self (#250) |
 | AuditTable.vue | Tableau audit + filtres serveur/action/date + pagination (#250) |
 | AnomaliesTable.vue | Tableau anomalies + filtres texte/type/serveur/conformité + pagination (#250) |
@@ -62,12 +62,13 @@ Détection automatique de la langue du navigateur via vue-i18n v9 (i18n.js).
 | KeyActions.spec.js | 14 | modal confirmation révocation |
 | ExpiryPicker.spec.js | 9 | modes exclusifs heures/date |
 | ServerTable.spec.js | 25 | filtres hostname/IP/env, badges statut |
-| KeyTable.spec.js | 45 | boutons par statut, owner, expires_at, filtres |
+| KeyTable.spec.js | 49 | boutons par statut, owner, expires_at, filtres, protection root (grisage, badge, sélection exclue) |
 | Admins.spec.js | 31 | modals enable/delete, RBAC, toggle alerts |
 | Settings.spec.js | 18 | validation champs, SMTP test |
 | DeployKeyForm.spec.js | 16 | formulaire déploiement clé SSH |
 | UserLockForm.spec.js | 10 | lock/unlock compte Unix |
-| DeployedUsersTable.spec.js | 15 | filtres, RBAC operator/viewer, lien serveur, colonne IP |
+| DeployedUsersTable.spec.js | 21 | filtres, RBAC operator/viewer, lien serveur, colonne IP, protection root (grisage, badge, tooltips) |
+| ServerDetail.spec.js | 7 | root warnings + expiry scoping |
 | Anomalies.spec.js | 20 | filtres texte + dropdowns, unix_user, badges |
 | Login.spec.js | 8 | checkbox remember-me, payload remember_me |
 | AdminsTable.spec.js | 13 | filtre texte, pagination, RBAC, garde-fou self, events (#250) |
@@ -79,5 +80,5 @@ Détection automatique de la langue du navigateur via vue-i18n v9 (i18n.js).
 | App.spec.js | 8 | SMTP banner, sélecteur langue, persistance localStorage |
 | useSort.spec.js | 21 | tri multi-colonnes, reset, indicateurs |
 
-<!-- 19 fichiers de tests -->
+<!-- 20 fichiers de tests -->
 vitest doit passer avant tout commit.

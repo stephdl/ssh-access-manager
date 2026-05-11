@@ -120,13 +120,17 @@
             {{ $t('key_table.no_results') }}
           </td>
         </tr>
-        <tr v-for="k in paginatedItems" :key="k.fingerprint + '|' + (k.unix_user || '')">
+        <tr
+          v-for="k in paginatedItems"
+          :key="k.fingerprint + '|' + (k.unix_user || '')"
+          :class="{ 'row-root': k.unix_user === 'root' }"
+        >
           <td v-if="currentRole !== 'viewer'" class="td-check">
             <input
               v-if="isSelectable(k)"
               type="checkbox"
-              :checked="selected.has(k.fingerprint)"
-              @change="toggleSelect(k.fingerprint)"
+              :checked="selected.has(k.fingerprint + '|' + (k.unix_user || ''))"
+              @change="toggleSelect(k.fingerprint + '|' + (k.unix_user || ''))"
             />
           </td>
           <td>
@@ -139,7 +143,12 @@
             <code>{{ k.fingerprint }}</code>
           </td>
           <td>
-            <code v-if="k.unix_user">{{ k.unix_user }}</code>
+            <span v-if="k.unix_user" class="unix-user-cell">
+              <code>{{ k.unix_user }}</code>
+              <span v-if="k.unix_user === 'root'" class="badge-root-protected">
+                {{ $t('key_table.root_protected_badge') }}
+              </span>
+            </span>
             <span v-else>—</span>
           </td>
           <td>{{ k.comment || '—' }}</td>
@@ -160,18 +169,28 @@
               >
                 {{ $t('key_table.btn_validate') }}
               </button>
-              <button
+              <span
                 v-if="
                   (k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW') &&
                   props.currentRole !== 'viewer'
                 "
-                class="btn-danger"
-                :disabled="props.scanOk === false"
-                :title="props.scanOk === false ? $t('key_table.revoke_unavailable') : undefined"
-                @click="$emit('revoke', k)"
+                class="btn-tooltip-wrapper"
+                :title="
+                  k.unix_user === 'root'
+                    ? $t('key_table.root_revoke_tooltip')
+                    : props.scanOk === false
+                      ? $t('key_table.revoke_unavailable')
+                      : undefined
+                "
               >
-                {{ $t('key_table.btn_revoke') }}
-              </button>
+                <button
+                  class="btn-danger"
+                  :disabled="props.scanOk === false || k.unix_user === 'root'"
+                  @click="k.unix_user !== 'root' && $emit('revoke', k)"
+                >
+                  {{ $t('key_table.btn_revoke') }}
+                </button>
+              </span>
               <button
                 v-if="!k.owner && k.status === 'ACTIVE' && props.currentRole !== 'viewer'"
                 class="btn-primary"
@@ -179,17 +198,23 @@
               >
                 {{ $t('key_table.btn_assign') }}
               </button>
-              <button
+              <span
                 v-if="k.status === 'ACTIVE' && props.currentRole !== 'viewer'"
-                class="btn-warning"
-                @click="$emit('set-expiry', k)"
+                class="btn-tooltip-wrapper"
+                :title="k.unix_user === 'root' ? $t('key_table.root_expiry_tooltip') : undefined"
               >
-                {{ $t('key_table.btn_expiry') }}
-              </button>
+                <button
+                  class="btn-warning"
+                  :disabled="k.unix_user === 'root'"
+                  @click="k.unix_user !== 'root' && $emit('set-expiry', k)"
+                >
+                  {{ $t('key_table.btn_expiry') }}
+                </button>
+              </span>
               <button
                 v-if="k.status === 'ACTIVE' && k.expires_at && props.currentRole !== 'viewer'"
                 class="btn-unlimited"
-                @click="$emit('remove-expiry', k.fingerprint)"
+                @click="$emit('remove-expiry', k)"
               >
                 {{ $t('key_table.btn_unlimited') }}
               </button>
@@ -265,11 +290,11 @@ watch(filteredKeys, () => {
 })
 
 function isSelectable(k) {
-  return k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW'
+  return (k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW') && k.unix_user !== 'root'
 }
 
 const selectableOnPage = computed(() =>
-  paginatedItems.value.filter(isSelectable).map((k) => k.fingerprint)
+  paginatedItems.value.filter(isSelectable).map((k) => k.fingerprint + '|' + (k.unix_user || ''))
 )
 
 const allSelectableChecked = computed(
@@ -300,7 +325,8 @@ function toggleSelectAll(e) {
 }
 
 function emitBulkValidate() {
-  emit('bulk-validate', [...selected.value])
+  const fingerprints = [...new Set([...selected.value].map((key) => key.split('|')[0]))]
+  emit('bulk-validate', fingerprints)
   selected.value = new Set()
 }
 
@@ -462,6 +488,33 @@ function exportCsv() {
   flex-wrap: nowrap;
   gap: 0.3rem;
   white-space: nowrap;
+}
+.btn-tooltip-wrapper {
+  display: inline-flex;
+}
+
+.row-root {
+  opacity: 0.65;
+  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+}
+
+.unix-user-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.badge-root-protected {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: #6c757d;
+  color: #fff;
+  vertical-align: middle;
 }
 .actions button {
   padding: 0.2rem 0.45rem;

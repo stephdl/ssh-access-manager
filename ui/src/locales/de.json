@@ -164,7 +164,8 @@
     "reprovision_password_optional_hint": "Leer lassen, wenn der Collector-Schlüssel bereits manuell bereitgestellt wurde (ssh-copy-id oder provision-host.sh).",
     "bulk_revoke_modal_title": "Ausgewählte Schlüssel widerrufen",
     "bulk_validated": "Schlüssel validiert: {validated}, übersprungen: {skipped}",
-    "bulk_revoked": "Schlüssel widerrufen: {revoked}, übersprungen: {skipped}"
+    "bulk_revoked": "Schlüssel widerrufen: {revoked}, übersprungen: {skipped}",
+    "root_revoke_warning": "Das Widerrufen des SSH-Schlüssels des Benutzers <strong>root</strong> kann zum dauerhaften Verlust des Fernzugriffs auf diesen Server führen."
   },
   "key_table": {
     "col_status": "Status",
@@ -195,7 +196,10 @@
     "bulk_selected": "{n} Schlüssel ausgewählt",
     "bulk_validate": "Auswahl validieren",
     "bulk_revoke": "Auswahl widerrufen",
-    "bulk_clear": "Auswahl aufheben"
+    "bulk_clear": "Auswahl aufheben",
+    "root_expiry_tooltip": "Ablaufzeit für root nicht setzbar — automatischer Widerruf würde dauerhaften Zugriffsverlust verursachen",
+    "root_revoke_tooltip": "Root-Konto geschützt — Widerruf deaktiviert, um Zugriffsverlust auf den Server zu verhindern",
+    "root_protected_badge": "geschützt"
   },
   "access": {
     "title": "Temporärer Zugriff",
@@ -387,6 +391,7 @@
     "unixUser": "Unix-Benutzer",
     "unixUserPlaceholder": "z.B. alice",
     "error_unix_user": "Ungültiger Unix-Benutzername (nur Kleinbuchstaben, Ziffern, _ und -, max. 32 Zeichen)",
+    "error_root_user": "Ein Schlüssel für das Root-Konto kann nicht bereitgestellt werden",
     "publicKey": "Öffentlicher Schlüssel",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Zielserver",
@@ -445,7 +450,12 @@
     "group_confirm": "Anwenden",
     "group_cancel": "Abbrechen",
     "group_success": "Gruppe für '{user}' auf {server} aktualisiert",
-    "group_error": "Gruppenänderung fehlgeschlagen: {error}"
+    "group_error": "Gruppenänderung fehlgeschlagen: {error}",
+    "active_session_tooltip": "Benutzer hat eine aktive Sitzung — Gruppenänderung blockiert",
+    "active_session_badge": "Aktive Sitzung",
+    "group_success_verified": "Gruppe für {user} auf {server} aktualisiert — Server bestätigt: {groups}",
+    "root_user_tooltip": "Der root-Benutzer kann weder gesperrt noch seine Gruppe geändert werden",
+    "root_protected_badge": "geschützt"
   },
   "pagination": {
     "rowsPerPage": "Zeilen pro Seite",

@@ -338,4 +338,140 @@ describe('DeployedUsersTable', () => {
     const hasActions = headers.some((h) => h.text().toUpperCase().includes('ACTION'))
     expect(hasActions).toBe(false)
   })
+
+  it('disables group button and shows badge when user has active session', async () => {
+    const usersWithSession = [{ ...MOCK_USERS[0], has_active_session: true }]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(usersWithSession) }))
+
+    const w = mount(DeployedUsersTable, mountOpts)
+    await flushPromises()
+
+    const groupBtn = w.find('[data-testid="btn-group-alice-prod-01"]')
+    expect(groupBtn.attributes('disabled')).toBeDefined()
+    expect(groupBtn.element.parentElement.title).toContain('active session')
+
+    const badge = w.find('[data-testid="session-alice-prod-01"]')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('Active session')
+  })
+
+  it('does not show session badge when has_active_session is false', async () => {
+    const usersNoSession = [{ ...MOCK_USERS[0], has_active_session: false }]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(usersNoSession) }))
+
+    const w = mount(DeployedUsersTable, mountOpts)
+    await flushPromises()
+
+    expect(w.find('[data-testid="session-alice-prod-01"]').exists()).toBe(false)
+  })
+
+  it('sends API request even when currentGroup === newGroup', async () => {
+    const usersWithGroup = [{ ...MOCK_USERS[0], sam_group: 'sam-operator' }]
+
+    let capturedEndpoint = null
+
+    vi.stubGlobal('fetch', (url, opts) => {
+      if (url === '/api/access/deployed-users') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(usersWithGroup),
+        })
+      }
+      if (url === '/api/access/change-group') {
+        capturedEndpoint = url
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              unix_user: 'alice',
+              hostname: 'prod-01',
+              actual_groups: ['sam-operator'],
+            }),
+        })
+      }
+    })
+
+    const w = mount(DeployedUsersTable, mountOpts)
+    await flushPromises()
+
+    await w.find('[data-testid="btn-group-alice-prod-01"]').trigger('click')
+    await flushPromises()
+
+    expect(w.find('[data-testid="group-modal"]').exists()).toBe(true)
+
+    await w.find('[data-testid="group-modal-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(capturedEndpoint).toBe('/api/access/change-group')
+  })
+
+  it('shows verification result with actual_groups in success message', async () => {
+    vi.stubGlobal('fetch', (url, opts) => {
+      if (url === '/api/access/deployed-users') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(MOCK_USERS),
+        })
+      }
+      if (url === '/api/access/grant-group') {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              unix_user: 'alice',
+              hostname: 'prod-01',
+              actual_groups: ['sam-operator', 'sam-pkg'],
+            }),
+        })
+      }
+    })
+
+    const w = mount(DeployedUsersTable, mountOpts)
+    await flushPromises()
+
+    await w.find('[data-testid="btn-group-alice-prod-01"]').trigger('click')
+    await flushPromises()
+
+    const select = w.find('[data-testid="group-modal-select"]')
+    await select.setValue('sam-operator')
+    await w.find('[data-testid="group-modal-confirm"]').trigger('click')
+    await flushPromises()
+
+    const success = w.find('[data-testid="success-alice-prod-01"]')
+    expect(success.exists()).toBe(true)
+    expect(success.text()).toContain('alice')
+    expect(success.text()).toContain('prod-01')
+    expect(success.text()).toContain('sam-operator')
+    expect(success.text()).toContain('sam-pkg')
+  })
+
+  it('disables lock and group buttons for root user', async () => {
+    const rootUser = [{ unix_user: 'root', hostname: 'prod-01', ip_address: '10.0.0.1', expires_at: null, has_active_session: false }]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(rootUser) }))
+
+    const w = mount(DeployedUsersTable, mountOpts)
+    await flushPromises()
+
+    const lockBtn = w.find('[data-testid="btn-lock-root-prod-01"]')
+    expect(lockBtn.attributes('disabled')).toBeDefined()
+    expect(lockBtn.element.parentElement.title).toBeTruthy()
+
+    const groupBtn = w.find('[data-testid="btn-group-root-prod-01"]')
+    expect(groupBtn.attributes('disabled')).toBeDefined()
+    expect(groupBtn.element.parentElement.title).toBeTruthy()
+  })
+
+  it('does not disable lock and group buttons for non-root users', async () => {
+    const normalUser = [{ unix_user: 'alice', hostname: 'prod-01', ip_address: '10.0.0.1', expires_at: null, has_active_session: false }]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(normalUser) }))
+
+    const w = mount(DeployedUsersTable, mountOpts)
+    await flushPromises()
+
+    const lockBtn = w.find('[data-testid="btn-lock-alice-prod-01"]')
+    expect(lockBtn.attributes('disabled')).toBeUndefined()
+
+    const groupBtn = w.find('[data-testid="btn-group-alice-prod-01"]')
+    expect(groupBtn.attributes('disabled')).toBeUndefined()
+  })
 })

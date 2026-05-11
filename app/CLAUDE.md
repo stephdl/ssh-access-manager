@@ -74,7 +74,7 @@ Tracées dans audit_log (SCRIPT_DEPLOYED).
 | SAM_LOCK_USER | /usr/local/bin/sam-lock-user \<unix_user\> | root, 750 | `usermod -L -s /sbin/nologin` — bloque mdp ET shell (#181) |
 | SAM_UNLOCK_USER | /usr/local/bin/sam-unlock-user \<unix_user\> | root, 750 | `usermod -U -s /bin/bash` (#181) |
 | SAM_SESSIONS | /usr/local/bin/sam-sessions | root, 750 | Collecte sessions SSH actives + historique → stdout : `A\|H\tuser\ttty\tip\trest`. Utilise `utmpdump /var/run/utmp` (ISO 8601, locale-safe), fallback `LANG=C last -F` (#253, #322) |
-| SAM_GRANT_GROUP | /usr/local/bin/sam-grant-group \<unix_user\> \<group\> | root, 750 | Valide groupe (sam-operator\|sam-pkg\|sam-root), `usermod -aG` (#383) |
+| SAM_GRANT_GROUP | /usr/local/bin/sam-grant-group \<unix_user\> \<group\> | root, 750 | Valide groupe (sam-operator\|sam-pkg\|sam-root), `gpasswd -a` — works even when user is logged in (#383) |
 | SAM_REVOKE_GROUP | /usr/local/bin/sam-revoke-group \<unix_user\> \<group\> | root, 750 | Valide groupe, `gpasswd -d ... \|\| true` — idempotent (#383) |
 
 ## Logique métier — known_hosts et connexions SSH
@@ -98,6 +98,7 @@ Récupération de clé hôte si absent de known_hosts — `_fetch_host_key(ip, p
 `expire_keys()` :
 - Clés ACTIVE avec expires_at < NOW()
 - **Requête SQL doit sélectionner s.ip_address** (#114)
+- **Requête SQL exclut `unix_user != 'root'`** — sécurité contre révocation automatique de root
 - sam-revoke sur serveur distant via IP
 - status=EXPIRED, revoked_automatically=TRUE, audit_log KEY_EXPIRED, email INFO
 
@@ -169,14 +170,16 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 ### Clés SSH
 - `validate_key(fingerprint, admin_id, unix_user=None, hostname=None)` — sans args : valide toutes PENDING_REVIEW du fingerprint ; avec args : valide uniquement (fingerprint, server, unix_user) (#193)
 - `bulk_validate_keys(fingerprints, admin_id)` — valide en masse une liste de fingerprints PENDING_REVIEW ; retourne `{validated: N, errors: [...]}`
-- `bulk_revoke_keys(fingerprints, reason, admin_id)` — révoque en masse ; retourne `{revoked: N, errors: [...]}`
-- `revoke_key(fingerprint, admin_id, reason, db)` — ACTIVE et PENDING_REVIEW (#85)
+- `bulk_revoke_keys(fingerprints, reason, admin_id)` — révoque en masse ; retourne `{revoked: N, errors: [...]}` ; les fingerprints liés à root sont automatiquement skippés (UserError catchée → skipped+1)
+- `revoke_key(fingerprint, admin_id, reason, hostname=None, unix_user=None)` — ACTIVE et PENDING_REVIEW (#85) ; refuse si `unix_user == 'root'` (targeted) ou si root a ce fingerprint (global) → UserError
 - `handle_disappeared_key`, `handle_unknown_key`, `handle_reappeared_key`
-- `warn_expiring_key`, `assign_key`, `set_key_expiry`, `remove_key_expiry`
+- `warn_expiring_key`, `assign_key`
+- `set_key_expiry(fingerprint, expires_at, unix_user=None, hostname=None)` — refuse si `unix_user == 'root'` ; global UPDATE exclut `unix_user != 'root'`
+- `remove_key_expiry(fingerprint, unix_user=None, hostname=None)` — refuse si `unix_user == 'root'` ; global UPDATE exclut `unix_user != 'root'`
 
 ### Accès temporaires
 - `grant_access`, `approve_request`, `reject_request`, `revoke_request`
-- `deploy_key(public_key, unix_user, hostname, expires_at, justification, admin_id)` — parse + fingerprint, INSERT ssh_keys, sam-add, key_authorization ACTIVE (#164, #185)
+- `deploy_key(public_key, unix_user, hostname, expires_at, justification, admin_id)` — parse + fingerprint, INSERT ssh_keys, sam-add, key_authorization ACTIVE (#164, #185) ; refuse si `unix_user == 'root'` ; `justification` inclus dans le `details` du `audit_log` KEY_ADDED
 - `lock_user(unix_user, hostname, admin_id)` — valide username POSIX, sam-lock-user, USER_LOCKED (#181)
 - `unlock_user(unix_user, hostname, admin_id)` — valide username POSIX, sam-unlock-user, USER_UNLOCKED (#181)
 
@@ -240,7 +243,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 - Couverture minimale actions.py : 80%
 - pytest doit passer avant tout commit
 
-Fichiers : conftest.py, test_db.py (7), test_servers.py (10), test_ssh.py (66), test_actions.py (154), test_collect.py (35), test_expire.py (16), test_alerts.py (23), test_web.py (172), test_manage.py (46), test_rbac.py (3).
+Fichiers : conftest.py, test_db.py (7), test_servers.py (10), test_ssh.py (66), test_actions.py (176), test_collect.py (35), test_expire.py (16), test_alerts.py (23), test_web.py (172), test_manage.py (46), test_rbac.py (3).
 
 Fixtures obligatoires dans conftest.py : `mock_db`, `mock_ssh_client`, `mock_smtp`, `sample_server`, `sample_key`.
 

@@ -164,7 +164,8 @@
     "reprovision_password_optional_hint": "Dejar vacío si la clave del colector ya fue desplegada manualmente (ssh-copy-id o provision-host.sh).",
     "bulk_revoke_modal_title": "Revocar claves seleccionadas",
     "bulk_validated": "Claves validadas: {validated}, omitidas: {skipped}",
-    "bulk_revoked": "Claves revocadas: {revoked}, omitidas: {skipped}"
+    "bulk_revoked": "Claves revocadas: {revoked}, omitidas: {skipped}",
+    "root_revoke_warning": "Revocar la clave SSH del usuario <strong>root</strong> puede resultar en la pérdida permanente del acceso remoto a este servidor."
   },
   "key_table": {
     "col_status": "Estado",
@@ -195,7 +196,10 @@
     "bulk_selected": "{n} clave(s) seleccionada(s)",
     "bulk_validate": "Validar selección",
     "bulk_revoke": "Revocar selección",
-    "bulk_clear": "Borrar selección"
+    "bulk_clear": "Borrar selección",
+    "root_expiry_tooltip": "No se puede fijar expiración para root — la revocación automática causaría pérdida permanente de acceso",
+    "root_revoke_tooltip": "Cuenta root protegida — la revocación está desactivada para evitar pérdida de acceso al servidor",
+    "root_protected_badge": "protegido"
   },
   "access": {
     "title": "Acceso temporal",
@@ -387,6 +391,7 @@
     "unixUser": "Usuario Unix",
     "unixUserPlaceholder": "ej: alice",
     "error_unix_user": "Nombre de usuario Unix inválido (minúsculas, dígitos, _ y - únicamente, máx. 32 caracteres)",
+    "error_root_user": "No se puede desplegar una clave para la cuenta root",
     "publicKey": "Clave pública",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Servidor destino",
@@ -445,7 +450,12 @@
     "group_confirm": "Aplicar",
     "group_cancel": "Cancelar",
     "group_success": "Grupo actualizado para '{user}' en {server}",
-    "group_error": "Error al cambiar grupo: {error}"
+    "group_error": "Error al cambiar grupo: {error}",
+    "active_session_tooltip": "El usuario tiene una sesión activa — cambio de grupo bloqueado",
+    "active_session_badge": "Sesión activa",
+    "group_success_verified": "Grupo actualizado para {user} en {server} — servidor confirma: {groups}",
+    "root_user_tooltip": "El usuario root no puede bloquearse ni cambiar de grupo",
+    "root_protected_badge": "protegido"
   },
   "pagination": {
     "rowsPerPage": "Filas por página",

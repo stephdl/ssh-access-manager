@@ -28,6 +28,14 @@
         </select>
       </div>
 
+      <div
+        class="table-progress-bar"
+        :class="{ active: refreshingSessions }"
+        :title="refreshingSessions ? $t('deployedUsers.refreshing_sessions') : undefined"
+        data-testid="sessions-refreshing"
+        aria-hidden="true"
+      />
+
       <table data-testid="table-deployed-users">
         <thead>
           <tr>
@@ -87,8 +95,16 @@
             v-for="user in paginatedItems"
             :key="`${user.unix_user}-${user.hostname}`"
             :data-testid="`row-${user.unix_user}-${user.hostname}`"
+            :class="{ 'row-root': user.unix_user === 'root' }"
           >
-            <td>{{ user.unix_user }}</td>
+            <td>
+              <span class="unix-user-cell">
+                {{ user.unix_user }}
+                <span v-if="user.unix_user === 'root'" class="badge-root-protected">
+                  {{ $t('deployedUsers.root_protected_badge') }}
+                </span>
+              </span>
+            </td>
             <td>
               <RouterLink :to="`/servers/${user.hostname}`" class="server-link">{{
                 user.hostname
@@ -132,35 +148,57 @@
               >
             </td>
             <td v-if="currentRole !== 'viewer'" class="actions">
-              <button
+              <span
                 v-if="lockStates[`${user.unix_user}-${user.hostname}`] !== 'USER_LOCKED'"
-                type="button"
-                class="btn-danger btn-sm"
-                :data-testid="`btn-lock-${user.unix_user}-${user.hostname}`"
-                :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`]"
-                @click="lockUser(user)"
+                class="btn-tooltip-wrapper"
+                :title="user.unix_user === 'root' ? $t('deployedUsers.root_user_tooltip') : user.has_active_session ? $t('deployedUsers.active_session_tooltip') : undefined"
               >
-                {{ $t('userLock.btnLock') }}
-              </button>
-              <button
+                <button
+                  type="button"
+                  class="btn-danger btn-sm"
+                  :data-testid="`btn-lock-${user.unix_user}-${user.hostname}`"
+                  :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`] || user.has_active_session || user.unix_user === 'root'"
+                  @click="!user.has_active_session && user.unix_user !== 'root' && lockUser(user)"
+                >
+                  {{ $t('userLock.btnLock') }}
+                </button>
+              </span>
+              <span
                 v-else
-                type="button"
-                class="btn-success btn-sm"
-                :data-testid="`btn-unlock-${user.unix_user}-${user.hostname}`"
-                :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`]"
-                @click="unlockUser(user)"
+                class="btn-tooltip-wrapper"
+                :title="user.unix_user === 'root' ? $t('deployedUsers.root_user_tooltip') : undefined"
               >
-                {{ $t('userLock.btnUnlock') }}
-              </button>
-              <button
-                type="button"
-                class="btn-group btn-sm"
-                :data-testid="`btn-group-${user.unix_user}-${user.hostname}`"
-                :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`]"
-                @click="openGroupModal(user)"
+                <button
+                  type="button"
+                  class="btn-success btn-sm"
+                  :data-testid="`btn-unlock-${user.unix_user}-${user.hostname}`"
+                  :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`] || user.unix_user === 'root'"
+                  @click="user.unix_user !== 'root' && unlockUser(user)"
+                >
+                  {{ $t('userLock.btnUnlock') }}
+                </button>
+              </span>
+              <span
+                class="btn-tooltip-wrapper"
+                :title="user.unix_user === 'root' ? $t('deployedUsers.root_user_tooltip') : user.has_active_session ? $t('deployedUsers.active_session_tooltip') : undefined"
               >
-                {{ $t('deployedUsers.btn_group') }}
-              </button>
+                <button
+                  type="button"
+                  class="btn-group btn-sm"
+                  :data-testid="`btn-group-${user.unix_user}-${user.hostname}`"
+                  :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`] || user.has_active_session || user.unix_user === 'root'"
+                  @click="!user.has_active_session && user.unix_user !== 'root' && openGroupModal(user)"
+                >
+                  {{ $t('deployedUsers.btn_group') }}
+                </button>
+              </span>
+              <span
+                v-if="user.has_active_session"
+                class="badge badge-session"
+                :data-testid="`session-${user.unix_user}-${user.hostname}`"
+              >
+                {{ $t('deployedUsers.active_session_badge') }}
+              </span>
               <div
                 v-if="successMessages[`${user.unix_user}-${user.hostname}`]"
                 class="inline-success"
@@ -281,6 +319,7 @@ const currentRole = computed(() => admin.value?.role || 'viewer')
 
 const users = ref([])
 const loading = ref(false)
+const refreshingSessions = ref(false)
 const loadError = ref('')
 const actionInProgress = ref({})
 const successMessages = ref({})
@@ -326,20 +365,40 @@ onMounted(async () => {
 
 defineExpose({ refresh: loadUsers })
 
+async function _fetchUsers() {
+  const res = await apiFetch('/api/access/deployed-users')
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error || `HTTP ${res.status}`)
+  }
+  const data = await res.json()
+  users.value = data
+  data.forEach((u) => {
+    const key = `${u.unix_user}-${u.hostname}`
+    lockStates.value[key] = u.lock_status || 'USER_UNLOCKED'
+  })
+  return data
+}
+
 async function loadUsers() {
   loading.value = true
   loadError.value = ''
   try {
-    const res = await apiFetch('/api/access/deployed-users')
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data.error || `HTTP ${res.status}`)
+    const data = await _fetchUsers()
+
+    // Refresh sessions in background for all servers (sysadmin/operator only),
+    // then silently reload to get fresh has_active_session values.
+    if (currentRole.value !== 'viewer' && data.length > 0) {
+      refreshingSessions.value = true
+      const uniqueServers = [...new Set(data.map((u) => u.hostname))]
+      Promise.allSettled(
+        uniqueServers.map((hostname) =>
+          apiFetch(`/api/servers/${hostname}/sessions/refresh`, { method: 'POST' })
+        )
+      ).then(() => _fetchUsers().catch(() => {})).finally(() => {
+        refreshingSessions.value = false
+      })
     }
-    users.value = await res.json()
-    users.value.forEach((u) => {
-      const key = `${u.unix_user}-${u.hostname}`
-      lockStates.value[key] = u.lock_status || 'USER_UNLOCKED'
-    })
   } catch (e) {
     loadError.value = e.message
   } finally {
@@ -420,11 +479,6 @@ async function submitGroupChange() {
   const currentGroup = user.sam_group || ''
   const newGroup = groupModalNewValue.value
 
-  if (currentGroup === newGroup) {
-    closeGroupModal()
-    return
-  }
-
   groupModalSubmitting.value = true
   groupModalError.value = ''
 
@@ -435,7 +489,7 @@ async function submitGroupChange() {
       hostname: user.hostname,
     }
 
-    if (newGroup === '' && currentGroup !== '') {
+    if (newGroup === '') {
       endpoint = '/api/access/revoke-group'
     } else if (currentGroup === '' && newGroup !== '') {
       endpoint = '/api/access/grant-group'
@@ -456,10 +510,15 @@ async function submitGroupChange() {
       throw new Error(data.error || `HTTP ${res.status}`)
     }
 
+    const result = await res.json()
     const key = `${user.unix_user}-${user.hostname}`
-    successMessages.value[key] = t('deployedUsers.group_success', {
+    const serverGroups = (result.actual_groups || [])
+      .filter((g) => g.startsWith('sam-'))
+      .join(', ') || t('deployedUsers.group_none')
+    successMessages.value[key] = t('deployedUsers.group_success_verified', {
       user: user.unix_user,
       server: user.hostname,
+      groups: serverGroups,
     })
     setTimeout(() => {
       successMessages.value[key] = ''
@@ -510,6 +569,36 @@ async function submitGroupChange() {
   padding: 1rem;
 }
 
+.table-progress-bar {
+  height: 3px;
+  background: transparent;
+  border-radius: 2px 2px 0 0;
+  overflow: hidden;
+  margin-bottom: -3px;
+  position: relative;
+}
+
+.table-progress-bar.active {
+  background: color-mix(in srgb, #0d6efd 20%, transparent);
+}
+
+.table-progress-bar.active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  background: #0d6efd;
+  border-radius: 2px;
+  animation: progress-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes progress-sweep {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+
 .alert-error {
   background: #f8d7da;
   color: #721c24;
@@ -546,6 +635,34 @@ td {
   flex-wrap: wrap;
 }
 
+.btn-tooltip-wrapper {
+  display: inline-flex;
+}
+
+.row-root {
+  opacity: 0.65;
+  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+}
+
+.unix-user-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.badge-root-protected {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: #6c757d;
+  color: #fff;
+  vertical-align: middle;
+}
+
 .badge {
   display: inline-block;
   padding: 0.2rem 0.5rem;
@@ -579,6 +696,11 @@ td {
 .badge-root {
   background: #f8d7da;
   color: #721c24;
+}
+
+.badge-session {
+  background: #fff3cd;
+  color: #664d03;
 }
 
 .btn-sm {
