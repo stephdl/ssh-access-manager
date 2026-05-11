@@ -332,7 +332,7 @@ def ensure_scripts(hostname, server_id, ip):
         if remote_hash != _sha256(content):
             tmp_path = f"/home/{SSH_USER}/{os.path.basename(remote_path)}"
             sftp.putfo(io.BytesIO(content), tmp_path)
-            _run(client, f"sudo /usr/bin/install -m 755 -o root -g root {tmp_path} {remote_path}")
+            _run(client, f"sudo /usr/bin/install -m 750 -o root -g root {tmp_path} {remote_path}")
             db.execute("INSERT INTO audit_log ... 'SCRIPT_DEPLOYED' ...")
 ```
 
