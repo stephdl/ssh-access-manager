@@ -765,8 +765,6 @@ def test_actions_deploy_key_success(sample_server, sample_key):
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
             {"id": sample_key["id"]},
-            {"id": sample_server["id"]},  # _get_current_group: server
-            None,                          # _get_current_group: no current group
         ]
         mock_db.execute.return_value = None
 
@@ -1471,13 +1469,12 @@ def test_actions_get_current_group_returns_none_when_null(sample_server):
 # deploy_key — sam_group parameter
 # ---------------------------------------------------------------------------
 
-def test_actions_deploy_key_with_sam_group_calls_grant(sample_server, sample_key):
+def test_actions_deploy_key_with_sam_group_passes_group_to_add_key(sample_server, sample_key):
+    """deploy_key passes sam_group to add_key_on_server — sam-add handles group assignment."""
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
             {"id": sample_key["id"]},
-            {"id": sample_server["id"]},  # _get_current_group: server
-            None,                          # _get_current_group: no previous group
         ]
         result = actions.deploy_key(
             public_key=sample_key["public_key"],
@@ -1489,10 +1486,11 @@ def test_actions_deploy_key_with_sam_group_calls_grant(sample_server, sample_key
             sam_group="sam-operator",
         )
         assert result["sam_group"] == "sam-operator"
-        mock_ssh.grant_group_on_server.assert_called_once_with(
-            sample_server["hostname"], "alice", "sam-operator",
-            sample_server["ip_address"], port=22,
+        mock_ssh.add_key_on_server.assert_called_once_with(
+            sample_server["hostname"], "alice", sample_key["public_key"],
+            sample_server["ip_address"], port=22, sam_group="sam-operator",
         )
+        mock_ssh.grant_group_on_server.assert_not_called()
 
 
 def test_actions_deploy_key_invalid_sam_group_raises(sample_server, sample_key):
@@ -1512,13 +1510,12 @@ def test_actions_deploy_key_invalid_sam_group_raises(sample_server, sample_key):
             )
 
 
-def test_actions_deploy_key_no_sam_group_does_not_call_grant(sample_server, sample_key):
+def test_actions_deploy_key_no_sam_group_passes_none_to_add_key(sample_server, sample_key):
+    """deploy_key with no group passes sam_group=None — sam-add strips all SAM groups."""
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
             {"id": sample_key["id"]},
-            {"id": sample_server["id"]},  # _get_current_group: server
-            None,                          # _get_current_group: no current group → no revoke/grant
         ]
         actions.deploy_key(
             public_key=sample_key["public_key"],
@@ -1528,62 +1525,12 @@ def test_actions_deploy_key_no_sam_group_does_not_call_grant(sample_server, samp
             justification="Test",
             admin_id=ADMIN_ID,
         )
-        mock_ssh.grant_group_on_server.assert_not_called()
-
-
-def test_actions_deploy_key_changes_group_revokes_old_and_grants_new(sample_server, sample_key):
-    """Redeploying with a different group revokes the previous one then grants the new one."""
-    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
-        mock_db.query_one.side_effect = [
-            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
-            {"id": sample_key["id"]},
-            {"id": sample_server["id"]},                 # _get_current_group: server
-            {"sam_group": "sam-root"},                   # _get_current_group: previous group
-        ]
-        result = actions.deploy_key(
-            public_key=sample_key["public_key"],
-            unix_user="alice",
-            hostname=sample_server["hostname"],
-            expires_at=None,
-            justification="Change group",
-            admin_id=ADMIN_ID,
-            sam_group="sam-operator",
-        )
-        assert result["sam_group"] == "sam-operator"
-        mock_ssh.revoke_group_on_server.assert_called_once_with(
-            sample_server["hostname"], "alice", "sam-root",
-            sample_server["ip_address"], port=22,
-        )
-        mock_ssh.grant_group_on_server.assert_called_once_with(
-            sample_server["hostname"], "alice", "sam-operator",
-            sample_server["ip_address"], port=22,
-        )
-
-
-def test_actions_deploy_key_removes_group_when_none_selected(sample_server, sample_key):
-    """Redeploying with no group revokes the previous group without granting a new one."""
-    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
-        mock_db.query_one.side_effect = [
-            {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
-            {"id": sample_key["id"]},
-            {"id": sample_server["id"]},
-            {"sam_group": "sam-root"},                   # had sam-root previously
-        ]
-        result = actions.deploy_key(
-            public_key=sample_key["public_key"],
-            unix_user="alice",
-            hostname=sample_server["hostname"],
-            expires_at=None,
-            justification="Remove group",
-            admin_id=ADMIN_ID,
-            sam_group=None,
-        )
-        assert result["sam_group"] is None
-        mock_ssh.revoke_group_on_server.assert_called_once_with(
-            sample_server["hostname"], "alice", "sam-root",
-            sample_server["ip_address"], port=22,
+        mock_ssh.add_key_on_server.assert_called_once_with(
+            sample_server["hostname"], "alice", sample_key["public_key"],
+            sample_server["ip_address"], port=22, sam_group=None,
         )
         mock_ssh.grant_group_on_server.assert_not_called()
+        mock_ssh.revoke_group_on_server.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

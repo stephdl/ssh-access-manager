@@ -649,9 +649,7 @@ def deploy_key(
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
 
     ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"])
-    ssh.add_key_on_server(hostname, unix_user, public_key.strip(), server["ip_address"], port=server["ssh_port"])
-
-    previous_group = _get_current_group(unix_user, hostname)
+    ssh.add_key_on_server(hostname, unix_user, public_key.strip(), server["ip_address"], port=server["ssh_port"], sam_group=sam_group)
 
     db.execute(
         """
@@ -667,11 +665,6 @@ def deploy_key(
         (key["id"], server["id"], unix_user, admin_id, expires_at, sam_group),
     )
 
-    if sam_group != previous_group:
-        if previous_group:
-            ssh.revoke_group_on_server(hostname, unix_user, previous_group, server["ip_address"], port=server["ssh_port"])
-        if sam_group:
-            ssh.grant_group_on_server(hostname, unix_user, sam_group, server["ip_address"], port=server["ssh_port"])
 
     db.execute(
         """

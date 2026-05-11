@@ -141,14 +141,15 @@ fi
 """
 
 SAM_ADD = b"""#!/bin/sh
-# sam-add <username> <pubkey> - create user if absent, add pubkey to authorized_keys
+# sam-add <username> <pubkey> [group] - create user if absent, add pubkey, set SAM group
 set -e
 
 TARGET_USER="${1}"
 PUBKEY="${2}"
+TARGET_GROUP="${3:-}"
 
 if [ -z "$TARGET_USER" ] || [ -z "$PUBKEY" ]; then
-    echo "Usage: sam-add <username> <pubkey>" >&2
+    echo "Usage: sam-add <username> <pubkey> [group]" >&2
     exit 1
 fi
 
@@ -158,6 +159,13 @@ if ! id "$TARGET_USER" >/dev/null 2>&1; then
     TMPPASS=$(openssl rand -base64 12 | tr -d '\\n')
     printf '%s:%s\\n' "$TARGET_USER" "$TMPPASS" | chpasswd
     usermod -aG sam-users "$TARGET_USER" 2>/dev/null || true
+fi
+
+for grp in sam-operator sam-pkg sam-root; do
+    getent group "$grp" >/dev/null 2>&1 && gpasswd -d "$TARGET_USER" "$grp" 2>/dev/null || true
+done
+if [ -n "$TARGET_GROUP" ]; then
+    usermod -aG "$TARGET_GROUP" "$TARGET_USER"
 fi
 
 home=$(getent passwd "$TARGET_USER" | cut -d: -f6)
@@ -436,14 +444,15 @@ def collect_keys(hostname: str, ip: str, port: int = 22) -> list[str]:
         client.close()
 
 
-def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str, port: int = 22) -> None:
-    """Run sam-add on the remote host to deploy a public key for the given Unix user."""
+def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str, port: int = 22, sam_group: str = None) -> None:
+    """Run sam-add on the remote host to deploy a public key and set the SAM group."""
     import shlex
+    cmd = f"sudo {SAM_ADD_PATH} {shlex.quote(unix_user)} {shlex.quote(public_key)}"
+    if sam_group:
+        cmd += f" {shlex.quote(sam_group)}"
     client = _connect(ip, port)
     try:
-        _, err, rc = _run(
-            client, f"sudo {SAM_ADD_PATH} {shlex.quote(unix_user)} {shlex.quote(public_key)}"
-        )
+        _, err, rc = _run(client, cmd)
         if rc != 0:
             raise SSHError(f"sam-add failed on {hostname} (rc={rc}): {err}")
     finally:
