@@ -82,9 +82,9 @@
           <option value="">{{ $t('deployKey.samGroupPlaceholder') }}</option>
           <option value="sam-operator">{{ $t('samGroup.sam-operator') }}</option>
           <option value="sam-pkg">{{ $t('samGroup.sam-pkg') }}</option>
-          <option v-if="currentRole === 'sysadmin'" value="sam-root">{{
-            $t('samGroup.sam-root')
-          }}</option>
+          <option v-if="currentRole === 'sysadmin'" value="sam-root">
+            {{ $t('samGroup.sam-root') }}
+          </option>
         </select>
       </div>
 
