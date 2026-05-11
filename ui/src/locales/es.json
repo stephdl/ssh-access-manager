@@ -390,6 +390,8 @@
     "publicKey": "Clave pública",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Servidor destino",
+    "samGroup": "Grupo SAM sudo (opcional)",
+    "samGroupPlaceholder": "Sin grupo (predeterminado)",
     "justification": "Justificación",
     "justificationPlaceholder": "Motivo de acceso",
     "submit": "Desplegar clave",
@@ -398,6 +400,7 @@
     "successFingerprint": "Huella",
     "successUser": "Usuario Unix",
     "successExpiry": "Expira",
+    "successGroup": "Grupo SAM",
     "unlimited": "Ilimitado",
     "errorMissingFields": "Todos los campos son obligatorios",
     "newDeploy": "Nuevo despliegue"
@@ -418,9 +421,11 @@
     "col_server": "Servidor",
     "col_ip": "IP",
     "col_expires": "Expira",
+    "col_group": "Grupo",
     "col_status": "Estado",
     "col_actions": "Acciones",
     "unlimited": "Ilimitado",
+    "group_none": "Ninguno",
     "status_active": "Activo",
     "status_locked": "Bloqueado",
     "filter_name_placeholder": "Buscar por nombre…",
@@ -432,7 +437,15 @@
     "lock_success": "Cuenta '{user}' bloqueada en {server}.",
     "unlock_success": "Cuenta '{user}' desbloqueada en {server}.",
     "lock_error": "Fallo al bloquear: {error}",
-    "unlock_error": "Fallo al desbloquear: {error}"
+    "unlock_error": "Fallo al desbloquear: {error}",
+    "btn_group": "Grupo",
+    "group_modal_title": "Gestionar grupo SAM",
+    "group_current": "Grupo actual",
+    "group_new": "Nuevo grupo",
+    "group_confirm": "Aplicar",
+    "group_cancel": "Cancelar",
+    "group_success": "Grupo actualizado para '{user}' en {server}",
+    "group_error": "Error al cambiar grupo: {error}"
   },
   "pagination": {
     "rowsPerPage": "Filas por página",
@@ -473,5 +486,15 @@
   },
   "smtp_banner": {
     "message": "Las notificaciones por correo están desactivadas — configure los ajustes SMTP para activar las alertas."
+  },
+  "samGroup": {
+    "none": "Ninguno",
+    "sam-operator": "sam-operator",
+    "sam-pkg": "sam-pkg",
+    "sam-root": "sam-root",
+    "warn_none": "Elimina todos los privilegios sudo de este usuario.",
+    "warn_operator": "El grupo operador permite: diagnóstico de solo lectura (logs, estado systemctl, journalctl). No puede modificar el estado del sistema.",
+    "warn_pkg": "El grupo pkg permite la gestión de paquetes (instalar, actualizar, eliminar) y todos los comandos de operador. Usar con cuidado.",
+    "warn_root": "ADVERTENCIA: El grupo root otorga acceso root completo mediante sudo. Solo asignar a administradores de confianza."
   }
 }

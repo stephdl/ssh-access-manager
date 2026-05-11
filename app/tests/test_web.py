@@ -2064,3 +2064,208 @@ def test_web_bulk_revoke_rejects_over_200(auth_client):
         mock_db.query_one.return_value = _admin_row()
         resp = auth_client.post("/api/keys/bulk-revoke", json={"fingerprints": fps, "reason": "audit"})
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# POST /api/access/grant-group
+# ---------------------------------------------------------------------------
+
+def test_web_grant_group_sysadmin_success(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.grant_group.return_value = {
+            "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-operator"
+        }
+        resp = auth_client.post("/api/access/grant-group", json={
+            "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-operator"
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["sam_group"] == "sam-operator"
+        mock_actions.grant_group.assert_called_once_with("alice", "server-01", "sam-operator", ADMIN_ID)
+
+
+def test_web_grant_group_operator_can_assign_sam_operator(client):
+    operator_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = operator_id
+        sess["admin_username"] = "operator"
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": operator_id, "username": "operator", "role": "operator"}
+        mock_actions.grant_group.return_value = {
+            "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-operator"
+        }
+        resp = client.post("/api/access/grant-group", json={
+            "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-operator"
+        })
+        assert resp.status_code == 200
+
+
+def test_web_grant_group_operator_cannot_assign_sam_root(client):
+    operator_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = operator_id
+        sess["admin_username"] = "operator"
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": operator_id, "username": "operator", "role": "operator"}
+        resp = client.post("/api/access/grant-group", json={
+            "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-root"
+        })
+        assert resp.status_code == 403
+
+
+def test_web_grant_group_viewer_forbidden(client):
+    viewer_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = viewer_id
+        sess["admin_username"] = "viewer"
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": viewer_id, "username": "viewer", "role": "viewer"}
+        resp = client.post("/api/access/grant-group", json={
+            "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-operator"
+        })
+        assert resp.status_code == 403
+
+
+def test_web_grant_group_missing_fields_returns_400(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post("/api/access/grant-group", json={"unix_user": "alice"})
+        assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# POST /api/access/revoke-group
+# ---------------------------------------------------------------------------
+
+def test_web_revoke_group_sysadmin_success(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions._get_current_group.return_value = "sam-operator"
+        mock_actions.revoke_group.return_value = {
+            "unix_user": "alice", "hostname": "server-01", "sam_group": None
+        }
+        resp = auth_client.post("/api/access/revoke-group", json={
+            "unix_user": "alice", "hostname": "server-01"
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["sam_group"] is None
+
+
+def test_web_revoke_group_operator_cannot_revoke_sam_root(client):
+    operator_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = operator_id
+        sess["admin_username"] = "operator"
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": operator_id, "username": "operator", "role": "operator"}
+        mock_actions._get_current_group.return_value = "sam-root"
+        resp = client.post("/api/access/revoke-group", json={
+            "unix_user": "alice", "hostname": "server-01"
+        })
+        assert resp.status_code == 403
+
+
+def test_web_revoke_group_operator_can_revoke_sam_operator(client):
+    operator_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = operator_id
+        sess["admin_username"] = "operator"
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": operator_id, "username": "operator", "role": "operator"}
+        mock_actions._get_current_group.return_value = "sam-operator"
+        mock_actions.revoke_group.return_value = {
+            "unix_user": "alice", "hostname": "server-01", "sam_group": None
+        }
+        resp = client.post("/api/access/revoke-group", json={
+            "unix_user": "alice", "hostname": "server-01"
+        })
+        assert resp.status_code == 200
+
+
+def test_web_revoke_group_missing_fields_returns_400(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.post("/api/access/revoke-group", json={"unix_user": "alice"})
+        assert resp.status_code == 400
+
+
+def test_web_revoke_group_viewer_forbidden(client):
+    viewer_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = viewer_id
+        sess["admin_username"] = "viewer"
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": viewer_id, "username": "viewer", "role": "viewer"}
+        resp = client.post("/api/access/revoke-group", json={
+            "unix_user": "alice", "hostname": "server-01"
+        })
+        assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# PUT /api/access/change-group
+# ---------------------------------------------------------------------------
+
+def test_web_change_group_sysadmin_success(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions._get_current_group.return_value = "sam-operator"
+        mock_actions.change_group.return_value = {
+            "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-pkg"
+        }
+        resp = auth_client.put("/api/access/change-group", json={
+            "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-pkg"
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["sam_group"] == "sam-pkg"
+
+
+def test_web_change_group_operator_cannot_assign_sam_root(client):
+    operator_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = operator_id
+        sess["admin_username"] = "operator"
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": operator_id, "username": "operator", "role": "operator"}
+        mock_actions._get_current_group.return_value = "sam-operator"
+        resp = client.put("/api/access/change-group", json={
+            "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-root"
+        })
+        assert resp.status_code == 403
+
+
+def test_web_change_group_operator_cannot_change_from_sam_root(client):
+    operator_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = operator_id
+        sess["admin_username"] = "operator"
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": operator_id, "username": "operator", "role": "operator"}
+        mock_actions._get_current_group.return_value = "sam-root"
+        resp = client.put("/api/access/change-group", json={
+            "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-pkg"
+        })
+        assert resp.status_code == 403
+
+
+def test_web_change_group_missing_fields_returns_400(auth_client):
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        resp = auth_client.put("/api/access/change-group", json={"unix_user": "alice"})
+        assert resp.status_code == 400
+
+
+def test_web_change_group_viewer_forbidden(client):
+    viewer_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = viewer_id
+        sess["admin_username"] = "viewer"
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": viewer_id, "username": "viewer", "role": "viewer"}
+        resp = client.put("/api/access/change-group", json={
+            "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-pkg"
+        })
+        assert resp.status_code == 403

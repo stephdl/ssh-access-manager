@@ -390,6 +390,8 @@
     "publicKey": "Public Key",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Target Server",
+    "samGroup": "SAM Sudo Group (optional)",
+    "samGroupPlaceholder": "No group (default)",
     "justification": "Justification",
     "justificationPlaceholder": "Reason for access",
     "submit": "Deploy Key",
@@ -398,6 +400,7 @@
     "successFingerprint": "Fingerprint",
     "successUser": "Unix user",
     "successExpiry": "Expires",
+    "successGroup": "SAM Group",
     "unlimited": "Unlimited",
     "errorMissingFields": "All fields are required",
     "newDeploy": "New deployment"
@@ -418,9 +421,11 @@
     "col_server": "Server",
     "col_ip": "IP",
     "col_expires": "Expires",
+    "col_group": "Group",
     "col_status": "Status",
     "col_actions": "Actions",
     "unlimited": "Unlimited",
+    "group_none": "None",
     "status_active": "Active",
     "status_locked": "Locked",
     "filter_name_placeholder": "Search by username…",
@@ -432,7 +437,15 @@
     "lock_success": "Account '{user}' locked on {server}.",
     "unlock_success": "Account '{user}' unlocked on {server}.",
     "lock_error": "Lock failed: {error}",
-    "unlock_error": "Unlock failed: {error}"
+    "unlock_error": "Unlock failed: {error}",
+    "btn_group": "Group",
+    "group_modal_title": "Manage SAM Group",
+    "group_current": "Current group",
+    "group_new": "New group",
+    "group_confirm": "Apply",
+    "group_cancel": "Cancel",
+    "group_success": "Group updated for '{user}' on {server}",
+    "group_error": "Group change failed: {error}"
   },
   "pagination": {
     "rowsPerPage": "Rows per page",
@@ -473,5 +486,15 @@
   },
   "smtp_banner": {
     "message": "Email notifications are disabled — set SMTP settings to enable alerts."
+  },
+  "samGroup": {
+    "none": "None",
+    "sam-operator": "sam-operator",
+    "sam-pkg": "sam-pkg",
+    "sam-root": "sam-root",
+    "warn_none": "This will remove all sudo privileges for this user.",
+    "warn_operator": "The operator group allows: read-only diagnostics (logs, systemctl status, journalctl). Cannot modify system state.",
+    "warn_pkg": "The pkg group allows package management (install, upgrade, remove) and all operator commands. Use with care.",
+    "warn_root": "WARNING: The root group grants full root access via sudo. Only assign to trusted sysadmins."
   }
 }

@@ -65,6 +65,14 @@
             </th>
             <th
               class="th-sortable"
+              :class="{ active: sortKey === 'sam_group' }"
+              @click="toggleSort('sam_group')"
+            >
+              {{ $t('deployedUsers.col_group') }}
+              <span class="sort-indicator">{{ sortIndicator('sam_group') }}</span>
+            </th>
+            <th
+              class="th-sortable"
               :class="{ active: sortKey === 'lock_status' }"
               @click="toggleSort('lock_status')"
             >
@@ -88,6 +96,27 @@
             </td>
             <td>{{ user.ip_address || '—' }}</td>
             <td>{{ formatExpiry(user.expires_at) }}</td>
+            <td>
+              <span v-if="!user.sam_group">—</span>
+              <span
+                v-else-if="user.sam_group === 'sam-operator'"
+                class="badge badge-operator"
+                :data-testid="`group-${user.unix_user}-${user.hostname}`"
+                >{{ $t('samGroup.sam-operator') }}</span
+              >
+              <span
+                v-else-if="user.sam_group === 'sam-pkg'"
+                class="badge badge-pkg"
+                :data-testid="`group-${user.unix_user}-${user.hostname}`"
+                >{{ $t('samGroup.sam-pkg') }}</span
+              >
+              <span
+                v-else-if="user.sam_group === 'sam-root'"
+                class="badge badge-root"
+                :data-testid="`group-${user.unix_user}-${user.hostname}`"
+                >{{ $t('samGroup.sam-root') }}</span
+              >
+            </td>
             <td>
               <span
                 v-if="lockStates[`${user.unix_user}-${user.hostname}`] === 'USER_LOCKED'"
@@ -123,6 +152,15 @@
               >
                 {{ $t('userLock.btnUnlock') }}
               </button>
+              <button
+                type="button"
+                class="btn-group btn-sm"
+                :data-testid="`btn-group-${user.unix_user}-${user.hostname}`"
+                :disabled="actionInProgress[`${user.unix_user}-${user.hostname}`]"
+                @click="openGroupModal(user)"
+              >
+                {{ $t('deployedUsers.btn_group') }}
+              </button>
               <div
                 v-if="successMessages[`${user.unix_user}-${user.hostname}`]"
                 class="inline-success"
@@ -141,7 +179,7 @@
           </tr>
           <tr v-if="filteredUsers.length === 0">
             <td
-              :colspan="currentRole !== 'viewer' ? 6 : 5"
+              :colspan="currentRole !== 'viewer' ? 7 : 6"
               class="empty-filtered"
               data-testid="empty-filtered"
             >
@@ -164,6 +202,63 @@
 
     <div v-else class="empty-state" data-testid="empty-state">
       {{ $t('deployedUsers.empty') }}
+    </div>
+
+    <div v-if="groupModalUser" class="modal-overlay" @click.self="closeGroupModal">
+      <div class="modal-content" data-testid="group-modal">
+        <h3>{{ $t('deployedUsers.group_modal_title') }}</h3>
+        <div v-if="groupModalError" class="alert-error" data-testid="group-modal-error">
+          {{ groupModalError }}
+        </div>
+        <div class="field">
+          <label>{{ $t('deployedUsers.group_current') }}</label>
+          <p>
+            {{
+              groupModalUser.sam_group
+                ? $t(`samGroup.${groupModalUser.sam_group}`)
+                : $t('deployedUsers.group_none')
+            }}
+          </p>
+        </div>
+        <div class="field">
+          <label for="group-modal-select">{{ $t('deployedUsers.group_new') }}</label>
+          <select
+            id="group-modal-select"
+            v-model="groupModalNewValue"
+            data-testid="group-modal-select"
+          >
+            <option value="">{{ $t('samGroup.none') }}</option>
+            <option value="sam-operator">{{ $t('samGroup.sam-operator') }}</option>
+            <option value="sam-pkg">{{ $t('samGroup.sam-pkg') }}</option>
+            <option v-if="currentRole === 'sysadmin'" value="sam-root">{{
+              $t('samGroup.sam-root')
+            }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <p class="group-warning">{{ groupWarning }}</p>
+        </div>
+        <div class="modal-actions">
+          <button
+            type="button"
+            class="btn-primary"
+            :disabled="groupModalSubmitting"
+            @click="submitGroupChange"
+            data-testid="group-modal-confirm"
+          >
+            {{ $t('deployedUsers.group_confirm') }}
+          </button>
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="groupModalSubmitting"
+            @click="closeGroupModal"
+            data-testid="group-modal-cancel"
+          >
+            {{ $t('deployedUsers.group_cancel') }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -196,7 +291,18 @@ const filterName = ref('')
 const filterServer = ref('')
 const filterStatus = ref('')
 
+const groupModalUser = ref(null)
+const groupModalNewValue = ref('')
+const groupModalError = ref('')
+const groupModalSubmitting = ref(false)
+
 const uniqueServers = computed(() => [...new Set(users.value.map((u) => u.hostname))].sort())
+
+const groupWarning = computed(() => {
+  if (!groupModalNewValue.value) return t('samGroup.warn_none')
+  const suffix = groupModalNewValue.value.replace('sam-', '')
+  return t(`samGroup.warn_${suffix}`)
+})
 
 const filteredUsers = computed(() => {
   return users.value.filter((u) => {
@@ -293,6 +399,80 @@ async function performAction(user, endpoint, actionType) {
     actionInProgress.value[key] = false
   }
 }
+
+function openGroupModal(user) {
+  groupModalUser.value = user
+  groupModalNewValue.value = user.sam_group || ''
+  groupModalError.value = ''
+}
+
+function closeGroupModal() {
+  groupModalUser.value = null
+  groupModalNewValue.value = ''
+  groupModalError.value = ''
+  groupModalSubmitting.value = false
+}
+
+async function submitGroupChange() {
+  if (!groupModalUser.value) return
+
+  const user = groupModalUser.value
+  const currentGroup = user.sam_group || ''
+  const newGroup = groupModalNewValue.value
+
+  if (currentGroup === newGroup) {
+    closeGroupModal()
+    return
+  }
+
+  groupModalSubmitting.value = true
+  groupModalError.value = ''
+
+  try {
+    let endpoint = ''
+    const payload = {
+      unix_user: user.unix_user,
+      hostname: user.hostname,
+    }
+
+    if (newGroup === '' && currentGroup !== '') {
+      endpoint = '/api/access/revoke-group'
+    } else if (currentGroup === '' && newGroup !== '') {
+      endpoint = '/api/access/grant-group'
+      payload.sam_group = newGroup
+    } else {
+      endpoint = '/api/access/change-group'
+      payload.sam_group = newGroup
+    }
+
+    const res = await apiFetch(endpoint, {
+      method: endpoint === '/api/access/change-group' ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+
+    const key = `${user.unix_user}-${user.hostname}`
+    successMessages.value[key] = t('deployedUsers.group_success', {
+      user: user.unix_user,
+      server: user.hostname,
+    })
+    setTimeout(() => {
+      successMessages.value[key] = ''
+    }, 5000)
+
+    await loadUsers()
+    closeGroupModal()
+  } catch (e) {
+    groupModalError.value = t('deployedUsers.group_error', { error: e.message })
+  } finally {
+    groupModalSubmitting.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -386,6 +566,21 @@ td {
   color: #155724;
 }
 
+.badge-operator {
+  background: #cfe2ff;
+  color: #084298;
+}
+
+.badge-pkg {
+  background: #fff3cd;
+  color: #664d03;
+}
+
+.badge-root {
+  background: #f8d7da;
+  color: #721c24;
+}
+
 .btn-sm {
   padding: 0.3rem 0.6rem;
   border: none;
@@ -411,6 +606,15 @@ td {
 
 .btn-success:hover:not(:disabled) {
   background: #218838;
+}
+
+.btn-group {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-group:hover:not(:disabled) {
+  background: #5a6268;
 }
 
 .inline-success {
@@ -449,5 +653,97 @@ td {
   font-style: italic;
   padding: 1rem;
   text-align: center;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  padding: 1.5rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.modal-content h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+}
+
+.modal-content .field {
+  margin-bottom: 1rem;
+}
+
+.modal-content label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.modal-content select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.group-warning {
+  background: #fff3cd;
+  color: #664d03;
+  padding: 0.75rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.btn-primary {
+  background: #0d6efd;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #0b5ed7;
 }
 </style>

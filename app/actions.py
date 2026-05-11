@@ -563,6 +563,23 @@ def grant_access(
     return {"key_id": key["id"], "server_id": server["id"], "expires_at": expires_at}
 
 
+VALID_SAM_GROUPS = ("sam-operator", "sam-pkg", "sam-root")
+
+
+def _get_current_group(unix_user: str, hostname: str) -> str | None:
+    """Return current sam_group for (unix_user, hostname) or None."""
+    server = db.query_one(
+        "SELECT id FROM servers WHERE hostname = %s AND is_active = true", (hostname,)
+    )
+    if not server:
+        return None
+    row = db.query_one(
+        "SELECT sam_group FROM key_authorizations WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
+        (server["id"], unix_user),
+    )
+    return row["sam_group"] if row else None
+
+
 def deploy_key(
     public_key: str,
     unix_user: str,
@@ -570,6 +587,7 @@ def deploy_key(
     expires_at,
     justification: str,
     admin_id: str,
+    sam_group: str = None,
 ) -> dict:
     """
     Register public key in ssh_keys (if not exists), deploy via sam-add,
@@ -580,6 +598,8 @@ def deploy_key(
             f"Invalid Unix username: '{unix_user}' "
             "(lowercase letters, digits, _ and - only, max 32 chars)"
         )
+    if sam_group is not None and sam_group not in VALID_SAM_GROUPS:
+        raise UserError(f"Invalid SAM group: '{sam_group}'. Must be one of: {', '.join(VALID_SAM_GROUPS)}")
     parts = public_key.strip().split()
     if len(parts) < 2:
         raise UserError("Invalid key format")
@@ -633,16 +653,21 @@ def deploy_key(
 
     db.execute(
         """
-        INSERT INTO key_authorizations (key_id, server_id, unix_user, authorized_by, status, expires_at)
-        VALUES (%s, %s, %s, %s, 'ACTIVE', %s)
+        INSERT INTO key_authorizations (key_id, server_id, unix_user, authorized_by, status, expires_at, sam_group)
+        VALUES (%s, %s, %s, %s, 'ACTIVE', %s, %s)
         ON CONFLICT (key_id, server_id, unix_user) DO UPDATE SET
             status = 'ACTIVE',
             authorized_by = EXCLUDED.authorized_by,
             authorized_at = now(),
-            expires_at = EXCLUDED.expires_at
+            expires_at = EXCLUDED.expires_at,
+            sam_group = EXCLUDED.sam_group
         """,
-        (key["id"], server["id"], unix_user, admin_id, expires_at),
+        (key["id"], server["id"], unix_user, admin_id, expires_at, sam_group),
     )
+
+    if sam_group:
+        ssh.grant_group_on_server(hostname, unix_user, sam_group, server["ip_address"], port=server["ssh_port"])
+
     db.execute(
         """
         INSERT INTO audit_log (action, performed_by, target_key, target_server, details)
@@ -652,7 +677,7 @@ def deploy_key(
             admin_id,
             key["id"],
             server["id"],
-            json.dumps({"unix_user": unix_user, "fingerprint": fingerprint, "hostname": hostname}),
+            json.dumps({"unix_user": unix_user, "fingerprint": fingerprint, "hostname": hostname, "sam_group": sam_group}),
         ),
     )
     return {
@@ -661,7 +686,107 @@ def deploy_key(
         "unix_user": unix_user,
         "hostname": hostname,
         "expires_at": expires_at.isoformat() if expires_at else None,
+        "sam_group": sam_group,
     }
+
+
+def grant_group(unix_user: str, hostname: str, group: str, admin_id: str) -> dict:
+    """Assign a SAM sudo group to a unix_user on a server."""
+    if group not in VALID_SAM_GROUPS:
+        raise UserError(f"Invalid SAM group: '{group}'. Must be one of: {', '.join(VALID_SAM_GROUPS)}")
+    server = db.query_one(
+        "SELECT id, ip_address, ssh_port FROM servers WHERE hostname = %s AND is_active = true",
+        (hostname,),
+    )
+    if not server:
+        raise NotFoundError(f"Server not found or inactive: {hostname}")
+    active = db.query_one(
+        "SELECT 1 FROM key_authorizations WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
+        (server["id"], unix_user),
+    )
+    if not active:
+        raise UserError(f"No active key deployment for user '{unix_user}' on {hostname}")
+    ssh.grant_group_on_server(hostname, unix_user, group, server["ip_address"], port=server["ssh_port"])
+    db.execute(
+        "UPDATE key_authorizations SET sam_group = %s WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
+        (group, server["id"], unix_user),
+    )
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, target_server, details)
+        VALUES ('GROUP_GRANTED', %s, %s, %s::jsonb)
+        """,
+        (admin_id, server["id"], json.dumps({"unix_user": unix_user, "group": group, "hostname": hostname})),
+    )
+    return {"unix_user": unix_user, "hostname": hostname, "sam_group": group}
+
+
+def revoke_group(unix_user: str, hostname: str, admin_id: str) -> dict:
+    """Remove the SAM sudo group from a unix_user on a server."""
+    server = db.query_one(
+        "SELECT id, ip_address, ssh_port FROM servers WHERE hostname = %s AND is_active = true",
+        (hostname,),
+    )
+    if not server:
+        raise NotFoundError(f"Server not found or inactive: {hostname}")
+    row = db.query_one(
+        "SELECT sam_group FROM key_authorizations WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE' AND sam_group IS NOT NULL",
+        (server["id"], unix_user),
+    )
+    if not row:
+        raise UserError(f"User '{unix_user}' on {hostname} has no SAM group assigned")
+    current_group = row["sam_group"]
+    ssh.revoke_group_on_server(hostname, unix_user, current_group, server["ip_address"], port=server["ssh_port"])
+    db.execute(
+        "UPDATE key_authorizations SET sam_group = NULL WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
+        (server["id"], unix_user),
+    )
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, target_server, details)
+        VALUES ('GROUP_REVOKED', %s, %s, %s::jsonb)
+        """,
+        (admin_id, server["id"], json.dumps({"unix_user": unix_user, "group": current_group, "hostname": hostname})),
+    )
+    return {"unix_user": unix_user, "hostname": hostname, "sam_group": None}
+
+
+def change_group(unix_user: str, hostname: str, new_group: str, admin_id: str) -> dict:
+    """Change the SAM sudo group of a unix_user on a server."""
+    if new_group not in VALID_SAM_GROUPS:
+        raise UserError(f"Invalid SAM group: '{new_group}'. Must be one of: {', '.join(VALID_SAM_GROUPS)}")
+    server = db.query_one(
+        "SELECT id, ip_address, ssh_port FROM servers WHERE hostname = %s AND is_active = true",
+        (hostname,),
+    )
+    if not server:
+        raise NotFoundError(f"Server not found or inactive: {hostname}")
+    row = db.query_one(
+        "SELECT sam_group FROM key_authorizations WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
+        (server["id"], unix_user),
+    )
+    if not row:
+        raise UserError(f"No active key deployment for user '{unix_user}' on {hostname}")
+    old_group = row["sam_group"]
+    if old_group == new_group:
+        return {"unix_user": unix_user, "hostname": hostname, "sam_group": new_group}
+    if old_group:
+        ssh.revoke_group_on_server(hostname, unix_user, old_group, server["ip_address"], port=server["ssh_port"])
+    ssh.grant_group_on_server(hostname, unix_user, new_group, server["ip_address"], port=server["ssh_port"])
+    db.execute(
+        "UPDATE key_authorizations SET sam_group = %s WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
+        (new_group, server["id"], unix_user),
+    )
+    db.execute(
+        """
+        INSERT INTO audit_log (action, performed_by, target_server, details)
+        VALUES ('GROUP_CHANGED', %s, %s, %s::jsonb)
+        """,
+        (admin_id, server["id"], json.dumps({
+            "unix_user": unix_user, "old_group": old_group, "new_group": new_group, "hostname": hostname,
+        })),
+    )
+    return {"unix_user": unix_user, "hostname": hostname, "sam_group": new_group}
 
 
 def approve_request(request_id: str, admin_id: str) -> None:

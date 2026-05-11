@@ -390,6 +390,8 @@
     "publicKey": "Öffentlicher Schlüssel",
     "publicKeyPlaceholder": "ssh-ed25519 AAAA...",
     "server": "Zielserver",
+    "samGroup": "SAM-Sudo-Gruppe (optional)",
+    "samGroupPlaceholder": "Keine Gruppe (Standard)",
     "justification": "Begründung",
     "justificationPlaceholder": "Zugriffsgrund",
     "submit": "Schlüssel bereitstellen",
@@ -398,6 +400,7 @@
     "successFingerprint": "Fingerabdruck",
     "successUser": "Unix-Benutzer",
     "successExpiry": "Läuft ab am",
+    "successGroup": "SAM-Gruppe",
     "unlimited": "Unbegrenzt",
     "errorMissingFields": "Alle Felder sind erforderlich",
     "newDeploy": "Neue Bereitstellung"
@@ -418,9 +421,11 @@
     "col_server": "Server",
     "col_ip": "IP",
     "col_expires": "Läuft ab",
+    "col_group": "Gruppe",
     "col_status": "Status",
     "col_actions": "Aktionen",
     "unlimited": "Unbegrenzt",
+    "group_none": "Keine",
     "status_active": "Aktiv",
     "status_locked": "Gesperrt",
     "filter_name_placeholder": "Nach Name suchen…",
@@ -432,7 +437,15 @@
     "lock_success": "Konto '{user}' gesperrt auf {server}.",
     "unlock_success": "Konto '{user}' entsperrt auf {server}.",
     "lock_error": "Sperrung fehlgeschlagen: {error}",
-    "unlock_error": "Entsperrung fehlgeschlagen: {error}"
+    "unlock_error": "Entsperrung fehlgeschlagen: {error}",
+    "btn_group": "Gruppe",
+    "group_modal_title": "SAM-Gruppe verwalten",
+    "group_current": "Aktuelle Gruppe",
+    "group_new": "Neue Gruppe",
+    "group_confirm": "Anwenden",
+    "group_cancel": "Abbrechen",
+    "group_success": "Gruppe für '{user}' auf {server} aktualisiert",
+    "group_error": "Gruppenänderung fehlgeschlagen: {error}"
   },
   "pagination": {
     "rowsPerPage": "Zeilen pro Seite",
@@ -473,5 +486,15 @@
   },
   "smtp_banner": {
     "message": "E-Mail-Benachrichtigungen sind deaktiviert — konfigurieren Sie die SMTP-Einstellungen, um Benachrichtigungen zu aktivieren."
+  },
+  "samGroup": {
+    "none": "Keine",
+    "sam-operator": "sam-operator",
+    "sam-pkg": "sam-pkg",
+    "sam-root": "sam-root",
+    "warn_none": "Entfernt alle Sudo-Rechte für diesen Benutzer.",
+    "warn_operator": "Die Operator-Gruppe erlaubt: schreibgeschützte Diagnose (Logs, systemctl-Status, journalctl). Kann den Systemzustand nicht ändern.",
+    "warn_pkg": "Die pkg-Gruppe ermöglicht die Paketverwaltung (installieren, aktualisieren, entfernen) und alle Operator-Befehle. Mit Vorsicht verwenden.",
+    "warn_root": "WARNUNG: Die Root-Gruppe gewährt vollen Root-Zugriff über sudo. Nur vertrauenswürdigen Systemadministratoren zuweisen."
   }
 }

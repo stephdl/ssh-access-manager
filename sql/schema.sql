@@ -169,6 +169,8 @@ CREATE TABLE key_authorizations (
     revoked_automatically    BOOLEAN DEFAULT false,
     -- Justification for revocation or anomaly description
     revocation_justification TEXT,
+    -- SAM sudo group assigned to the unix user on this server (NULL = no group)
+    sam_group                VARCHAR(20) CHECK (sam_group IN ('sam-operator', 'sam-pkg', 'sam-root')),
     -- Composite primary key: one key per unix user per server
     PRIMARY KEY (key_id, server_id, unix_user)
 );
@@ -272,7 +274,10 @@ CREATE TABLE audit_log (
                       'LOGIN_BANNED',
                       'PASSWORD_RESET',
                       'SERVER_PROVISIONED',
-                      'SESSION_LIMIT_EXCEEDED'
+                      'SESSION_LIMIT_EXCEEDED',
+                      'GROUP_GRANTED',
+                      'GROUP_REVOKED',
+                      'GROUP_CHANGED'
                   )),
     -- Administrator who triggered the action (NULL if automatic)
     performed_by  UUID REFERENCES administrators(id) ON DELETE SET NULL,
