@@ -167,7 +167,7 @@ if [ -z "$home" ]; then
 fi
 
 if [ -n "$TMPPASS" ]; then
-    printf 'Temporary password: %s\\nRun passwd to change it, then delete this file.\\n' "$TMPPASS" > "${home}/README_first_login.txt"
+    printf 'Temporary password: %s\\nType it below as "Current password" to set your permanent password.\\n' "$TMPPASS" > "${home}/README_first_login.txt"
     chmod 600 "${home}/README_first_login.txt"
     chown "${TARGET_USER}:${TARGET_USER}" "${home}/README_first_login.txt"
     profile="${home}/.profile"
