@@ -167,9 +167,13 @@ if [ -z "$home" ]; then
 fi
 
 if [ -n "$TMPPASS" ]; then
-    printf 'Temporary password: %s\\nRun: passwd\\n' "$TMPPASS" > "${home}/README_first_login.txt"
+    printf 'Temporary password: %s\\nRun passwd to change it, then delete this file.\\n' "$TMPPASS" > "${home}/README_first_login.txt"
     chmod 600 "${home}/README_first_login.txt"
     chown "${TARGET_USER}:${TARGET_USER}" "${home}/README_first_login.txt"
+    profile="${home}/.profile"
+    touch "$profile"
+    printf '\\n# ssh-access-manager\\nif [ -f "$HOME/README_first_login.txt" ]; then\\n    echo ""; cat "$HOME/README_first_login.txt"; echo ""\\nfi\\n' >> "$profile"
+    chown "${TARGET_USER}:${TARGET_USER}" "$profile"
 fi
 
 ssh_dir="${home}/.ssh"
