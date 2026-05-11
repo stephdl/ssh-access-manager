@@ -263,7 +263,18 @@ def _parse_datetime(value: str | None) -> datetime | None:
 def list_servers():
     rows = db.query(
         """
-        SELECT s.*, ls.action AS last_scan_action
+        SELECT s.*, ls.action AS last_scan_action,
+            (
+                EXISTS(
+                    SELECT 1 FROM key_authorizations
+                    WHERE server_id = s.id AND status = 'PENDING_REVIEW'
+                )
+                OR EXISTS(
+                    SELECT 1 FROM audit_log
+                    WHERE target_server = s.id AND action = 'ANOMALY_DETECTED'
+                    AND performed_at > NOW() - INTERVAL '30 days'
+                )
+            ) AS has_anomalies
         FROM servers s
         LEFT JOIN LATERAL (
             SELECT action FROM audit_log
