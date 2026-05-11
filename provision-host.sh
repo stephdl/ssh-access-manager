@@ -88,28 +88,34 @@ DMESG=$(_bin dmesg)
 LSOF=$(_bin lsof)
 DU=$(_bin du)
 
+# Write both the bare command and the wildcard variant so users can omit arguments
+_rule() {
+    local file="$1" group="$2" cmd="$3"
+    printf "%%${group} ALL=(root) ${cmd}\n"     >> "${file}"
+    printf "%%${group} ALL=(root) ${cmd} *\n"   >> "${file}"
+}
+
 # 7. Sudoers for sam-operator
 OP_FILE="/etc/sudoers.d/sam-operator"
 printf "# ssh-access-manager — sam-operator sudo rights\n" > "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${SYSTEMCTL} restart *\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${SYSTEMCTL} reload *\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${SYSTEMCTL} status *\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${SYSTEMCTL} start *\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${JOURNALCTL} -u *\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${JOURNALCTL} -f\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${JOURNALCTL} -f *\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${JOURNALCTL} -n *\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${JOURNALCTL} --since *\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${JOURNALCTL} -b *\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${JOURNALCTL} -e *\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${SS} -tlnp\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${DMESG}\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${LSOF}\n" >> "${OP_FILE}.tmp"
-printf "%%sam-operator ALL=(root) ${LSOF} -i\n" >> "${OP_FILE}.tmp"
+_rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} restart"
+_rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} reload"
+_rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} status"
+_rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} start"
+_rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -u"
+_rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -f"
+_rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -n"
+_rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} --since"
+_rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -b"
+_rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -e"
+printf "%%sam-operator ALL=(root) ${SS} -tlnp\n"                    >> "${OP_FILE}.tmp"
+printf "%%sam-operator ALL=(root) ${DMESG}\n"                       >> "${OP_FILE}.tmp"
+printf "%%sam-operator ALL=(root) ${LSOF}\n"                        >> "${OP_FILE}.tmp"
+printf "%%sam-operator ALL=(root) ${LSOF} -i\n"                     >> "${OP_FILE}.tmp"
 printf "%%sam-operator ALL=(root) ${DU} -sh /var/* /opt/* /home/*\n" >> "${OP_FILE}.tmp"
 for bin in runagent api-cli; do
     bin_path=$(_bin "$bin")
-    [ -x "$bin_path" ] && printf "%%sam-operator ALL=(root) ${bin_path} *\n" >> "${OP_FILE}.tmp"
+    [ -x "$bin_path" ] && _rule "${OP_FILE}.tmp" "sam-operator" "${bin_path}"
 done
 install -m 440 "${OP_FILE}.tmp" "${OP_FILE}"
 rm -f "${OP_FILE}.tmp"
@@ -118,56 +124,55 @@ echo "[provision] Sudoers sam-operator configured in ${OP_FILE}."
 # 8. Sudoers for sam-pkg (sam-operator commands + package manager)
 PKG_FILE="/etc/sudoers.d/sam-pkg"
 printf "# ssh-access-manager — sam-pkg sudo rights\n" > "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${SYSTEMCTL} restart *\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${SYSTEMCTL} reload *\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${SYSTEMCTL} status *\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${SYSTEMCTL} start *\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${JOURNALCTL} -u *\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${JOURNALCTL} -f\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${JOURNALCTL} -f *\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${JOURNALCTL} -n *\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${JOURNALCTL} --since *\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${JOURNALCTL} -b *\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${JOURNALCTL} -e *\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${SS} -tlnp\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${DMESG}\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${LSOF}\n" >> "${PKG_FILE}.tmp"
-printf "%%sam-pkg ALL=(root) ${LSOF} -i\n" >> "${PKG_FILE}.tmp"
+_rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"
+_rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} reload"
+_rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} status"
+_rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} start"
+_rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -u"
+_rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -f"
+_rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -n"
+_rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} --since"
+_rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -b"
+_rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -e"
+printf "%%sam-pkg ALL=(root) ${SS} -tlnp\n"                    >> "${PKG_FILE}.tmp"
+printf "%%sam-pkg ALL=(root) ${DMESG}\n"                       >> "${PKG_FILE}.tmp"
+printf "%%sam-pkg ALL=(root) ${LSOF}\n"                        >> "${PKG_FILE}.tmp"
+printf "%%sam-pkg ALL=(root) ${LSOF} -i\n"                     >> "${PKG_FILE}.tmp"
 printf "%%sam-pkg ALL=(root) ${DU} -sh /var/* /opt/* /home/*\n" >> "${PKG_FILE}.tmp"
 for bin in runagent api-cli; do
     bin_path=$(_bin "$bin")
-    [ -x "$bin_path" ] && printf "%%sam-pkg ALL=(root) ${bin_path} *\n" >> "${PKG_FILE}.tmp"
+    [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
 done
 # Package manager — detect distro
 if command -v apt >/dev/null 2>&1; then
     APT=$(_bin apt)
-    printf "%%sam-pkg ALL=(root) ${APT} install *\n" >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) ${APT} upgrade *\n" >> "${PKG_FILE}.tmp"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${APT} install"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${APT} upgrade"
 elif command -v dnf >/dev/null 2>&1; then
     DNF=$(_bin dnf)
-    printf "%%sam-pkg ALL=(root) ${DNF} install *\n" >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) ${DNF} upgrade *\n" >> "${PKG_FILE}.tmp"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${DNF} install"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${DNF} upgrade"
 elif command -v yum >/dev/null 2>&1; then
     YUM=$(_bin yum)
-    printf "%%sam-pkg ALL=(root) ${YUM} install *\n" >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) ${YUM} update *\n" >> "${PKG_FILE}.tmp"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${YUM} install"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${YUM} update"
 elif command -v zypper >/dev/null 2>&1; then
     ZYPPER=$(_bin zypper)
-    printf "%%sam-pkg ALL=(root) ${ZYPPER} install *\n" >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) ${ZYPPER} update *\n" >> "${PKG_FILE}.tmp"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${ZYPPER} install"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${ZYPPER} update"
 elif command -v apk >/dev/null 2>&1; then
     APK=$(_bin apk)
-    printf "%%sam-pkg ALL=(root) ${APK} add *\n" >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) ${APK} upgrade *\n" >> "${PKG_FILE}.tmp"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${APK} add"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${APK} upgrade"
 elif command -v pacman >/dev/null 2>&1; then
     PACMAN=$(_bin pacman)
-    printf "%%sam-pkg ALL=(root) ${PACMAN} -S *\n" >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) ${PACMAN} -Syu *\n" >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) ${PACMAN} -Sy *\n" >> "${PKG_FILE}.tmp"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -S"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -Syu"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -Sy"
 fi
 for bin in add-module remove-module; do
     bin_path="/usr/local/bin/$bin"
-    [ -x "$bin_path" ] && printf "%%sam-pkg ALL=(root) ${bin_path} *\n" >> "${PKG_FILE}.tmp"
+    [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
 done
 install -m 440 "${PKG_FILE}.tmp" "${PKG_FILE}"
 rm -f "${PKG_FILE}.tmp"
