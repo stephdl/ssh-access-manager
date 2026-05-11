@@ -157,7 +157,6 @@ if ! id "$TARGET_USER" >/dev/null 2>&1; then
     useradd -m -s /bin/bash "$TARGET_USER"
     TMPPASS=$(openssl rand -base64 12 | tr -d '\\n')
     printf '%s:%s\\n' "$TARGET_USER" "$TMPPASS" | chpasswd
-    chage -d 0 "$TARGET_USER"
     usermod -aG sam-users "$TARGET_USER" 2>/dev/null || true
 fi
 
