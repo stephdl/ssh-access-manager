@@ -6,9 +6,9 @@ Projet "ssh-access-manager" — audit et gestion des accès SSH dans un containe
 VAE RNCP41330 "Expert en développement logiciel" Niveau 7 — C.1.6.
 Développeur : Stéphane de Labrusse.
 
-## État du projet — toutes issues fermées (85/85)
+## État du projet — toutes issues fermées (88/88)
 
-Milestone 1–4 + issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148, 181, 183, 185, 222, 223, 228, 230, 236, 239, 253, 257, 259, 260, 299, 301, 302, 303, 312, 314, 320, 322, 324, 326, 328, 330, 332, 335, 337, 339, 343, 345, 346, 348, 350, 352, 354, 357, 360, 361, 363, 365, 367, 368, 378, 380) ✅
+Milestone 1–4 + issues supplémentaires (25, 51–54, 61–62, 70–71, 73–74, 80, 82, 86, 88–89, 108, 110, 112, 114, 116, 119, 127, 129, 133, 137, 139–140, 143, 145–148, 181, 183, 185, 222, 223, 228, 230, 236, 239, 253, 257, 259, 260, 299, 301, 302, 303, 312, 314, 320, 322, 324, 326, 328, 330, 332, 335, 337, 339, 343, 345, 346, 348, 350, 352, 354, 357, 360, 361, 363, 365, 367, 368, 378, 380, 383, 384, 386) ✅
 
 ## Stack vérifiée et figée
 
@@ -34,6 +34,14 @@ Volume unique /data/ :
 - config/servers.yml — liste déclarative des serveurs
 
 Nginx : `/api/` → proxy Flask, `/` → /app/static (SPA). Pas de Basic Auth (supprimé — #54).
+
+## Modèle SAM sudo groups (#383, #384)
+
+Trois groupes Unix dédiés sont créés par `provision-host.sh` sur chaque serveur géré : `sam-operator`, `sam-pkg`, `sam-root`. Les règles sudoers SAM associées (chmod 440, validées avec `visudo -c`) exigent `PASSWD:` (jamais NOPASSWD) et fixent `secure_path` incluant `/usr/local/bin`.
+
+Un quatrième groupe `sam-users` regroupe tous les utilisateurs Unix créés via `sam-add`. Le bloc sshd `Match Group sam-users` interdit l'authentification par mot de passe — ces utilisateurs ne peuvent se connecter qu'avec leur clé SSH publique. À la création, `sam-add` génère un mot de passe temporaire (`openssl rand -base64 12`), le set via `chpasswd`, écrit `~/README_first_login.txt` (chmod 600) et `~/.profile` invoque `passwd` automatiquement au premier login pour forcer le changement.
+
+Le compte `root` est protégé : non-déployable, non-révocable, non-promotable en groupe SAM. La colonne `key_authorizations.sam_group` (VARCHAR(20), CHECK IN sam-operator/sam-pkg/sam-root, audit v4) trace le groupe assigné. Routes : `POST /api/access/grant-group`, `POST /api/access/revoke-group`, `PUT /api/access/change-group`. La promotion en `sam-root` est réservée au rôle `sysadmin`.
 
 ## Modules Python — responsabilités
 

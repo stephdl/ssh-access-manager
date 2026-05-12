@@ -95,11 +95,17 @@ CREATE TABLE key_authorizations (
     revoked_by            UUID REFERENCES administrators(id) ON DELETE SET NULL,
     revoked_automatically BOOLEAN DEFAULT false,
     revocation_justification TEXT,
+    sam_group             VARCHAR(20)
+                              CHECK (sam_group IS NULL OR sam_group IN (
+                                  'sam-operator', 'sam-pkg', 'sam-root'
+                              )),
     PRIMARY KEY (key_id, server_id, unix_user)
 );
 ```
 
 **PK composite (key_id, server_id, unix_user)** — la même clé peut être ACTIVE pour `alice` et REVOKED pour `root` sur le même serveur (#185).
+
+**Colonne `sam_group`** (audit v4, #383) — NULL ou groupe sudo SAM assigné à l'utilisateur Unix. Migrations gérées par `bootstrap.sh` avec le superuser `postgres` (la contrainte CHECK ajoutée en v4 nécessite ALTER TABLE).
 
 ### access_requests
 ```sql
@@ -134,7 +140,8 @@ CREATE TABLE audit_log (
                      'ADMIN_DELETED', 'ADMIN_UPDATED',
                      'USER_LOCKED', 'USER_UNLOCKED',
                      'LOGIN_FAILED', 'LOGIN_BANNED', 'PASSWORD_RESET',
-                     'SERVER_PROVISIONED', 'SESSION_LIMIT_EXCEEDED'
+                     'SERVER_PROVISIONED', 'SESSION_LIMIT_EXCEEDED',
+                     'GROUP_GRANTED', 'GROUP_REVOKED', 'GROUP_CHANGED'
                  )),
     performed_by UUID REFERENCES administrators(id) ON DELETE SET NULL,
     target_key   UUID REFERENCES ssh_keys(id),

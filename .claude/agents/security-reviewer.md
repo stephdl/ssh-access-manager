@@ -28,10 +28,13 @@ Tu effectues des revues de sécurité sur le code du projet ssh-access-manager. 
 ### 2. Scripts distants (Critique)
 
 Vérifier dans `ssh.py` :
-- Les constantes `SAM_COLLECT`, `SAM_REVOKE`, `SAM_ADD`, `SAM_LOCK_USER`, `SAM_UNLOCK_USER`, `SAM_SESSIONS` sont des **`bytes` Python** (pas des strings ni des fichiers)
+- Les constantes `SAM_COLLECT`, `SAM_REVOKE`, `SAM_ADD`, `SAM_LOCK_USER`, `SAM_UNLOCK_USER`, `SAM_SESSIONS`, `SAM_GRANT_GROUP`, `SAM_REVOKE_GROUP` sont des **`bytes` Python** (pas des strings ni des fichiers)
 - Le déploiement se fait via SFTP dans le home du collector, puis `sudo /usr/bin/install -m 750 -o root -g root` (jamais `mv` + `chmod` séparés — atomique, #161)
 - `sam-revoke` utilise `mktemp` + `mv` atomique pour réécrire authorized_keys
 - Aucune injection de commande possible dans le fingerprint passé à sam-revoke
+- `sam-add` : mot de passe temporaire généré par `openssl rand -base64 12` (12 octets entropie ≈ 96 bits), set par `chpasswd` (jamais `passwd --stdin` ou `echo | passwd`). `~/README_first_login.txt` doit être `chmod 600` + `chown <user>:<user>`. **Pas de `passwd -d`** (créerait un compte sans mot de passe et bypass PAM nullok pour sudo)
+- `sam-grant-group` / `sam-revoke-group` : valident le groupe en argument contre une whitelist (`sam-operator|sam-pkg|sam-root`) avant toute action `gpasswd`
+- L'utilisateur créé par `sam-add` est **toujours** ajouté au groupe `sam-users` (via `usermod -aG sam-users`)
 
 ### 3. Injection et OWASP Top 10
 
@@ -78,15 +81,35 @@ ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-add *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-lock-user *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-sessions
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-grant-group *
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke-group *
 ```
 Aucune règle `ALL=(ALL) NOPASSWD: ALL` ou équivalent permissif.
 Généré avec `printf` ligne par ligne (résistant au CRLF PTY). Créé via `install -m 440` (évite ":" dans les args — #161).
+
+Pour les **règles sudoers des groupes SAM** (`sam-operator`, `sam-pkg`, `sam-root`, #383, #384) :
+- **`PASSWD:` obligatoire** — jamais `NOPASSWD:` (différent d'audit-collector). Toute occurrence `NOPASSWD:` dans un fichier `/etc/sudoers.d/sam-*` est une vulnérabilité CRITIQUE.
+- **`visudo -c <fichier-temp>` avant `install -m 440`** — une règle invalide ne doit jamais être installée.
+- `secure_path` explicite incluant `/usr/local/bin` pour résoudre `runagent`/`api-cli`.
+- Bloc `Match Group sam-users` dans `/etc/ssh/sshd_config.d/` avec `PasswordAuthentication no` + `KbdInteractiveAuthentication no` — les utilisateurs SAM ne peuvent **jamais** se connecter en SSH par mot de passe.
 
 ### 8. Audit trail — intégrité
 
 - Toute action sensible doit être tracée dans `audit_log`
 - Les actions de révocation doivent inclure `performed_by` et `details` JSONB
 - Vérifier que `ANOMALY_DETECTED` est bien émis dans les 3 scénarios d'anomalie (scénario 2 : révocation hors système, scénario 3 : clé inconnue, scénario 5 : clé réapparue)
+- Les actions SAM groups (`GROUP_GRANTED`, `GROUP_REVOKED`, `GROUP_CHANGED`) doivent être tracées avec `performed_by`, `target_server` et `details` incluant `unix_user` + `group`
+
+### 9. Protection du compte root (#386)
+
+Vérifier que les fonctions suivantes refusent toujours `unix_user == 'root'` (lèvent `UserError`) :
+- `actions.deploy_key()`
+- `actions.revoke_key()` (targeted ou global)
+- `actions.set_key_expiry()` / `actions.remove_key_expiry()` (targeted ou global)
+- `actions.grant_group()` / `actions.revoke_group()` / `actions.change_group()`
+- `actions.bulk_revoke_keys()` skippe automatiquement les fingerprints liés à root
+
+Vérifier que `expire_keys()` exclut `unix_user != 'root'` dans la requête SQL — sécurité contre toute révocation automatique du compte root.
 
 ## Format de rapport
 
