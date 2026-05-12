@@ -1329,18 +1329,70 @@ coûteuse en temps).
 
 ## 13. CI/CD — GitHub Actions
 
-### 8 workflows et leur rôle
+### 9 workflows et leur rôle
 
 ```
 .github/workflows/
-  ci.yml              ← 4 jobs qualité sur chaque PR
-  pr-title.yml        ← Validation titre PR (Conventional Commits)
-  build-pr.yml        ← Image Docker pr-{N} sur GHCR + scan Trivy CVE
-  build-main.yml      ← Image Docker :main à chaque merge
-  publish-release.yml ← Image semver stable/beta sur tag git
-  cleanup-pr.yml      ← Suppression image pr-{N} à fermeture PR
-  codeql.yml          ← Analyse statique sécurité Python (SAST)
+  ci.yml                       ← 4 jobs qualité sur chaque PR
+  pr-title.yml                 ← Validation titre PR (Conventional Commits)
+  build-pr.yml                 ← Image Docker pr-{N} sur GHCR + scan Trivy CVE
+  build-main.yml               ← Image Docker :main à chaque merge
+  publish-release.yml          ← Image semver stable/beta sur tag git
+  cleanup-pr.yml               ← Suppression image pr-{N} à fermeture PR
+  codeql.yml                   ← Analyse statique sécurité Python (SAST)
+  integration-provision.yml    ← Tests intégration provision-host.sh (Rocky + Debian)
 ```
+
+### `integration-provision.yml` — tests d'intégration multi-distros (#398)
+
+`provision-host.sh` pose la configuration SAM côté hôte distant en root (utilisateur `audit-collector`, sudoers, groupes `sam-*`, drop-in sshd `Match Group sam-users` durci). Une régression silencieuse (option `useradd` indisponible, binaire absent du PATH, syntaxe sudoers rejetée) casserait le provisioning sans qu'on s'en aperçoive avant la prod.
+
+Le workflow tourne sur **chaque PR**, sur chaque push main, et à la demande via `workflow_dispatch`. On n'utilise pas de filtre `paths` : le repo est public donc GitHub Actions est gratuit et illimité, et faire tourner les 4 jobs sur toutes les PRs apporte trois bénéfices culturels :
+
+- **Détection passive des régressions transversales** : un refactor de bash POSIX, un changement dans un agent, ou une PR qui touche `app/ssh.py` (constantes `SAM_*` déployées indirectement par `bootstrap`) peuvent casser le provisioning sans toucher `provision-host.sh`. Tourner systématiquement coupe court à cette ambiguïté.
+- **Détection des dérives upstream** : si Rocky 10.x ou Ubuntu 26.04.y reçoit une mise à jour qui change `/etc/skel` ou un défaut sshd, le prochain PR (même cosmétique) lèvera le drapeau rouge sur la cellule concernée.
+- **Signal visuel** : tout PR montre un badge vert « provisioning OK sur Rocky 9/10 + Debian 13 + Ubuntu 26.04 ». C'est une preuve permanente que l'infra reste saine.
+
+Matrice :
+
+| Image Docker | Famille | Skel | Package manager |
+|---|---|---|---|
+| `rockylinux/rockylinux:9` | RHEL | `.bash_profile` | `dnf` |
+| `rockylinux/rockylinux:10` | RHEL | `.bash_profile` | `dnf` |
+| `debian:13` | Debian | `.profile` | `apt` |
+| `ubuntu:26.04` | Debian | `.profile` | `apt` |
+| `opensuse/leap:15.6` | SUSE | `.profile` | `zypper` |
+| `opensuse/leap:16.0` | SUSE (etc-overlay) | `.profile` | `zypper` |
+| `archlinux:latest` | Arch | minimal | `pacman` |
+
+Chaque job lance le conteneur Docker correspondant et exécute `tests/integration/run.sh`. AlmaLinux n'est pas couverte explicitement car essentiellement un clone fonctionnel de Rocky. Alpine est différé — son base image utilise busybox (pas `useradd` ni `bash` par défaut) et demande `apk add shadow bash sudo openssh-server` upfront, donc un setup script dédié à ajouter si le besoin se présente.
+
+#### Maintenir la CI vivante face aux développements futurs
+
+Trois mécanismes assurent que cette CI reste alignée avec l'évolution du projet :
+
+1. **Exécution systématique** — pas de filtre `paths`. Le workflow tourne sur chaque PR, quelle que soit la zone touchée. Un dev ne peut donc pas modifier le projet sans que cette CI soit évaluée. Coût nul sur un repo public.
+2. **Branch protection requise** sur `main` (à activer manuellement dans GitHub Settings → Branches après le premier merge) — les jobs `rockylinux/rockylinux:9`, `rockylinux/rockylinux:10`, `debian:13` et `ubuntu:26.04` deviennent des required checks. Un PR qui ferait régresser le provisioning sur une distro ne peut plus être mergé.
+3. **Contrat documenté** dans `.claude/agents/infra-dev.md` : toute modification de `provision-host.sh` qui change le contrat (nouvelle règle sudoers, nouvelle directive sshd, nouveau groupe Unix, nouvelle constante `SAM_*` dans `app/ssh.py` également déployée par bootstrap) doit s'accompagner d'une mise à jour correspondante dans `tests/integration/run.sh` (nouvelle assertion) — sinon la PR sera bloquée par la review humaine ou (mieux) la CI mettra en évidence l'oubli en cassant.
+
+Pour étendre la matrice à une nouvelle distro plus tard, deux ajouts suffisent : une entrée dans la liste `image:` du workflow et un fichier `tests/integration/setup/<distro>.sh` qui installe les prérequis. La détection dans `run.sh` se base sur le champ `ID` de `/etc/os-release` et est déjà branchée pour `rocky`/`almalinux`/`debian`/`ubuntu` (RHEL et Debian families se factorisent sur les mêmes deux setup scripts).
+
+Le script `run.sh` enchaîne trois phases :
+
+1. **Bootstrap** : exécute `provision-host.sh` et vérifie 20+ assertions (user créé, 4 groupes Unix présents, sudoers `audit-collector`/`sam-operator`/`sam-pkg`/`sam-root` valides via `visudo -c`, permissions 440/600 conformes, drop-in sshd contient les 5 directives durcies, `sshd -t` OK, authorized_keys posée avec mode 600).
+2. **Idempotence** : rejoue `provision-host.sh` une seconde fois, vérifie qu'aucun fichier `.bak` ne traîne, que le contenu des sudoers n'a pas changé byte-à-byte, et que la clé collecteur n'est pas dupliquée dans `authorized_keys`.
+3. **Rollback négatif** : `tests/integration/fixtures/bad_sshd_config.sh` patche `SAM_SSHD_CONF` à la volée avec une directive invalide (`Port not-a-number`) via `sed -z`, exécute le script patché. Vérifie que le script exit non-zéro, que `sshd -t` détecte l'erreur, que le `.bak` de la version précédente est restauré, et qu'aucun `.bak` orphelin ne reste sur le disque.
+
+**Limites assumées** : pas de `systemd` dans Docker → `systemctl reload sshd` reste best-effort dans `provision-host.sh` (déjà gardé par `|| true`) ; on teste la **syntaxe** via `sshd -t`, pas le reload effectif (validé manuellement sur VM staging). L'orchestration paramiko côté SAM reste couverte par `pytest` avec mocks.
+
+**Reproduction locale** :
+
+```bash
+podman run --rm -v "$PWD":/repo:Z -w /repo --tmpfs /tmp rockylinux:9 bash tests/integration/run.sh
+podman run --rm -v "$PWD":/repo:Z -w /repo --tmpfs /tmp debian:13      bash tests/integration/run.sh
+```
+
+Sur Docker (non-rootless), retirer le `:Z` du volume.
 
 ### `ci.yml` — porte d'entrée qualité
 

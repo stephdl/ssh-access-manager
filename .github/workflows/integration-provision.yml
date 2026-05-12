@@ -1,0 +1,37 @@
+name: Integration — provision-host.sh
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          # RHEL family — covers .bash_profile skel + dnf
+          - rockylinux/rockylinux:9
+          - rockylinux/rockylinux:10
+          # Debian family — covers .profile skel + apt
+          - debian:13
+          - ubuntu:26.04
+          # SUSE family — covers zypper
+          - opensuse/leap:15.6
+          - opensuse/leap:16.0
+          # Arch — covers minimal skel + pacman
+          - archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run provisioning integration suite
+        run: |
+          docker run --rm \
+            -v "$PWD":/repo -w /repo \
+            --tmpfs /tmp \
+            ${{ matrix.image }} \
+            bash tests/integration/run.sh

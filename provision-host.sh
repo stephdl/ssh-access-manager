@@ -116,9 +116,26 @@ _install_sam_sshd_dropin() {
     SAM_SSHD_INSTALLED=1
 }
 
-if [ -d "$SSHD_D" ] && grep -qE "^Include.*sshd_config\.d" /etc/ssh/sshd_config 2>/dev/null; then
+# Use the drop-in directory whenever it is actually picked up by sshd. Some
+# distros expose the `Include /etc/ssh/sshd_config.d/*.conf` directive in
+# /etc/ssh/sshd_config (RHEL, Debian, Arch, openSUSE Leap 15), others ship
+# the vendor sshd_config under /usr/etc/ssh/sshd_config and leave /etc/ssh
+# empty for the admin to override (openSUSE Leap 16 / SLE 16). Trust the
+# include in either location.
+SSHD_DROPIN_ENABLED=0
+if [ -d "$SSHD_D" ]; then
+    for cfg in /etc/ssh/sshd_config /usr/etc/ssh/sshd_config; do
+        if [ -f "$cfg" ] && grep -qE "^Include.*sshd_config\.d" "$cfg" 2>/dev/null; then
+            SSHD_DROPIN_ENABLED=1
+            break
+        fi
+    done
+fi
+
+if [ "$SSHD_DROPIN_ENABLED" -eq 1 ]; then
     _install_sam_sshd_dropin
-elif ! grep -q "Match Group sam-users" /etc/ssh/sshd_config 2>/dev/null; then
+elif [ -f /etc/ssh/sshd_config ] && ! grep -q "Match Group sam-users" /etc/ssh/sshd_config 2>/dev/null; then
+    # Fallback for distros that don't ship a working sshd_config.d include.
     cp -p /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
     printf '\n# ssh-access-manager\n%s\n' "${SAM_SSHD_CONF}" >> /etc/ssh/sshd_config
     if ! "$SSHD_BIN" -t 2>/dev/null; then
@@ -129,6 +146,10 @@ elif ! grep -q "Match Group sam-users" /etc/ssh/sshd_config 2>/dev/null; then
     rm -f /etc/ssh/sshd_config.bak
     echo "[provision] /etc/ssh/sshd_config updated and validated by sshd -t."
     SAM_SSHD_INSTALLED=1
+elif [ ! -f /etc/ssh/sshd_config ] && [ ! -d "$SSHD_D" ]; then
+    echo "[provision] ERROR: neither /etc/ssh/sshd_config nor ${SSHD_D} exists" >&2
+    echo "[provision]        cannot pose the sam-users SSH restriction" >&2
+    exit 1
 fi
 # Reload sshd only when we just changed the config and it validated.
 if [ "$SAM_SSHD_INSTALLED" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then

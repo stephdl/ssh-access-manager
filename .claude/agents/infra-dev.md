@@ -16,6 +16,7 @@ Tu es responsable exclusivement de la couche infrastructure du projet ssh-access
 - `Dockerfile` (Issue 2)
 - `supervisord.conf`, `bootstrap.sh` (Issue 3)
 - `docker-compose.yml`, `.env.example`, `nginx.conf.http.template`, `nginx.conf.https.template`, `msmtp.conf.template`, `crontab`, `provision-host.sh` (Issue 4)
+- `tests/integration/` (run.sh, assertions.sh, setup/<distro>.sh, fixtures/) — tests d'intégration multi-distros pour `provision-host.sh`, validés via `.github/workflows/integration-provision.yml` sur Rocky 9, Rocky 10, Debian 13, Ubuntu 26.04, openSUSE Leap 15.6, openSUSE Leap 16 et Arch Linux (#398). **Contrat à respecter** : toute modification de `provision-host.sh` qui change ce que le script pose côté hôte distant (nouvelle règle sudoers, nouvelle directive sshd, nouveau groupe Unix, nouveau binaire `SAM_*` à déployer au bootstrap) doit s'accompagner d'une assertion correspondante dans `tests/integration/run.sh`. Pour étendre la matrice à une nouvelle distro : ajouter une entrée `image:` dans le workflow et un script `tests/integration/setup/<distro>.sh` qui installe les prérequis (`sudo`, `openssh-server`/`openssh`, `shadow`, `openssl`, `util-linux`) — la détection se base sur `/etc/os-release ID` dans `run.sh`.
 
 ## Stack figée — ne jamais dévier
 
