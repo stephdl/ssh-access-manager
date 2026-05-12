@@ -475,7 +475,7 @@ def force_provision_sync(hostname):
                 "error": str(exc), "error_code": exc.error_code, "manual": True
             })),
         )
-        return jsonify({"error": str(exc), "error_code": exc.error_code}), 502
+        return jsonify({"error": "Provision update failed", "error_code": exc.error_code}), 502
 
 
 def _serialize_session(row) -> dict:
