@@ -1347,7 +1347,13 @@ coûteuse en temps).
 
 `provision-host.sh` pose la configuration SAM côté hôte distant en root (utilisateur `audit-collector`, sudoers, groupes `sam-*`, drop-in sshd `Match Group sam-users` durci). Une régression silencieuse (option `useradd` indisponible, binaire absent du PATH, syntaxe sudoers rejetée) casserait le provisioning sans qu'on s'en aperçoive avant la prod.
 
-Le workflow tourne sur chaque PR touchant `provision-host.sh` ou `tests/integration/**`, et sur push main. Matrice :
+Le workflow tourne sur **chaque PR**, sur chaque push main, et à la demande via `workflow_dispatch`. On n'utilise pas de filtre `paths` : le repo est public donc GitHub Actions est gratuit et illimité, et faire tourner les 4 jobs sur toutes les PRs apporte trois bénéfices culturels :
+
+- **Détection passive des régressions transversales** : un refactor de bash POSIX, un changement dans un agent, ou une PR qui touche `app/ssh.py` (constantes `SAM_*` déployées indirectement par `bootstrap`) peuvent casser le provisioning sans toucher `provision-host.sh`. Tourner systématiquement coupe court à cette ambiguïté.
+- **Détection des dérives upstream** : si Rocky 10.x ou Ubuntu 26.04.y reçoit une mise à jour qui change `/etc/skel` ou un défaut sshd, le prochain PR (même cosmétique) lèvera le drapeau rouge sur la cellule concernée.
+- **Signal visuel** : tout PR montre un badge vert « provisioning OK sur Rocky 9/10 + Debian 13 + Ubuntu 26.04 ». C'est une preuve permanente que l'infra reste saine.
+
+Matrice :
 
 | Image Docker | Famille | Skel | Package manager |
 |---|---|---|---|
@@ -1362,7 +1368,7 @@ Chaque job lance le conteneur Docker correspondant et exécute `tests/integratio
 
 Trois mécanismes assurent que cette CI reste alignée avec l'évolution du projet :
 
-1. **Triggers path-based** — le workflow se déclenche automatiquement dès qu'une PR touche `provision-host.sh` ou `tests/integration/`. Un dev ne peut donc pas modifier le script sans voir la CI rouler immédiatement sur sa PR. Aucune action volontaire requise.
+1. **Exécution systématique** — pas de filtre `paths`. Le workflow tourne sur chaque PR, quelle que soit la zone touchée. Un dev ne peut donc pas modifier le projet sans que cette CI soit évaluée. Coût nul sur un repo public.
 2. **Branch protection requise** sur `main` (à activer manuellement dans GitHub Settings → Branches après le premier merge) — les jobs `rockylinux/rockylinux:9`, `rockylinux/rockylinux:10`, `debian:13` et `ubuntu:26.04` deviennent des required checks. Un PR qui ferait régresser le provisioning sur une distro ne peut plus être mergé.
 3. **Contrat documenté** dans `.claude/agents/infra-dev.md` : toute modification de `provision-host.sh` qui change le contrat (nouvelle règle sudoers, nouvelle directive sshd, nouveau groupe Unix, nouvelle constante `SAM_*` dans `app/ssh.py` également déployée par bootstrap) doit s'accompagner d'une mise à jour correspondante dans `tests/integration/run.sh` (nouvelle assertion) — sinon la PR sera bloquée par la review humaine ou (mieux) la CI mettra en évidence l'oubli en cassant.
 

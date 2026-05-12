@@ -2,12 +2,9 @@ name: Integration — provision-host.sh
 
 on:
   pull_request:
-    paths:
-      - 'provision-host.sh'
-      - 'tests/integration/**'
-      - '.github/workflows/integration-provision.yml'
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test:
