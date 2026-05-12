@@ -421,6 +421,8 @@ La route `GET /api/servers` expose désormais un champ booléen `has_anomalies` 
 
 La vue détail d'un serveur intègre un panneau lisant la configuration sshd **effective** du serveur audité et la confrontant à une policy de durcissement (inspirée des bonnes pratiques OpenSSH usuelles, sans claim de conformité à une norme spécifique). La feature est purement déclarative : aucune modification de la config du serveur n'est jamais effectuée par SAM.
 
+**Périmètre exact de l'audit** : `sudo sshd -T` (sans `-C user=...`) dump la configuration **globale** du démon, hors blocs `Match`. L'audit décrit donc le comportement de sshd pour les utilisateurs **hors `sam-users`** — typiquement `root`, comptes système et comptes créés manuellement par l'administrateur. Les utilisateurs SAM sont déjà couverts par le bloc `Match Group sam-users` posé par `provision-host.sh` (sous-section 6.7) qui force `AuthenticationMethods publickey` quelle que soit la valeur globale. Un statut `critical` sur `PasswordAuthentication` ici ne met donc pas en danger les comptes SAM, mais il signale que d'autres comptes du serveur (notamment `root`) peuvent se connecter par mot de passe.
+
 **Chaîne de lecture** :
 
 1. Une règle sudoers dédiée installée par `provision-host.sh` autorise `audit-collector` à exécuter **uniquement** `sshd -T` en tant que root (NOPASSWD, argument strict, pas de wildcard) :

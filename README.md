@@ -229,6 +229,8 @@ Si le scan d'un serveur échoue (SSH injoignable, sudo manquant, timeout…), le
 
 La vue détail d'un serveur affiche un panneau **SSH config audit** qui lit la configuration `sshd` effective de l'hôte (via `sudo sshd -T`, lecture seule, aucune modification effectuée par SAM) et la confronte à une politique de durcissement déclarative. Le panneau est disponible pour tous les rôles (sysadmin, operator, viewer).
 
+> **Important — périmètre de l'audit** : `sshd -T` retourne la configuration **globale** du démon (hors blocs `Match`). Cet audit décrit donc le comportement de sshd pour les utilisateurs qui ne sont **pas** membres du groupe `sam-users` : `root`, comptes système, comptes créés manuellement par l'administrateur hors SAM. Les utilisateurs SAM, eux, sont déjà couverts par le bloc `Match Group sam-users` posé par `provision-host.sh` (publickey-only, pas de mot de passe, pas de keyboard-interactive — voir section *Authentification SSH — publickey uniquement pour `sam-users`*). En clair : un voyant rouge ici ne met pas en danger les comptes SAM, mais il signale par exemple que `root` ou un compte legacy peut se connecter par mot de passe.
+
 ### Bandeau global
 
 Trois états possibles, calculés à chaque ouverture du panneau :
