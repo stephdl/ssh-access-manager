@@ -187,6 +187,8 @@ ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec sam-server cat /data/key
 
 > **Note** : La connexion SSH utilise toujours l'adresse IP déclarée, jamais la résolution DNS, pour éviter les ambiguïtés réseau.
 
+> **Astuce** : ce même snippet sert aussi pour **rejouer** `provision-host.sh` sur un serveur déjà géré (par exemple lors d'une migration vers une version SAM qui étend le contrat sudoers). Voir la section [Mettre à jour SAM](#mettre-à-jour-sam) ci-dessous.
+
 ---
 
 ## Workflow — Gestion du cycle de vie d'un serveur
@@ -222,6 +224,48 @@ Si le scan d'un serveur échoue (SSH injoignable, sudo manquant, timeout…), le
 - Bandeau orange en haut de la vue détail du serveur
 - Les boutons **Valider** et **Révoquer** sont désactivés jusqu'au prochain scan réussi
 - Une alerte email CRITIQUE est envoyée
+
+---
+
+## Mettre à jour SAM
+
+Quand vous mettez à jour SAM (rebuild de l'image, bump de version), trois cas de figure selon le contenu de la mise à jour.
+
+### 1. Mise à jour transparente (cas le plus fréquent)
+
+La plupart des releases ne modifient que la couche applicative Python ou le frontend Vue. Aucun changement côté hôtes gérés, rien à faire — il suffit de redémarrer le container SAM avec la nouvelle image.
+
+### 2. Mise à jour des scripts SAM_* (sam-collect, sam-revoke, sam-self-update, etc.)
+
+Si la nouvelle version modifie un script `SAM_*` déployé sur les hôtes (constantes `bytes` dans `app/ssh.py`), `ensure_scripts()` s'en rend compte au prochain scan en comparant les hashes SHA256 et redéploie automatiquement le script via SFTP + `sudo install -m 750`. Visible dans la vue Audit comme `SCRIPT_DEPLOYED`. **Aucune action admin requise.**
+
+### 3. Mise à jour du contrat sudoers ou sshd posé par provision-host.sh
+
+Si la nouvelle version étend `provision-host.sh` (nouvelle règle sudoers, nouveau groupe Unix, durcissement du drop-in sshd…), les serveurs déjà provisionnés ne se mettent **pas** à jour automatiquement. Ils sont signalés par le badge **« Reprovisionnement requis »** sur le Dashboard et listent une entrée `PROVISION_UPDATE_FAILED` dans l'audit log.
+
+**Pourquoi** : `audit-collector` n'a pas le droit de réécrire son propre fichier sudoers (par design — sinon une compromission de la clé donnerait root illimité). Une intervention root sur chaque serveur concerné est nécessaire **une seule fois** ; ensuite `sam-self-update` prend le relais automatiquement à chaque scan.
+
+Deux voies pour ce re-provisioning :
+
+**Option A — Via l'interface web (pratique pour ~5 serveurs)**
+
+Dashboard → cliquer sur le hostname → bouton **Re-provisionner** (rôle `sysadmin` requis). Le formulaire demande le mot de passe SSH root, qui sert une fois pour rejouer `provision-host.sh` puis n'est jamais stocké.
+
+**Option B — Scripté avec vos propres credentials (pour 50+ serveurs)**
+
+Si vous avez déjà une clé SSH d'admin déployée sur vos serveurs, vous pouvez rejouer `provision-host.sh` sans passer par l'UI ni saisir aucun mot de passe :
+
+```bash
+PUB=$(podman exec sam-server cat /data/keys/collector_key.pub)
+for ip in 192.168.1.10 192.168.1.11 192.168.1.12; do
+  ssh root@"$ip" "sudo bash -s '$PUB'" \
+    < <(podman exec sam-server cat /app/provision-host.sh)
+done
+```
+
+Cette commande SSH-e avec **votre** clé / ssh-agent, exécute `provision-host.sh` en root sur la cible, et n'introduit aucun secret côté SAM. Vous pouvez paralléliser avec GNU `parallel`, Ansible (`ansible -m shell -a "..."`), ou tout outil de CM que vous utilisez déjà.
+
+Au prochain scan suivant le re-provisioning, `sam-self-update` réussit, le badge disparaît, audit log écrit `PROVISION_UPDATED`. **Plus aucune action manuelle ne sera nécessaire** pour les mises à jour SAM ultérieures, tant que celles-ci ne changent pas à nouveau le contrat sudoers d'`audit-collector`.
 
 ---
 
