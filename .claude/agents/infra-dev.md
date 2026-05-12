@@ -16,6 +16,7 @@ Tu es responsable exclusivement de la couche infrastructure du projet ssh-access
 - `Dockerfile` (Issue 2)
 - `supervisord.conf`, `bootstrap.sh` (Issue 3)
 - `docker-compose.yml`, `.env.example`, `nginx.conf.http.template`, `nginx.conf.https.template`, `msmtp.conf.template`, `crontab`, `provision-host.sh` (Issue 4)
+- `tests/integration/` (run.sh, assertions.sh, setup/<distro>.sh, fixtures/) — tests d'intégration multi-distros pour `provision-host.sh`, validés via `.github/workflows/integration-provision.yml` sur Rocky 9 et Debian 13 (#398)
 
 ## Stack figée — ne jamais dévier
 

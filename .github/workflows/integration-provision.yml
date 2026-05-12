@@ -1,0 +1,31 @@
+name: Integration — provision-host.sh
+
+on:
+  pull_request:
+    paths:
+      - 'provision-host.sh'
+      - 'tests/integration/**'
+      - '.github/workflows/integration-provision.yml'
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - rockylinux:9
+          - debian:13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run provisioning integration suite
+        run: |
+          docker run --rm \
+            -v "$PWD":/repo -w /repo \
+            --tmpfs /tmp \
+            ${{ matrix.image }} \
+            bash tests/integration/run.sh

@@ -1329,18 +1329,42 @@ coûteuse en temps).
 
 ## 13. CI/CD — GitHub Actions
 
-### 8 workflows et leur rôle
+### 9 workflows et leur rôle
 
 ```
 .github/workflows/
-  ci.yml              ← 4 jobs qualité sur chaque PR
-  pr-title.yml        ← Validation titre PR (Conventional Commits)
-  build-pr.yml        ← Image Docker pr-{N} sur GHCR + scan Trivy CVE
-  build-main.yml      ← Image Docker :main à chaque merge
-  publish-release.yml ← Image semver stable/beta sur tag git
-  cleanup-pr.yml      ← Suppression image pr-{N} à fermeture PR
-  codeql.yml          ← Analyse statique sécurité Python (SAST)
+  ci.yml                       ← 4 jobs qualité sur chaque PR
+  pr-title.yml                 ← Validation titre PR (Conventional Commits)
+  build-pr.yml                 ← Image Docker pr-{N} sur GHCR + scan Trivy CVE
+  build-main.yml               ← Image Docker :main à chaque merge
+  publish-release.yml          ← Image semver stable/beta sur tag git
+  cleanup-pr.yml               ← Suppression image pr-{N} à fermeture PR
+  codeql.yml                   ← Analyse statique sécurité Python (SAST)
+  integration-provision.yml    ← Tests intégration provision-host.sh (Rocky + Debian)
 ```
+
+### `integration-provision.yml` — tests d'intégration multi-distros (#398)
+
+`provision-host.sh` pose la configuration SAM côté hôte distant en root (utilisateur `audit-collector`, sudoers, groupes `sam-*`, drop-in sshd `Match Group sam-users` durci). Une régression silencieuse (option `useradd` indisponible, binaire absent du PATH, syntaxe sudoers rejetée) casserait le provisioning sans qu'on s'en aperçoive avant la prod.
+
+Le workflow tourne sur chaque PR touchant `provision-host.sh` ou `tests/integration/**`, et sur push main. Matrice v1 : `rockylinux:9` (skel `.bash_profile`, `dnf`) et `debian:13` (skel `.profile`, `apt`). Chaque job lance le conteneur Docker correspondant et exécute `tests/integration/run.sh`. AlmaLinux/Ubuntu/openSUSE/Alpine/Arch sont différés à une v2.
+
+Le script `run.sh` enchaîne trois phases :
+
+1. **Bootstrap** : exécute `provision-host.sh` et vérifie 20+ assertions (user créé, 4 groupes Unix présents, sudoers `audit-collector`/`sam-operator`/`sam-pkg`/`sam-root` valides via `visudo -c`, permissions 440/600 conformes, drop-in sshd contient les 5 directives durcies, `sshd -t` OK, authorized_keys posée avec mode 600).
+2. **Idempotence** : rejoue `provision-host.sh` une seconde fois, vérifie qu'aucun fichier `.bak` ne traîne, que le contenu des sudoers n'a pas changé byte-à-byte, et que la clé collecteur n'est pas dupliquée dans `authorized_keys`.
+3. **Rollback négatif** : `tests/integration/fixtures/bad_sshd_config.sh` patche `SAM_SSHD_CONF` à la volée avec une directive invalide (`Port not-a-number`) via `sed -z`, exécute le script patché. Vérifie que le script exit non-zéro, que `sshd -t` détecte l'erreur, que le `.bak` de la version précédente est restauré, et qu'aucun `.bak` orphelin ne reste sur le disque.
+
+**Limites assumées** : pas de `systemd` dans Docker → `systemctl reload sshd` reste best-effort dans `provision-host.sh` (déjà gardé par `|| true`) ; on teste la **syntaxe** via `sshd -t`, pas le reload effectif (validé manuellement sur VM staging). L'orchestration paramiko côté SAM reste couverte par `pytest` avec mocks.
+
+**Reproduction locale** :
+
+```bash
+podman run --rm -v "$PWD":/repo:Z -w /repo --tmpfs /tmp rockylinux:9 bash tests/integration/run.sh
+podman run --rm -v "$PWD":/repo:Z -w /repo --tmpfs /tmp debian:13      bash tests/integration/run.sh
+```
+
+Sur Docker (non-rootless), retirer le `:Z` du volume.
 
 ### `ci.yml` — porte d'entrée qualité
 
