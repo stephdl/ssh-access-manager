@@ -10,7 +10,7 @@
           <label for="f-action">{{ $t('audit.filter_action') }}</label>
           <select id="f-action" v-model="filters.action">
             <option value="">{{ $t('audit.filter_all') }}</option>
-            <option v-for="a in ACTIONS" :key="a" :value="a">{{ a }}</option>
+            <option v-for="a in sortedActions" :key="a" :value="a">{{ a }}</option>
           </select>
         </div>
         <div class="field">
@@ -123,6 +123,7 @@ const props = defineProps({
   servers: { type: Array, default: () => [] },
 })
 
+// Keep aligned with audit_log_action_check_v7 in sql/schema.sql / bootstrap.sh
 const ACTIONS = [
   'KEY_ADDED',
   'KEY_REVOKED',
@@ -136,15 +137,41 @@ const ACTIONS = [
   'SCRIPT_DEPLOYED',
   'SERVER_ADDED',
   'SERVER_DISABLED',
+  'SERVER_UPDATED',
+  'SERVER_RENAMED',
+  'SERVER_PROVISIONED',
   'ADMIN_ADDED',
   'ADMIN_DISABLED',
+  'ADMIN_ENABLED',
+  'ADMIN_DELETED',
+  'ADMIN_UPDATED',
+  'USER_LOCKED',
+  'USER_UNLOCKED',
+  'LOGIN_FAILED',
+  'LOGIN_BANNED',
+  'PASSWORD_RESET',
+  'SESSION_LIMIT_EXCEEDED',
+  'GROUP_GRANTED',
+  'GROUP_REVOKED',
+  'GROUP_CHANGED',
+  'PROVISION_UPDATED',
+  'PROVISION_UPDATE_FAILED',
+  'COLLECTOR_KEY_GENERATED',
+  'COLLECTOR_KEY_ROTATED',
+  'COLLECTOR_KEY_ROTATION_FAILED',
 ]
+
+// Alphabetically sorted clone so future additions land in the right spot
+// in the dropdown without manual reordering.
+const sortedActions = [...ACTIONS].sort()
 
 const CRITICAL_ACTIONS = new Set([
   'ANOMALY_DETECTED',
   'SCAN_FAILED',
   'KEY_REVOKED',
   'PROVISION_UPDATE_FAILED',
+  'COLLECTOR_KEY_ROTATION_FAILED',
+  'LOGIN_BANNED',
 ])
 const WARNING_ACTIONS = new Set(['EXPIRY_WARNING', 'KEY_EXPIRED'])
 

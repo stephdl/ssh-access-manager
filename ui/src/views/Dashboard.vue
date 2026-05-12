@@ -44,15 +44,6 @@
       </div>
     </div>
 
-    <!-- Collector key -->
-    <div v-if="collectorKey" class="collector-key-block">
-      <span class="collector-key-label">{{ $t('dashboard.collector_key') }}</span>
-      <code class="collector-key-value">{{ collectorKey }}</code>
-      <button class="btn-copy" @click="copyKey(collectorKey, 'main')">
-        {{ copied === 'main' ? $t('dashboard.copied') : $t('dashboard.copy') }}
-      </button>
-    </div>
-
     <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
     <ServerTable
       v-else
@@ -231,9 +222,6 @@ const scanning = ref(false)
 const scanningHostname = ref(null)
 const error = ref('')
 const scanMessage = ref('')
-const collectorKey = ref('')
-const sshUser = ref('audit-collector')
-const copied = ref('')
 
 const showAddServer = ref(false)
 const adding = ref(false)
@@ -305,28 +293,6 @@ const addFormValid = computed(
     !isIpDuplicate(addForm.value.ip.trim()) &&
     addForm.value.sshUser.trim()
 )
-
-async function loadCollectorKey() {
-  try {
-    const res = await apiFetch('/api/system/collector-key')
-    if (res.ok) {
-      const data = await res.json()
-      collectorKey.value = data.public_key
-      if (data.ssh_user) sshUser.value = data.ssh_user
-    }
-  } catch (_) {}
-}
-
-async function copyKey(key, context) {
-  if (!key) return
-  try {
-    await navigator.clipboard.writeText(key)
-    copied.value = context
-    setTimeout(() => {
-      copied.value = ''
-    }, 2000)
-  } catch (_) {}
-}
 
 function openAddServer() {
   addForm.value = {
@@ -430,7 +396,6 @@ function openEditServer(server) {
 
 onMounted(() => {
   loadServers()
-  loadCollectorKey()
 })
 </script>
 
@@ -491,50 +456,6 @@ h1 {
 }
 .counter-total {
   border-left: 4px solid #0d6efd;
-}
-
-.collector-key-block {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 0.6rem 1rem;
-  margin-bottom: 1.25rem;
-  flex-wrap: wrap;
-}
-
-.collector-key-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.collector-key-value {
-  flex: 1;
-  font-size: 0.75rem;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.btn-copy {
-  background: #0d6efd;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 0.25rem 0.65rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s;
-}
-.btn-copy:hover {
-  background: #0b5ed7;
 }
 
 .loading {

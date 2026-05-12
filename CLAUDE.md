@@ -29,7 +29,8 @@ Supervisord orchestre :
 - busybox crond — scan + expiration toutes les X heures (priority=4)
 
 Volume unique /data/ :
-- keys/ — collector_key (chmod 600, chown nobody), collector_key.pub, known_hosts (chmod 644, chown nobody)
+- keys/per-server/ — keypairs ed25519 par serveur (`<uuid>.key{,.pub}`, chmod 600, chown nobody, commentaire SSH vide), répertoire chmod 700 (#402)
+- keys/known_hosts — chmod 644, chown nobody
 - pg/ — PGDATA (chown postgres:postgres, chmod 700)
 - config/servers.yml — liste déclarative des serveurs
 
@@ -42,6 +43,22 @@ Trois groupes Unix dédiés sont créés par `provision-host.sh` sur chaque serv
 Un quatrième groupe `sam-users` regroupe tous les utilisateurs Unix créés via `sam-add`. Le bloc sshd `Match Group sam-users` interdit l'authentification par mot de passe — ces utilisateurs ne peuvent se connecter qu'avec leur clé SSH publique. À la création, `sam-add` génère un mot de passe temporaire (`openssl rand -base64 12`), le set via `chpasswd`, écrit `~/README_first_login.txt` (chmod 600) et `~/.profile` invoque `passwd` automatiquement au premier login pour forcer le changement.
 
 Le compte `root` est protégé : non-déployable, non-révocable, non-promotable en groupe SAM. La colonne `key_authorizations.sam_group` (VARCHAR(20), CHECK IN sam-operator/sam-pkg/sam-root, audit v4) trace le groupe assigné. Routes : `POST /api/access/grant-group`, `POST /api/access/revoke-group`, `PUT /api/access/change-group`. La promotion en `sam-root` est réservée au rôle `sysadmin`.
+
+## Per-server collector SSH keys (#402)
+
+Plus de clé SSH globale. À l'ajout d'un serveur, SAM génère une paire ed25519 distincte stockée dans `/data/keys/per-server/<uuid>.key{,.pub}` (chmod 600, owner `nobody`, commentaire SSH vide pour anonymiser le fichier). Le mapping serveur ↔ clé est implicite via le nom de fichier (UUID v4 random) — pas de fingerprint stocké en base. Threat model : un vol de la BDD seule ne révèle aucune clé privée ; un vol du filesystem seul donne N fichiers anonymes non corrélables aux hôtes. Une exploitation utile exige donc **deux compromissions distinctes**.
+
+Workflows d'ajout (cf. README) :
+- **UI / CLI `servers add`** avec password : SAM provisionne tout, password jamais stocké
+- **CLI `servers register/show --pubkey/activate`** : 3 étapes pour pousser la pubkey avec sa propre clé SSH root (cloud-init, bulk)
+- Rotation manuelle atomique avec rollback via bouton **Rotate collector key** (sysadmin)
+- Audit dédié : `COLLECTOR_KEY_GENERATED`, `COLLECTOR_KEY_ROTATED`, `COLLECTOR_KEY_ROTATION_FAILED`
+
+`servers.is_provisioned BOOLEAN DEFAULT FALSE` distingue « registered, pas encore activé » de « actif ».
+
+## Hostname rename (#403)
+
+`actions.update_server(..., new_hostname=...)` accepte une nouvelle valeur de hostname, valide RFC 1123, refuse les doublons, écrit un audit `SERVER_RENAMED {old_hostname, new_hostname}`. Les entrées d'audit historiques ne sont jamais réécrites — elles préservent le hostname en vigueur au moment de l'événement. L'UI redirige automatiquement vers `/servers/<new>` après save (router-view `:key` force le remount).
 
 ## Modules Python — responsabilités
 

@@ -153,30 +153,27 @@ if [ "${_fail}" = "1" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Collector key guard — runs on every startup, no-op if key already exists.
-# Protects against partial restores where /data/pg/ is present but /data/keys/
-# is missing: bootstrap would skip first-startup block and leave no key.
+# /data/keys/ — per-server keypairs + known_hosts (must exist and be writable
+# by nobody, since Flask + crond scans both run as nobody)
 # ---------------------------------------------------------------------------
-if [ ! -f /data/keys/collector_key ]; then
-    echo "[bootstrap] Collector key missing — generating a new ED25519 key pair."
-    mkdir -p /data/keys
-    ssh-keygen -t ed25519 \
-        -f /data/keys/collector_key \
-        -N "" \
-        -C "ssh-access-manager@$(hostname)"
-    chown nobody:nobody /data/keys/collector_key /data/keys/collector_key.pub
-    chmod 600 /data/keys/collector_key
-    touch /data/keys/known_hosts
-    chown nobody:nobody /data/keys/known_hosts
-    chmod 644 /data/keys/known_hosts
-    echo ""
-    echo "================================================================"
-    echo " COLLECTOR PUBLIC KEY — deploy on each remote host"
-    echo " via: bash provision-host.sh \"<content below>\""
-    echo "================================================================"
-    cat /data/keys/collector_key.pub
-    echo "================================================================"
-    echo ""
+mkdir -p /data/keys/per-server
+chown nobody:nobody /data/keys /data/keys/per-server
+chmod 755 /data/keys
+chmod 700 /data/keys/per-server
+
+# known_hosts must be writable by Flask (nobody) for _fetch_host_key to append
+touch /data/keys/known_hosts
+chown nobody:nobody /data/keys/known_hosts
+chmod 644 /data/keys/known_hosts
+
+# ---------------------------------------------------------------------------
+# Legacy global key cleanup — remove the old global collector_key if present
+# (upgrade path from pre-per-server-keys architecture)
+# ---------------------------------------------------------------------------
+if [ -f /data/keys/collector_key ]; then
+    echo "[bootstrap] WARNING: Legacy global collector_key found — removing it."
+    echo "            Per-server keys are now stored in /data/keys/per-server/"
+    rm -f /data/keys/collector_key /data/keys/collector_key.pub
 fi
 
 # ---------------------------------------------------------------------------
@@ -274,27 +271,34 @@ else
     _psql "ALTER TABLE servers ADD COLUMN IF NOT EXISTS max_sessions INTEGER NOT NULL DEFAULT 2;"
     _psql "ALTER TABLE servers ADD COLUMN IF NOT EXISTS provision_version VARCHAR(64);"
     _psql "ALTER TABLE servers ADD COLUMN IF NOT EXISTS provision_drift BOOLEAN NOT NULL DEFAULT FALSE;"
+    _psql "ALTER TABLE servers ADD COLUMN IF NOT EXISTS is_provisioned BOOLEAN NOT NULL DEFAULT FALSE;"
     _psql "ALTER TABLE key_authorizations ADD COLUMN IF NOT EXISTS sam_group VARCHAR(20) CHECK (sam_group IN ('sam-operator', 'sam-pkg', 'sam-root'));"
+
+    # Mark existing active servers as provisioned (they have already passed the activate step)
+    _psql "UPDATE servers SET is_provisioned = TRUE WHERE is_active = TRUE AND is_provisioned = FALSE;"
 
     # Audit log action constraint — versioned, each version is a superset of the previous
     su -s /bin/sh postgres -c "psql -h /tmp -U postgres -d ${POSTGRES_DB:-ssh_manager} -c \
         \"DO \\\$\\\$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'audit_log_action_check_v5') THEN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'audit_log_action_check_v7') THEN
+                ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check_v6;
+                ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check_v5;
                 ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check_v4;
                 ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check_v3;
                 ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check_v2;
                 ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check;
-                ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check_v5 CHECK (action IN (
+                ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check_v7 CHECK (action IN (
                     'KEY_ADDED','KEY_REVOKED','KEY_EXPIRED','EXPIRY_WARNING',
                     'REQUEST_APPROVED','REQUEST_REJECTED','ANOMALY_DETECTED',
                     'SCAN_COMPLETED','SCAN_FAILED','SCRIPT_DEPLOYED',
-                    'SERVER_ADDED','SERVER_DISABLED','SERVER_UPDATED',
+                    'SERVER_ADDED','SERVER_DISABLED','SERVER_UPDATED','SERVER_RENAMED',
                     'ADMIN_ADDED','ADMIN_DISABLED','ADMIN_ENABLED','ADMIN_DELETED','ADMIN_UPDATED',
                     'USER_LOCKED','USER_UNLOCKED',
                     'LOGIN_FAILED','LOGIN_BANNED','PASSWORD_RESET',
                     'SERVER_PROVISIONED','SESSION_LIMIT_EXCEEDED',
                     'GROUP_GRANTED','GROUP_REVOKED','GROUP_CHANGED',
-                    'PROVISION_UPDATED','PROVISION_UPDATE_FAILED'
+                    'PROVISION_UPDATED','PROVISION_UPDATE_FAILED',
+                    'COLLECTOR_KEY_GENERATED','COLLECTOR_KEY_ROTATED','COLLECTOR_KEY_ROTATION_FAILED'
                 ));
             END IF;
         END \\\$\\\$;\""

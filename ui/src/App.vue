@@ -39,7 +39,7 @@
       <span>{{ $t('smtp_banner.message') }}</span>
     </div>
     <main class="content">
-      <router-view />
+      <router-view :key="$route?.fullPath" />
     </main>
   </div>
 </template>
@@ -340,11 +340,17 @@ tbody tr:hover {
 }
 
 .lang-wrapper::after {
+  /* Global input rule (background: var(--input-bg) !important) wins over
+     .lang-select, so the chevron must contrast with --text-primary, not
+     --navbar-text. */
   content: '▾';
   position: absolute;
-  right: 0.25rem;
-  font-size: 0.55rem;
-  color: var(--navbar-text);
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  line-height: 1;
+  color: var(--text-primary);
   pointer-events: none;
 }
 
@@ -352,13 +358,17 @@ tbody tr:hover {
   appearance: none;
   -webkit-appearance: none;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--navbar-text-inactive);
   color: var(--navbar-text);
   border-radius: 4px;
-  padding: 0.15rem 1.1rem 0.15rem 0.4rem;
+  padding: 0.15rem 1.4rem 0.15rem 0.5rem;
   font-size: 0.75rem;
   cursor: pointer;
   transition: border-color 0.2s;
+}
+
+.lang-select:hover {
+  border-color: var(--navbar-text);
 }
 
 .lang-select option {
@@ -557,6 +567,13 @@ button:disabled {
 .btn-purple:hover:not(:disabled) {
   background: #6d28d9;
 }
+.btn-teal {
+  background: #0d9488;
+  color: #fff;
+}
+.btn-teal:hover:not(:disabled) {
+  background: #0f766e;
+}
 
 .modal-header {
   display: flex;
@@ -598,7 +615,8 @@ button:disabled {
 .btn-danger,
 .btn-success,
 .btn-warning,
-.btn-purple {
+.btn-purple,
+.btn-teal {
   min-width: 6rem;
 }
 

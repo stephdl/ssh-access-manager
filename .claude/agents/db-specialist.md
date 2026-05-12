@@ -37,6 +37,7 @@ CREATE TABLE servers (
     max_sessions      INTEGER NOT NULL DEFAULT 2,
     provision_version VARCHAR(64),
     provision_drift   BOOLEAN NOT NULL DEFAULT FALSE,
+    is_provisioned    BOOLEAN NOT NULL DEFAULT FALSE,
     added_at          TIMESTAMPTZ DEFAULT now()
 );
 ```
@@ -44,6 +45,8 @@ CREATE TABLE servers (
 Index unique : `servers_ip_unique ON servers(ip_address)` — une IP ne peut appartenir qu'à un seul serveur actif ou désactivé.
 
 **Colonnes `provision_version` et `provision_drift`** (issue #400) — auto-update des scripts de provisioning. `provision_version` contient le SHA256 (ou prefix) du dernier déploiement réussi de `SAM_SELF_UPDATE`. `provision_drift` passe à TRUE quand l'invocation de `sam-self-update` retourne un exit non-zero (le serveur distant reste fonctionnel grâce au rollback automatique `.bak`).
+
+**Colonne `is_provisioned`** (issue #402) — TRUE si le serveur a été activé avec succès (SSH connectivity confirmée avec la per-server key). FALSE si le serveur a été créé via `register` (CLI bulk) mais que l'étape `activate` n'a pas encore été lancée. Différent de `is_active` (désactivé volontairement par un sysadmin). Un serveur peut être `is_active=TRUE, is_provisioned=FALSE` (créé via register, pas encore activé).
 
 ### administrators
 ```sql
@@ -146,7 +149,9 @@ CREATE TABLE audit_log (
                      'LOGIN_FAILED', 'LOGIN_BANNED', 'PASSWORD_RESET',
                      'SERVER_PROVISIONED', 'SESSION_LIMIT_EXCEEDED',
                      'GROUP_GRANTED', 'GROUP_REVOKED', 'GROUP_CHANGED',
-                     'PROVISION_UPDATED', 'PROVISION_UPDATE_FAILED'
+                     'PROVISION_UPDATED', 'PROVISION_UPDATE_FAILED',
+                     'COLLECTOR_KEY_GENERATED', 'COLLECTOR_KEY_ROTATED',
+                     'COLLECTOR_KEY_ROTATION_FAILED'
                  )),
     performed_by UUID REFERENCES administrators(id) ON DELETE SET NULL,
     target_key   UUID REFERENCES ssh_keys(id),
@@ -160,6 +165,8 @@ Jamais de UPDATE ni DELETE sur `audit_log` — journal immuable.
 `audit_retention_days` (settings) contrôle la purge automatique via `expire.py`.
 
 **Actions `PROVISION_UPDATED` et `PROVISION_UPDATE_FAILED`** (issue #400) — enregistrent le résultat d'une invocation de `sam-self-update`. Le champ `details` JSONB contient `{"version": "<sha256>", "stderr": "<error>"}` selon le cas. Ces actions utilisent l'index existant `idx_audit_log_action`.
+
+**Actions `COLLECTOR_KEY_GENERATED`, `COLLECTOR_KEY_ROTATED`, `COLLECTOR_KEY_ROTATION_FAILED`** (issue #402) — per-server collector keys. `COLLECTOR_KEY_GENERATED` est déclenché lors du `add_server` ou du `register`. `COLLECTOR_KEY_ROTATED` est déclenché lors d'une rotation manuelle réussie (bouton ServerDetail). `COLLECTOR_KEY_ROTATION_FAILED` est déclenché si la rotation échoue (rollback effectué). Le champ `details` JSONB contient `{"server_id": "<uuid>", "fingerprint": "<sha256>"}` pour `_GENERATED` et `_ROTATED`, et `{"server_id": "<uuid>", "error": "<msg>", "error_code": "<code>"}` pour `_ROTATION_FAILED`.
 
 ### settings
 ```sql

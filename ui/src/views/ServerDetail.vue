@@ -40,6 +40,13 @@
           {{ $t('server_detail.reprovision') }}
         </button>
         <button
+          v-if="server.is_active && server.is_provisioned && currentRole === 'sysadmin'"
+          class="btn-teal"
+          @click="openRotateKey"
+        >
+          {{ $t('server_detail.rotate_key') }}
+        </button>
+        <button
           v-if="currentRole === 'sysadmin'"
           class="btn-danger"
           @click="showDeleteModal = true"
@@ -107,7 +114,34 @@
               {{ $t('server_detail.reprovision_needed') }}
             </span>
           </dd>
+          <dt>{{ $t('server_detail.field_collector_fingerprint') }}</dt>
+          <dd>
+            <code
+              class="fingerprint"
+              :title="server.collector_fingerprint || ''"
+              style="font-family: monospace"
+            >
+              {{ shortFingerprint }}
+            </code>
+            <button
+              v-if="server.collector_fingerprint"
+              class="btn-sm btn-secondary"
+              @click="copyPublicKey"
+              :title="$t('server_detail.copy_public_key')"
+              style="margin-left: 0.5rem"
+            >
+              {{ $t('server_detail.copy_public_key') }}
+            </button>
+          </dd>
         </dl>
+        <details v-if="server.hostname && server.ip_address" class="manual-provision">
+          <summary>{{ $t('server_detail.manual_provision_title') }}</summary>
+          <p class="hint">{{ $t('server_detail.manual_provision_hint') }}</p>
+          <pre class="snippet">{{ manualProvisionSnippet }}</pre>
+          <button class="btn-sm btn-secondary" @click="copySnippet">
+            {{ copiedSnippet ? $t('dashboard.copied') : $t('dashboard.copy') }}
+          </button>
+        </details>
       </section>
 
       <!-- SSH Sessions -->
@@ -313,7 +347,32 @@
       </div>
     </div>
 
-    <EditServerModal v-model="showEditModal" :server="server" @saved="load" />
+    <EditServerModal v-model="showEditModal" :server="server" @saved="onServerSaved" />
+
+    <!-- Rotate key modal -->
+    <div v-if="showRotateKeyModal" class="modal-overlay" @click.self="showRotateKeyModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>{{ $t('server_detail.rotate_key_confirm_title') }}</h3>
+          <button class="modal-close" @click="showRotateKeyModal = false" aria-label="Close">
+            &#x2715;
+          </button>
+        </div>
+        <div v-if="rotateError" class="alert-error">{{ rotateError }}</div>
+        <p class="hint">{{ $t('server_detail.rotate_key_confirm_message') }}</p>
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="showRotateKeyModal = false">
+            {{ $t('common.cancel') }}
+          </button>
+          <button class="btn-primary" :disabled="rotating" @click="confirmRotateKey">
+            <Spinner v-if="rotating" />
+            {{
+              rotating ? $t('server_detail.rotate_key_in_progress') : $t('server_detail.rotate_key')
+            }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Re-provision modal -->
     <div
@@ -435,6 +494,11 @@ const reprovisionError = ref('')
 const reprovisionForm = ref({ sshUser: 'root', sshPassword: '', sshPort: 22 })
 const showReprovisionPassword = ref(false)
 
+const showRotateKeyModal = ref(false)
+const rotating = ref(false)
+const rotateError = ref('')
+const copiedSnippet = ref(false)
+
 const revokeTarget = ref(null)
 const revokeReason = ref('')
 const bulkRevokeFingerprints = ref(null)
@@ -455,8 +519,32 @@ const expiryValid = computed(() => {
   return !!expiryDate.value
 })
 
+const shortFingerprint = computed(() => {
+  if (!server.value.collector_fingerprint) return '—'
+  return server.value.collector_fingerprint.substring(0, 12) + '...'
+})
+
+const manualProvisionSnippet = computed(() => {
+  const h = server.value.hostname || '<hostname>'
+  const ip = server.value.ip_address || '<ip>'
+  return `# Bootstrap with your own SSH credentials:
+PUB=$(podman exec sam-server python3 /app/app/manage.py servers show ${h} --pubkey)
+ssh root@${ip} "sudo bash -s '$PUB'" < <(podman exec sam-server cat /app/provision-host.sh)
+podman exec sam-server python3 /app/app/manage.py servers activate ${h}`
+})
+
 function openEdit() {
   showEditModal.value = true
+}
+
+async function onServerSaved(payload) {
+  const newHostname = payload?.hostname
+  if (newHostname && newHostname !== hostname) {
+    // Hostname was renamed: navigate to the new URL (component remounts)
+    router.replace({ name: 'ServerDetail', params: { hostname: newHostname } })
+    return
+  }
+  await load()
 }
 
 async function load() {
@@ -721,6 +809,58 @@ function envBadge(env) {
   )
 }
 
+function openRotateKey() {
+  rotateError.value = ''
+  showRotateKeyModal.value = true
+}
+
+async function confirmRotateKey() {
+  rotating.value = true
+  rotateError.value = ''
+  try {
+    const res = await apiFetch(`/api/servers/${hostname}/rotate-key`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      if (res.status === 502) {
+        throw new Error(data.error || 'Bad Gateway — rotation failed')
+      }
+      throw new Error(data.error || `HTTP ${res.status}`)
+    }
+    showRotateKeyModal.value = false
+    message.value = t('server_detail.rotate_key_success', { fingerprint: data.fingerprint })
+    await load()
+  } catch (e) {
+    rotateError.value = e.message
+  } finally {
+    rotating.value = false
+  }
+}
+
+async function copyPublicKey() {
+  try {
+    const res = await apiFetch(`/api/servers/${hostname}/collector-key`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    await navigator.clipboard.writeText(data.public_key)
+    message.value = t('dashboard.copied')
+    setTimeout(() => {
+      message.value = ''
+    }, 2000)
+  } catch (e) {
+    error.value = e.message
+  }
+}
+
+async function copySnippet() {
+  try {
+    await navigator.clipboard.writeText(manualProvisionSnippet.value)
+    copiedSnippet.value = true
+    setTimeout(() => {
+      copiedSnippet.value = false
+    }, 2000)
+  } catch (_) {}
+}
+
 onMounted(load)
 </script>
 
@@ -927,5 +1067,37 @@ dd {
   font-size: 0.7rem;
   padding: 0.1rem 0.4rem;
   border-radius: 3px;
+}
+
+.manual-provision {
+  margin-top: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 1rem;
+  background: var(--bg-tertiary);
+}
+.manual-provision summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+.manual-provision .hint {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0.5rem 0;
+}
+.manual-provision .snippet {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.75rem;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0.75rem 0;
+}
+.fingerprint {
+  font-size: 0.8rem;
 }
 </style>

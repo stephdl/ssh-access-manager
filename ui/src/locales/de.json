@@ -33,7 +33,6 @@
     "status_scan_failed": "🟠 Scan fehlgeschlagen",
     "status_inactive": "🔴 Inaktiv",
     "status_total": "Gesamt",
-    "collector_key": "Öffentlicher Collector-Schlüssel",
     "copy": "Kopieren",
     "copied": "Kopiert!",
     "scan_success": "Scan von {hostname} gestartet.",
@@ -75,7 +74,7 @@
   },
   "edit_server": {
     "title": "Server bearbeiten",
-    "hostname": "Hostname (schreibgeschützt)",
+    "hostname": "Hostname",
     "ip": "IP-Adresse",
     "ip_placeholder": "z.B.: 192.168.1.10",
     "environment": "Umgebung",
@@ -86,7 +85,9 @@
     "max_sessions_label": "Max. Sitzungen",
     "max_sessions_hint": "Warnung wird gesendet, wenn die aktiven SSH-Sitzungen diesen Grenzwert überschreiten.",
     "submitting": "Speichern…",
-    "submit": "Speichern"
+    "submit": "Speichern",
+    "hostname_placeholder": "z.B. mein-server-01",
+    "error_duplicate_hostname": "Dieser Hostname wird bereits von einem anderen Server verwendet"
   },
   "server_table": {
     "search_placeholder": "Server suchen…",
@@ -170,7 +171,18 @@
     "bulk_revoked": "Schlüssel widerrufen: {revoked}, übersprungen: {skipped}",
     "root_revoke_warning": "Das Widerrufen des SSH-Schlüssels des Benutzers <strong>root</strong> kann zum dauerhaften Verlust des Fernzugriffs auf diesen Server führen.",
     "reprovision_needed": "Neu-Provisionierung erforderlich",
-    "reprovision_needed_tooltip": "Das automatische Update ist auf diesem Host fehlgeschlagen. Öffnen Sie die Serverdetails und klicken Sie auf Neu-Provisionieren, um die neue SAM-Konfiguration einzuspielen. Im Audit-Log finden Sie den genauen Fehler."
+    "reprovision_needed_tooltip": "Das automatische Update ist auf diesem Host fehlgeschlagen. Öffnen Sie die Serverdetails und klicken Sie auf Neu-Provisionieren, um die neue SAM-Konfiguration einzuspielen. Im Audit-Log finden Sie den genauen Fehler.",
+    "rotate_key": "Collector-Schlüssel rotieren",
+    "rotate_key_confirm_title": "Collector-Schlüssel rotieren",
+    "rotate_key_confirm_message": "Diese Operation generiert einen neuen serverspezifischen SSH-Schlüssel, stellt ihn auf dem Remote-Host bereit, überprüft die Konnektivität und entfernt dann den alten Schlüssel. Atomare Operation mit automatischem Rollback bei Fehler. Fortfahren?",
+    "rotate_key_in_progress": "Rotiere…",
+    "rotate_key_success": "Collector-Schlüssel erfolgreich rotiert. Neuer Fingerabdruck: {fingerprint}",
+    "rotate_key_failed": "Rotation fehlgeschlagen",
+    "rotate_key_retry": "Wiederholen",
+    "field_collector_fingerprint": "Fingerabdruck des Collector-Schlüssels",
+    "copy_public_key": "Öffentlichen Schlüssel kopieren",
+    "manual_provision_title": "Mit eigenen SSH-Zugangsdaten bereitstellen",
+    "manual_provision_hint": "Verwenden Sie diese Befehle, um den Server mit Ihrem eigenen SSH-Konto zu initialisieren. Ersetzen Sie 'podman' durch 'docker', falls nötig. Der Collector-Schlüssel wird vom Server abgerufen und dann über Ihre SSH-Sitzung bereitgestellt."
   },
   "key_table": {
     "col_status": "Status",

@@ -272,3 +272,267 @@ describe('ServerDetail — provision version display', () => {
     expect(w.find('.badge-drift').exists()).toBe(false)
   })
 })
+
+describe('ServerDetail — Rotate collector key', () => {
+  it('shows Rotate button only for sysadmin on active provisioned server', async () => {
+    const fetchSpy = vi.fn((url) => {
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    const rotateBtn = w.findAll('button').find((b) => b.text().includes('Rotate collector key'))
+    expect(rotateBtn).toBeDefined()
+  })
+
+  it('does not show Rotate button if server is not provisioned', async () => {
+    const fetchSpy = vi.fn((url) => {
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: false }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    const rotateBtn = w.findAll('button').find((b) => b.text().includes('Rotate collector key'))
+    expect(rotateBtn).toBeUndefined()
+  })
+
+  it('does not show Rotate button if server is inactive', async () => {
+    const fetchSpy = vi.fn((url) => {
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ...MOCK_SERVER, is_active: false, is_provisioned: true }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    const rotateBtn = w.findAll('button').find((b) => b.text().includes('Rotate collector key'))
+    expect(rotateBtn).toBeUndefined()
+  })
+
+  it('opens confirmation modal on Rotate click', async () => {
+    const fetchSpy = vi.fn((url) => {
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    const rotateBtn = w.findAll('button').find((b) => b.text().includes('Rotate collector key'))
+    await rotateBtn.trigger('click')
+    await w.vm.$nextTick()
+
+    expect(w.vm.showRotateKeyModal).toBe(true)
+    const modal = w.findAll('.modal').find((m) => m.text().includes('Rotate collector key'))
+    expect(modal).toBeDefined()
+  })
+
+  it('calls POST /rotate-key on confirm, shows success on 200', async () => {
+    const fetchSpy = vi.fn((url, opts) => {
+      if (url.includes('/rotate-key') && opts?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ status: 'rotated', fingerprint: 'SHA256:newfingerprint' }),
+        })
+      }
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys') && !url.includes('/rotate-key')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    w.vm.openRotateKey()
+    await w.vm.$nextTick()
+    await w.vm.confirmRotateKey()
+    await flushPromises()
+
+    const rotateCall = fetchSpy.mock.calls.find((c) => c[0].includes('/rotate-key'))
+    expect(rotateCall).toBeDefined()
+    expect(w.vm.showRotateKeyModal).toBe(false)
+    expect(w.vm.message).toContain('SHA256:newfingerprint')
+  })
+
+  it('shows error message on 502', async () => {
+    const fetchSpy = vi.fn((url, opts) => {
+      if (url.includes('/rotate-key') && opts?.method === 'POST') {
+        return Promise.resolve({
+          ok: false,
+          status: 502,
+          json: () => Promise.resolve({ error: 'SSH connection failed' }),
+        })
+      }
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys') && !url.includes('/rotate-key')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    w.vm.openRotateKey()
+    await w.vm.$nextTick()
+    await w.vm.confirmRotateKey()
+    await flushPromises()
+
+    expect(w.vm.rotateError).toContain('SSH connection failed')
+    expect(w.vm.showRotateKeyModal).toBe(true)
+  })
+
+  it('displays the fingerprint in info grid', async () => {
+    const fetchSpy = vi.fn((url) => {
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ...MOCK_SERVER, collector_fingerprint: 'SHA256:abc1234567890' }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    const infoGrid = w.find('.info-grid')
+    expect(infoGrid.text()).toContain('SHA256:abc12...')
+  })
+
+  it('copies public key on Copy button click', async () => {
+    const writeTextSpy = vi.fn(() => Promise.resolve())
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextSpy,
+      },
+    })
+
+    const fetchSpy = vi.fn((url) => {
+      if (url.includes('/collector-key')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ fingerprint: 'SHA256:xyz', public_key: 'ssh-ed25519 AAAA...' }),
+        })
+      }
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys') && !url.includes('/collector-key')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ...MOCK_SERVER, collector_fingerprint: 'SHA256:abc1234567890' }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    await w.vm.copyPublicKey()
+    await flushPromises()
+
+    expect(writeTextSpy).toHaveBeenCalledWith('ssh-ed25519 AAAA...')
+  })
+
+  it('shows manual provision snippet with correct hostname and IP', async () => {
+    const fetchSpy = vi.fn((url) => {
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ...MOCK_SERVER, hostname: 'test-server', ip_address: '10.0.0.1' }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    expect(w.vm.manualProvisionSnippet).toContain('test-server')
+    expect(w.vm.manualProvisionSnippet).toContain('10.0.0.1')
+    expect(w.vm.manualProvisionSnippet).toContain('podman exec sam-server')
+  })
+})

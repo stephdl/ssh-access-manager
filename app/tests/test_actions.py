@@ -2,7 +2,7 @@ import os
 import sys
 import uuid
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch, call, ANY
 
 import pytest
 
@@ -64,7 +64,7 @@ def test_actions_revoke_key_scenario1_calls_sam_revoke(sample_key):
         actions.revoke_key(sample_key["fingerprint"], ADMIN_ID, "test reason")
         mock_ssh.revoke_on_server.assert_called_once_with(
             "server-test-01", sample_key["fingerprint"], ip="192.168.1.10", port=22
-        )
+        , key_path=ANY)
 
 
 def test_actions_revoke_key_scenario1_sets_revoked_by_admin(sample_key):
@@ -108,7 +108,7 @@ def test_actions_revoke_key_scoped_calls_sam_revoke_with_unix_user(sample_key):
         mock_ssh.revoke_on_server.assert_called_once_with(
             "server-test-01", sample_key["fingerprint"],
             ip="192.168.1.10", unix_user="alice", port=22,
-        )
+         key_path=ANY)
 
 
 def test_actions_revoke_key_scoped_sets_revoked_for_unix_user_only(sample_key):
@@ -494,12 +494,12 @@ def test_actions_revoke_request_calls_sam_revoke():
         mock_db.query_one.side_effect = [
             req,
             {"fingerprint": "SHA256:abc"},
-            {"hostname": "server-test-01", "ip_address": "192.168.1.10", "ssh_port": 22},
+            {"id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10", "ssh_port": 22},
         ]
         actions.revoke_request(REQUEST_ID, ADMIN_ID)
         mock_ssh.revoke_on_server.assert_called_once_with(
             "server-test-01", "SHA256:abc", ip="192.168.1.10", port=22
-        )
+        , key_path=ANY)
 
 
 # ---------------------------------------------------------------------------
@@ -507,7 +507,9 @@ def test_actions_revoke_request_calls_sam_revoke():
 # ---------------------------------------------------------------------------
 
 def test_actions_add_server_logs_server_added(sample_server):
-    with patch("actions.db") as mock_db, patch("actions.ssh"):
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh._generate_keypair.return_value = ("/tmp/fake.key", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
+        mock_ssh._compute_pubkey_fingerprint.return_value = "SHA256:abc"
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         actions.add_server("new-host", "10.0.0.1", "root", "pass123", "lab", "rhel", 22, ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
@@ -519,6 +521,8 @@ def test_actions_add_server_provisions_before_insert(sample_server):
     call_order = []
     with patch("actions.db") as mock_db, \
          patch("actions.ssh") as mock_ssh:
+        mock_ssh._generate_keypair.return_value = ("/tmp/fake.key", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKey")
+        mock_ssh._compute_pubkey_fingerprint.return_value = "SHA256:abc"
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         mock_ssh.provision_server.side_effect = lambda *a, **kw: call_order.append("ssh")
         def track_execute(*args, **kwargs):
@@ -534,6 +538,7 @@ def test_actions_add_server_ssh_failure_no_db_write(sample_server):
     """If SSH provisioning fails, nothing is written to DB."""
     with patch("actions.db") as mock_db, \
          patch("actions.ssh") as mock_ssh:
+        mock_ssh._generate_keypair.return_value = ("/tmp/fake.key", "ssh-ed25519 AAAA")
         mock_db.query_one.return_value = None
         mock_ssh.provision_server.side_effect = RuntimeError("Auth failed")
         with pytest.raises(RuntimeError, match="Auth failed"):
@@ -544,7 +549,9 @@ def test_actions_add_server_ssh_failure_no_db_write(sample_server):
 def test_actions_add_server_logs_provisioned(sample_server):
     """SERVER_PROVISIONED audit entry must be created after success."""
     with patch("actions.db") as mock_db, \
-         patch("actions.ssh"):
+         patch("actions.ssh") as mock_ssh:
+        mock_ssh._generate_keypair.return_value = ("/tmp/fake.key", "ssh-ed25519 AAAA")
+        mock_ssh._compute_pubkey_fingerprint.return_value = "SHA256:abc"
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         actions.add_server("new-host", "10.0.0.1", "root", "pass", "lab", None, 22, ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
@@ -555,7 +562,9 @@ def test_actions_add_server_password_not_in_db(sample_server):
     """Password must never appear in any DB call."""
     secret = "SuperSecret123!"
     with patch("actions.db") as mock_db, \
-         patch("actions.ssh"):
+         patch("actions.ssh") as mock_ssh:
+        mock_ssh._generate_keypair.return_value = ("/tmp/fake.key", "ssh-ed25519 AAAA")
+        mock_ssh._compute_pubkey_fingerprint.return_value = "SHA256:abc"
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         actions.add_server("new-host", "10.0.0.1", "root", secret, "lab", None, 22, ADMIN_ID)
         for call_args in mock_db.execute.call_args_list:
@@ -568,20 +577,24 @@ def test_actions_add_server_password_not_in_db(sample_server):
 def test_actions_add_server_env_optional(sample_server):
     """Environment can be None."""
     with patch("actions.db") as mock_db, \
-         patch("actions.ssh"):
+         patch("actions.ssh") as mock_ssh:
+        mock_ssh._generate_keypair.return_value = ("/tmp/fake.key", "ssh-ed25519 AAAA")
+        mock_ssh._compute_pubkey_fingerprint.return_value = "SHA256:abc"
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         actions.add_server("new-host", "10.0.0.1", "root", "pass", None, None, 22, ADMIN_ID)
         insert_call = mock_db.execute.call_args_list[0]
         assert None in insert_call[0][1]
 
 
-def test_actions_add_server_no_password_calls_provision_with_empty(sample_server):
-    """add_server with empty password passes empty string to provision_server (key-auth path)."""
+def test_actions_add_server_no_password_calls_provision_with_pubkey(sample_server):
+    """add_server with empty password passes per-server pubkey to provision_server (key-auth path)."""
     with patch("actions.db") as mock_db, \
          patch("actions.ssh") as mock_ssh:
+        mock_ssh._generate_keypair.return_value = ("/tmp/fake.key", "ssh-ed25519 AAAA")
+        mock_ssh._compute_pubkey_fingerprint.return_value = "SHA256:abc"
         mock_db.query_one.side_effect = [None, {"id": SERVER_ID}]
         actions.add_server("new-host", "10.0.0.1", "root", "", "lab", None, 22, ADMIN_ID)
-        mock_ssh.provision_server.assert_called_once_with("10.0.0.1", "root", "", 22)
+        mock_ssh.provision_server.assert_called_once_with("10.0.0.1", "root", "", 22, pubkey="ssh-ed25519 AAAA")
 
 
 def test_actions_disable_server_sets_inactive(sample_server):
@@ -604,14 +617,20 @@ def test_actions_disable_server_raises_if_not_found():
 # ---------------------------------------------------------------------------
 
 def test_actions_provision_server_calls_ssh_provision(sample_server):
-    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+    from unittest.mock import mock_open
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh, \
+         patch("os.path.isfile", return_value=True), \
+         patch("builtins.open", mock_open(read_data="ssh-ed25519 AAAA")):
         mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
         actions.provision_server("server-test-01", "root", "password123", 22, ADMIN_ID)
-        mock_ssh.provision_server.assert_called_once_with("192.168.1.10", "root", "password123", 22)
+        mock_ssh.provision_server.assert_called_once_with("192.168.1.10", "root", "password123", 22, pubkey="ssh-ed25519 AAAA")
 
 
 def test_actions_provision_server_logs_provisioned(sample_server):
-    with patch("actions.db") as mock_db, patch("actions.ssh"):
+    from unittest.mock import mock_open
+    with patch("actions.db") as mock_db, patch("actions.ssh"), \
+         patch("os.path.isfile", return_value=True), \
+         patch("builtins.open", mock_open(read_data="ssh-ed25519 AAAA")):
         mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
         actions.provision_server("server-test-01", "root", "password123", 22, ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
@@ -620,8 +639,11 @@ def test_actions_provision_server_logs_provisioned(sample_server):
 
 def test_actions_provision_server_password_not_logged(sample_server):
     """Password must never appear in audit_log."""
+    from unittest.mock import mock_open
     secret_password = "SuperSecret123!"
-    with patch("actions.db") as mock_db, patch("actions.ssh"):
+    with patch("actions.db") as mock_db, patch("actions.ssh"), \
+         patch("os.path.isfile", return_value=True), \
+         patch("builtins.open", mock_open(read_data="ssh-ed25519 AAAA")):
         mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10"}
         actions.provision_server("server-test-01", "root", secret_password, 22, ADMIN_ID)
 
@@ -1051,8 +1073,8 @@ def test_actions_lock_user_success():
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22}
         result = actions.lock_user("alice", "server-test-01", ADMIN_ID)
-        mock_ssh.ensure_scripts.assert_called_once_with("server-test-01", SERVER_ID, "192.168.1.10", port=22)
-        mock_ssh.lock_user_on_server.assert_called_once_with("server-test-01", "alice", "192.168.1.10", port=22)
+        mock_ssh.ensure_scripts.assert_called_once_with("server-test-01", SERVER_ID, "192.168.1.10", port=22, key_path=ANY)
+        mock_ssh.lock_user_on_server.assert_called_once_with("server-test-01", "alice", "192.168.1.10", port=22, key_path=ANY)
         assert result["unix_user"] == "alice"
         assert result["hostname"] == "server-test-01"
         assert result["status"] == "locked"
@@ -1076,8 +1098,8 @@ def test_actions_unlock_user_success():
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22}
         result = actions.unlock_user("alice", "server-test-01", ADMIN_ID)
-        mock_ssh.ensure_scripts.assert_called_once_with("server-test-01", SERVER_ID, "192.168.1.10", port=22)
-        mock_ssh.unlock_user_on_server.assert_called_once_with("server-test-01", "alice", "192.168.1.10", port=22)
+        mock_ssh.ensure_scripts.assert_called_once_with("server-test-01", SERVER_ID, "192.168.1.10", port=22, key_path=ANY)
+        mock_ssh.unlock_user_on_server.assert_called_once_with("server-test-01", "alice", "192.168.1.10", port=22, key_path=ANY)
         assert result["unix_user"] == "alice"
         assert result["hostname"] == "server-test-01"
         assert result["status"] == "unlocked"
@@ -1092,6 +1114,7 @@ def test_actions_unlock_user_invalid_username():
 
 def test_actions_lock_user_ssh_user_raises():
     with patch("actions.ssh") as mock_ssh:
+        mock_ssh._generate_keypair.return_value = ("/tmp/fake.key", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
         mock_ssh.SSH_USER = "audit-collector"
         with pytest.raises(UserError, match="Cannot lock the collector account"):
             actions.lock_user("audit-collector", "server-test-01", ADMIN_ID)
@@ -1277,7 +1300,8 @@ def test_actions_update_server_blank_environment_is_stored_as_null():
         mock_db.query_one.side_effect = [server, None]
         actions.update_server("server-test-01", "192.168.1.10", "   ", "debian", 22, ADMIN_ID, 4)
         update_call = mock_db.execute.call_args_list[0]
-        assert update_call[0][1][1] is None
+        # New params order: (hostname, ip, env, os, port, max_sessions, server_id)
+        assert update_call[0][1][2] is None
 
 
 def test_actions_update_server_ip_change_calls_keyscan():
@@ -1639,7 +1663,7 @@ def test_actions_deploy_key_with_sam_group_passes_group_to_add_key(sample_server
         mock_ssh.add_key_on_server.assert_called_once_with(
             sample_server["hostname"], "alice", sample_key["public_key"],
             sample_server["ip_address"], port=22, sam_group="sam-operator",
-        )
+         key_path=ANY)
         mock_ssh.grant_group_on_server.assert_not_called()
 
 
@@ -1663,6 +1687,8 @@ def test_actions_deploy_key_invalid_sam_group_raises(sample_server, sample_key):
 def test_actions_deploy_key_justification_stored_in_audit_log(sample_server, sample_key):
     """deploy_key must include justification in the KEY_ADDED audit_log details."""
     with patch("actions.db") as mock_db, patch("actions.ssh"):
+        mock_ssh = patch("actions.ssh").__enter__()
+        mock_ssh._generate_keypair.return_value = ("/tmp/fake.key", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
         mock_db.query_one.side_effect = [
             {"id": sample_server["id"], "ip_address": sample_server["ip_address"], "ssh_port": 22},
             {"id": sample_key["id"]},
@@ -1860,6 +1886,7 @@ def test_audit_server_sshd_server_not_found_raises_userrror():
 def test_audit_server_sshd_disabled_server_raises_userrror():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = {
+            "id": SERVER_ID,
             "ip_address": "192.168.1.1",
             "ssh_port": 22,
             "is_active": False,
@@ -1872,6 +1899,7 @@ def test_audit_server_sshd_ssh_failure_raises_userrror():
     import ssh as ssh_mod
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = {
+            "id": SERVER_ID,
             "ip_address": "192.168.1.1",
             "ssh_port": 22,
             "is_active": True,
@@ -1886,6 +1914,7 @@ def test_audit_server_sshd_happy_path():
     """audit_server_sshd returns check_sshd_compliance result."""
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = {
+            "id": SERVER_ID,
             "ip_address": "192.168.1.1",
             "ssh_port": 22,
             "is_active": True,
@@ -1932,7 +1961,7 @@ def test_actions_grant_group_success(sample_server):
         mock_ssh.grant_group_on_server.assert_called_once_with(
             sample_server["hostname"], "alice", "sam-operator",
             sample_server["ip_address"], port=22,
-        )
+         key_path=ANY)
 
 
 def test_actions_grant_group_root_raises():
@@ -2007,7 +2036,7 @@ def test_actions_revoke_group_success(sample_server):
         mock_ssh.revoke_group_on_server.assert_called_once_with(
             sample_server["hostname"], "alice", "sam-operator",
             sample_server["ip_address"], port=22,
-        )
+         key_path=ANY)
 
 
 def test_actions_revoke_group_root_raises():
@@ -2070,7 +2099,7 @@ def test_actions_revoke_group_no_group_in_db_still_strips_server(sample_server):
         mock_ssh.revoke_group_on_server.assert_called_once_with(
             sample_server["hostname"], "alice", None,
             sample_server["ip_address"], port=22,
-        )
+         key_path=ANY)
 
 
 # ---------------------------------------------------------------------------

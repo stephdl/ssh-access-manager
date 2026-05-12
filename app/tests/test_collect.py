@@ -423,6 +423,39 @@ def test_collect_scan_server_scan_failed_sends_critical_alert():
         assert mock_alerts.send_alert.call_args[0][0] == "CRITICAL"
 
 
+def test_collect_scan_server_missing_per_server_key_logs_scan_failed():
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db:
+        mock_ssh._resolve_key_path.side_effect = KeyError(
+            f"no per-server collector key for server {SERVER_ID}; please re-provision"
+        )
+
+        result = collect.scan_server(SAMPLE_SERVER)
+
+        assert "no per-server collector key" in result["error"]
+        audit_sql = mock_db.execute.call_args_list[0][0][0]
+        assert "SCAN_FAILED" in audit_sql
+        mock_ssh.ensure_scripts.assert_not_called()
+        mock_ssh.collect_keys.assert_not_called()
+
+
+def test_collect_scan_server_passes_per_server_key_path_to_ssh():
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions"), \
+         patch("collect.alerts"):
+        _setup_ssh_mocks(mock_ssh)
+        mock_ssh._resolve_key_path.return_value = "/data/keys/per-server/abc.key"
+        mock_ssh.collect_keys.return_value = []
+        mock_db.query.return_value = []
+
+        collect.scan_server(SAMPLE_SERVER)
+
+        mock_ssh._resolve_key_path.assert_called_once_with(SERVER_ID)
+        kwargs = mock_ssh.collect_keys.call_args.kwargs
+        assert kwargs["key_path"] == "/data/keys/per-server/abc.key"
+
+
 # ---------------------------------------------------------------------------
 # Tests run_scan()
 # ---------------------------------------------------------------------------
@@ -568,10 +601,10 @@ def test_collect_scan_server_updates_key_size_bits_on_rescan():
 
         collect.scan_server(SAMPLE_SERVER)
 
-        # First execute call must update key_size_bits
-        update_call = mock_db.execute.call_args_list[0]
-        assert "key_size_bits" in update_call[0][0]
-        assert 2048 in update_call[0][1]
+        # An execute call must update key_size_bits with the new size
+        update_calls = [c for c in mock_db.execute.call_args_list if "key_size_bits" in c[0][0]]
+        assert update_calls, "expected an UPDATE with key_size_bits"
+        assert 2048 in update_calls[0][0][1]
 
 
 # ---------------------------------------------------------------------------
@@ -691,7 +724,10 @@ def test_collect_triggers_provision_update_when_version_differs():
 
         collect.scan_server(SAMPLE_SERVER)
 
-        mock_ssh.apply_provision_update.assert_called_once_with("server-test-01", "192.168.1.10", 22)
+        mock_ssh.apply_provision_update.assert_called_once()
+        args, kwargs = mock_ssh.apply_provision_update.call_args
+        assert args[:3] == ("server-test-01", "192.168.1.10", 22)
+        assert "key_path" in kwargs
         # Check UPDATE servers was called
         update_calls = [c[0][0] for c in mock_db.execute.call_args_list]
         assert any("provision_version" in sql and "provision_drift = FALSE" in sql for sql in update_calls)

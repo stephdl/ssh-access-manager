@@ -4,6 +4,7 @@ Never duplicate logic between the two consumers.
 """
 import ipaddress
 import json
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -14,6 +15,14 @@ import ssh
 _FP_RE = re.compile(r"^SHA256:[A-Za-z0-9+/=]+$")
 _UNIX_USER_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 VALID_ROLES = {"sysadmin", "operator", "viewer"}
+
+
+def _get_key_path(server_id: str) -> str:
+    """Helper to resolve per-server key path, wrapping ssh._resolve_key_path for consistent error handling."""
+    try:
+        return ssh._resolve_key_path(server_id)
+    except KeyError as exc:
+        raise UserError(str(exc), status=502)
 
 
 class UserError(Exception):
@@ -219,7 +228,8 @@ def revoke_key(
             raise UserError(
                 f"No active authorization for {fingerprint} / user {unix_user} on {hostname}"
             )
-        ssh.revoke_on_server(hostname, fingerprint, ip=server["ip_address"], unix_user=unix_user, port=server["ssh_port"])
+        key_path = _get_key_path(server["id"])
+        ssh.revoke_on_server(hostname, fingerprint, ip=server["ip_address"], unix_user=unix_user, port=server["ssh_port"], key_path=key_path)
         db.execute(
             """
             UPDATE key_authorizations
@@ -269,7 +279,8 @@ def revoke_key(
             (key["id"],),
         )
         for auth in active_auths:
-            ssh.revoke_on_server(auth["hostname"], fingerprint, ip=auth["ip_address"], port=auth["ssh_port"])
+            key_path = _get_key_path(auth["server_id"])
+            ssh.revoke_on_server(auth["hostname"], fingerprint, ip=auth["ip_address"], port=auth["ssh_port"], key_path=key_path)
             db.execute(
                 """
                 UPDATE key_authorizations
@@ -725,8 +736,9 @@ def deploy_key(
     )
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
 
-    ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"])
-    ssh.add_key_on_server(hostname, unix_user, public_key.strip(), server["ip_address"], port=server["ssh_port"], sam_group=sam_group)
+    key_path = _get_key_path(server["id"])
+    ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"], key_path=key_path)
+    ssh.add_key_on_server(hostname, unix_user, public_key.strip(), server["ip_address"], port=server["ssh_port"], sam_group=sam_group, key_path=key_path)
 
     db.execute(
         """
@@ -785,7 +797,8 @@ def grant_group(unix_user: str, hostname: str, group: str, admin_id: str) -> dic
     )
     if not row:
         raise UserError(f"No active key deployment for {unix_user} on {hostname}")
-    actual_groups = ssh.grant_group_on_server(hostname, unix_user, group, server["ip_address"], port=server["ssh_port"])
+    key_path = _get_key_path(server["id"])
+    actual_groups = ssh.grant_group_on_server(hostname, unix_user, group, server["ip_address"], port=server["ssh_port"], key_path=key_path)
     db.execute(
         "UPDATE key_authorizations SET sam_group = %s WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
         (group, server["id"], unix_user),
@@ -819,7 +832,8 @@ def revoke_group(unix_user: str, hostname: str, admin_id: str) -> dict:
     if not row:
         raise UserError(f"No active key deployment for {unix_user} on {hostname}")
     current_group = row["sam_group"]
-    actual_groups = ssh.revoke_group_on_server(hostname, unix_user, current_group, server["ip_address"], port=server["ssh_port"])
+    key_path = _get_key_path(server["id"])
+    actual_groups = ssh.revoke_group_on_server(hostname, unix_user, current_group, server["ip_address"], port=server["ssh_port"], key_path=key_path)
     if current_group is not None:
         db.execute(
             "UPDATE key_authorizations SET sam_group = NULL WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
@@ -856,9 +870,10 @@ def change_group(unix_user: str, hostname: str, new_group: str, admin_id: str) -
     if not row:
         raise UserError(f"No active key deployment for {unix_user} on {hostname}")
     old_group = row["sam_group"]
+    key_path = _get_key_path(server["id"])
     if old_group and old_group != new_group:
-        ssh.revoke_group_on_server(hostname, unix_user, old_group, server["ip_address"], port=server["ssh_port"])
-    actual_groups = ssh.grant_group_on_server(hostname, unix_user, new_group, server["ip_address"], port=server["ssh_port"])
+        ssh.revoke_group_on_server(hostname, unix_user, old_group, server["ip_address"], port=server["ssh_port"], key_path=key_path)
+    actual_groups = ssh.grant_group_on_server(hostname, unix_user, new_group, server["ip_address"], port=server["ssh_port"], key_path=key_path)
     db.execute(
         "UPDATE key_authorizations SET sam_group = %s WHERE server_id = %s AND unix_user = %s AND status = 'ACTIVE'",
         (new_group, server["id"], unix_user),
@@ -951,9 +966,10 @@ def revoke_request(request_id: str, admin_id: str) -> None:
 
     key = db.query_one("SELECT fingerprint FROM ssh_keys WHERE id = %s", (req["key_id"],))
     if key:
-        server = db.query_one("SELECT hostname, ip_address, ssh_port FROM servers WHERE id = %s", (req["server_id"],))
+        server = db.query_one("SELECT id, hostname, ip_address, ssh_port FROM servers WHERE id = %s", (req["server_id"],))
         if server:
-            ssh.revoke_on_server(server["hostname"], key["fingerprint"], ip=server["ip_address"], port=server["ssh_port"])
+            key_path = _get_key_path(server["id"])
+            ssh.revoke_on_server(server["hostname"], key["fingerprint"], ip=server["ip_address"], port=server["ssh_port"], key_path=key_path)
 
     db.execute(
         """
@@ -977,8 +993,11 @@ def add_server(
     hostname: str, ip: str, ssh_user: str = "root", ssh_password: str = "",
     env: str | None = None, os_family: str | None = None,
     ssh_port: int = 22, admin_id: str | None = None,
+    scan_sync: bool = False,
 ) -> dict:
     """Add and provision a server atomically. Server is only created in DB if SSH provisioning succeeds."""
+    import uuid
+    import os
     ip = _validate_ip(ip)
     env = _normalize_environment(env)
     existing = db.query_one(
@@ -986,38 +1005,106 @@ def add_server(
     )
     if existing:
         raise UserError(f"IP {ip} is already used by server '{existing['hostname']}'")
-    ssh.provision_server(ip, ssh_user, ssh_password, ssh_port)
+
+    # Step 1: generate UUID and per-server keypair
+    server_id = str(uuid.uuid4())
+    keypair_base = os.path.join(ssh.PER_SERVER_KEYS_DIR, server_id)
+
+    try:
+        _, pubkey = ssh._generate_keypair(keypair_base)
+    except Exception as exc:
+        raise UserError(f"Failed to generate per-server keypair: {exc}")
+
+    # Step 2: SSH provision with the per-server pubkey
+    try:
+        ssh.provision_server(ip, ssh_user, ssh_password, ssh_port, pubkey=pubkey)
+    except Exception as exc:
+        # Cleanup keypair on SSH failure
+        for ext in (".key", ".key.pub"):
+            try:
+                os.remove(keypair_base + ext)
+            except FileNotFoundError:
+                pass
+        raise
+
+    # Step 3: INSERT with explicit UUID + is_provisioned=TRUE
     db.execute(
-        "INSERT INTO servers (hostname, ip_address, environment, os_family, ssh_port) VALUES (%s, %s, %s, %s, %s)",
-        (hostname, ip, env, os_family, ssh_port),
+        """INSERT INTO servers (id, hostname, ip_address, environment, os_family, ssh_port, is_active, is_provisioned)
+           VALUES (%s, %s, %s, %s, %s, %s, TRUE, TRUE)""",
+        (server_id, hostname, ip, env, os_family, ssh_port),
     )
-    server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
+
+    # Step 4: Audit logs
     db.execute(
-        """
-        INSERT INTO audit_log (action, performed_by, target_server, details)
-        VALUES ('SERVER_ADDED', %s, %s, %s::jsonb)
-        """,
-        (admin_id, server["id"], json.dumps({"hostname": hostname, "ip": ip, "environment": env, "ssh_port": ssh_port})),
+        """INSERT INTO audit_log (action, performed_by, target_server, details)
+           VALUES ('SERVER_ADDED', %s, %s, %s::jsonb)""",
+        (admin_id, server_id, json.dumps({"hostname": hostname, "ip": ip, "environment": env, "ssh_port": ssh_port})),
     )
     db.execute(
-        """
-        INSERT INTO audit_log (action, performed_by, target_server, details)
-        VALUES ('SERVER_PROVISIONED', %s, %s, %s::jsonb)
-        """,
-        (admin_id, server["id"], json.dumps({"hostname": hostname, "ssh_user": ssh_user, "ssh_port": ssh_port})),
+        """INSERT INTO audit_log (action, performed_by, target_server, details)
+           VALUES ('SERVER_PROVISIONED', %s, %s, %s::jsonb)""",
+        (admin_id, server_id, json.dumps({"hostname": hostname, "ssh_user": ssh_user, "ssh_port": ssh_port})),
     )
+
+    fingerprint = ssh._compute_pubkey_fingerprint(pubkey)
+    db.execute(
+        """INSERT INTO audit_log (action, performed_by, target_server, details)
+           VALUES ('COLLECTOR_KEY_GENERATED', %s, %s, %s::jsonb)""",
+        (admin_id, server_id, json.dumps({"server_id": server_id, "fingerprint": fingerprint})),
+    )
+
+    server = db.query_one("SELECT * FROM servers WHERE id = %s", (server_id,))
+    _trigger_initial_scan(server, admin_id, sync=scan_sync)
     return server
+
+
+def _trigger_initial_scan(server: dict, admin_id: str | None, *, sync: bool = False) -> None:
+    """Run an initial scan after provisioning.
+
+    Used by add_server / activate_server so a fresh host shows up
+    with its current authorized_keys without the admin needing to
+    click 'Scan' manually.
+
+    sync=False (default): fire-and-forget thread — for the web API
+    where the HTTP response must return immediately.
+    sync=True: blocking call — for the CLI, where a daemon thread
+    would be killed when the process exits before the scan completes.
+    """
+    import collect
+
+    def _run():
+        try:
+            collect.scan_server(dict(server), admin_id=admin_id)
+        except Exception:
+            logging.exception("Initial scan after provisioning failed for %s", server.get("hostname"))
+
+    if sync:
+        _run()
+    else:
+        import threading
+        threading.Thread(target=_run, daemon=True).start()
 
 
 def provision_server(hostname: str, ssh_user: str = "root", ssh_password: str = "", ssh_port: int = 22, admin_id: str | None = None) -> None:
     """Provision a remote server. Never stores the password."""
+    import os
     server = db.query_one(
         "SELECT id, ip_address FROM servers WHERE hostname = %s AND is_active = true",
         (hostname,),
     )
     if not server:
         raise NotFoundError(f"Server not found or inactive: {hostname}")
-    ssh.provision_server(server["ip_address"], ssh_user, ssh_password, ssh_port)
+
+    # Read the per-server pubkey
+    pubkey_path = os.path.join(ssh.PER_SERVER_KEYS_DIR, f"{server['id']}.key.pub")
+    if not os.path.isfile(pubkey_path):
+        raise UserError("Per-server keypair not found - please delete and re-add this server")
+
+    with open(pubkey_path, "r") as fh:
+        pubkey = fh.read().strip()
+
+    ssh.provision_server(server["ip_address"], ssh_user, ssh_password, ssh_port, pubkey=pubkey)
+
     # Update ssh_port in DB after successful provisioning
     db.execute(
         "UPDATE servers SET ssh_port = %s WHERE id = %s",
@@ -1053,11 +1140,27 @@ def disable_server(hostname: str, admin_id: str | None = None) -> None:
     )
 
 
+_HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-.]*[a-zA-Z0-9])?$")
+
+
+def _validate_hostname(hostname: str) -> str:
+    h = (hostname or "").strip()
+    if not h or len(h) > 253 or not _HOSTNAME_RE.match(h):
+        raise UserError(f"Invalid hostname: {hostname!r}")
+    return h
+
+
 def update_server(
     hostname: str, new_ip: str, new_env: str, new_os_family: str | None,
     ssh_port: int = 22, admin_id: str | None = None, max_sessions: int = 2,
+    new_hostname: str | None = None,
 ) -> dict:
-    """Update server IP, environment, OS, SSH port, max_sessions. If IP changes, run ssh-keyscan."""
+    """Update server hostname, IP, environment, OS, SSH port, max_sessions.
+
+    If IP changes, run ssh-keyscan. If hostname changes, log SERVER_RENAMED;
+    historical audit_log entries keep the old hostname intentionally so the
+    history remains accurate.
+    """
     new_ip = _validate_ip(new_ip)
     new_env = _normalize_environment(new_env)
     import servers as servers_mod
@@ -1075,6 +1178,18 @@ def update_server(
     if existing:
         raise UserError(f"IP {new_ip} is already used by server '{existing['hostname']}'")
 
+    rename_to = None
+    if new_hostname is not None:
+        candidate = _validate_hostname(new_hostname)
+        if candidate != hostname:
+            clash = db.query_one(
+                "SELECT id FROM servers WHERE hostname = %s AND id != %s",
+                (candidate, server["id"]),
+            )
+            if clash:
+                raise UserError(f"Hostname {candidate!r} is already used by another server")
+            rename_to = candidate
+
     old_ip = server["ip_address"]
     old_env = server["environment"]
     old_os = server["os_family"]
@@ -1087,9 +1202,10 @@ def update_server(
         except Exception as e:
             raise UserError(f"Cannot reach {hostname} ({new_ip}) for keyscan: {e}") from e
 
+    effective_hostname = rename_to or hostname
     db.execute(
-        "UPDATE servers SET ip_address = %s, environment = %s, os_family = %s, ssh_port = %s, max_sessions = %s WHERE hostname = %s",
-        (new_ip, new_env, new_os_family, ssh_port, max_sessions, hostname),
+        "UPDATE servers SET hostname = %s, ip_address = %s, environment = %s, os_family = %s, ssh_port = %s, max_sessions = %s WHERE id = %s",
+        (effective_hostname, new_ip, new_env, new_os_family, ssh_port, max_sessions, server["id"]),
     )
     db.execute(
         """
@@ -1100,7 +1216,7 @@ def update_server(
             admin_id,
             server["id"],
             json.dumps({
-                "hostname": hostname,
+                "hostname": effective_hostname,
                 "old_ip": old_ip, "new_ip": new_ip,
                 "old_env": old_env, "new_env": new_env,
                 "old_os": old_os, "new_os": new_os_family,
@@ -1109,6 +1225,17 @@ def update_server(
             }),
         ),
     )
+    if rename_to:
+        db.execute(
+            """
+            INSERT INTO audit_log (action, performed_by, target_server, details)
+            VALUES ('SERVER_RENAMED', %s, %s, %s::jsonb)
+            """,
+            (admin_id, server["id"], json.dumps({"old_hostname": hostname, "new_hostname": rename_to})),
+        )
+
+    server = dict(server)
+    server["hostname"] = effective_hostname
     return server
 
 
@@ -1131,6 +1258,7 @@ def enable_server(hostname: str, admin_id: str | None = None) -> None:
 
 def delete_server(hostname: str, admin_id: str | None = None) -> None:
     """Hard delete a server and all related data."""
+    import os
     server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
     if not server:
         raise NotFoundError(f"Server not found: {hostname}")
@@ -1139,6 +1267,157 @@ def delete_server(hostname: str, admin_id: str | None = None) -> None:
     db.execute("DELETE FROM access_requests WHERE server_id = %s", (sid,))
     db.execute("DELETE FROM key_authorizations WHERE server_id = %s", (sid,))
     db.execute("DELETE FROM servers WHERE id = %s", (sid,))
+
+    # Cleanup per-server keypair files
+    for ext in (".key", ".key.pub"):
+        try:
+            path = os.path.join(ssh.PER_SERVER_KEYS_DIR, f"{sid}{ext}")
+            if os.path.isfile(path):
+                os.remove(path)
+        except FileNotFoundError:
+            pass
+
+
+def register_server(
+    hostname: str, ip: str, ssh_port: int = 22,
+    env: str | None = None, os_family: str | None = None,
+    admin_id: str | None = None,
+) -> dict:
+    """Create a server in DB and generate its keypair, without trying SSH.
+
+    Status: is_provisioned=FALSE, is_active=TRUE.
+    Use case: admin will provision the host manually with their own SSH
+    credentials (bulk bootstrap workflow with cloud-init etc.).
+    """
+    import uuid
+    import os
+    ip = _validate_ip(ip)
+    env = _normalize_environment(env)
+    existing = db.query_one(
+        "SELECT hostname FROM servers WHERE ip_address = %s", (ip,)
+    )
+    if existing:
+        raise UserError(f"IP {ip} is already used by server '{existing['hostname']}'")
+
+    # Generate UUID + keypair
+    server_id = str(uuid.uuid4())
+    keypair_base = os.path.join(ssh.PER_SERVER_KEYS_DIR, server_id)
+
+    try:
+        _, pubkey = ssh._generate_keypair(keypair_base)
+    except Exception as exc:
+        raise UserError(f"Failed to generate per-server keypair: {exc}")
+
+    # INSERT with is_provisioned=FALSE
+    db.execute(
+        """INSERT INTO servers (id, hostname, ip_address, environment, os_family, ssh_port, is_active, is_provisioned)
+           VALUES (%s, %s, %s, %s, %s, %s, TRUE, FALSE)""",
+        (server_id, hostname, ip, env, os_family, ssh_port),
+    )
+
+    # Audit COLLECTOR_KEY_GENERATED
+    fingerprint = ssh._compute_pubkey_fingerprint(pubkey)
+    db.execute(
+        """INSERT INTO audit_log (action, performed_by, target_server, details)
+           VALUES ('COLLECTOR_KEY_GENERATED', %s, %s, %s::jsonb)""",
+        (admin_id, server_id, json.dumps({"server_id": server_id, "fingerprint": fingerprint})),
+    )
+
+    return {"server_id": server_id, "hostname": hostname, "public_key": pubkey, "fingerprint": fingerprint}
+
+
+def activate_server(hostname: str, admin_id: str | None = None, scan_sync: bool = False) -> dict:
+    """Verify SSH connectivity with the per-server key, mark as provisioned.
+
+    Use case: after the admin has deployed the pubkey manually on the host
+    (step 2 of bulk bootstrap workflow), this confirms it works and
+    triggers the first scan.
+    """
+    server = db.query_one(
+        "SELECT id, ip_address, ssh_port, is_provisioned FROM servers WHERE hostname = %s",
+        (hostname,),
+    )
+    if not server:
+        raise NotFoundError(f"Server not found: {hostname}")
+    if server["is_provisioned"]:
+        raise UserError(f"Server {hostname} is already provisioned")
+
+    key_path = _get_key_path(server["id"])
+    # Ensure the host key is in known_hosts (RejectPolicy will refuse otherwise)
+    try:
+        ssh._fetch_host_key(server["ip_address"], server["ssh_port"])
+    except Exception as exc:
+        raise UserError(f"Failed to fetch host key for {server['ip_address']}: {exc}", status=502)
+
+    try:
+        # Test connectivity by running a no-op command
+        client = ssh._connect(server["ip_address"], server["ssh_port"], key_path=key_path)
+        client.exec_command("true")
+        client.close()
+    except ssh.SSHError as exc:
+        raise UserError(f"SSH connectivity check failed: {exc}", status=502)
+    except Exception as exc:
+        raise UserError(f"SSH connectivity check failed: {exc}", status=502)
+
+    db.execute("UPDATE servers SET is_provisioned = TRUE WHERE id = %s", (server["id"],))
+    db.execute(
+        """INSERT INTO audit_log (action, performed_by, target_server, details)
+           VALUES ('SERVER_PROVISIONED', %s, %s, %s::jsonb)""",
+        (admin_id, server["id"], json.dumps({"hostname": hostname, "method": "activate"})),
+    )
+
+    full_server = db.query_one("SELECT * FROM servers WHERE id = %s", (server["id"],))
+    _trigger_initial_scan(full_server, admin_id, sync=scan_sync)
+    return {"hostname": hostname, "status": "provisioned"}
+
+
+def rotate_collector_key(hostname: str, admin_id: str) -> dict:
+    """Manual rotation triggered from ServerDetail button."""
+    server = db.query_one(
+        "SELECT id, ip_address, ssh_port, is_active FROM servers WHERE hostname = %s",
+        (hostname,),
+    )
+    if not server or not server["is_active"]:
+        raise NotFoundError(f"Server not found or inactive: {hostname}")
+
+    try:
+        new_fp = ssh.rotate_per_server_key(
+            hostname,
+            server["ip_address"],
+            server["ssh_port"],
+            server["id"],
+        )
+        db.execute(
+            """INSERT INTO audit_log (action, performed_by, target_server, details)
+               VALUES ('COLLECTOR_KEY_ROTATED', %s, %s, %s::jsonb)""",
+            (admin_id, server["id"], json.dumps({"server_id": server["id"], "fingerprint": new_fp})),
+        )
+        return {"status": "rotated", "fingerprint": new_fp}
+    except ssh.SSHError as exc:
+        db.execute(
+            """INSERT INTO audit_log (action, performed_by, target_server, details)
+               VALUES ('COLLECTOR_KEY_ROTATION_FAILED', %s, %s, %s::jsonb)""",
+            (admin_id, server["id"], json.dumps({"error": str(exc)})),
+        )
+        raise UserError(f"Rotation failed: {exc}", status=502)
+
+
+def get_collector_key_for_server(hostname: str) -> dict:
+    """Return {fingerprint, public_key} for the per-server key (read-only)."""
+    import os
+    server = db.query_one("SELECT id FROM servers WHERE hostname = %s", (hostname,))
+    if not server:
+        raise NotFoundError(f"Server not found: {hostname}")
+
+    pubkey_path = os.path.join(ssh.PER_SERVER_KEYS_DIR, f"{server['id']}.key.pub")
+    if not os.path.isfile(pubkey_path):
+        raise UserError("Per-server public key not found - server may not be provisioned")
+
+    with open(pubkey_path, "r") as fh:
+        pubkey = fh.read().strip()
+
+    fingerprint = ssh._compute_pubkey_fingerprint(pubkey)
+    return {"fingerprint": fingerprint, "public_key": pubkey}
 
 
 # ---------------------------------------------------------------------------
@@ -1364,8 +1643,9 @@ def lock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
     )
     if not server:
         raise NotFoundError(f"Server not found or inactive: {hostname}")
-    ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"])
-    ssh.lock_user_on_server(hostname, unix_user, server["ip_address"], port=server["ssh_port"])
+    key_path = _get_key_path(server["id"])
+    ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"], key_path=key_path)
+    ssh.lock_user_on_server(hostname, unix_user, server["ip_address"], port=server["ssh_port"], key_path=key_path)
     db.execute(
         """INSERT INTO audit_log (action, performed_by, target_server, details)
            VALUES ('USER_LOCKED', %s, %s, %s::jsonb)""",
@@ -1388,8 +1668,9 @@ def unlock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
     )
     if not server:
         raise NotFoundError(f"Server not found or inactive: {hostname}")
-    ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"])
-    ssh.unlock_user_on_server(hostname, unix_user, server["ip_address"], port=server["ssh_port"])
+    key_path = _get_key_path(server["id"])
+    ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"], key_path=key_path)
+    ssh.unlock_user_on_server(hostname, unix_user, server["ip_address"], port=server["ssh_port"], key_path=key_path)
     db.execute(
         """INSERT INTO audit_log (action, performed_by, target_server, details)
            VALUES ('USER_UNLOCKED', %s, %s, %s::jsonb)""",
@@ -1505,7 +1786,7 @@ def audit_server_sshd(hostname: str, admin_id: str | None = None) -> dict:
     No DB write, no audit_log (read-only).
     """
     row = db.query_one(
-        "SELECT ip_address, ssh_port, is_active FROM servers WHERE hostname = %s",
+        "SELECT id, ip_address, ssh_port, is_active FROM servers WHERE hostname = %s",
         (hostname,),
     )
     if not row:
@@ -1513,7 +1794,8 @@ def audit_server_sshd(hostname: str, admin_id: str | None = None) -> dict:
     if not row["is_active"]:
         raise UserError("Server is disabled", status=409)
     try:
-        parsed = ssh.audit_sshd_config(hostname, row["ip_address"], row["ssh_port"])
+        key_path = _get_key_path(row["id"])
+        parsed = ssh.audit_sshd_config(hostname, row["ip_address"], row["ssh_port"], key_path=key_path)
     except ssh.SSHError as exc:
         raise UserError(f"SSH audit failed: {exc}", status=502)
     return check_sshd_compliance(parsed)

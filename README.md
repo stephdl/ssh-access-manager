@@ -41,16 +41,10 @@ podman run -d \
 
 Au premier démarrage, le container :
 1. Initialise PostgreSQL et applique le schéma SQL
-2. Génère une paire de clés ED25519 dans `/data/keys/`
+2. Crée le répertoire `/data/keys/per-server/` qui contiendra les paires de clés ED25519 générées **par serveur** (une par hôte ajouté)
 3. Insère l'administrateur initial (depuis `ADMIN_USERNAME` et `ADMIN_EMAIL`)
-4. Affiche la clé publique `collector_key.pub` dans les logs
 
-```bash
-# Récupérer la clé publique du collecteur depuis les logs
-podman logs sam-server | grep -A1 "collector_key.pub"
-```
-
-La clé publique est également visible directement dans l'interface web : **Dashboard > Clé publique collecteur**.
+> **Per-server collector keys.** SAM ne génère plus de clé SSH globale. À l'ajout d'un serveur (UI ou CLI), une paire `<uuid>.key{,.pub}` est générée dans `/data/keys/per-server/`. La compromission d'une clé est ainsi cantonnée à un seul hôte. La pubkey d'un serveur est consultable depuis **ServerDetail** ou via `GET /api/servers/<hostname>/collector-key`.
 
 L'interface est accessible sur `http://localhost:8080`. Authentification par session Flask : utilisez les identifiants définis via `ADMIN_USERNAME` / `ADMIN_PASSWORD` au démarrage.
 
@@ -138,36 +132,94 @@ Les durées sont des constantes dans `web.py` — pas de redémarrage nécessair
 
 ## Workflow — Ajout d'un serveur distant
 
-### Via l'interface web (recommandé — provisionnement automatique)
+SAM génère **une paire de clés SSH ed25519 distincte par serveur** (stockée dans `/data/keys/per-server/<uuid>.key{,.pub}`, chmod 600, propriétaire `nobody`, fichier anonyme — pas de commentaire SSH). La compromission d'une clé n'expose qu'un seul hôte, jamais l'ensemble du parc. Le mapping serveur ↔ clé est implicite via le nom de fichier (UUID v4 random) — **pas de fingerprint stocké en base**, pour qu'un vol de la BDD seule ne révèle aucune information cryptographique exploitable.
+
+Cinq workflows d'ajout, du plus simple au plus scriptable :
+
+### A. UI, un serveur, avec mot de passe (le plus simple)
 
 Dashboard → bouton **+ Ajouter un serveur** → remplir :
 
 | Champ | Obligatoire | Description |
 |---|---|---|
 | Hostname | ✓ | Nom RFC 1123 (`server-01`, `web.prod.example.com`) |
-| Adresse IP | ✓ | IPv4 ou IPv6 — doit être unique |
-| Utilisateur SSH | ✓ | Compte avec sudo sur le serveur cible (`root` ou tout compte `sudo ALL`) |
+| Adresse IP | ✓ | IPv4 ou IPv6 — doit être unique dans SAM |
+| Utilisateur SSH | ✓ | Compte avec sudo (`root` ou tout compte `sudo ALL`) |
 | Mot de passe SSH | ✓ | Utilisé **une seule fois** pour le provisionnement — jamais stocké en base |
 | Port SSH | — | Défaut : 22 |
 | Environnement | — | `production` / `staging` / `lab` — modifiable ultérieurement |
 | OS | — | Famille d'OS (`rhel`, `debian`…) — modifiable ultérieurement |
 
-Le serveur n'est enregistré en base **que si la connexion SSH réussit**. Après la création, un **scan automatique** est lancé immédiatement en arrière-plan (fire-and-forget) afin de collecter les clés existantes sans attendre le prochain cycle cron. En cas d'échec (mauvais mot de passe, port fermé, sudo manquant…), aucune donnée n'est écrite et l'erreur est affichée dans la langue du navigateur. Le script `provision-host.sh` est exécuté à distance : il crée l'utilisateur `audit-collector`, déploie la clé publique collecteur et configure les règles sudoers.
+À la soumission, SAM : (1) génère la per-server keypair, (2) ouvre une session SSH avec le password, (3) pousse `provision-host.sh` qui crée l'utilisateur `audit-collector`, déploie la pubkey, configure sudoers + groupes SAM + drop-in sshd, (4) INSERT en base avec `is_provisioned=TRUE`, (5) **lance un scan automatique** en arrière-plan (fire-and-forget) pour collecter immédiatement les `authorized_keys` existants. Si le SSH échoue, **aucune donnée n'est écrite**.
 
-Le script est **idempotent** : il peut être rejoué sans risque (après rebuild, changement de clé ou de règles sudoers). Un bouton **Re-provisionner** est disponible sur la vue détail d'un serveur existant (rôle `sysadmin` uniquement).
-
-### Via la CLI
+### B. CLI, un serveur, avec mot de passe
 
 ```bash
 podman exec sam-server python3 /app/app/manage.py servers add \
-  --hostname server-prod-01 --ip 192.168.1.10 \
-  --ssh-user root --ssh-password SECRET \
-  [--env production] [--os rhel] [--port 22]
+    --hostname server-prod-01 --ip 192.168.1.10 \
+    --ssh-user root --ssh-password 'SECRET' \
+    [--env production] [--os rhel] [--port 22]
 ```
 
-Le mot de passe est demandé interactivement si `--ssh-password` est absent.
+Si `--ssh-password` est absent, il est demandé en interactif (`hide_input=True`). Le scan initial est **synchrone** depuis la CLI (le process meurt sinon avant la fin du thread) — la commande retourne après le scan, typiquement 3–5 sec.
 
-### Via `servers.yml` (déclaratif — provisionnement manuel requis)
+### C. CLI, un serveur, sans mot de passe (votre propre clé SSH root)
+
+Workflow 3 étapes — utile quand SAM ne doit jamais voir vos credentials :
+
+```bash
+HOSTNAME=server-prod-01
+IP=192.168.1.10
+
+# 1. register — génère la per-server keypair, INSERT avec is_provisioned=FALSE
+podman exec sam-server python3 /app/app/manage.py servers register \
+    --hostname "$HOSTNAME" --ip "$IP"
+
+# 2. push la per-server pubkey avec VOTRE clé SSH root
+PUB=$(podman exec sam-server python3 /app/app/manage.py servers show "$HOSTNAME" --pubkey)
+ssh root@"$IP" "sudo bash -s '$PUB' 'audit-collector'" \
+    < <(podman exec sam-server cat /app/provision-host.sh)
+
+# 3. activate — vérifie connectivité avec la per-server key, passe is_provisioned=TRUE,
+#    déclenche un scan initial synchrone
+podman exec sam-server python3 /app/app/manage.py servers activate "$HOSTNAME"
+```
+
+### D. CLI, plusieurs serveurs en bulk, avec mot de passe
+
+Si tous les serveurs partagent le **même** mot de passe root (cas image cloud-init / Ansible fresh) :
+
+```bash
+PASS='SECRET'
+for ip in 192.168.1.{10..15}; do
+  podman exec sam-server python3 /app/app/manage.py servers add \
+      --hostname "srv-${ip##*.}" --ip "$ip" \
+      --ssh-user root --ssh-password "$PASS"
+done
+```
+
+Pour des mots de passe différents par hôte, scripte une boucle qui lit un fichier `ip:password` ou un coffre (vault, pass, sops…) — le password n'est passé qu'en argument CLI, jamais persisté.
+
+### E. CLI, plusieurs serveurs en bulk, sans mot de passe (cloud-init / clé pré-déployée)
+
+```bash
+for ip in 192.168.1.{10..15}; do
+  hostname=srv-${ip##*.}
+  # register
+  podman exec sam-server python3 /app/app/manage.py servers register \
+      --hostname "$hostname" --ip "$ip"
+  # push avec votre clé root
+  PUB=$(podman exec sam-server python3 /app/app/manage.py servers show "$hostname" --pubkey)
+  ssh root@"$ip" "sudo bash -s '$PUB' 'audit-collector'" \
+      < <(podman exec sam-server cat /app/provision-host.sh)
+  # activate (scan initial inclus)
+  podman exec sam-server python3 /app/app/manage.py servers activate "$hostname"
+done
+```
+
+Parallélisable avec GNU `parallel`, Ansible (`ansible -m shell`), ou tout outil de CM.
+
+### F. Déclaratif via `servers.yml` (legacy — manuel)
 
 ```yaml
 # /data/config/servers.yml
@@ -178,16 +230,55 @@ servers:
     os_family: rhel           # optionnel
 ```
 
-Cette méthode ajoute le serveur en base sans provisionnement SSH automatique. Il faut exécuter le script manuellement sur la cible depuis la machine hébergeant le container :
+Cette méthode crée l'entrée en base sans provisionnement SSH automatique — équivalent d'un `register` manuel. Il faut ensuite déployer la pubkey et activer comme dans le workflow **C** ci-dessus.
+
+---
+
+### Provisioning script — interface
+
+`provision-host.sh` accepte deux arguments positionnels :
 
 ```bash
-ssh <user>@<ip-du-serveur> "sudo bash -s '$(podman exec sam-server cat /data/keys/collector_key.pub)'" \
-    < <(podman exec sam-server cat /app/provision-host.sh)
+sudo bash provision-host.sh <pubkey> <collector_user>
 ```
 
-> **Note** : La connexion SSH utilise toujours l'adresse IP déclarée, jamais la résolution DNS, pour éviter les ambiguïtés réseau.
+Le script est **idempotent** : il peut être rejoué sans risque (rebuild SAM, rotation de clé, mise à jour des règles sudoers). Le bouton **Re-provision** sur la vue détail d'un serveur (rôle `sysadmin`) l'invoque depuis SAM avec saisie d'un nouveau mot de passe SSH ; le snippet manuel est également affiché dans le bloc dépliable **« Provision with your own SSH credentials »** sur chaque ServerDetail.
 
-> **Astuce** : ce même snippet sert aussi pour **rejouer** `provision-host.sh` sur un serveur déjà géré (par exemple lors d'une migration vers une version SAM qui étend le contrat sudoers). Voir la section [Mettre à jour SAM](#mettre-à-jour-sam) ci-dessous.
+> **Note** : Les connexions SSH utilisent toujours l'adresse IP déclarée, jamais la résolution DNS, pour éviter les ambiguïtés réseau et les bans CrowdSec/fail2ban.
+
+---
+
+### Rotation manuelle de la clé per-server
+
+Depuis **ServerDetail** (rôle `sysadmin`), le bouton **Rotate collector key** (teal) déclenche une rotation **atomique avec rollback** :
+
+1. Génère un nouveau keypair `<uuid>.key.new` localement
+2. SSH avec l'ancienne clé, append la nouvelle pubkey à `~audit-collector/.ssh/authorized_keys`
+3. Re-connecte avec la **nouvelle** clé pour vérifier
+4. SSH une dernière fois pour retirer l'ancienne pubkey distante
+5. Renomme les fichiers locaux (`.new` → courant, ancien supprimé)
+
+À toute étape, en cas d'échec, l'ancienne clé reste seule active et un audit `COLLECTOR_KEY_ROTATION_FAILED` est écrit (avec le message d'erreur, sans hostname/IP pour minimiser l'info disponible). Le succès écrit `COLLECTOR_KEY_ROTATED` avec le nouveau fingerprint.
+
+---
+
+### Renommage d'un serveur
+
+Depuis **ServerDetail** (rôle `sysadmin`) → bouton **Edit** → champ Hostname éditable. Le formulaire :
+
+- Valide le nouveau nom (RFC 1123)
+- Refuse si le nouveau nom est déjà utilisé par un autre serveur
+- Affiche un avertissement contextuel : « Renaming changes the URL. A SERVER_RENAMED audit entry records the change. »
+
+Après save, l'UI redirige vers `/servers/<nouveau-hostname>` (le component remount proprement). Un audit `SERVER_RENAMED` enregistre `{old_hostname, new_hostname}` avec l'admin et l'horodatage.
+
+**À propos de l'historique d'audit après renommage**. Trois sources coexistent et chacune répond à une question :
+
+1. La colonne **SERVER** dans la vue Audit affiche toujours le hostname **courant** (JOIN SQL sur l'UUID `target_server`). Un audit qui pointerait vers un nom obsolète serait cassé.
+2. Le champ **`details` JSONB** de chaque entrée garde le hostname **figé au moment de l'événement** (ex : `SCAN_COMPLETED → {hostname: "srv-12-119"}`). Le code ne réécrit jamais l'audit.
+3. Les entrées **`SERVER_RENAMED`** permettent de reconstruire toute la timeline des renommages.
+
+Croiser le `details` d'une entrée avec la chronologie des `SERVER_RENAMED` reconstruit précisément sous quel nom le serveur était connu à un instant T.
 
 ---
 
@@ -197,10 +288,12 @@ Depuis la vue détail d'un serveur (**Dashboard > clic sur hostname**) :
 
 | Action | Effet |
 |---|---|
-| **Modifier** | Modifie l'adresse IP, l'environnement, la famille d'OS, le port SSH ou le seuil `max_sessions` du serveur (rôle `sysadmin`). |
-| **Désactiver** | Le serveur n'est plus scanné automatiquement. Indicateur rouge visible dans le dashboard et la vue détail. |
-| **Réactiver** | Le serveur reprend le cycle de scan automatique. |
-| **Supprimer** | Suppression définitive du serveur et de toutes ses clés, autorisations et logs associés (action irréversible). |
+| **Scan** | Lance un scan immédiat (ne pas attendre le cycle cron). |
+| **Edit** | Modifie hostname, IP, environnement, OS, port SSH ou `max_sessions` (rôle `sysadmin`). Renommer émet un audit `SERVER_RENAMED` et redirige l'UI. |
+| **Disable** | Le serveur n'est plus scanné automatiquement. Indicateur rouge sur Dashboard et bandeau rouge dans ServerDetail. |
+| **Re-provision** | Rejoue `provision-host.sh` à distance avec un nouveau mot de passe (rôle `sysadmin`, serveur actif) — utile après rebuild SAM ou changement de contrat sudoers. |
+| **Rotate collector key** | Génère une nouvelle per-server keypair, la déploie et retire l'ancienne — opération atomique avec rollback (rôle `sysadmin`, serveur actif et provisioned). |
+| **Delete** | Suppression définitive du serveur, de toutes ses clés, autorisations, sessions et de sa per-server keypair (action irréversible). |
 
 ---
 
@@ -256,8 +349,10 @@ Dashboard → cliquer sur le hostname → bouton **Re-provisionner** (rôle `sys
 Si vous avez déjà une clé SSH d'admin déployée sur vos serveurs, vous pouvez rejouer `provision-host.sh` sans passer par l'UI ni saisir aucun mot de passe :
 
 ```bash
-PUB=$(podman exec sam-server cat /data/keys/collector_key.pub)
 for ip in 192.168.1.10 192.168.1.11 192.168.1.12; do
+  hostname=$(podman exec sam-server psql -At -d ssh_manager \
+      -c "SELECT hostname FROM servers WHERE ip_address='$ip';")
+  PUB=$(podman exec sam-server python3 /app/app/manage.py servers show $hostname --pubkey)
   ssh root@"$ip" "sudo bash -s '$PUB'" \
     < <(podman exec sam-server cat /app/provision-host.sh)
 done

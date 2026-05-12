@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import click
 
 import actions
+from actions import NotFoundError, UserError
 import collect as collect_mod
 import db
 
@@ -78,13 +79,55 @@ def servers_list():
 
 @servers.command("show")
 @click.argument("hostname")
-def servers_show(hostname):
-    """Display server details."""
+@click.option("--pubkey", is_flag=True, help="Print only the per-server collector public key")
+def servers_show(hostname, pubkey):
+    """Display server details (or --pubkey to dump the per-server collector pubkey)."""
+    if pubkey:
+        try:
+            info = actions.get_collector_key_for_server(hostname)
+        except NotFoundError as e:
+            raise click.ClickException(str(e))
+        except UserError as e:
+            raise click.ClickException(str(e))
+        click.echo(info["public_key"])
+        return
     row = db.query_one("SELECT * FROM servers WHERE hostname = %s", (hostname,))
     if not row:
         raise click.ClickException(f"Server not found: {hostname}")
     for k, v in row.items():
         click.echo(f"{k:20}: {v}")
+
+
+@servers.command("register")
+@click.option("--hostname", required=True, help="Hostname")
+@click.option("--ip", required=True, help="IP address")
+@click.option("--env", default=None, type=click.Choice(["production", "staging", "lab"]), help="Environment (optional)")
+@click.option("--os", "os_family", default=None, help="OS family")
+@click.option("--port", "ssh_port", default=22, show_default=True, type=int, help="SSH port")
+def servers_register(hostname, ip, env, os_family, ssh_port):
+    """Register a server in DB and generate its keypair, without SSH.
+
+    Use this for bulk bootstrap: register, then deploy the pubkey manually
+    with your own SSH credentials, then run `servers activate`.
+    """
+    admin_id = _require_admin()
+    try:
+        result = actions.register_server(hostname, ip, ssh_port, env, os_family, admin_id)
+    except (UserError, NotFoundError) as e:
+        raise click.ClickException(str(e))
+    click.echo(f"Registered {result['hostname']} (id={result['server_id']}, fingerprint={result['fingerprint']})")
+
+
+@servers.command("activate")
+@click.argument("hostname")
+def servers_activate(hostname):
+    """Verify SSH connectivity with the per-server key and mark as provisioned."""
+    admin_id = _require_admin()
+    try:
+        result = actions.activate_server(hostname, admin_id, scan_sync=True)
+    except (UserError, NotFoundError) as e:
+        raise click.ClickException(str(e))
+    click.echo(f"Server {hostname} {result['status']}.")
 
 
 @servers.command("add")
@@ -101,9 +144,9 @@ def servers_add(hostname, ip, ssh_user, ssh_password, env, os_family, ssh_port):
     if ssh_password is None:
         ssh_password = click.prompt("SSH password (leave empty to use collector key)", hide_input=True, default="")
     try:
-        actions.add_server(hostname, ip, ssh_user, ssh_password, env, os_family, ssh_port, admin_id)
+        actions.add_server(hostname, ip, ssh_user, ssh_password, env, os_family, ssh_port, admin_id, scan_sync=True)
         click.echo(f"Server {hostname} added and provisioned successfully.")
-    except (ValueError, RuntimeError) as e:
+    except (ValueError, RuntimeError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -129,7 +172,7 @@ def servers_update(hostname, ip, env, os_family):
             admin_id,
         )
         click.echo(f"Server {hostname} updated.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -141,7 +184,7 @@ def servers_disable(hostname):
     try:
         actions.disable_server(hostname, admin_id)
         click.echo(f"Server {hostname} disabled.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -213,7 +256,7 @@ def keys_validate(fingerprint):
     try:
         actions.validate_key(fingerprint, admin_id)
         click.echo(f"Key {fingerprint} validated.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -226,7 +269,7 @@ def keys_revoke(fingerprint, reason):
     try:
         actions.revoke_key(fingerprint, admin_id, reason)
         click.echo(f"Key {fingerprint} revoked.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -238,7 +281,7 @@ def keys_assign(fingerprint, owner):
     try:
         actions.assign_key(fingerprint, owner)
         click.echo(f"Key {fingerprint} assigned to {owner}.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -259,7 +302,7 @@ def keys_set_expiry(fingerprint, hours, date_str):
     try:
         actions.set_key_expiry(fingerprint, expires_at)
         click.echo(f"Expiration set: {expires_at.isoformat()}")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -270,7 +313,7 @@ def keys_remove_expiry(fingerprint):
     try:
         actions.remove_key_expiry(fingerprint)
         click.echo(f"Expiration removed for {fingerprint}.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -339,7 +382,7 @@ def access_grant(key_fp, hostname, hours, date_str, reason):
     try:
         actions.grant_access(key_fp, hostname, expires_at, reason, admin_id)
         click.echo(f"Access granted until {expires_at.isoformat()}.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -376,7 +419,7 @@ def access_approve(request_id):
     try:
         actions.approve_request(request_id, admin_id)
         click.echo(f"Request {request_id} approved.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -388,7 +431,7 @@ def access_reject(request_id):
     try:
         actions.reject_request(request_id, admin_id)
         click.echo(f"Request {request_id} rejected.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -400,7 +443,7 @@ def access_revoke(request_id):
     try:
         actions.revoke_request(request_id, admin_id)
         click.echo(f"Access {request_id} revoked.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -413,7 +456,7 @@ def access_lock_user(user, server):
     try:
         result = actions.lock_user(user, server, admin_id)
         click.echo(f"User '{result['unix_user']}' locked on {result['hostname']}")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -426,7 +469,7 @@ def access_unlock_user(user, server):
     try:
         result = actions.unlock_user(user, server, admin_id)
         click.echo(f"User '{result['unix_user']}' unlocked on {result['hostname']}")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -451,7 +494,7 @@ def group_grant(user, server, sam_group):
     try:
         result = actions.grant_group(user, server, sam_group, admin_id)
         click.echo(f"User '{result['unix_user']}' assigned to {result['sam_group']} on {result['hostname']}")
-    except (ValueError, actions.UserError, actions.NotFoundError) as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -464,7 +507,7 @@ def group_revoke(user, server):
     try:
         result = actions.revoke_group(user, server, admin_id)
         click.echo(f"SAM group revoked for '{result['unix_user']}' on {result['hostname']}")
-    except (ValueError, actions.UserError, actions.NotFoundError) as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -480,7 +523,7 @@ def group_change(user, server, sam_group):
     try:
         result = actions.change_group(user, server, sam_group, admin_id)
         click.echo(f"User '{result['unix_user']}' group changed to {result['sam_group']} on {result['hostname']}")
-    except (ValueError, actions.UserError, actions.NotFoundError) as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -522,7 +565,7 @@ def admin_disable(username):
     try:
         actions.disable_admin(username, performer_id)
         click.echo(f"Administrator {username} disabled.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -534,7 +577,7 @@ def admin_enable(username):
     try:
         actions.enable_admin(username, performer_id)
         click.echo(f"Administrator {username} re-enabled.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -560,7 +603,7 @@ def admin_update(username, email, role):
             performer_id,
         )
         click.echo(f"Administrator {username} updated.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -572,7 +615,7 @@ def admin_reset_password(username, password):
     try:
         actions.reset_password(username, password)
         click.echo(f"Password for {username} has been reset.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 
@@ -585,7 +628,7 @@ def admin_delete(username):
     try:
         actions.delete_admin(username, performer_id)
         click.echo(f"Administrator {username} deleted.")
-    except ValueError as e:
+    except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
 
 

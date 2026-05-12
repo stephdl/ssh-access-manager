@@ -33,7 +33,6 @@
     "status_scan_failed": "🟠 Scan échoué",
     "status_inactive": "🔴 Inactif",
     "status_total": "Total",
-    "collector_key": "Clé publique collecteur",
     "copy": "Copier",
     "copied": "Copié !",
     "scan_success": "Scan de {hostname} lancé.",
@@ -75,7 +74,7 @@
   },
   "edit_server": {
     "title": "Éditer le serveur",
-    "hostname": "Hostname (lecture seule)",
+    "hostname": "Hostname",
     "ip": "Adresse IP",
     "ip_placeholder": "ex: 192.168.1.10",
     "environment": "Environnement",
@@ -86,7 +85,9 @@
     "max_sessions_label": "Sessions max",
     "max_sessions_hint": "Alerte envoyée si le nombre de sessions SSH actives dépasse ce seuil.",
     "submitting": "Sauvegarde…",
-    "submit": "Sauvegarder"
+    "submit": "Sauvegarder",
+    "hostname_placeholder": "ex : mon-serveur-01",
+    "error_duplicate_hostname": "Ce hostname est déjà utilisé par un autre serveur"
   },
   "server_table": {
     "search_placeholder": "Rechercher un serveur…",
@@ -170,7 +171,18 @@
     "bulk_revoked": "Clés révoquées : {revoked}, ignorées : {skipped}",
     "root_revoke_warning": "Révoquer la clé SSH de l'utilisateur <strong>root</strong> peut entraîner une perte définitive d'accès distant à ce serveur.",
     "reprovision_needed": "Reprovisionnement requis",
-    "reprovision_needed_tooltip": "La mise à jour automatique a échoué sur cet hôte. Ouvrez le détail du serveur et cliquez sur Re-provisionner pour pousser la nouvelle configuration SAM. Consultez la vue Audit pour le détail de l'erreur."
+    "reprovision_needed_tooltip": "La mise à jour automatique a échoué sur cet hôte. Ouvrez le détail du serveur et cliquez sur Re-provisionner pour pousser la nouvelle configuration SAM. Consultez la vue Audit pour le détail de l'erreur.",
+    "rotate_key": "Tourner la clé du collecteur",
+    "rotate_key_confirm_title": "Tourner la clé du collecteur",
+    "rotate_key_confirm_message": "Cette opération génère une nouvelle clé SSH par serveur, la déploie sur l'hôte distant, vérifie la connectivité, puis retire l'ancienne clé. Opération atomique avec rollback automatique en cas d'échec. Continuer ?",
+    "rotate_key_in_progress": "Rotation en cours…",
+    "rotate_key_success": "Clé du collecteur tournée avec succès. Nouvelle empreinte : {fingerprint}",
+    "rotate_key_failed": "La rotation a échoué",
+    "rotate_key_retry": "Réessayer",
+    "field_collector_fingerprint": "Empreinte de la clé du collecteur",
+    "copy_public_key": "Copier la clé publique",
+    "manual_provision_title": "Provisionner avec vos propres identifiants SSH",
+    "manual_provision_hint": "Utilisez ces commandes pour amorcer le serveur avec votre propre compte SSH. Remplacez 'podman' par 'docker' si nécessaire. La clé du collecteur est récupérée depuis le serveur, puis déployée via votre session SSH."
   },
   "key_table": {
     "col_status": "Statut",

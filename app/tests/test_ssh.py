@@ -53,7 +53,7 @@ def test_ssh_connect_uses_reject_policy():
         mock_cls.return_value = client_instance
         client_instance.connect.side_effect = Exception("stop")
         try:
-            ssh._connect("host")
+            ssh._connect("host", key_path="/tmp/fake.key")
         except Exception:
             pass
         client_instance.set_missing_host_key_policy.assert_called_once_with(
@@ -67,7 +67,7 @@ def test_ssh_connect_never_uses_auto_add_policy():
         mock_cls.return_value = client_instance
         client_instance.connect.side_effect = Exception("stop")
         try:
-            ssh._connect("host")
+            ssh._connect("host", key_path="/tmp/fake.key")
         except Exception:
             pass
         for c in client_instance.set_missing_host_key_policy.call_args_list:
@@ -98,7 +98,7 @@ def test_ssh_ensure_scripts_deploys_when_hash_differs(sample_server):
 
         client.exec_command.return_value = (MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b"")))
 
-        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"], key_path="/tmp/fake.key")
 
         assert sftp.putfo.called
         assert mock_db.execute.called
@@ -140,7 +140,7 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
 
         client.exec_command.side_effect = exec_side_effect
 
-        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"], key_path="/tmp/fake.key")
 
         sftp.putfo.assert_not_called()
         mock_db.execute.assert_not_called()
@@ -162,7 +162,7 @@ def test_ssh_revoke_on_server_calls_sam_revoke_with_fingerprint(sample_key):
         stderr.read.return_value = b""
         client.exec_command.return_value = (MagicMock(), stdout, stderr)
 
-        ssh.revoke_on_server("server-test-01", sample_key["fingerprint"], ip="192.168.1.10")
+        ssh.revoke_on_server("server-test-01", sample_key["fingerprint"], ip="192.168.1.10", key_path="/tmp/fake.key")
 
         cmd = client.exec_command.call_args[0][0]
         assert "sam-revoke" in cmd
@@ -180,7 +180,7 @@ def test_ssh_revoke_on_server_with_unix_user_passes_second_arg(sample_key):
         stderr.read.return_value = b""
         client.exec_command.return_value = (MagicMock(), stdout, stderr)
 
-        ssh.revoke_on_server("server-test-01", sample_key["fingerprint"], ip="192.168.1.10", unix_user="alice")
+        ssh.revoke_on_server("server-test-01", sample_key["fingerprint"], ip="192.168.1.10", unix_user="alice", key_path="/tmp/fake.key")
 
         cmd = client.exec_command.call_args[0][0]
         assert "sam-revoke" in cmd
@@ -201,7 +201,7 @@ def test_ssh_revoke_on_server_raises_on_nonzero_exit(sample_key):
         client.exec_command.return_value = (MagicMock(), stdout, stderr)
 
         with pytest.raises(ssh.SSHError):
-            ssh.revoke_on_server("server-test-01", sample_key["fingerprint"], ip="192.168.1.10")
+            ssh.revoke_on_server("server-test-01", sample_key["fingerprint"], ip="192.168.1.10", key_path="/tmp/fake.key")
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +258,7 @@ def test_ssh_ensure_scripts_staging_not_in_tmp(sample_server):
             MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b""))
         )
 
-        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"], key_path="/tmp/fake.key")
 
         staged_path = sftp.putfo.call_args[0][1]
         assert not staged_path.startswith("/tmp"), "Staging must not use /tmp (world-writable)"
@@ -280,7 +280,7 @@ def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
             MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b""))
         )
 
-        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"], key_path="/tmp/fake.key")
 
         commands = [c[0][0] for c in client.exec_command.call_args_list]
         install_cmds = [c for c in commands if "/usr/bin/install" in c]
@@ -318,7 +318,7 @@ def test_ssh_ensure_scripts_install_uses_mode_750(sample_server):
             MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b""))
         )
 
-        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"], key_path="/tmp/fake.key")
 
         commands = [c[0][0] for c in client.exec_command.call_args_list]
         install_cmds = [c for c in commands if "/usr/bin/install" in c]
@@ -343,7 +343,7 @@ def test_ssh_deploy_script_sets_staging_permissions(sample_server):
             MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b""))
         )
 
-        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"], key_path="/tmp/fake.key")
 
         staged_path = sftp.putfo.call_args[0][1]
         sftp.chmod.assert_any_call(staged_path, 0o600)
@@ -364,7 +364,7 @@ def test_ssh_deploy_script_removes_staging_file_after_install(sample_server):
             MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b""))
         )
 
-        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"])
+        ssh.ensure_scripts(sample_server["hostname"], sample_server["id"], sample_server["ip_address"], key_path="/tmp/fake.key")
 
         staged_path = sftp.putfo.call_args[0][1]
         commands = [c[0][0] for c in client.exec_command.call_args_list]
@@ -420,6 +420,7 @@ def test_ssh_add_key_on_server_calls_sam_add(sample_server):
             "alice",
             "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI test",
             sample_server["ip_address"],
+            key_path="/tmp/fake.key",
         )
 
         cmd = client.exec_command.call_args[0][0]
@@ -444,6 +445,7 @@ def test_ssh_add_key_on_server_raises_on_nonzero_exit(sample_server):
                 "alice",
                 "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI test",
                 sample_server["ip_address"],
+                key_path="/tmp/fake.key",
             )
 
 
@@ -470,7 +472,7 @@ def test_ssh_ensure_scripts_audit_details_valid_json(sample_server):
             MagicMock(), stdout_wrong, MagicMock(read=MagicMock(return_value=b""))
         )
 
-        ssh.ensure_scripts(hostile_server["hostname"], hostile_server["id"], hostile_server["ip_address"])
+        ssh.ensure_scripts(hostile_server["hostname"], hostile_server["id"], hostile_server["ip_address"], key_path="/tmp/fake.key")
 
         assert mock_db.execute.called
         details_arg = mock_db.execute.call_args[0][1][2]
@@ -509,7 +511,7 @@ def test_ssh_lock_user_on_server_calls_sam_lock_user(sample_server):
         stderr.read.return_value = b""
         client.exec_command.return_value = (MagicMock(), stdout, stderr)
 
-        ssh.lock_user_on_server(sample_server["hostname"], "alice", sample_server["ip_address"])
+        ssh.lock_user_on_server(sample_server["hostname"], "alice", sample_server["ip_address"], key_path="/tmp/fake.key")
 
         cmd = client.exec_command.call_args[0][0]
         assert "sam-lock-user" in cmd
@@ -527,7 +529,7 @@ def test_ssh_unlock_user_on_server_calls_sam_unlock_user(sample_server):
         stderr.read.return_value = b""
         client.exec_command.return_value = (MagicMock(), stdout, stderr)
 
-        ssh.unlock_user_on_server(sample_server["hostname"], "alice", sample_server["ip_address"])
+        ssh.unlock_user_on_server(sample_server["hostname"], "alice", sample_server["ip_address"], key_path="/tmp/fake.key")
 
         cmd = client.exec_command.call_args[0][0]
         assert "sam-unlock-user" in cmd
@@ -673,7 +675,7 @@ ciphers aes256-gcm@openssh.com,aes128-gcm@openssh.com
     mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
 
     with patch("ssh._connect", return_value=mock_client):
-        result = ssh.audit_sshd_config("server1", "192.168.1.1")
+        result = ssh.audit_sshd_config("server1", "192.168.1.1", key_path="/tmp/fake.key")
         assert "port" in result
         assert result["port"] == "22"
         assert result["permitrootlogin"] == "no"
@@ -696,7 +698,7 @@ def test_ssh_audit_sshd_config_raises_sudo_error_on_nonzero():
 
     with patch("ssh._connect", return_value=mock_client):
         with pytest.raises(ssh.SSHSudoError, match="sshd -T failed"):
-            ssh.audit_sshd_config("server1", "192.168.1.1")
+            ssh.audit_sshd_config("server1", "192.168.1.1", key_path="/tmp/fake.key")
 
 
 def test_ssh_audit_sshd_config_raises_script_error_on_empty():
@@ -712,7 +714,7 @@ def test_ssh_audit_sshd_config_raises_script_error_on_empty():
 
     with patch("ssh._connect", return_value=mock_client):
         with pytest.raises(ssh.SSHScriptError, match="no parseable output"):
-            ssh.audit_sshd_config("server1", "192.168.1.1")
+            ssh.audit_sshd_config("server1", "192.168.1.1", key_path="/tmp/fake.key")
 
 
 def test_ssh_audit_sshd_config_uses_reject_policy():
@@ -724,7 +726,7 @@ def test_ssh_audit_sshd_config_uses_reject_policy():
         mock_cls.return_value = client_instance
         client_instance.connect.side_effect = Exception("stop")
         try:
-            ssh._connect("host")
+            ssh._connect("host", key_path="/tmp/fake.key")
         except Exception:
             pass
         client_instance.set_missing_host_key_policy.assert_called_once_with(
@@ -747,7 +749,7 @@ def test_ssh_collect_sessions_calls_sam_sessions(mock_ssh_client):
 
     with patch("ssh._connect", return_value=mock_client), \
          patch("ssh.db") as mock_db:
-        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1", key_path="/tmp/fake.key")
         assert mock_db.execute.called
 
 
@@ -766,7 +768,7 @@ def test_ssh_collect_sessions_marks_inactive_before_reinserting(mock_ssh_client)
 
     with patch("ssh._connect", return_value=mock_client), \
          patch("ssh.db") as mock_db:
-        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1", key_path="/tmp/fake.key")
 
         first_call = mock_db.execute.call_args_list[0]
         first_sql = first_call[0][0]
@@ -791,7 +793,7 @@ def test_ssh_collect_sessions_utmpdump_history(mock_ssh_client):
 
     with patch("ssh._connect", return_value=mock_client), \
          patch("ssh.db") as mock_db:
-        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1", key_path="/tmp/fake.key")
         insert_calls = [c for c in mock_db.execute.call_args_list if "INSERT" in c[0][0]]
         assert insert_calls
         params = insert_calls[0][0][1]
@@ -817,7 +819,7 @@ def test_ssh_collect_sessions_local_tty_no_ip(mock_ssh_client):
 
     with patch("ssh._connect", return_value=mock_client), \
          patch("ssh.db") as mock_db:
-        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1", key_path="/tmp/fake.key")
         insert_calls = [c for c in mock_db.execute.call_args_list if "INSERT" in c[0][0]]
         if insert_calls:
             params = insert_calls[0][0][1]
@@ -840,7 +842,7 @@ def test_ssh_collect_sessions_fallback_still_logged_in(mock_ssh_client):
 
     with patch("ssh._connect", return_value=mock_client), \
          patch("ssh.db") as mock_db:
-        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1")
+        ssh.collect_sessions_on_server("server1", "server-uuid-1", "192.168.1.1", key_path="/tmp/fake.key")
         insert_calls = [c for c in mock_db.execute.call_args_list if "INSERT" in c[0][0]]
         if insert_calls:
             params = insert_calls[0][0][1]
@@ -992,7 +994,7 @@ def test_ssh_provision_server_success():
         mock_sftp = MagicMock()
         mock_client.open_sftp.return_value = mock_sftp
 
-        ssh.provision_server("192.168.1.10", "root", "password123", 22)
+        ssh.provision_server("192.168.1.10", "root", "password123", 22, pubkey="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
 
         mock_client.set_missing_host_key_policy.assert_called_once()
         mock_client.connect.assert_called_once()
@@ -1014,7 +1016,7 @@ def test_ssh_provision_server_uses_paramiko_for_host_key():
         mock_client.connect.side_effect = Exception("stop early")
 
         try:
-            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+            ssh.provision_server("192.168.1.10", "root", "password123", 22, pubkey="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
         except Exception:
             pass
 
@@ -1035,7 +1037,7 @@ def test_ssh_provision_server_auth_failed():
         mock_client.connect.side_effect = paramiko.AuthenticationException("Auth failed")
 
         with pytest.raises(ssh.SSHAuthError, match="Authentication failed"):
-            ssh.provision_server("192.168.1.10", "root", "wrongpass", 22)
+            ssh.provision_server("192.168.1.10", "root", "wrongpass", 22, pubkey="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
 
 
 def test_ssh_provision_server_timeout():
@@ -1052,7 +1054,7 @@ def test_ssh_provision_server_timeout():
         mock_client.connect.side_effect = socket.timeout("Timeout")
 
         with pytest.raises(ssh.SSHTimeoutError, match="timed out"):
-            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+            ssh.provision_server("192.168.1.10", "root", "password123", 22, pubkey="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
 
 
 def test_ssh_provision_server_no_route():
@@ -1068,7 +1070,7 @@ def test_ssh_provision_server_no_route():
         mock_client.connect.side_effect = Exception("No route to host")
 
         with pytest.raises(ssh.SSHUnreachableError, match="unreachable"):
-            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+            ssh.provision_server("192.168.1.10", "root", "password123", 22, pubkey="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
 
 
 def test_ssh_provision_server_refused():
@@ -1084,7 +1086,7 @@ def test_ssh_provision_server_refused():
         mock_client.connect.side_effect = Exception("Connection refused")
 
         with pytest.raises(ssh.SSHPortRefusedError, match="refused"):
-            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+            ssh.provision_server("192.168.1.10", "root", "password123", 22, pubkey="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
 
 
 def test_ssh_provision_server_keyscan_unreachable():
@@ -1093,7 +1095,7 @@ def test_ssh_provision_server_keyscan_unreachable():
 
     with patch("ssh._fetch_host_key", side_effect=ssh.SSHUnreachableError("Server unreachable")):
         with pytest.raises(ssh.SSHUnreachableError, match="unreachable"):
-            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+            ssh.provision_server("192.168.1.10", "root", "password123", 22, pubkey="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
 
 
 def test_ssh_provision_server_script_failed():
@@ -1125,7 +1127,7 @@ def test_ssh_provision_server_script_failed():
         mock_client.open_sftp.return_value = mock_sftp
 
         with pytest.raises(ssh.SSHSudoError, match="sudo privileges"):
-            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+            ssh.provision_server("192.168.1.10", "root", "password123", 22, pubkey="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
 
 
 def test_ssh_provision_server_uses_reject_policy():
@@ -1141,53 +1143,15 @@ def test_ssh_provision_server_uses_reject_policy():
         mock_client.connect.side_effect = Exception("stop early")
 
         try:
-            ssh.provision_server("192.168.1.10", "root", "password123", 22)
+            ssh.provision_server("192.168.1.10", "root", "password123", 22, pubkey="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
         except Exception:
             pass
 
         mock_client.set_missing_host_key_policy.assert_called_once_with(mock_policy.return_value)
 
 
-def test_ssh_provision_server_no_password_uses_collector_key():
-    """provision_server with empty password connects via collector key (no provision script)."""
-    from unittest.mock import MagicMock, patch
-
-    with patch("ssh._fetch_host_key"), \
-         patch("ssh._connect") as mock_connect:
-        mock_client = MagicMock()
-        mock_connect.return_value = mock_client
-
-        ssh.provision_server("192.168.1.10", "root", "", 22)
-
-        mock_connect.assert_called_once_with("192.168.1.10", 22)
-        mock_client.close.assert_called_once()
-
-
-def test_ssh_provision_server_no_password_key_auth_failed():
-    """provision_server with empty password raises SSHAuthError when collector key is not authorized."""
-    from unittest.mock import patch
-    import paramiko
-
-    with patch("ssh._fetch_host_key"), \
-         patch("ssh._connect", side_effect=paramiko.AuthenticationException("no key")):
-
-        with pytest.raises(ssh.SSHAuthError, match="collector key is not authorized"):
-            ssh.provision_server("192.168.1.10", "root", "", 22)
-
-
-def test_ssh_provision_server_no_password_skips_provision_script():
-    """provision_server with empty password does not run the provision script."""
-    from unittest.mock import MagicMock, patch
-
-    with patch("ssh._fetch_host_key"), \
-         patch("ssh._connect") as mock_connect:
-        mock_client = MagicMock()
-        mock_connect.return_value = mock_client
-
-        ssh.provision_server("192.168.1.10", "root", "", 65500)
-
-        mock_connect.assert_called_once_with("192.168.1.10", 65500)
-        mock_client.exec_command.assert_not_called()
+# Note: provision_server now requires a non-empty password.
+# The "verify connectivity with existing key" workflow has been replaced by activate_server().
         mock_client.open_sftp.assert_not_called()
 
 
@@ -1229,7 +1193,7 @@ def test_ssh_grant_group_on_server_calls_sam_grant_group():
         stdout.channel.recv_exit_status.return_value = 0
         client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
 
-        result = ssh.grant_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10")
+        result = ssh.grant_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10", key_path="/tmp/fake.key")
 
         cmd = client.exec_command.call_args[0][0]
         assert "sam-grant-group" in cmd
@@ -1250,7 +1214,7 @@ def test_ssh_revoke_group_on_server_calls_sam_revoke_group():
         stdout.channel.recv_exit_status.return_value = 0
         client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
 
-        result = ssh.revoke_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10")
+        result = ssh.revoke_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10", key_path="/tmp/fake.key")
 
         cmd = client.exec_command.call_args[0][0]
         assert "sam-revoke-group" in cmd
@@ -1271,7 +1235,7 @@ def test_ssh_revoke_group_on_server_with_none_strips_all():
         stdout.channel.recv_exit_status.return_value = 0
         client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
 
-        result = ssh.revoke_group_on_server("web-01", "alice", None, "192.168.1.10")
+        result = ssh.revoke_group_on_server("web-01", "alice", None, "192.168.1.10", key_path="/tmp/fake.key")
 
         cmd = client.exec_command.call_args[0][0]
         assert "sam-revoke-group" in cmd
@@ -1296,7 +1260,7 @@ def test_ssh_grant_group_on_server_raises_on_failure():
         client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"error")))
 
         with pytest.raises(ssh.SSHError):
-            ssh.grant_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10")
+            ssh.grant_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10", key_path="/tmp/fake.key")
 
 
 # ---------------------------------------------------------------------------
@@ -1375,7 +1339,7 @@ def test_ssh_apply_provision_update_invokes_correct_command():
         stdout.channel.recv_exit_status.return_value = 0
         client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
 
-        result = ssh.apply_provision_update("web-01", "192.168.1.10", 22)
+        result = ssh.apply_provision_update("web-01", "192.168.1.10", 22, key_path="/tmp/fake.key")
 
         cmd = client.exec_command.call_args[0][0]
         assert "sudo" in cmd
@@ -1399,7 +1363,7 @@ def test_ssh_apply_provision_update_raises_on_nonzero_exit():
         client.exec_command.return_value = (MagicMock(), stdout, stderr)
 
         with pytest.raises(ssh.SSHSudoError, match="sam-self-update failed.*exit 1.*visudo validation failed"):
-            ssh.apply_provision_update("web-01", "192.168.1.10", 22)
+            ssh.apply_provision_update("web-01", "192.168.1.10", 22, key_path="/tmp/fake.key")
 
 
 def test_ssh_apply_provision_update_returns_version():
@@ -1414,7 +1378,7 @@ def test_ssh_apply_provision_update_returns_version():
         stdout.channel.recv_exit_status.return_value = 0
         client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
 
-        result = ssh.apply_provision_update("web-01", "192.168.1.10", 22)
+        result = ssh.apply_provision_update("web-01", "192.168.1.10", 22, key_path="/tmp/fake.key")
         assert result == ssh.PROVISION_VERSION
 
 
@@ -1431,6 +1395,6 @@ def test_ssh_apply_provision_update_uses_reject_policy():
         stdout.channel.recv_exit_status.return_value = 0
         client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
 
-        ssh.apply_provision_update("web-01", "192.168.1.10", 22)
+        ssh.apply_provision_update("web-01", "192.168.1.10", 22, key_path="/tmp/fake.key")
 
         client.set_missing_host_key_policy.assert_called_once_with(mock_policy.return_value)

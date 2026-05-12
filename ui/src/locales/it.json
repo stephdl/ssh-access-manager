@@ -33,7 +33,6 @@
     "status_scan_failed": "🟠 Scansione fallita",
     "status_inactive": "🔴 Inattivo",
     "status_total": "Totale",
-    "collector_key": "Chiave pubblica collector",
     "copy": "Copia",
     "copied": "Copiato!",
     "scan_success": "Scansione di {hostname} avviata.",
@@ -75,7 +74,7 @@
   },
   "edit_server": {
     "title": "Modifica server",
-    "hostname": "Hostname (sola lettura)",
+    "hostname": "Hostname",
     "ip": "Indirizzo IP",
     "ip_placeholder": "es: 192.168.1.10",
     "environment": "Ambiente",
@@ -86,7 +85,9 @@
     "max_sessions_label": "Sessioni max",
     "max_sessions_hint": "Un avviso viene inviato se le sessioni SSH attive superano questo limite.",
     "submitting": "Salvataggio…",
-    "submit": "Salva"
+    "submit": "Salva",
+    "hostname_placeholder": "es.: mio-server-01",
+    "error_duplicate_hostname": "Questo hostname è già in uso da un altro server"
   },
   "server_table": {
     "search_placeholder": "Cerca un server…",
@@ -170,7 +171,18 @@
     "bulk_revoked": "Chiavi revocate: {revoked}, saltate: {skipped}",
     "root_revoke_warning": "La revoca della chiave SSH dell'utente <strong>root</strong> può causare la perdita permanente dell'accesso remoto a questo server.",
     "reprovision_needed": "Riapprontamento richiesto",
-    "reprovision_needed_tooltip": "L'aggiornamento automatico è fallito su questo host. Apri il dettaglio del server e fai clic su Reapprontamento per inviare la nuova configurazione SAM. Consulta la vista Audit per i dettagli dell'errore."
+    "reprovision_needed_tooltip": "L'aggiornamento automatico è fallito su questo host. Apri il dettaglio del server e fai clic su Reapprontamento per inviare la nuova configurazione SAM. Consulta la vista Audit per i dettagli dell'errore.",
+    "rotate_key": "Ruotare la chiave del collettore",
+    "rotate_key_confirm_title": "Ruotare la chiave del collettore",
+    "rotate_key_confirm_message": "Questa operazione genera una nuova chiave SSH per server, la distribuisce sull'host remoto, verifica la connettività e quindi rimuove la vecchia chiave. Operazione atomica con rollback automatico in caso di guasto. Continuare?",
+    "rotate_key_in_progress": "Rotazione…",
+    "rotate_key_success": "Chiave del collettore ruotata con successo. Nuova impronta: {fingerprint}",
+    "rotate_key_failed": "La rotazione è fallita",
+    "rotate_key_retry": "Riprova",
+    "field_collector_fingerprint": "Impronta della chiave del collettore",
+    "copy_public_key": "Copiare la chiave pubblica",
+    "manual_provision_title": "Provisionare con le proprie credenziali SSH",
+    "manual_provision_hint": "Utilizzare questi comandi per inizializzare il server con il proprio account SSH. Sostituire 'podman' con 'docker' se necessario. La chiave del collettore viene recuperata dal server e quindi distribuita tramite la propria sessione SSH."
   },
   "key_table": {
     "col_status": "Stato",

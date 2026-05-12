@@ -18,8 +18,6 @@ const MOCK_SERVERS = [
   },
 ]
 
-const COLLECTOR_KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICollectorKeyTest audit-collector'
-
 function createMockRouter() {
   return createRouter({
     history: createMemoryHistory(),
@@ -46,12 +44,6 @@ beforeEach(() => {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve(MOCK_SERVERS),
-        })
-      }
-      if (url === '/api/system/collector-key') {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ public_key: COLLECTOR_KEY, ssh_user: 'audit-collector' }),
         })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
@@ -121,12 +113,6 @@ describe('Dashboard - Add Server Modal', () => {
           json: () => Promise.resolve(MOCK_SERVERS),
         })
       }
-      if (url === '/api/system/collector-key') {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ public_key: COLLECTOR_KEY, ssh_user: 'audit-collector' }),
-        })
-      }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
     vi.stubGlobal('fetch', fetchSpy)
@@ -177,12 +163,6 @@ describe('Dashboard - Add Server Modal', () => {
           json: () => Promise.resolve(MOCK_SERVERS),
         })
       }
-      if (url === '/api/system/collector-key') {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ public_key: COLLECTOR_KEY, ssh_user: 'audit-collector' }),
-        })
-      }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
     vi.stubGlobal('fetch', fetchSpy)
@@ -230,12 +210,6 @@ describe('Dashboard - Add Server Modal', () => {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve(MOCK_SERVERS),
-        })
-      }
-      if (url === '/api/system/collector-key') {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ public_key: COLLECTOR_KEY, ssh_user: 'audit-collector' }),
         })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
@@ -348,12 +322,6 @@ describe('Dashboard - Add Server Modal', () => {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve(MOCK_SERVERS),
-        })
-      }
-      if (url === '/api/system/collector-key') {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ public_key: COLLECTOR_KEY, ssh_user: 'audit-collector' }),
         })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
