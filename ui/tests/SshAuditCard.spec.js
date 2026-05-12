@@ -256,9 +256,9 @@ describe('SshAuditCard.vue', () => {
 
     const rows = wrapper.findAll('[data-testid="audit-table"] tbody tr')
     expect(rows[0].text()).toContain('PermitRootLogin')
-    expect(rows[0].attributes('title')).toContain('ANSSI R5')
+    expect(rows[0].find('.expected-cell').attributes('title')).toContain('ANSSI R5')
     expect(rows[1].text()).toContain('PasswordAuthentication')
-    expect(rows[1].attributes('title')).toContain('ANSSI R7')
+    expect(rows[1].find('.expected-cell').attributes('title')).toContain('ANSSI R7')
   })
 
   it('shows error_not_found message on 404', async () => {

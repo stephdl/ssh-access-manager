@@ -51,11 +51,11 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="check in filteredChecks" :key="check.directive" :title="rowTooltip(check)">
+          <tr v-for="check in filteredChecks" :key="check.directive">
             <td>
               <strong>{{ directiveLabel(check.directive) }}</strong>
             </td>
-            <td>
+            <td class="expected-cell" :title="rowTooltip(check)">
               <code>{{ check.expected }}</code>
             </td>
             <td>
@@ -346,6 +346,10 @@ th {
 td {
   padding: 0.3rem 0.5rem;
   border-bottom: 1px solid var(--border-color);
+}
+
+.expected-cell {
+  cursor: help;
 }
 
 tbody tr:hover {
