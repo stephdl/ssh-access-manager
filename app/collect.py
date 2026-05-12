@@ -88,21 +88,42 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
     server_id = server["id"]
     result = {"hostname": hostname, "new": 0, "disappeared": 0, "known": 0, "error": None, "anomalies": []}
 
+    # Resolve per-server key path
     try:
-        ssh.ensure_scripts(hostname, server_id, ip=ip, port=ssh_port)
+        key_path = ssh._resolve_key_path(server_id)
+    except KeyError as exc:
+        # No per-server key — admin must re-add this server
+        result["error"] = str(exc)
+        db.execute(
+            """
+            INSERT INTO audit_log (action, target_server, details)
+            VALUES ('SCAN_FAILED', %s, %s::jsonb)
+            """,
+            (server_id, json.dumps({"error": str(exc)})),
+        )
+        return result
+
+    try:
+        ssh.ensure_scripts(hostname, server_id, ip=ip, port=ssh_port, key_path=key_path)
 
         # Auto-update provision artifacts if version differs
         # Wrapped in try/except for test compatibility (mocks may not have these functions)
         try:
-            client = ssh._connect(ip, ssh_port)
+            client = ssh._connect(ip, ssh_port, key_path=key_path)
             try:
                 remote_version = ssh._read_provision_version(client)
             finally:
                 client.close()
 
-            if remote_version != ssh.PROVISION_VERSION:
+            if remote_version == ssh.PROVISION_VERSION:
+                # Version matches — record it (no-op if already set), clear drift
+                db.execute(
+                    "UPDATE servers SET provision_version = %s, provision_drift = FALSE WHERE id = %s",
+                    (remote_version, server_id),
+                )
+            else:
                 try:
-                    applied = ssh.apply_provision_update(hostname, ip, ssh_port)
+                    applied = ssh.apply_provision_update(hostname, ip, ssh_port, key_path=key_path)
                     db.execute(
                         "UPDATE servers SET provision_version = %s, provision_drift = FALSE WHERE id = %s",
                         (applied, server_id),
@@ -135,7 +156,7 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
             # AttributeError/TypeError: compatibility with test mocks
             pass
 
-        raw_lines = ssh.collect_keys(hostname, ip=ip, port=ssh_port)
+        raw_lines = ssh.collect_keys(hostname, ip=ip, port=ssh_port, key_path=key_path)
     except Exception as exc:
         result["error"] = str(exc)
         db.execute(
@@ -234,7 +255,7 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
 
     # Collect SSH sessions (non-fatal)
     try:
-        ssh.collect_sessions_on_server(hostname, server_id, ip=ip, port=ssh_port)
+        ssh.collect_sessions_on_server(hostname, server_id, ip=ip, port=ssh_port, key_path=key_path)
         # Check session limit and send alert if exceeded (24h anti-spam)
         max_sessions = server.get("max_sessions", 2)
         active_count = db.query_one(

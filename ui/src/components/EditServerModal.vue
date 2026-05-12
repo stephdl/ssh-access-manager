@@ -8,10 +8,18 @@
       <div v-if="editError" class="alert-error">{{ editError }}</div>
 
       <div class="form-grid">
-        <!-- Hostname (readonly) + IP -->
+        <!-- Hostname + IP -->
         <div class="form-field">
-          <label>{{ $t('edit_server.hostname') }}</label>
-          <input :value="props.server?.hostname" type="text" disabled class="input-readonly" />
+          <label
+            >{{ $t('edit_server.hostname') }}
+            <span class="required">{{ $t('common.required') }}</span></label
+          >
+          <input
+            v-model="editForm.hostname"
+            type="text"
+            :placeholder="$t('edit_server.hostname_placeholder')"
+          />
+          <span v-if="editHostnameError" class="field-error">{{ editHostnameError }}</span>
         </div>
         <div class="form-field">
           <label
@@ -92,7 +100,14 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 
 const { t } = useI18n()
 
-const editForm = ref({ ip: '', environment: '', os_family: '', ssh_port: 22, max_sessions: 2 })
+const editForm = ref({
+  hostname: '',
+  ip: '',
+  environment: '',
+  os_family: '',
+  ssh_port: 22,
+  max_sessions: 2,
+})
 const editing = ref(false)
 const editError = ref('')
 
@@ -101,6 +116,7 @@ watch(
   (open) => {
     if (open && props.server) {
       editForm.value = {
+        hostname: props.server.hostname || '',
         ip: props.server.ip_address || '',
         environment: props.server.environment || '',
         os_family: props.server.os_family || '',
@@ -128,6 +144,27 @@ function isIpDuplicate(ip) {
   )
 }
 
+function isValidHostname(h) {
+  if (!h || h.length > 253) return false
+  return /^[a-zA-Z0-9]([a-zA-Z0-9\-.]*[a-zA-Z0-9])?$/.test(h)
+}
+
+function isHostnameDuplicate(h) {
+  if (!props.allServers.length) return false
+  const normalized = h.trim()
+  return props.allServers.some(
+    (s) => s.hostname === normalized && s.hostname !== props.server?.hostname
+  )
+}
+
+const editHostnameError = computed(() => {
+  const h = editForm.value.hostname.trim()
+  if (!h) return t('add_server.error_invalid_hostname')
+  if (!isValidHostname(h)) return t('add_server.error_invalid_hostname')
+  if (isHostnameDuplicate(h)) return t('edit_server.error_duplicate_hostname')
+  return ''
+})
+
 const editIpError = computed(() => {
   const ip = editForm.value.ip.trim()
   if (!ip) return ''
@@ -138,7 +175,11 @@ const editIpError = computed(() => {
 
 const editFormValid = computed(
   () =>
-    editForm.value.ip.trim() && isValidIp(editForm.value.ip) && !isIpDuplicate(editForm.value.ip)
+    editForm.value.hostname.trim() &&
+    !editHostnameError.value &&
+    editForm.value.ip.trim() &&
+    isValidIp(editForm.value.ip) &&
+    !isIpDuplicate(editForm.value.ip)
 )
 
 function close() {
@@ -149,10 +190,12 @@ async function confirm() {
   editing.value = true
   editError.value = ''
   try {
+    const newHostname = editForm.value.hostname.trim()
     const res = await apiFetch(`/api/servers/${props.server.hostname}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        hostname: newHostname,
         ip: editForm.value.ip.trim(),
         environment: editForm.value.environment || null,
         os_family: editForm.value.os_family.trim() || null,
@@ -163,7 +206,7 @@ async function confirm() {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
     close()
-    emit('saved')
+    emit('saved', { hostname: data.hostname || newHostname })
   } catch (e) {
     editError.value = e.message
   } finally {

@@ -22,6 +22,16 @@ RUN npm run build
 # -----------------------------------------------------------------------------
 FROM alpine:3.23.4
 
+# OCI image annotations (org.opencontainers.image.* — see spec v1.1)
+LABEL org.opencontainers.image.title="ssh-access-manager" \
+      org.opencontainers.image.description="SSH access audit and management — Alpine single-container with PostgreSQL, Flask API, Vue.js UI" \
+      org.opencontainers.image.authors="Stéphane de Labrusse <stephdl@de-labrusse.fr>" \
+      org.opencontainers.image.source="https://github.com/stephdl/ssh-access-manager" \
+      org.opencontainers.image.url="https://github.com/stephdl/ssh-access-manager" \
+      org.opencontainers.image.documentation="https://github.com/stephdl/ssh-access-manager/blob/main/README.md" \
+      org.opencontainers.image.licenses="GPL-3.0-or-later" \
+      org.opencontainers.image.vendor="Stéphane de Labrusse"
+
 RUN apk update && apk add --no-cache \
     postgresql18 \
     postgresql18-client \

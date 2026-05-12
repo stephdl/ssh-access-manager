@@ -33,7 +33,6 @@
     "status_scan_failed": "🟠 Scan Failed",
     "status_inactive": "🔴 Inactive",
     "status_total": "Total",
-    "collector_key": "Collector public key",
     "copy": "Copy",
     "copied": "Copied!",
     "scan_success": "Scan of {hostname} launched.",
@@ -75,7 +74,7 @@
   },
   "edit_server": {
     "title": "Edit server",
-    "hostname": "Hostname (read-only)",
+    "hostname": "Hostname",
     "ip": "IP Address",
     "ip_placeholder": "e.g.: 192.168.1.10",
     "environment": "Environment",
@@ -86,7 +85,9 @@
     "max_sessions_label": "Max sessions",
     "max_sessions_hint": "Alert sent when active SSH sessions exceed this limit.",
     "submitting": "Saving…",
-    "submit": "Save"
+    "submit": "Save",
+    "hostname_placeholder": "e.g.: my-server-01",
+    "error_duplicate_hostname": "This hostname is already used by another server"
   },
   "server_table": {
     "search_placeholder": "Search for a server…",
@@ -170,7 +171,18 @@
     "bulk_revoked": "Keys revoked: {revoked}, skipped: {skipped}",
     "root_revoke_warning": "Revoking the SSH key of user <strong>root</strong> may result in permanent loss of remote access to this server.",
     "reprovision_needed": "Re-provision needed",
-    "reprovision_needed_tooltip": "Automatic update failed on this host. Open the server detail and click Re-provision to push the new SAM configuration. See the Audit view for the exact error."
+    "reprovision_needed_tooltip": "Automatic update failed on this host. Open the server detail and click Re-provision to push the new SAM configuration. See the Audit view for the exact error.",
+    "rotate_key": "Rotate collector key",
+    "rotate_key_confirm_title": "Rotate collector key",
+    "rotate_key_confirm_message": "This operation generates a new per-server SSH key, deploys it on the remote host, verifies connectivity, then removes the old key. Atomic operation with automatic rollback on failure. Continue?",
+    "rotate_key_in_progress": "Rotating…",
+    "rotate_key_success": "Collector key rotated successfully. New fingerprint: {fingerprint}",
+    "rotate_key_failed": "Rotation failed",
+    "rotate_key_retry": "Retry",
+    "field_collector_fingerprint": "Collector key fingerprint",
+    "copy_public_key": "Copy public key",
+    "manual_provision_title": "Provision with your own SSH credentials",
+    "manual_provision_hint": "Use these commands to bootstrap the server with your own SSH account. Replace 'podman' with 'docker' if needed. The collector key is fetched from the server, then deployed via your SSH session."
   },
   "key_table": {
     "col_status": "Status",

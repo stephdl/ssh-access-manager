@@ -570,6 +570,65 @@ Après le premier scan post-bootstrap, `ensure_scripts()` déploie `sam-self-upd
 
 **Tests** : les phases 4 et 5 de `tests/integration/run.sh` simulent un cycle d'upgrade (`sam-self-update version-v2` avec injection d'une règle marker dans sam-pkg, puis tentative avec sudoers invalide → rollback vérifié).
 
+### 6.11 Per-server collector SSH keys (issue #402)
+
+**Problème** : une clé SSH globale `/data/keys/collector_key` déployée sur tous les hôtes gérés produit un blast radius fleet-wide en cas de fuite.
+
+**Modèle adopté** : une paire ed25519 distincte est générée à `add_server()` et `register_server()` dans `/data/keys/per-server/<uuid>.key{,.pub}` (chmod 600 / 600, owner `nobody`). Le commentaire SSH (`-C`) est **vide** : un fichier volé sans la BDD ne révèle pas à quel hôte il ouvre l'accès.
+
+**UUID v4 random** (`uuid.uuid4()`, 122 bits aléatoires) — pas de v5 (déterministe, leak inventaire) ni v7 (leak timestamp). Mapping serveur ↔ fichier **implicite via le nom** ; pas de colonne `collector_key_fingerprint` (l'audit `COLLECTOR_KEY_GENERATED` garde la trace `{server_id, fingerprint}` sans hostname/ip).
+
+**Propriétés** :
+- Vol d'une per-server key → un seul hôte exposé, pas de pivot
+- Vol BDD seule → UUID/IP/hostname mais aucune clé privée
+- Vol filesystem seul → N fichiers anonymes, non corrélables aux hôtes sans tenter chaque clé contre chaque IP (bruit, fail2ban)
+- Compromission utile = **deux compromissions distinctes** requises (defense in depth)
+
+**Résolution au scan** : `ssh._resolve_key_path(server_id)` raise `KeyError` si la clé est absente → `collect.scan_server` écrit un `SCAN_FAILED` clair (« no per-server collector key — please re-add this server »).
+
+**Rotation manuelle** (`ssh.rotate_per_server_key`, bouton ServerDetail sysadmin) :
+1. Génère `<uuid>.key.new` localement
+2. SSH avec l'ancienne clé, append la nouvelle pubkey à `~audit-collector/.ssh/authorized_keys`
+3. Reconnect avec la nouvelle pour vérifier
+4. SSH avec la nouvelle clé, retire l'ancienne pubkey
+5. Renomme les fichiers (`.new` → courant, ancien supprimé)
+- Rollback à toute étape (restaure ancienne pubkey distante si appendée, supprime `.new`). Mini-fenêtre entre 2 et 4 où deux pubkeys coexistent : si SAM crashe, les deux clés marchent — la prochaine rotation nettoie.
+
+**Workflow bulk** : commandes CLI `manage.py servers register` (génère keypair, `is_provisioned=FALSE`, pas de SSH), `servers show --pubkey` (dump stdout), `servers activate` (vérifie SSH avec la per-server key, passe `is_provisioned=TRUE`). Permet à l'admin de déployer la pubkey avec sa propre clé root sans saisir aucun mot de passe côté SAM.
+
+**Hors périmètre v1** : rotation programmée automatique, TPM-sealed keys, multi-key concurrent windows, bulk-rotate.
+
+### 6.12 Scan initial automatique après provisioning (issue #402)
+
+À la fin de `add_server()` et `activate_server()`, SAM lance immédiatement un scan complet via `_trigger_initial_scan(server, admin_id, sync=...)`. Pas d'attente du prochain cycle cron : les `authorized_keys` apparaissent dans la vue **Keys** dès la fin de l'opération.
+
+Deux modes selon le caller :
+- **API (Flask)** : thread daemon (`sync=False`). Le scan tourne en arrière-plan, la réponse HTTP retourne immédiatement, le scan complète quelques secondes plus tard. Flask reste vivant, le thread tient.
+- **CLI (`manage.py`)** : appel synchrone (`sync=True`). Indispensable : un thread daemon serait tué quand le process Click se termine. `manage.py servers add` et `servers activate` passent donc `scan_sync=True` à `actions.add_server` / `actions.activate_server`.
+
+Le scan échoue silencieusement avec `logging.exception` si le pubkey distant n'est pas encore en place — la prochaine tentative manuelle (bouton Scan, ou cron) le rattrape.
+
+### 6.13 Renommage de serveur avec préservation de l'historique (issue #403)
+
+L'identifiant interne d'un serveur est son **UUID** (PK de `servers`), pas son hostname. Le hostname n'est qu'un label éditable. `actions.update_server(..., new_hostname=...)` :
+
+1. Valide le nouveau hostname (RFC 1123 via `_validate_hostname`)
+2. Refuse si un autre serveur porte déjà ce hostname (check d'unicité sur `servers.hostname != id`)
+3. `UPDATE servers SET hostname = %s WHERE id = %s` (clé primaire = UUID)
+4. Écrit un audit dédié `SERVER_RENAMED {old_hostname, new_hostname}` distinct du `SERVER_UPDATED`
+
+**Principe de préservation de l'historique** : trois sources concurrentes coexistent et chacune répond à une question distincte.
+
+1. **Le hostname affiché dans la colonne SERVER d'Audit** vient d'un JOIN `audit_log.target_server → servers.hostname`. Comme la PK est l'UUID, le JOIN renvoie toujours le hostname **courant**. Cohérent : un lien d'audit qui pointe vers un nom plus en base serait cassé.
+2. **Le champ `details` JSONB de chaque entrée** capture le hostname **au moment** de l'événement (ex : `SCAN_COMPLETED → {"hostname": "srv-12-119", ...}`). Cette valeur est figée — le code ne réécrit jamais l'audit.
+3. **Les entrées `SERVER_RENAMED`** enregistrent `{old_hostname, new_hostname}` et permettent de reconstruire l'historique complet des renommages d'un serveur (UUID stable, tous les renommages chronologiques disponibles).
+
+Une analyse forensique peut donc répondre précisément à « sous quel nom ce serveur était-il connu quand cet événement a eu lieu » en croisant les `details` de l'entrée concernée avec la timeline des `SERVER_RENAMED`. Propriété indispensable pour la conformité.
+
+Côté UI, après save avec rename, `router.replace({ name: 'ServerDetail', params: { hostname: newHostname } })`. Le `<router-view :key="$route?.fullPath">` dans `App.vue` force le **remount du component** : sans cela, Vue Router réutilise la même instance et le `const hostname = route.params.hostname` capturé au mount initial reste figé, provoquant des 404 sur les API calls.
+
+Schéma : `audit_log_action_check_v7` ajoute `SERVER_RENAMED` à la liste autorisée (migration idempotente dans `bootstrap.sh`).
+
 ---
 
 ## 7. Politique de conformité ANSSI (BP-099)
@@ -987,7 +1046,8 @@ Exception : `PUT /api/admins/<username>/password` — autorisé si sysadmin OU s
 | /api/audit | GET | ✓ | ✓ | ✓ |
 | /api/system/status | GET | ✓ | ✓ | ✓ |
 | /api/system/scan | POST | ✓ | ✓ | 403 |
-| /api/system/collector-key | GET | ✓ | ✓ | ✓ |
+| /api/servers/\<hostname\>/collector-key | GET | ✓ | ✓ | ✓ |
+| /api/servers/\<hostname\>/rotate-key | POST | ✓ | 403 | 403 |
 | /api/system/config | GET | ✓ | ✓ | ✓ |
 | /api/system/config | PUT | ✓ | 403 | 403 |
 | /api/system/test-smtp | POST | ✓ | ✓ | ✓ |
@@ -1586,9 +1646,10 @@ qui réduit le temps de CI de ~30 s par run en régime stable.
 ```bash
 if [ ! -f /data/pg/PG_VERSION ]; then
     # Premier démarrage — initialisation complète
-    mkdir -p /data/keys /data/pg /data/config
+    mkdir -p /data/keys /data/keys/per-server /data/pg /data/config
     chown postgres:postgres /data/pg && chmod 700 /data/pg  # AVANT initdb
-    ssh-keygen -t ed25519 -f /data/keys/collector_key -N ""
+    chown nobody:nobody /data/keys/per-server && chmod 700 /data/keys/per-server
+    # Per-server keys are generated lazily at add_server() — no global key here
     initdb -D /data/pg -E UTF8 --locale=C
     # ... start pg, createdb, apply schema, insert admin, stop pg
 fi

@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import io
 import json
@@ -49,8 +50,8 @@ ScriptError = SSHScriptError
 
 
 KNOWN_HOSTS = os.environ.get("KNOWN_HOSTS", "/data/keys/known_hosts")
-COLLECTOR_KEY = os.environ.get("COLLECTOR_KEY", "/data/keys/collector_key")
 SSH_USER = os.environ.get("SSH_USER", "audit-collector")
+PER_SERVER_KEYS_DIR = "/data/keys/per-server"
 
 SAM_COLLECT_PATH = "/usr/local/bin/sam-collect"
 SAM_REVOKE_PATH = "/usr/local/bin/sam-revoke"
@@ -738,14 +739,229 @@ def _read_provision_version(client) -> str | None:
     return value or None
 
 
-def apply_provision_update(hostname: str, ip: str, port: int = 22) -> str:
+def _resolve_key_path(server_id: str) -> str:
+    """Return the path to the per-server collector key for this server.
+
+    Raises KeyError with a clear admin-facing message if the key file does
+    not exist (server provisioned before per-server keys, or filesystem
+    corruption / restore inconsistency). The scan layer turns this into a
+    SCAN_FAILED audit entry.
+    """
+    path = os.path.join(PER_SERVER_KEYS_DIR, f"{server_id}.key")
+    if not os.path.isfile(path):
+        raise KeyError(
+            f"no per-server collector key for server {server_id} — please re-add this server"
+        )
+    return path
+
+
+def _generate_keypair(target_path_no_ext: str) -> tuple[str, str]:
+    """Generate an ed25519 keypair at <target_path_no_ext>{,.pub}.
+
+    Empty SSH comment (no `-C` data) — files must be anonymous on disk so
+    that a stolen .key file cannot be correlated to a hostname/IP. The
+    server identity lives in the filename (server UUID, random v4).
+
+    Returns (path_to_private_key, public_key_content). Public key content
+    is the single-line `ssh-ed25519 AAAA... ` string ready to put into
+    authorized_keys.
+
+    chmod 600 on private, 644 on public, chown nobody on both (Flask
+    process must be able to read them).
+    """
+    import subprocess
+    private_path = target_path_no_ext + ".key"
+    public_path = target_path_no_ext + ".key.pub"
+
+    # Generate keypair with no passphrase and no comment
+    subprocess.run(
+        ["ssh-keygen", "-t", "ed25519", "-N", "", "-C", "", "-f", private_path],
+        check=True,
+        capture_output=True,
+    )
+
+    # Per-server pubkey is only consumed by Flask (nobody) for display and
+    # remote provisioning — no other local user needs read access.
+    os.chmod(private_path, 0o600)
+    os.chmod(public_path, 0o600)
+
+    # Chown to nobody (user running Flask)
+    import pwd
+    nobody_uid = pwd.getpwnam("nobody").pw_uid
+    nobody_gid = pwd.getpwnam("nobody").pw_gid
+    os.chown(private_path, nobody_uid, nobody_gid)
+    os.chown(public_path, nobody_uid, nobody_gid)
+
+    # Read public key
+    with open(public_path, "r") as fh:
+        public_key = fh.read().strip()
+
+    return private_path, public_key
+
+
+def _compute_pubkey_fingerprint(pubkey_line: str) -> str:
+    """Return the SHA256 fingerprint string (`SHA256:abc...`) of an SSH
+    public key line. Same format as ssh-keygen -lf and `ssh.compute_fingerprint`
+    in actions.py — verify the existing helper, reuse if possible."""
+    # Parse pubkey line: "ssh-ed25519 AAAA... [comment]"
+    parts = pubkey_line.strip().split()
+    if len(parts) < 2:
+        raise ValueError("Invalid public key format")
+    key_b64 = parts[1]
+
+    # Compute SHA256 fingerprint
+    raw = base64.b64decode(key_b64)
+    digest = hashlib.sha256(raw).digest()
+    b64 = base64.b64encode(digest).decode().rstrip("=")
+    return f"SHA256:{b64}"
+
+
+def _append_pubkey_remote(client: paramiko.SSHClient, pubkey: str) -> None:
+    """Append pubkey to ~audit-collector/.ssh/authorized_keys if not already present."""
+    # Check if key already present
+    check_cmd = f"grep -qxF {shlex.quote(pubkey)} ~/.ssh/authorized_keys 2>/dev/null"
+    _, _, rc = _run(client, check_cmd)
+    if rc == 0:
+        # Already present, skip
+        return
+
+    # Append the key
+    append_cmd = f"echo {shlex.quote(pubkey)} >> ~/.ssh/authorized_keys"
+    _, err, rc = _run(client, append_cmd)
+    if rc != 0:
+        raise SSHError(f"Failed to append pubkey: {err}")
+
+
+def _remove_pubkey_remote(client: paramiko.SSHClient, pubkey: str) -> None:
+    """Remove pubkey line from ~audit-collector/.ssh/authorized_keys atomically."""
+    # Use grep -vxF to filter out the exact line, atomic with mv
+    remove_cmd = (
+        f"grep -vxF {shlex.quote(pubkey)} ~/.ssh/authorized_keys > ~/.ssh/authorized_keys.tmp && "
+        f"mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys"
+    )
+    _, err, rc = _run(client, remove_cmd)
+    if rc != 0:
+        raise SSHError(f"Failed to remove pubkey: {err}")
+
+
+def rotate_per_server_key(hostname: str, ip: str, port: int, server_id: str) -> str:
+    """Rotate the collector key for one server, atomically with rollback.
+
+    Workflow:
+    1. Check current per-server key exists (raise if not)
+    2. Read current pubkey content
+    3. Generate new keypair at <id>.key.new and <id>.key.new.pub
+    4. SSH to host with CURRENT key (key_filename=<id>.key)
+    5. Append new pubkey to ~audit-collector/.ssh/authorized_keys
+    6. Disconnect, reconnect with NEW key — verify connectivity
+    7. If OK: SSH again with new key, remove the OLD pubkey line from
+       authorized_keys (grep -vF on the exact line)
+    8. Move files: <id>.key -> <id>.key.old, <id>.key.new -> <id>.key,
+       <id>.key.new.pub -> <id>.key.pub, then remove .old files
+    9. Return new fingerprint
+
+    On error at any step: try to remove the new pubkey from
+    authorized_keys (with old key if it's still working), delete the
+    .new files locally, raise SSHError with original cause.
+
+    No sudo needed for any step — audit-collector writes directly to its
+    own ~/.ssh/authorized_keys.
+    """
+    # Step 1: verify current key exists
+    current_key_path = _resolve_key_path(server_id)
+    current_pubkey_path = current_key_path + ".pub"
+
+    # Step 2: read current pubkey
+    with open(current_pubkey_path, "r") as fh:
+        current_pubkey = fh.read().strip()
+
+    # Step 3: generate new keypair
+    new_key_base = os.path.join(PER_SERVER_KEYS_DIR, f"{server_id}.key.new")
+    new_key_path, new_pubkey = _generate_keypair(new_key_base[:-4])  # Strip .key to get base
+    new_pubkey_path = new_key_path + ".pub"
+
+    new_fingerprint = None
+    client_old = None
+    client_new = None
+
+    try:
+        # Step 4: connect with current key
+        client_old = _connect(ip, port, key_path=current_key_path)
+
+        # Step 5: append new pubkey
+        _append_pubkey_remote(client_old, new_pubkey)
+        client_old.close()
+        client_old = None
+
+        # Step 6: test connectivity with new key
+        try:
+            client_new = _connect(ip, port, key_path=new_key_path)
+            # Run a no-op to verify
+            _, _, rc = _run(client_new, "true")
+            if rc != 0:
+                raise SSHError("New key test failed")
+        except Exception as exc:
+            raise SSHError(f"New key verification failed: {exc}")
+
+        # Step 7: remove old pubkey with new connection
+        _remove_pubkey_remote(client_new, current_pubkey)
+        client_new.close()
+        client_new = None
+
+        # Step 8: atomic file rotation
+        old_backup_path = current_key_path + ".old"
+        old_backup_pub_path = current_pubkey_path + ".old"
+
+        os.rename(current_key_path, old_backup_path)
+        os.rename(current_pubkey_path, old_backup_pub_path)
+        os.rename(new_key_path, current_key_path)
+        os.rename(new_pubkey_path, current_pubkey_path)
+
+        # Cleanup old backup
+        os.remove(old_backup_path)
+        os.remove(old_backup_pub_path)
+
+        # Step 9: compute and return new fingerprint
+        new_fingerprint = _compute_pubkey_fingerprint(new_pubkey)
+        return new_fingerprint
+
+    except Exception as exc:
+        # Rollback: try to remove new pubkey from authorized_keys
+        try:
+            if client_new is None and os.path.isfile(current_key_path):
+                # Try with old key
+                rollback_client = _connect(ip, port, key_path=current_key_path)
+                try:
+                    _remove_pubkey_remote(rollback_client, new_pubkey)
+                finally:
+                    rollback_client.close()
+        except Exception:
+            pass  # Best effort
+
+        # Cleanup .new files
+        for path in [new_key_path, new_pubkey_path]:
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+            except Exception:
+                pass
+
+        raise SSHError(f"Key rotation failed: {exc}")
+    finally:
+        if client_old is not None:
+            client_old.close()
+        if client_new is not None:
+            client_new.close()
+
+
+def apply_provision_update(hostname: str, ip: str, port: int = 22, *, key_path: str) -> str:
     """Run `sudo sam-self-update <version>` on the remote host.
 
     Returns the applied version on success. Raises SSHSudoError if the script
     exits non-zero (the script itself has already rolled back any partial
     change on its end before exiting).
     """
-    client = _connect(ip, port)
+    client = _connect(ip, port, key_path=key_path)
     try:
         cmd = f"sudo {SAM_SELF_UPDATE_PATH} {PROVISION_VERSION}"
         stdout, stderr, exit_code = _run(client, cmd)
@@ -758,11 +974,15 @@ def apply_provision_update(hostname: str, ip: str, port: int = 22) -> str:
         client.close()
 
 
-def _connect(ip: str, port: int = 22) -> paramiko.SSHClient:
+def _connect(ip: str, port: int = 22, *, key_path: str) -> paramiko.SSHClient:
+    """Connect to a remote host using a per-server collector key.
+
+    key_path is required (keyword-only) — no global default key.
+    """
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.RejectPolicy())
     client.load_host_keys(KNOWN_HOSTS)
-    client.connect(hostname=ip, port=port, username=SSH_USER, key_filename=COLLECTOR_KEY, timeout=15)
+    client.connect(hostname=ip, port=port, username=SSH_USER, key_filename=key_path, timeout=15)
     return client
 
 
@@ -794,12 +1014,12 @@ def _deploy_script(
     _run(client, f"rm -f {shlex.quote(tmp_path)}")
 
 
-def ensure_scripts(hostname: str, server_id: str, ip: str, port: int = 22) -> None:
+def ensure_scripts(hostname: str, server_id: str, ip: str, port: int = 22, *, key_path: str) -> None:
     """
     Deploy all SAM_* scripts on the remote host if absent or outdated.
     Logs SCRIPT_DEPLOYED to audit_log for each script actually deployed.
     """
-    client = _connect(ip, port)
+    client = _connect(ip, port, key_path=key_path)
     try:
         sftp = client.open_sftp()
         for content, remote_path in (
@@ -836,13 +1056,13 @@ def ensure_scripts(hostname: str, server_id: str, ip: str, port: int = 22) -> No
         client.close()
 
 
-def revoke_on_server(hostname: str, fingerprint: str, ip: str, unix_user: str = None, port: int = 22) -> None:
+def revoke_on_server(hostname: str, fingerprint: str, ip: str, unix_user: str = None, port: int = 22, *, key_path: str) -> None:
     """Run sam-revoke on the remote host.
     If unix_user is given, revokes only from that user's authorized_keys.
     Otherwise revokes globally (all users on the server).
     """
     import shlex
-    client = _connect(ip, port)
+    client = _connect(ip, port, key_path=key_path)
     try:
         cmd = f"sudo {SAM_REVOKE_PATH} {shlex.quote(fingerprint)}"
         if unix_user:
@@ -856,9 +1076,9 @@ def revoke_on_server(hostname: str, fingerprint: str, ip: str, unix_user: str = 
         client.close()
 
 
-def collect_keys(hostname: str, ip: str, port: int = 22) -> list[str]:
+def collect_keys(hostname: str, ip: str, port: int = 22, *, key_path: str) -> list[str]:
     """Run sam-collect on the remote host and return raw output lines."""
-    client = _connect(ip, port)
+    client = _connect(ip, port, key_path=key_path)
     try:
         out, _, rc = _run(client, f"sudo {SAM_COLLECT_PATH}")
         if rc != 0:
@@ -868,13 +1088,13 @@ def collect_keys(hostname: str, ip: str, port: int = 22) -> list[str]:
         client.close()
 
 
-def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str, port: int = 22, sam_group: str = None) -> None:
+def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str, port: int = 22, sam_group: str = None, *, key_path: str) -> None:
     """Run sam-add on the remote host to deploy a public key and set the SAM group."""
     import shlex
     cmd = f"sudo {SAM_ADD_PATH} {shlex.quote(unix_user)} {shlex.quote(public_key)}"
     if sam_group:
         cmd += f" {shlex.quote(sam_group)}"
-    client = _connect(ip, port)
+    client = _connect(ip, port, key_path=key_path)
     try:
         _, err, rc = _run(client, cmd)
         if rc != 0:
@@ -883,10 +1103,10 @@ def add_key_on_server(hostname: str, unix_user: str, public_key: str, ip: str, p
         client.close()
 
 
-def lock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22) -> None:
+def lock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22, *, key_path: str) -> None:
     """Run sam-lock-user on the remote host to lock a Unix user account."""
     import shlex
-    client = _connect(ip, port)
+    client = _connect(ip, port, key_path=key_path)
     try:
         _, err, rc = _run(
             client, f"sudo {SAM_LOCK_USER_PATH} {shlex.quote(unix_user)}"
@@ -897,10 +1117,10 @@ def lock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22) 
         client.close()
 
 
-def unlock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22) -> None:
+def unlock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22, *, key_path: str) -> None:
     """Run sam-unlock-user on the remote host to unlock a Unix user account."""
     import shlex
-    client = _connect(ip, port)
+    client = _connect(ip, port, key_path=key_path)
     try:
         _, err, rc = _run(
             client, f"sudo {SAM_UNLOCK_USER_PATH} {shlex.quote(unix_user)}"
@@ -911,9 +1131,9 @@ def unlock_user_on_server(hostname: str, unix_user: str, ip: str, port: int = 22
         client.close()
 
 
-def grant_group_on_server(hostname: str, unix_user: str, group: str, ip: str, port: int = 22) -> list[str]:
+def grant_group_on_server(hostname: str, unix_user: str, group: str, ip: str, port: int = 22, *, key_path: str) -> list[str]:
     """Run sam-grant-group on the remote host. Returns actual groups of unix_user after change."""
-    client = _connect(ip, port)
+    client = _connect(ip, port, key_path=key_path)
     try:
         out, err, rc = _run(
             client,
@@ -926,12 +1146,12 @@ def grant_group_on_server(hostname: str, unix_user: str, group: str, ip: str, po
         client.close()
 
 
-def revoke_group_on_server(hostname: str, unix_user: str, group: str | None, ip: str, port: int = 22) -> list[str]:
+def revoke_group_on_server(hostname: str, unix_user: str, group: str | None, ip: str, port: int = 22, *, key_path: str) -> list[str]:
     """Run sam-revoke-group on the remote host. group=None strips all sam-* groups. Returns actual groups."""
     cmd = f"sudo {SAM_REVOKE_GROUP_PATH} {shlex.quote(unix_user)}"
     if group:
         cmd += f" {shlex.quote(group)}"
-    client = _connect(ip, port)
+    client = _connect(ip, port, key_path=key_path)
     try:
         out, err, rc = _run(client, cmd)
         if rc != 0:
@@ -1001,7 +1221,7 @@ def _is_valid_ip(s: str) -> bool:
         return False
 
 
-def audit_sshd_config(hostname: str, ip: str, port: int = 22) -> dict[str, str]:
+def audit_sshd_config(hostname: str, ip: str, port: int = 22, *, key_path: str) -> dict[str, str]:
     """Run `sudo sshd -T` on the remote host and return the parsed config.
 
     Each line of sshd -T output is `<directive_lower> <value...>`. Returns
@@ -1011,7 +1231,7 @@ def audit_sshd_config(hostname: str, ip: str, port: int = 22) -> dict[str, str]:
     Raises SSHSudoError if sudo sshd -T exits non-zero, SSHScriptError on parse
     failure.
     """
-    client = _connect(ip, port)
+    client = _connect(ip, port, key_path=key_path)
     try:
         stdout, stderr, exit_code = _run(client, "sudo sshd -T")
         if exit_code != 0:
@@ -1034,12 +1254,12 @@ def audit_sshd_config(hostname: str, ip: str, port: int = 22) -> dict[str, str]:
         client.close()
 
 
-def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int = 22) -> None:
+def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int = 22, *, key_path: str) -> None:
     """Collect SSH sessions via sam-sessions and upsert into ssh_sessions table."""
     import socket
     from datetime import datetime, timezone
     try:
-        client = _connect(ip, port)
+        client = _connect(ip, port, key_path=key_path)
     except paramiko.AuthenticationException:
         raise SSHAuthError("Authentication failed - check collector key authorization")
     except paramiko.SSHException as exc:
@@ -1150,40 +1370,26 @@ def _fetch_host_key(ip: str, port: int, known_hosts_path: str | None = None) -> 
         fh.write(f"{host} {key.get_name()} {key.get_base64()}\n")
 
 
-def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 22) -> None:
+def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 22, pubkey: str = None) -> None:
     """Connect and provision the server.
 
+    pubkey: the per-server public key content to deploy (required in per-server key mode).
     If ssh_password is empty, verify that the collector key already works (server was
     provisioned manually via ssh-copy-id or provision-host.sh). Otherwise connect with
     password auth and run the provision script.
     """
     import socket
 
+    if pubkey is None:
+        raise ValueError("pubkey parameter is required (per-server collector key)")
+
     # Step 1 - fetch host key via single Paramiko Transport (1 TCP connection, no preauth events)
     _fetch_host_key(ip, ssh_port)
 
     if not ssh_password:
-        # Key-auth path: verify collector key works (server was provisioned manually)
-        try:
-            client = _connect(ip, ssh_port)
-            client.close()
-        except paramiko.AuthenticationException:
-            raise SSHAuthError(
-                "Key authentication failed - the collector key is not authorized on this server. "
-                "Provide an SSH password to provision it automatically."
-            )
-        except socket.timeout:
-            raise SSHTimeoutError("Connection timed out - server did not respond within 15 seconds")
-        except Exception as exc:
-            msg = str(exc)
-            if any(k in msg for k in ("No route to host", "Network unreachable", "No address associated")):
-                raise SSHUnreachableError("Server unreachable - check the IP and network connectivity")
-            if "Connection refused" in msg:
-                raise SSHPortRefusedError(
-                    f"SSH port {ssh_port} refused - check that SSH is running on that port"
-                )
-            raise SSHError(f"Connection failed: {exc}")
-        return
+        raise SSHAuthError(
+            "Password is required for provisioning. Use activate_server() for manual provision verification."
+        )
 
     # Step 2 - connect with password auth
     client = paramiko.SSHClient()
@@ -1215,11 +1421,9 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
         raise SSHError(f"Connection failed: {exc}")
 
     try:
-        # Step 3 - read provision script and collector public key
+        # Step 3 - read provision script
         with open("/app/provision-host.sh", "rb") as fh:
             script = fh.read()
-        with open(f"{COLLECTOR_KEY}.pub") as fh:
-            collector_pubkey = fh.read().strip()
 
         # Step 4 - upload provision script via SFTP
         sftp = client.open_sftp()
@@ -1230,7 +1434,7 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
         # Step 5 - execute via sudo -S (password on stdin)
         cmd = (
             f"sudo -S bash /tmp/sam-provision.sh "
-            f"{shlex.quote(collector_pubkey)} {shlex.quote(SSH_USER)}"
+            f"{shlex.quote(pubkey)} {shlex.quote(SSH_USER)}"
         )
         stdin, stdout, stderr = client.exec_command(cmd, timeout=60)
         stdin.write(ssh_password + "\n")

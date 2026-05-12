@@ -59,8 +59,7 @@ FROM node:24-alpine AS ui-builder
    ```
    /data/
        ├── keys/
-       │   ├── collector_key        (chmod 600, chown nobody)
-       │   ├── collector_key.pub
+       │   ├── per-server/          (chmod 700, chown nobody) — per-server collector keys (#402)
        │   └── known_hosts          (chmod 644, chown nobody)
        ├── pg/                      (chown postgres:postgres, chmod 700)
        └── config/
@@ -70,18 +69,17 @@ FROM node:24-alpine AS ui-builder
 4. **Ordre bootstrap strict** — Respecter l'ordre exact :
    1. mkdir -p /data/keys /data/pg /data/config
    2. chown postgres:postgres /data/pg && chmod 700 /data/pg  ← AVANT initdb
-   3. ssh-keygen -t ed25519 -f /data/keys/collector_key -N "" -C "ssh-access-manager@$(hostname)"
-   4. touch /data/keys/known_hosts && chmod 644 /data/keys/known_hosts
-   5. chmod 600 /data/keys/collector_key
-   6. chown nobody /data/keys/collector_key /data/keys/known_hosts
-   7. Démarrer PostgreSQL temporairement (socket local uniquement)
-   8. Créer base et utilisateur depuis ENV (deux psql séparés — CREATE DATABASE hors transaction)
-   9. Appliquer /app/sql/schema.sql
-   10. Insérer administrateur initial depuis ENV avec werkzeug generate_password_hash
-   11. Arrêter PostgreSQL temporaire
-   12. Générer /etc/msmtprc depuis msmtp.conf.template + ENV
-   13. **Sélectionner nginx.conf.http.template ou nginx.conf.https.template** selon présence de NGINX_TLS_CERT_PATH + NGINX_TLS_KEY_PATH. Générer /etc/nginx/nginx.conf.
-   14. Afficher collector_key.pub dans les logs
+   3. **Créer /data/keys/per-server** (chmod 700, chown nobody) — dossier per-server collector keys (#402)
+   4. **Legacy cleanup** — si /data/keys/collector_key existe, log warning et supprimer (upgrade path)
+   5. touch /data/keys/known_hosts && chmod 644 /data/keys/known_hosts
+   6. Démarrer PostgreSQL temporairement (socket local uniquement)
+   7. Créer base et utilisateur depuis ENV (deux psql séparés — CREATE DATABASE hors transaction)
+   8. Appliquer /app/sql/schema.sql
+   9. Insérer administrateur initial depuis ENV avec werkzeug generate_password_hash
+   10. Arrêter PostgreSQL temporaire
+   11. Générer /etc/msmtprc depuis msmtp.conf.template + ENV
+   12. **Sélectionner nginx.conf.http.template ou nginx.conf.https.template** selon présence de NGINX_TLS_CERT_PATH + NGINX_TLS_KEY_PATH. Générer /etc/nginx/nginx.conf.
+   13. **Pas d'affichage de clé globale** — les clés sont par serveur, générées à la demande (#402)
 5. **ENTRYPOINT** — Toujours `exec /usr/bin/supervisord -c /etc/supervisord.conf` en dernière instruction de bootstrap.sh.
 6. **supervisord nodaemon=true** — Logs vers /dev/stdout uniquement.
 7. **Flask via Waitress** — `python3 /app/app/web.py` démarre Waitress (jamais le dev server Flask). Utilisateur `nobody`.
@@ -136,8 +134,8 @@ Sudoers généré avec `printf` ligne par ligne (résistant au CRLF PTY — #159
 Créé via `install -m 440` (évite ":" dans les args sur RHEL/CentOS — #161).
 
 ```bash
-# Invocation
-ssh <user>@<ip> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)' '${SSH_USER}'" \
+# Invocation (per-server key depuis #402 — <server_id> identifie la clé)
+ssh <user>@<ip> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/per-server/<server_id>.pub)' '${SSH_USER}'" \
     < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 ```
 

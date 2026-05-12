@@ -5,20 +5,20 @@
 Détection premier démarrage : absence de /data/pg/PG_VERSION.
 
 Premier démarrage :
-1. mkdir -p /data/keys /data/pg /data/config
+1. mkdir -p /data/keys /data/keys/per-server /data/pg /data/config
 2. chown postgres:postgres /data/pg && chmod 700 /data/pg
-3. ssh-keygen -t ed25519 -f /data/keys/collector_key -N "" -C "ssh-access-manager@$(hostname)"
-4. touch /data/keys/known_hosts && chmod 644 /data/keys/known_hosts
-5. chmod 600 /data/keys/collector_key
-6. chown nobody /data/keys/collector_key /data/keys/known_hosts
-7. Démarrer PostgreSQL temporairement (socket local uniquement)
-8. Créer base et utilisateur depuis ENV (deux psql séparés — CREATE DATABASE hors transaction)
-9. Appliquer /app/sql/schema.sql
-10. Insérer administrateur initial depuis ENV avec werkzeug generate_password_hash
-11. Arrêter PostgreSQL temporaire
-12. Générer /etc/msmtprc depuis msmtp.conf.template + ENV
-13. Générer /etc/nginx/nginx.conf depuis nginx.conf.http.template ou nginx.conf.https.template + ENV
-14. Afficher collector_key.pub dans les logs
+3. chown nobody:nobody /data/keys/per-server && chmod 700 /data/keys/per-server
+4. touch /data/keys/known_hosts && chmod 644 /data/keys/known_hosts && chown nobody /data/keys/known_hosts
+5. Si `/data/keys/collector_key` (legacy global key) présent : `rm -f` au boot avec warning
+6. Démarrer PostgreSQL temporairement (socket local uniquement)
+7. Créer base et utilisateur depuis ENV (deux psql séparés — CREATE DATABASE hors transaction)
+8. Appliquer /app/sql/schema.sql
+9. Insérer administrateur initial depuis ENV avec werkzeug generate_password_hash
+10. Arrêter PostgreSQL temporaire
+11. Générer /etc/msmtprc depuis msmtp.conf.template + ENV
+12. Générer /etc/nginx/nginx.conf depuis nginx.conf.http.template ou nginx.conf.https.template + ENV
+
+Aucune clé SSH globale n'est générée. À l'ajout d'un serveur (UI ou CLI), `actions.add_server` / `actions.register_server` génèrent une paire ed25519 anonyme dans `/data/keys/per-server/<uuid>.key{,.pub}` (commentaire SSH vide).
 
 Non premier démarrage : régénérer nginx.conf + msmtprc depuis ENV.
 Toujours en dernier : `exec /usr/bin/supervisord -c /etc/supervisord.conf`
@@ -203,10 +203,16 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 - `unlock_user(unix_user, hostname, admin_id)` — valide username POSIX, sam-unlock-user, USER_UNLOCKED (#181)
 
 ### Serveurs
-- `add_server(hostname, ip, ssh_user, ssh_password, env=None, os_family=None, ssh_port=22, admin_id=None)` — provisionnement atomique : `add_to_known_hosts(ip)` → `ssh.provision_server()` → INSERT servers → audit SERVER_ADDED + SERVER_PROVISIONED. Si le SSH échoue, aucune donnée n'est écrite (#299, #301). Le SSH password n'est jamais stocké.
-- `provision_server(hostname, ip, ssh_user, ssh_password, ssh_port)` — re-provisionne un serveur existant (#302). Même garantie : ssh password non stocké.
-- `update_server(hostname, ip, env, os_family, ssh_port, admin_id, max_sessions)` — met à jour IP, env, OS, port, max_sessions. Si l'IP change, relance ssh-keyscan atomiquement (#339)
-- `disable_server`, `enable_server` (#88), `delete_server` (#88 — hard delete + cascade)
+- `add_server(hostname, ip, ssh_user, ssh_password, env=None, os_family=None, ssh_port=22, admin_id=None, scan_sync=False)` — provisionnement atomique : génère UUID + per-server keypair (`ssh._generate_keypair`), `_fetch_host_key(ip)` → `ssh.provision_server(..., pubkey=per_server_pubkey)` → INSERT servers (`is_provisioned=TRUE`) → audit SERVER_ADDED + SERVER_PROVISIONED + COLLECTOR_KEY_GENERATED → **scan initial** via `_trigger_initial_scan` (fire-and-forget thread depuis l'API, synchrone depuis la CLI). Si le SSH échoue, le keypair est supprimé du disque et aucune donnée n'est écrite (#299, #301, #402).
+- `register_server(hostname, ip, ssh_port=22, env, os_family, admin_id)` — version sans SSH de `add_server` : génère UUID + per-server keypair, INSERT avec `is_provisioned=FALSE`. Pour bulk bootstrap (workflow 3 étapes : register → push pubkey avec sa propre clé root → activate) (#402).
+- `activate_server(hostname, admin_id, scan_sync=False)` — `_fetch_host_key` + `_connect` avec la per-server key pour valider la connectivité, `is_provisioned=TRUE`, audit SERVER_PROVISIONED, scan initial via `_trigger_initial_scan` (sync depuis CLI, async depuis API) (#402).
+- `rotate_collector_key(hostname, admin_id)` — délègue à `ssh.rotate_per_server_key()` (atomique avec rollback : génère `.key.new`, append pubkey distante, vérifie via re-connect, retire l'ancienne, renomme les fichiers). Audit COLLECTOR_KEY_ROTATED ou COLLECTOR_KEY_ROTATION_FAILED (avec error mais sans hostname/ip). Réservé sysadmin via UI (#402).
+- `get_collector_key_for_server(hostname) -> {fingerprint, public_key}` — lecture du `<uuid>.key.pub` per-server (#402).
+- `_trigger_initial_scan(server, admin_id, sync=False)` — helper : lance `collect.scan_server(server, admin_id)` en thread daemon (`sync=False`) ou en synchrone (`sync=True`). CLI doit utiliser `sync=True` car le process se termine sinon avant la fin du scan.
+- `provision_server(hostname, ip, ssh_user, ssh_password, ssh_port)` — re-provisionne un serveur existant (lit la per-server pubkey depuis disque) (#302). Même garantie : ssh password non stocké.
+- `update_server(hostname, ip, env, os_family, ssh_port, admin_id, max_sessions, new_hostname=None)` — met à jour hostname, IP, env, OS, port, max_sessions. Si l'IP change, ssh-keyscan atomique (#339). Si `new_hostname` est différent : validation RFC 1123, check d'unicité, audit `SERVER_RENAMED {old_hostname, new_hostname}`. Les entrées d'audit historiques restent intactes (#403).
+- `_validate_hostname(hostname) -> str` — regex RFC 1123, longueur ≤253, raise UserError sinon (#403).
+- `disable_server`, `enable_server` (#88), `delete_server` (#88 — hard delete + cascade + cleanup per-server keypair fichiers)
 
 ### Sessions
 - `check_session_limit(server_id, hostname, session_count, max_sessions)` — envoie alerte WARNING si session_count > max_sessions, avec anti-spam 24h via audit_log (SESSION_LIMIT_EXCEEDED, #360)
@@ -235,7 +241,9 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 
 | Route | sysadmin | operator | viewer |
 |-------|----------|----------|--------|
-| GET /api/servers, /api/keys, /api/access, /api/admins, /api/audit, /api/system/status, /api/system/config, /api/system/collector-key | ✓ | ✓ | ✓ |
+| GET /api/servers, /api/keys, /api/access, /api/admins, /api/audit, /api/system/status, /api/system/config | ✓ | ✓ | ✓ |
+| GET /api/servers/\*/collector-key | ✓ | ✓ | ✓ |
+| POST /api/servers/\*/rotate-key | ✓ | 403 | 403 |
 | POST /api/servers | ✓ | 403 | 403 |
 | POST /api/servers/\*/provision | ✓ | 403 | 403 |
 | POST /api/servers/\*/sync | ✓ | 403 | 403 |
@@ -288,8 +296,9 @@ Raison : évite ":" dans les args sudoers qui brise visudo sur RHEL/CentOS (#161
 Généré avec printf ligne par ligne — résistant au CRLF introduit par sudo PTY (#159).
 
 ```bash
-# Invocation provision-host.sh
-ssh <user>@<ip> "sudo bash -s '$(podman exec ssh-access-manager cat /data/keys/collector_key.pub)' '${SSH_USER}'" \
+# Invocation provision-host.sh — la pubkey vient désormais de la per-server key
+PUB=$(podman exec ssh-access-manager python3 /app/app/manage.py servers show <hostname> --pubkey)
+ssh <user>@<ip> "sudo bash -s '$PUB' '${SSH_USER}'" \
     < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 ```
 

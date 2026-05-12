@@ -340,6 +340,15 @@ def get_server(hostname):
     else:
         server["last_scan_ok"] = False
         server["last_scan_error"] = last_scan["scan_error"]
+
+    # Per-server collector key fingerprint (computed from disk, not stored in DB)
+    pubkey_path = os.path.join(ssh.PER_SERVER_KEYS_DIR, f"{server['id']}.key.pub")
+    try:
+        with open(pubkey_path, "r") as fh:
+            server["collector_fingerprint"] = ssh._compute_pubkey_fingerprint(fh.read().strip())
+    except (FileNotFoundError, OSError):
+        server["collector_fingerprint"] = None
+
     return jsonify(server)
 
 
@@ -404,11 +413,12 @@ def update_server(hostname):
     if max_sessions < 1:
         return jsonify({"error": "max_sessions must be at least 1"}), 400
     try:
-        actions.update_server(
+        updated = actions.update_server(
             hostname, data["ip"], data.get("environment") or None,
             data.get("os_family"), data.get("ssh_port", 22), g.admin_id, max_sessions,
+            new_hostname=data.get("hostname"),
         )
-        return jsonify({"message": "Server updated"})
+        return jsonify({"message": "Server updated", "hostname": updated["hostname"]})
     except KeyError:
         return jsonify({"error": "Missing required field: ip is required"}), 400
 
@@ -439,6 +449,20 @@ def scan_server(hostname):
     return jsonify(results)
 
 
+@app.route("/api/servers/<hostname>/rotate-key", methods=["POST"])
+@require_auth
+@require_role("sysadmin")
+def rotate_server_collector_key(hostname):
+    result = actions.rotate_collector_key(hostname, g.admin_id)
+    return jsonify(result)
+
+
+@app.route("/api/servers/<hostname>/collector-key", methods=["GET"])
+@require_auth
+def get_server_collector_key(hostname):
+    return jsonify(actions.get_collector_key_for_server(hostname))
+
+
 @app.route("/api/servers/<hostname>/sync", methods=["POST"])
 @require_auth
 @require_role("sysadmin")
@@ -451,7 +475,8 @@ def force_provision_sync(hostname):
     if not server:
         return jsonify({"error": "Server not found or inactive"}), 404
     try:
-        applied = ssh.apply_provision_update(hostname, str(server["ip_address"]), server.get("ssh_port", 22))
+        key_path = ssh._resolve_key_path(server["id"])
+        applied = ssh.apply_provision_update(hostname, str(server["ip_address"]), server.get("ssh_port", 22), key_path=key_path)
         db.execute(
             "UPDATE servers SET provision_version = %s, provision_drift = FALSE WHERE id = %s",
             (applied, server["id"]),
@@ -531,8 +556,12 @@ def refresh_server_sessions(hostname):
     ip = str(server["ip_address"])
     port = server.get("ssh_port") or 22
     try:
-        ssh.collect_sessions_on_server(hostname, server["id"], ip, port=port)
+        key_path = ssh._resolve_key_path(server["id"])
+        ssh.collect_sessions_on_server(hostname, server["id"], ip, port=port, key_path=key_path)
         return jsonify({"status": "refreshed"})
+    except KeyError as e:
+        logging.warning("collect_sessions_on_server: no per-server key for %s: %s", hostname.replace("\n", "").replace("\r", ""), str(e).replace("\n", " ").replace("\r", ""))
+        return jsonify({"error": "No per-server collector key — re-add this server"}), 502
     except RuntimeError as e:
         logging.warning("collect_sessions_on_server failed on %s (%s): %s", hostname.replace("\n", "").replace("\r", ""), ip, str(e).replace("\n", " ").replace("\r", ""))
         return jsonify({"error": "Session collection failed"}), 502
@@ -1177,18 +1206,6 @@ def system_status():
 def system_scan():
     results = collect_mod.run_scan(admin_id=g.admin_id)
     return jsonify(results)
-
-
-@app.route("/api/system/collector-key", methods=["GET"])
-@require_auth
-def get_collector_key():
-    keys_dir = os.path.dirname(os.environ.get("COLLECTOR_KEY", "/data/keys/collector_key"))
-    pub_path = os.path.join(keys_dir, "collector_key.pub")
-    try:
-        with open(pub_path) as f:
-            return jsonify({"public_key": f.read().strip(), "ssh_user": ssh.SSH_USER})
-    except FileNotFoundError:
-        return jsonify({"error": "Collector key not found"}), 404
 
 
 @app.route("/api/system/config", methods=["GET"])

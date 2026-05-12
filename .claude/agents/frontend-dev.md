@@ -45,8 +45,8 @@ server: {
 | Vue | Rôle |
 |-----|------|
 | Login.vue | Connexion + checkbox "Keep me logged on this device" (#239) |
-| Dashboard.vue | Tableau serveurs + compteurs + modal ajout serveur (SSH user/password obligatoires, #299) + clé collecteur (#74). Auto-scan après ajout (#332). Validation hostname RFC 1123 (#303). |
-| ServerDetail.vue | Détail serveur + clés + actions + bandeau rouge si désactivé (#91) + bandeau orange si `last_scan_ok === false` (#324). Bouton **Edit** (sysadmin, `EditServerModal`) + bouton **Re-provisionner** (violet, sysadmin, #302). `max_sessions` affiché et configurable via EditServerModal (#360). Affiche `provision_version` (8 premiers chars, tooltip complet) + badge orange "Update available" si `provision_drift === true` (#400). |
+| Dashboard.vue | Tableau serveurs + compteurs + modal ajout serveur (SSH user/password obligatoires, #299). Auto-scan après ajout (#332). Validation hostname RFC 1123 (#303). Clé collecteur globale retirée (#402). |
+| ServerDetail.vue | Détail serveur + clés + actions + bandeau rouge si désactivé (#91) + bandeau orange si `last_scan_ok === false` (#324). Bouton **Edit** (sysadmin, `EditServerModal`) + bouton **Re-provisionner** (violet, sysadmin, #302). `max_sessions` affiché et configurable via EditServerModal (#360). Affiche `provision_version` (8 premiers chars, tooltip complet) + badge orange "Update available" si `provision_drift === true` (#400). Bouton **Rotate collector key** (violet, sysadmin + active + provisioned) : rotation atomique via POST `/api/servers/<hostname>/rotate-key`, modal confirmation, spinner, message succès avec nouveau fingerprint (#402). Affiche fingerprint clé collecteur per-server dans info grid + bouton Copy public key (GET `/api/servers/<hostname>/collector-key`). Section repliable "Provision avec vos propres identifiants SSH" avec snippet bash copy-paste-friendly (#402). |
 | Anomalies.vue | Anomalies actives + filtres texte/type/serveur/conformité + unix_user (#195) |
 | AccessRequests.vue | DeployKeyForm + UserLockForm |
 | Audit.vue | Historique filtrable + export CSV (#343) |
@@ -112,6 +112,7 @@ POST   /api/servers/<hostname>/scan
 GET    /api/servers/<hostname>/sessions              POST /api/servers/<hostname>/sessions/refresh
 GET    /api/servers/<hostname>/sessions/history
 GET    /api/servers/<hostname>/sshd-audit
+POST   /api/servers/<hostname>/rotate-key            GET  /api/servers/<hostname>/collector-key
 
 GET  /api/keys                                       GET  /api/keys/get/<fingerprint>
 GET  /api/keys/search?q=                             POST /api/keys/validate/<fingerprint>
@@ -137,8 +138,8 @@ PUT    /api/admins/<username>/alerts
 GET /api/audit?server=&action=&since=
 
 GET  /api/system/status                              POST /api/system/scan
-GET  /api/system/collector-key                       GET  /api/system/config
-PUT  /api/system/config                              POST /api/system/test-smtp
+GET  /api/system/config                              PUT  /api/system/config
+POST /api/system/test-smtp
 ```
 
 ## Règles absolues de développement

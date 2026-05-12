@@ -33,7 +33,6 @@
     "status_scan_failed": "🟠 Escaneo fallido",
     "status_inactive": "🔴 Inactivo",
     "status_total": "Total",
-    "collector_key": "Clave pública del colector",
     "copy": "Copiar",
     "copied": "¡Copiado!",
     "scan_success": "Escaneo de {hostname} iniciado.",
@@ -75,7 +74,7 @@
   },
   "edit_server": {
     "title": "Editar servidor",
-    "hostname": "Hostname (solo lectura)",
+    "hostname": "Hostname",
     "ip": "Dirección IP",
     "ip_placeholder": "ej: 192.168.1.10",
     "environment": "Entorno",
@@ -86,7 +85,9 @@
     "max_sessions_label": "Sesiones máx.",
     "max_sessions_hint": "Se envía una alerta si las sesiones SSH activas superan este límite.",
     "submitting": "Guardando…",
-    "submit": "Guardar"
+    "submit": "Guardar",
+    "hostname_placeholder": "ej.: mi-servidor-01",
+    "error_duplicate_hostname": "Este hostname ya está en uso por otro servidor"
   },
   "server_table": {
     "search_placeholder": "Buscar un servidor…",
@@ -170,7 +171,18 @@
     "bulk_revoked": "Claves revocadas: {revoked}, omitidas: {skipped}",
     "root_revoke_warning": "Revocar la clave SSH del usuario <strong>root</strong> puede resultar en la pérdida permanente del acceso remoto a este servidor.",
     "reprovision_needed": "Reaprovisionamiento necesario",
-    "reprovision_needed_tooltip": "La actualización automática falló en este host. Abra el detalle del servidor y haga clic en Reaprovisionar para enviar la nueva configuración SAM. Consulte la vista Auditoría para ver el error exacto."
+    "reprovision_needed_tooltip": "La actualización automática falló en este host. Abra el detalle del servidor y haga clic en Reaprovisionar para enviar la nueva configuración SAM. Consulte la vista Auditoría para ver el error exacto.",
+    "rotate_key": "Rotar clave del colector",
+    "rotate_key_confirm_title": "Rotar clave del colector",
+    "rotate_key_confirm_message": "Esta operación genera una nueva clave SSH por servidor, la despliega en el host remoto, verifica la conectividad y luego elimina la clave antigua. Operación atómica con rollback automático en caso de fallo. ¿Continuar?",
+    "rotate_key_in_progress": "Rotando…",
+    "rotate_key_success": "Clave del colector rotada correctamente. Nueva huella: {fingerprint}",
+    "rotate_key_failed": "La rotación falló",
+    "rotate_key_retry": "Reintentar",
+    "field_collector_fingerprint": "Huella de la clave del colector",
+    "copy_public_key": "Copiar clave pública",
+    "manual_provision_title": "Aprovisionar con sus propias credenciales SSH",
+    "manual_provision_hint": "Use estos comandos para inicializar el servidor con su propia cuenta SSH. Reemplace 'podman' por 'docker' si es necesario. La clave del colector se obtiene del servidor y luego se despliega a través de su sesión SSH."
   },
   "key_table": {
     "col_status": "Estado",

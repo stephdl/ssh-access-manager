@@ -117,7 +117,12 @@ def test_expire_expire_keys_scenario4_calls_sam_revoke():
          patch("expire.alerts"):
         mock_db.query.return_value = [row]
         expire.expire_keys()
-        mock_ssh.revoke_on_server.assert_called_once_with(HOSTNAME, FINGERPRINT, ip="192.168.1.10", port=22)
+        mock_ssh.revoke_on_server.assert_called_once()
+        args, kwargs = mock_ssh.revoke_on_server.call_args
+        assert args == (HOSTNAME, FINGERPRINT)
+        assert kwargs["ip"] == "192.168.1.10"
+        assert kwargs["port"] == 22
+        assert "key_path" in kwargs
 
 
 def test_expire_expire_keys_scenario4_sets_expired_revoked_automatically():

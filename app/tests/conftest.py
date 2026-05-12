@@ -105,3 +105,21 @@ def sample_key():
         "first_seen": datetime.now(tz=timezone.utc),
         "last_seen": datetime.now(tz=timezone.utc),
     }
+
+
+# ---------------------------------------------------------------------------
+# Fixture: mock ssh._resolve_key_path to return a fake per-server key path
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def mock_key_path(tmp_path):
+    """Mock ssh._resolve_key_path to return a fake per-server key path.
+
+    This fixture ensures all tests that call SSH functions work with the new
+    per-server key architecture where key_path is a required parameter.
+    """
+    fake_key = tmp_path / "fake-server.key"
+    fake_key.write_text("fake ed25519 private key content\n")
+
+    with patch("ssh._resolve_key_path") as mock_resolve:
+        mock_resolve.return_value = str(fake_key)
+        yield str(fake_key)

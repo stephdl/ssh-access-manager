@@ -582,26 +582,46 @@ def test_web_add_server_ssh_port_not_integer(auth_client):
 def test_web_update_server_authenticated_returns_200(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
+        mock_actions.update_server.return_value = {"hostname": "server-test-01"}
         resp = auth_client.put(
             "/api/servers/server-test-01",
             json={"ip": "10.0.0.2", "environment": "production", "os_family": "debian"},
         )
         assert resp.status_code == 200
         mock_actions.update_server.assert_called_once_with(
-            "server-test-01", "10.0.0.2", "production", "debian", 22, ADMIN_ID, 2
+            "server-test-01", "10.0.0.2", "production", "debian", 22, ADMIN_ID, 2,
+            new_hostname=None,
         )
 
 
 def test_web_update_server_blank_environment_is_normalized_to_none(auth_client):
     with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
         mock_db.query_one.return_value = _admin_row()
+        mock_actions.update_server.return_value = {"hostname": "server-test-01"}
         resp = auth_client.put(
             "/api/servers/server-test-01",
             json={"ip": "10.0.0.2", "environment": "", "os_family": None},
         )
         assert resp.status_code == 200
         mock_actions.update_server.assert_called_once_with(
-            "server-test-01", "10.0.0.2", None, None, 22, ADMIN_ID, 2
+            "server-test-01", "10.0.0.2", None, None, 22, ADMIN_ID, 2,
+            new_hostname=None,
+        )
+
+
+def test_web_update_server_rename_forwards_new_hostname(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.update_server.return_value = {"hostname": "renamed"}
+        resp = auth_client.put(
+            "/api/servers/server-test-01",
+            json={"hostname": "renamed", "ip": "10.0.0.2", "environment": "lab"},
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["hostname"] == "renamed"
+        mock_actions.update_server.assert_called_once_with(
+            "server-test-01", "10.0.0.2", "lab", None, 22, ADMIN_ID, 2,
+            new_hostname="renamed",
         )
 
 
@@ -904,17 +924,63 @@ def test_web_system_status_smtp_disabled_zero(auth_client):
         assert resp.get_json()["smtp_enabled"] is False
 
 
-def test_web_collector_key_includes_ssh_user(auth_client, tmp_path):
-    pub_key_file = tmp_path / "collector_key.pub"
-    pub_key_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 test")
-    with patch("web.db") as mock_db, patch("web.ssh.SSH_USER", "custom-collector"), \
-         patch.dict("os.environ", {"COLLECTOR_KEY": str(tmp_path / "collector_key")}):
+def test_web_legacy_global_collector_key_route_removed(auth_client):
+    with patch("web.db") as mock_db:
         mock_db.query_one.return_value = _admin_row()
         resp = auth_client.get("/api/system/collector-key")
+        assert resp.status_code == 404
+
+
+def test_web_rotate_key_sysadmin_returns_200(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.rotate_collector_key.return_value = {"status": "rotated", "fingerprint": "SHA256:abc"}
+        resp = auth_client.post("/api/servers/srv-01/rotate-key")
+        assert resp.status_code == 200
+        assert resp.get_json()["fingerprint"] == "SHA256:abc"
+        mock_actions.rotate_collector_key.assert_called_once_with("srv-01", ADMIN_ID)
+
+
+def test_web_rotate_key_operator_forbidden(auth_client):
+    with patch("web.db") as mock_db:
+        row = _admin_row()
+        row["role"] = "operator"
+        mock_db.query_one.return_value = row
+        resp = auth_client.post("/api/servers/srv-01/rotate-key")
+        assert resp.status_code == 403
+
+
+def test_web_rotate_key_failure_returns_502(auth_client):
+    from actions import UserError
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.rotate_collector_key.side_effect = UserError("Rotation failed: boom", status=502)
+        resp = auth_client.post("/api/servers/srv-01/rotate-key")
+        assert resp.status_code == 502
+        assert "boom" in resp.get_json()["error"]
+
+
+def test_web_get_server_collector_key_returns_pubkey(auth_client):
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.get_collector_key_for_server.return_value = {
+            "fingerprint": "SHA256:abc",
+            "public_key": "ssh-ed25519 AAAA...",
+        }
+        resp = auth_client.get("/api/servers/srv-01/collector-key")
         assert resp.status_code == 200
         data = resp.get_json()
-        assert data["ssh_user"] == "custom-collector"
-        assert "ssh-ed25519" in data["public_key"]
+        assert data["fingerprint"] == "SHA256:abc"
+        assert data["public_key"].startswith("ssh-ed25519")
+
+
+def test_web_get_server_collector_key_404(auth_client):
+    from actions import NotFoundError
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.get_collector_key_for_server.side_effect = NotFoundError("Server not found: srv-x")
+        resp = auth_client.get("/api/servers/srv-x/collector-key")
+        assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------

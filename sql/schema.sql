@@ -37,6 +37,8 @@ CREATE TABLE servers (
     provision_version VARCHAR(64),
     -- TRUE if the last provision update attempt failed (rollback succeeded)
     provision_drift BOOLEAN NOT NULL DEFAULT FALSE,
+    -- TRUE if the server has been successfully activated (SSH connectivity confirmed)
+    is_provisioned BOOLEAN NOT NULL DEFAULT FALSE,
     -- Timestamp when added to the system
     added_at    TIMESTAMPTZ DEFAULT now()
 );
@@ -53,6 +55,7 @@ COMMENT ON COLUMN servers.is_active IS 'False = excluded from SSH collection sco
 COMMENT ON COLUMN servers.max_sessions IS 'Max concurrent SSH sessions threshold - WARNING alert if exceeded (24h anti-spam)';
 COMMENT ON COLUMN servers.provision_version IS 'SHA256 (or prefix) of last successful SAM_SELF_UPDATE deployment';
 COMMENT ON COLUMN servers.provision_drift IS 'TRUE if the last provision update attempt failed (remote remains functional via rollback)';
+COMMENT ON COLUMN servers.is_provisioned IS 'TRUE if activate step has succeeded (SSH connectivity confirmed with per-server key)';
 COMMENT ON COLUMN servers.added_at IS 'Record timestamp in the system';
 
 -- ---------------------------------------------------------------------------
@@ -285,7 +288,11 @@ CREATE TABLE audit_log (
                       'GROUP_REVOKED',
                       'GROUP_CHANGED',
                       'PROVISION_UPDATED',
-                      'PROVISION_UPDATE_FAILED'
+                      'PROVISION_UPDATE_FAILED',
+                      'COLLECTOR_KEY_GENERATED',
+                      'COLLECTOR_KEY_ROTATED',
+                      'COLLECTOR_KEY_ROTATION_FAILED',
+                      'SERVER_RENAMED'
                   )),
     -- Administrator who triggered the action (NULL if automatic)
     performed_by  UUID REFERENCES administrators(id) ON DELETE SET NULL,
