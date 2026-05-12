@@ -508,7 +508,7 @@
     "warn_root": "WARNUNG: Die Root-Gruppe gewährt vollen Root-Zugriff über sudo. Nur vertrauenswürdigen Systemadministratoren zuweisen."
   },
   "ssh_audit": {
-    "title": "SSH-Konfig-Audit (ANSSI BP-099)",
+    "title": "SSH-Konfig-Audit",
     "subtitle": "Effektive sshd-Konfiguration auf dem Remote-Host",
     "loading": "Lade sshd-Konfiguration…",
     "error_generic": "Fehler beim Laden des sshd-Audits",
@@ -533,7 +533,7 @@
     "filter_noncompliant": "Nur nicht-konforme",
     "summary_line": "{ok} OK · {warning} Warnung(en) · {critical} kritisch · {missing} fehlend",
     "directive_permitrootlogin_label": "PermitRootLogin",
-    "directive_permitrootlogin_hint": "Direkten SSH-Root-Login verbieten. ANSSI empfiehlt 'no'.",
+    "directive_permitrootlogin_hint": "Direkten SSH-Root-Login verbieten.",
     "directive_passwordauthentication_label": "PasswordAuthentication",
     "directive_passwordauthentication_hint": "Passwort-Authentifizierung verbieten, nur öffentlicher Schlüssel.",
     "directive_permitemptypasswords_label": "PermitEmptyPasswords",

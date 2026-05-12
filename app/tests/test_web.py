@@ -2043,7 +2043,7 @@ def test_web_sessions_history_operator_200(client):
 
 
 # ---------------------------------------------------------------------------
-# GET /api/servers/<hostname>/sshd-audit — ANSSI BP-099 audit
+# GET /api/servers/<hostname>/sshd-audit — hardening audit
 # ---------------------------------------------------------------------------
 
 def test_web_sshd_audit_sysadmin_200(auth_client):

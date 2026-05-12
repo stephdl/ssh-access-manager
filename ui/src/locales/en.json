@@ -509,7 +509,7 @@
     "warn_root": "WARNING: The root group grants full root access via sudo. Only assign to trusted sysadmins."
   },
   "ssh_audit": {
-    "title": "SSH config audit (ANSSI BP-099)",
+    "title": "SSH config audit",
     "subtitle": "Effective sshd configuration on the remote host",
     "loading": "Loading sshd config…",
     "error_generic": "Failed to load sshd audit",
@@ -534,7 +534,7 @@
     "filter_noncompliant": "Non-compliant only",
     "summary_line": "{ok} OK · {warning} warning(s) · {critical} critical · {missing} missing",
     "directive_permitrootlogin_label": "PermitRootLogin",
-    "directive_permitrootlogin_hint": "Forbid direct SSH root login. ANSSI recommends 'no'.",
+    "directive_permitrootlogin_hint": "Forbid direct SSH root login.",
     "directive_passwordauthentication_label": "PasswordAuthentication",
     "directive_passwordauthentication_hint": "Forbid password authentication, only public key.",
     "directive_permitemptypasswords_label": "PermitEmptyPasswords",

@@ -194,8 +194,8 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 
 ### Audit sshd (#392)
 - `audit_server_sshd(hostname, admin_id) -> dict` — récupère IP+port depuis DB, exécute `ssh.audit_sshd_config()`, applique `check_sshd_compliance()`. Lecture seule, pas d'audit_log. Raise NotFoundError(404) si serveur inconnu, UserError(409) si désactivé, UserError(502) si SSH échoue.
-- `check_sshd_compliance(parsed: dict) -> dict` — pure function, applique ANSSI_SSHD_POLICY à un dict de directives sshd. Retourne `{"checks": [...], "summary": {ok, warning, critical, info, missing}, "overall": ...}`
-- `ANSSI_SSHD_POLICY` — 14 directives ANSSI BP-099 R3/R5/R7/R8/R9/R10 : permitrootlogin (critical), passwordauthentication (critical), permitemptypasswords (critical), kbdinteractiveauthentication (warning), challengeresponseauthentication (warning, optional), hostbasedauthentication (critical), ignorerhosts (critical), x11forwarding (warning), allowtcpforwarding (warning), maxauthtries (warning, ≤3), logingracetime (warning, ≤60), clientaliveinterval (info, >0), loglevel (info, INFO/VERBOSE), usepam (warning)
+- `check_sshd_compliance(parsed: dict) -> dict` — pure function, applique `SSHD_HARDENING_POLICY` à un dict de directives sshd. Retourne `{"checks": [...], "summary": {ok, warning, critical, info, missing}, "overall": ...}`
+- `SSHD_HARDENING_POLICY` — 14 directives de durcissement sshd : permitrootlogin (critical), passwordauthentication (critical), permitemptypasswords (critical), kbdinteractiveauthentication (warning), challengeresponseauthentication (warning, optional), hostbasedauthentication (critical), ignorerhosts (critical), x11forwarding (warning), allowtcpforwarding (warning), maxauthtries (warning, ≤3), logingracetime (warning, ≤60), clientaliveinterval (info, >0), loglevel (info, INFO/VERBOSE), usepam (warning)
 
 ### Groupes SAM sudo (#383)
 - `VALID_SAM_GROUPS = ("sam-operator", "sam-pkg", "sam-root")` — constante partagée validation
@@ -280,12 +280,12 @@ Permissions appliquées (#260) :
 - Scripts SAM déployés avec `-m 750` (root:root) — non lisibles/exécutables par les non-root
 - Sudoers hardcode `-m 750` : si cette valeur change dans `ssh.py`, il faut re-provisionner les serveurs
 
-## Audit sshd config ANSSI BP-099 (#392)
+## Audit sshd config (#392)
 
 **ssh.py** : `audit_sshd_config(hostname, ip, port) -> dict[str, str]` — exécute `sudo sshd -T` sur le serveur distant et retourne les directives parsées. Raise SSHSudoError si exit ≠ 0, SSHScriptError si stdout vide.
 
 **actions.py** :
-- `ANSSI_SSHD_POLICY` — 14 directives ANSSI BP-099 : permitrootlogin, passwordauthentication, permitemptypasswords, kbdinteractiveauthentication, challengeresponseauthentication (optional), hostbasedauthentication, ignorerhosts, x11forwarding, allowtcpforwarding, maxauthtries, logingracetime, clientaliveinterval, loglevel, usepam
+- `SSHD_HARDENING_POLICY` — 14 directives de durcissement sshd : permitrootlogin, passwordauthentication, permitemptypasswords, kbdinteractiveauthentication, challengeresponseauthentication (optional), hostbasedauthentication, ignorerhosts, x11forwarding, allowtcpforwarding, maxauthtries, logingracetime, clientaliveinterval, loglevel, usepam
 - `check_sshd_compliance(parsed: dict) -> dict` — pure function, applique la policy à un dict de config sshd. Retourne `{"checks": [...], "summary": {ok, warning, critical, info, missing}, "overall": ...}`
 - `audit_server_sshd(hostname, admin_id) -> dict` — lecture seule, pas d'audit_log. Récupère IP+port de la DB, appelle ssh.audit_sshd_config(), applique check_sshd_compliance(). Raise NotFoundError si serveur inconnu, UserError(409) si désactivé, UserError(502) si SSH échoue.
 

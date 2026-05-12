@@ -111,8 +111,8 @@ known_hosts indexé par IP : `ssh-keyscan -H -T 10 <ip_address>`.
 
 ### Audit sshd (#392)
 - `audit_server_sshd(hostname, admin_id) -> dict` — lecture seule, pas d'audit_log. Récupère IP+port depuis DB, exécute `ssh.audit_sshd_config()`, applique `check_sshd_compliance()`. Raise NotFoundError(404) si serveur inconnu, UserError(409) si désactivé, UserError(502) si SSH échoue.
-- `check_sshd_compliance(parsed: dict) -> dict` — pure function, applique ANSSI_SSHD_POLICY. Retourne `{"checks": [...], "summary": {ok, warning, critical, info, missing}, "overall": ...}`
-- `ANSSI_SSHD_POLICY` — 14 directives ANSSI BP-099 R3/R5/R7/R8/R9/R10
+- `check_sshd_compliance(parsed: dict) -> dict` — pure function, applique `SSHD_HARDENING_POLICY`. Retourne `{"checks": [...], "summary": {ok, warning, critical, info, missing}, "overall": ...}`
+- `SSHD_HARDENING_POLICY` — 14 directives de durcissement sshd (seuils déclaratifs, pas de claim de conformité à une norme)
 
 ### Administrateurs
 - `add_admin(username, email, password, admin_id, role='operator')` — hash werkzeug, valide role

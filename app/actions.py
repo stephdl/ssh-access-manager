@@ -1399,27 +1399,27 @@ def unlock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Audit sshd config (ANSSI BP-099)
+# Audit sshd config
 # ---------------------------------------------------------------------------
 
-# ANSSI BP-099 sshd hardening policy.
+# sshd hardening policy (read-only audit, not a conformance claim).
 # Each entry: directive_lower, rule, severity, ref, optional
 # rule is a tuple ("in", [values]) | ("le", n) | ("ge", n) | ("gt", n)
-ANSSI_SSHD_POLICY = [
-    {"directive": "permitrootlogin",                "rule": ("in", ["no"]),            "severity": "critical", "ref": "R5"},
-    {"directive": "passwordauthentication",         "rule": ("in", ["no"]),            "severity": "critical", "ref": "R7"},
-    {"directive": "permitemptypasswords",           "rule": ("in", ["no"]),            "severity": "critical", "ref": "R7"},
-    {"directive": "kbdinteractiveauthentication",   "rule": ("in", ["no"]),            "severity": "warning",  "ref": "R7"},
-    {"directive": "challengeresponseauthentication","rule": ("in", ["no"]),            "severity": "warning",  "ref": "R7", "optional": True},
-    {"directive": "hostbasedauthentication",        "rule": ("in", ["no"]),            "severity": "critical", "ref": "R7"},
-    {"directive": "ignorerhosts",                   "rule": ("in", ["yes"]),           "severity": "critical", "ref": "R7"},
-    {"directive": "x11forwarding",                  "rule": ("in", ["no"]),            "severity": "warning",  "ref": "R10"},
-    {"directive": "allowtcpforwarding",             "rule": ("in", ["no", "local"]),   "severity": "warning",  "ref": "R10"},
-    {"directive": "maxauthtries",                   "rule": ("le", 3),                 "severity": "warning",  "ref": "R8"},
-    {"directive": "logingracetime",                 "rule": ("le", 60),                "severity": "warning",  "ref": "R8"},
-    {"directive": "clientaliveinterval",            "rule": ("gt", 0),                 "severity": "info",     "ref": "R9"},
-    {"directive": "loglevel",                       "rule": ("in", ["INFO", "VERBOSE"]),"severity": "info",    "ref": "R3"},
-    {"directive": "usepam",                         "rule": ("in", ["yes"]),           "severity": "warning",  "ref": "R7"},
+SSHD_HARDENING_POLICY = [
+    {"directive": "permitrootlogin",                "rule": ("in", ["no"]),             "severity": "critical"},
+    {"directive": "passwordauthentication",         "rule": ("in", ["no"]),             "severity": "critical"},
+    {"directive": "permitemptypasswords",           "rule": ("in", ["no"]),             "severity": "critical"},
+    {"directive": "kbdinteractiveauthentication",   "rule": ("in", ["no"]),             "severity": "warning"},
+    {"directive": "challengeresponseauthentication","rule": ("in", ["no"]),             "severity": "warning", "optional": True},
+    {"directive": "hostbasedauthentication",        "rule": ("in", ["no"]),             "severity": "critical"},
+    {"directive": "ignorerhosts",                   "rule": ("in", ["yes"]),            "severity": "critical"},
+    {"directive": "x11forwarding",                  "rule": ("in", ["no"]),             "severity": "warning"},
+    {"directive": "allowtcpforwarding",             "rule": ("in", ["no", "local"]),    "severity": "warning"},
+    {"directive": "maxauthtries",                   "rule": ("le", 3),                  "severity": "warning"},
+    {"directive": "logingracetime",                 "rule": ("le", 60),                 "severity": "warning"},
+    {"directive": "clientaliveinterval",            "rule": ("gt", 0),                  "severity": "info"},
+    {"directive": "loglevel",                       "rule": ("in", ["INFO", "VERBOSE"]),"severity": "info"},
+    {"directive": "usepam",                         "rule": ("in", ["yes"]),            "severity": "warning"},
 ]
 
 
@@ -1454,14 +1454,14 @@ def _format_expected(rule) -> str:
 
 
 def check_sshd_compliance(parsed: dict) -> dict:
-    """Apply ANSSI_SSHD_POLICY to a sshd -T parsed dict.
+    """Apply SSHD_HARDENING_POLICY to a sshd -T parsed dict.
 
     Returns {"checks": [...], "summary": {ok, warning, critical, info, missing}, "overall": ...}.
     No I/O, pure function.
     """
     checks = []
     summary = {"ok": 0, "warning": 0, "critical": 0, "info": 0, "missing": 0}
-    for entry in ANSSI_SSHD_POLICY:
+    for entry in SSHD_HARDENING_POLICY:
         directive = entry["directive"]
         actual = parsed.get(directive)
         verdict = _evaluate_rule(entry["rule"], actual)
@@ -1484,7 +1484,6 @@ def check_sshd_compliance(parsed: dict) -> dict:
             "actual": actual,
             "status": status,
             "severity": entry["severity"],
-            "ref": entry["ref"],
         })
     if summary["critical"]:
         overall = "critical"

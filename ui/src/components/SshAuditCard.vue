@@ -153,10 +153,7 @@ function directiveHint(directive) {
 }
 
 function rowTooltip(check) {
-  const hint = directiveHint(check.directive)
-  const ref = check.ref ? `ANSSI ${check.ref}` : ''
-  if (hint && ref) return `${ref} — ${hint}`
-  return hint || ref
+  return directiveHint(check.directive)
 }
 
 function statusLabel(status) {

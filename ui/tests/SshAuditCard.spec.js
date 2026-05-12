@@ -241,7 +241,7 @@ describe('SshAuditCard.vue', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('renders directive label from i18n and exposes ANSSI ref in row tooltip', async () => {
+  it('renders directive label from i18n and exposes the hint in tooltip', async () => {
     fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockAuditCritical,
@@ -256,9 +256,9 @@ describe('SshAuditCard.vue', () => {
 
     const rows = wrapper.findAll('[data-testid="audit-table"] tbody tr')
     expect(rows[0].text()).toContain('PermitRootLogin')
-    expect(rows[0].find('.expected-cell').attributes('title')).toContain('ANSSI R5')
+    expect(rows[0].find('.expected-cell').attributes('title')).toContain('root login')
     expect(rows[1].text()).toContain('PasswordAuthentication')
-    expect(rows[1].find('.expected-cell').attributes('title')).toContain('ANSSI R7')
+    expect(rows[1].find('.expected-cell').attributes('title')).toContain('password')
   })
 
   it('shows error_not_found message on 404', async () => {

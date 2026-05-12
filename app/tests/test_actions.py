@@ -1704,7 +1704,7 @@ def test_actions_deploy_key_no_sam_group_passes_none_to_add_key(sample_server, s
 # ---------------------------------------------------------------------------
 
 def test_check_sshd_compliance_all_ok():
-    """All ANSSI parameters correct → overall=ok, summary.ok=14."""
+    """All hardening parameters correct → overall=ok, summary.ok=14."""
     parsed = {
         "permitrootlogin": "no",
         "passwordauthentication": "no",

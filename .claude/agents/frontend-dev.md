@@ -69,7 +69,7 @@ server: {
 | AnomaliesTable.vue | Tableau anomalies + filtres texte/type/serveur/conformité + pagination (#250) + export CSV (#343) + tri colonnes |
 | PaginationBar.vue | Pagination réutilisable : sélecteur taille (10/20/40/50/100), indicateur traduit, boutons Précédent/Suivant |
 | SessionsCard.vue | Sessions SSH actives + modal Full History (filtres user/ip/date, pagination, export CSV) — sysadmin/operator (#253) |
-| SshAuditCard.vue | Audit de configuration sshd selon ANSSI BP-099 — charge `/api/servers/<hostname>/sshd-audit`, affiche checks par directive avec statut (ok/warning/critical/missing), filtre non-conformes, résumé global (#392) |
+| SshAuditCard.vue | Audit de configuration sshd selon une policy de durcissement déclarative — charge `/api/servers/<hostname>/sshd-audit`, affiche checks par directive avec statut (ok/warning/critical/missing), filtre non-conformes (coché par défaut), résumé global. Tooltip sur la cellule Expected pour la description de la directive (#392) |
 | Spinner.vue | Spinner animé universel — utilisé dans tous les boutons en état de chargement (#337) |
 | EditServerModal.vue | Modal édition serveur (IP, env, OS, port SSH, max_sessions). Props : `modelValue` (v-model), `server`, `allServers`. Émet `saved` après PUT /api/servers/{hostname} (#339, #360) |
 

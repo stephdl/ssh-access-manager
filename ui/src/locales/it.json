@@ -508,7 +508,7 @@
     "warn_root": "ATTENZIONE: Il gruppo root concede accesso root completo tramite sudo. Assegnare solo ad amministratori fidati."
   },
   "ssh_audit": {
-    "title": "Audit config SSH (ANSSI BP-099)",
+    "title": "Audit config SSH",
     "subtitle": "Configurazione sshd effettiva sull'host remoto",
     "loading": "Caricamento config sshd…",
     "error_generic": "Errore nel caricamento dell'audit sshd",
@@ -533,7 +533,7 @@
     "filter_noncompliant": "Solo non conformi",
     "summary_line": "{ok} OK · {warning} avvertimento/i · {critical} critico/i · {missing} mancante/i",
     "directive_permitrootlogin_label": "PermitRootLogin",
-    "directive_permitrootlogin_hint": "Vietare accesso SSH root diretto. ANSSI raccomanda 'no'.",
+    "directive_permitrootlogin_hint": "Vietare accesso SSH root diretto.",
     "directive_passwordauthentication_label": "PasswordAuthentication",
     "directive_passwordauthentication_hint": "Vietare autenticazione via password, solo chiave pubblica.",
     "directive_permitemptypasswords_label": "PermitEmptyPasswords",
