@@ -238,7 +238,7 @@ describe('ServerDetail — provision version display', () => {
     expect(infoGrid.text()).toContain('—')
   })
 
-  it('displays Update available badge when provision_drift is true', async () => {
+  it('displays Re-provision needed badge when provision_drift is true', async () => {
     const fetchSpy = vi.fn((url) => {
       if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
         return Promise.resolve({
@@ -264,10 +264,10 @@ describe('ServerDetail — provision version display', () => {
     const w = await mountServerDetail()
     const badge = w.find('.badge-drift')
     expect(badge.exists()).toBe(true)
-    expect(badge.text()).toContain('Update available')
+    expect(badge.text()).toContain('Re-provision needed')
   })
 
-  it('does not display Update available badge when provision_drift is false', async () => {
+  it('does not display Re-provision needed badge when provision_drift is false', async () => {
     const w = await mountServerDetail()
     expect(w.find('.badge-drift').exists()).toBe(false)
   })

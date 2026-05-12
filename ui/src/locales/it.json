@@ -103,8 +103,8 @@
     "scan": "Scansiona",
     "scanning": "Scansione",
     "edit": "Modifica",
-    "update_available": "Aggiornamento disponibile",
-    "update_available_tooltip": "L'host remoto esegue una configurazione SAM obsoleta; la prossima scansione tenterà di applicare la nuova versione."
+    "reprovision_needed": "Riapprontamento richiesto",
+    "reprovision_needed_tooltip": "L'aggiornamento automatico è fallito su questo host. Apri il dettaglio del server e fai clic su Reapprontamento per inviare la nuova configurazione SAM. Consulta la vista Audit per i dettagli dell'errore."
   },
   "server_detail": {
     "scan": "Scansiona",
@@ -126,8 +126,6 @@
     "field_provision_version": "Versione provisioning",
     "active_yes": "✅ Sì",
     "active_no": "🔴 No",
-    "update_available": "Aggiornamento disponibile",
-    "update_available_tooltip": "L'host remoto esegue una configurazione SAM obsoleta; la prossima scansione tenterà di applicare la nuova versione.",
     "section_keys": "Chiavi SSH",
     "load_error": "Server non trovato (HTTP {status})",
     "scan_success": "Scansione avviata con successo.",
@@ -170,7 +168,9 @@
     "bulk_revoke_modal_title": "Revocare le chiavi selezionate",
     "bulk_validated": "Chiavi validate: {validated}, saltate: {skipped}",
     "bulk_revoked": "Chiavi revocate: {revoked}, saltate: {skipped}",
-    "root_revoke_warning": "La revoca della chiave SSH dell'utente <strong>root</strong> può causare la perdita permanente dell'accesso remoto a questo server."
+    "root_revoke_warning": "La revoca della chiave SSH dell'utente <strong>root</strong> può causare la perdita permanente dell'accesso remoto a questo server.",
+    "reprovision_needed": "Riapprontamento richiesto",
+    "reprovision_needed_tooltip": "L'aggiornamento automatico è fallito su questo host. Apri il dettaglio del server e fai clic su Reapprontamento per inviare la nuova configurazione SAM. Consulta la vista Audit per i dettagli dell'errore."
   },
   "key_table": {
     "col_status": "Stato",

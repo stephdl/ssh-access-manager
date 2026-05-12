@@ -103,8 +103,8 @@
     "scan": "Scanner",
     "scanning": "Scan en cours",
     "edit": "Éditer",
-    "update_available": "Mise à jour disponible",
-    "update_available_tooltip": "L'hôte distant exécute une configuration SAM obsolète ; le prochain scan tentera d'appliquer la nouvelle version."
+    "reprovision_needed": "Reprovisionnement requis",
+    "reprovision_needed_tooltip": "La mise à jour automatique a échoué sur cet hôte. Ouvrez le détail du serveur et cliquez sur Re-provisionner pour pousser la nouvelle configuration SAM. Consultez la vue Audit pour le détail de l'erreur."
   },
   "server_detail": {
     "scan": "Scanner",
@@ -126,8 +126,6 @@
     "field_provision_version": "Version provisioning",
     "active_yes": "✅ Oui",
     "active_no": "🔴 Non",
-    "update_available": "Mise à jour disponible",
-    "update_available_tooltip": "L'hôte distant exécute une configuration SAM obsolète ; le prochain scan tentera d'appliquer la nouvelle version.",
     "section_keys": "Clés SSH",
     "load_error": "Serveur introuvable (HTTP {status})",
     "scan_success": "Scan lancé avec succès.",
@@ -170,7 +168,9 @@
     "bulk_revoke_modal_title": "Révoquer les clés sélectionnées",
     "bulk_validated": "Clés validées : {validated}, ignorées : {skipped}",
     "bulk_revoked": "Clés révoquées : {revoked}, ignorées : {skipped}",
-    "root_revoke_warning": "Révoquer la clé SSH de l'utilisateur <strong>root</strong> peut entraîner une perte définitive d'accès distant à ce serveur."
+    "root_revoke_warning": "Révoquer la clé SSH de l'utilisateur <strong>root</strong> peut entraîner une perte définitive d'accès distant à ce serveur.",
+    "reprovision_needed": "Reprovisionnement requis",
+    "reprovision_needed_tooltip": "La mise à jour automatique a échoué sur cet hôte. Ouvrez le détail du serveur et cliquez sur Re-provisionner pour pousser la nouvelle configuration SAM. Consultez la vue Audit pour le détail de l'erreur."
   },
   "key_table": {
     "col_status": "Statut",

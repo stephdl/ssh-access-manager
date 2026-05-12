@@ -253,10 +253,12 @@ const showEditServer = ref(false)
 const editingServer = ref(null)
 
 const counts = computed(() => ({
-  ok: servers.value.filter((s) => s.is_active && !s.has_anomalies && s.last_scan_ok !== false)
-    .length,
-  warn: servers.value.filter((s) => s.is_active && s.last_scan_ok !== false && s.has_anomalies)
-    .length,
+  ok: servers.value.filter(
+    (s) => s.is_active && !s.has_anomalies && !s.provision_drift && s.last_scan_ok !== false
+  ).length,
+  warn: servers.value.filter(
+    (s) => s.is_active && s.last_scan_ok !== false && (s.has_anomalies || s.provision_drift)
+  ).length,
   scanFailed: servers.value.filter((s) => s.is_active && s.last_scan_ok === false).length,
   danger: servers.value.filter((s) => !s.is_active).length,
 }))

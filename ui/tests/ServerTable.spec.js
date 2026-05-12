@@ -250,7 +250,7 @@ describe('ServerTable', () => {
     expect(w.text()).not.toContain('🟡')
   })
 
-  it('shows Update available badge when provision_drift is true', () => {
+  it('shows Re-provision needed badge when provision_drift is true', () => {
     const server = {
       id: '6', hostname: 'drift-server', ip_address: '10.0.0.6',
       environment: 'production', os_family: 'debian', added_at: null,
@@ -259,10 +259,10 @@ describe('ServerTable', () => {
     const w = mountTable([server])
     const badge = w.find('.badge-drift')
     expect(badge.exists()).toBe(true)
-    expect(badge.text()).toContain('Update available')
+    expect(badge.text()).toContain('Re-provision needed')
   })
 
-  it('does not show Update available badge when provision_drift is false', () => {
+  it('does not show Re-provision needed badge when provision_drift is false', () => {
     const server = {
       id: '7', hostname: 'no-drift-server', ip_address: '10.0.0.7',
       environment: 'production', os_family: 'debian', added_at: null,
@@ -272,7 +272,7 @@ describe('ServerTable', () => {
     expect(w.find('.badge-drift').exists()).toBe(false)
   })
 
-  it('does not show Update available badge when provision_drift is absent', () => {
+  it('does not show Re-provision needed badge when provision_drift is absent', () => {
     const w = mountTable([SERVERS[0]])
     expect(w.find('.badge-drift').exists()).toBe(false)
   })

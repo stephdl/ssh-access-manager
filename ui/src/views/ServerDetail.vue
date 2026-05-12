@@ -102,9 +102,9 @@
             <span
               v-if="server.provision_drift"
               class="badge badge-drift"
-              :title="$t('server_detail.update_available_tooltip')"
+              :title="$t('server_detail.reprovision_needed_tooltip')"
             >
-              {{ $t('server_detail.update_available') }}
+              {{ $t('server_detail.reprovision_needed') }}
             </span>
           </dd>
         </dl>

@@ -103,8 +103,8 @@
     "scan": "Scan",
     "scanning": "Scanning",
     "edit": "Edit",
-    "update_available": "Update available",
-    "update_available_tooltip": "The remote host runs an outdated SAM provision config; the next scan will try to apply the new version."
+    "reprovision_needed": "Re-provision needed",
+    "reprovision_needed_tooltip": "Automatic update failed on this host. Open the server detail and click Re-provision to push the new SAM configuration. See the Audit view for the exact error."
   },
   "server_detail": {
     "scan": "Scan",
@@ -126,8 +126,6 @@
     "field_provision_version": "Provision version",
     "active_yes": "✅ Yes",
     "active_no": "🔴 No",
-    "update_available": "Update available",
-    "update_available_tooltip": "The remote host runs an outdated SAM provision config; the next scan will try to apply the new version.",
     "section_keys": "SSH Keys",
     "load_error": "Server not found (HTTP {status})",
     "scan_success": "Scan launched successfully.",
@@ -170,7 +168,9 @@
     "bulk_revoke_modal_title": "Revoke selected keys",
     "bulk_validated": "Keys validated: {validated}, skipped: {skipped}",
     "bulk_revoked": "Keys revoked: {revoked}, skipped: {skipped}",
-    "root_revoke_warning": "Revoking the SSH key of user <strong>root</strong> may result in permanent loss of remote access to this server."
+    "root_revoke_warning": "Revoking the SSH key of user <strong>root</strong> may result in permanent loss of remote access to this server.",
+    "reprovision_needed": "Re-provision needed",
+    "reprovision_needed_tooltip": "Automatic update failed on this host. Open the server detail and click Re-provision to push the new SAM configuration. See the Audit view for the exact error."
   },
   "key_table": {
     "col_status": "Status",

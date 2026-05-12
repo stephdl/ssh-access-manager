@@ -103,8 +103,8 @@
     "scan": "Escanear",
     "scanning": "Escaneando",
     "edit": "Editar",
-    "update_available": "Actualización disponible",
-    "update_available_tooltip": "El host remoto ejecuta una configuración SAM obsoleta; el próximo escaneo intentará aplicar la nueva versión."
+    "reprovision_needed": "Reaprovisionamiento necesario",
+    "reprovision_needed_tooltip": "La actualización automática falló en este host. Abra el detalle del servidor y haga clic en Reaprovisionar para enviar la nueva configuración SAM. Consulte la vista Auditoría para ver el error exacto."
   },
   "server_detail": {
     "scan": "Escanear",
@@ -126,8 +126,6 @@
     "field_provision_version": "Versión de aprovisionamiento",
     "active_yes": "✅ Sí",
     "active_no": "🔴 No",
-    "update_available": "Actualización disponible",
-    "update_available_tooltip": "El host remoto ejecuta una configuración SAM obsoleta; el próximo escaneo intentará aplicar la nueva versión.",
     "section_keys": "Claves SSH",
     "load_error": "Servidor no encontrado (HTTP {status})",
     "scan_success": "Escaneo iniciado con éxito.",
@@ -170,7 +168,9 @@
     "bulk_revoke_modal_title": "Revocar claves seleccionadas",
     "bulk_validated": "Claves validadas: {validated}, omitidas: {skipped}",
     "bulk_revoked": "Claves revocadas: {revoked}, omitidas: {skipped}",
-    "root_revoke_warning": "Revocar la clave SSH del usuario <strong>root</strong> puede resultar en la pérdida permanente del acceso remoto a este servidor."
+    "root_revoke_warning": "Revocar la clave SSH del usuario <strong>root</strong> puede resultar en la pérdida permanente del acceso remoto a este servidor.",
+    "reprovision_needed": "Reaprovisionamiento necesario",
+    "reprovision_needed_tooltip": "La actualización automática falló en este host. Abra el detalle del servidor y haga clic en Reaprovisionar para enviar la nueva configuración SAM. Consulte la vista Auditoría para ver el error exacto."
   },
   "key_table": {
     "col_status": "Estado",

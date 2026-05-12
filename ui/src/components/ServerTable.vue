@@ -85,8 +85,8 @@
             <span
               v-if="s.provision_drift"
               class="badge badge-drift"
-              :title="$t('server_table.update_available_tooltip')"
-              >{{ $t('server_table.update_available') }}</span
+              :title="$t('server_table.reprovision_needed_tooltip')"
+              >{{ $t('server_table.reprovision_needed') }}</span
             >
           </td>
           <td>{{ s.ip_address }}</td>
@@ -175,14 +175,14 @@ const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSi
 function statusIcon(s) {
   if (!s.is_active) return '🔴'
   if (s.last_scan_ok === false) return '🟠'
-  if (s.has_anomalies) return '🟡'
+  if (s.has_anomalies || s.provision_drift) return '🟡'
   return '✅'
 }
 
 function rowClass(s) {
   if (!s.is_active) return 'row-danger'
   if (s.last_scan_ok === false) return 'row-scan-fail'
-  if (s.has_anomalies) return 'row-warning'
+  if (s.has_anomalies || s.provision_drift) return 'row-warning'
   return ''
 }
 
