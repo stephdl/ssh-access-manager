@@ -524,7 +524,6 @@
     "column_expected": "Erwartet",
     "column_actual": "Effektiv",
     "column_status": "Status",
-    "column_reference": "ANSSI",
     "status_ok": "OK",
     "status_warning": "Warnung",
     "status_critical": "Kritisch",

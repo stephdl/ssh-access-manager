@@ -48,15 +48,10 @@
             <th>{{ $t('ssh_audit.column_expected') }}</th>
             <th>{{ $t('ssh_audit.column_actual') }}</th>
             <th>{{ $t('ssh_audit.column_status') }}</th>
-            <th>{{ $t('ssh_audit.column_reference') }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="check in filteredChecks"
-            :key="check.directive"
-            :title="directiveHint(check.directive)"
-          >
+          <tr v-for="check in filteredChecks" :key="check.directive" :title="rowTooltip(check)">
             <td>
               <strong>{{ directiveLabel(check.directive) }}</strong>
             </td>
@@ -71,7 +66,6 @@
                 {{ statusLabel(check.status) }}
               </span>
             </td>
-            <td>{{ check.ref }}</td>
           </tr>
         </tbody>
       </table>
@@ -156,6 +150,13 @@ function directiveLabel(directive) {
 function directiveHint(directive) {
   const key = `ssh_audit.directive_${directive}_hint`
   return te(key) ? t(key) : ''
+}
+
+function rowTooltip(check) {
+  const hint = directiveHint(check.directive)
+  const ref = check.ref ? `ANSSI ${check.ref}` : ''
+  if (hint && ref) return `${ref} — ${hint}`
+  return hint || ref
 }
 
 function statusLabel(status) {
@@ -336,14 +337,14 @@ table {
 
 th {
   text-align: left;
-  padding: 0.5rem;
+  padding: 0.35rem 0.5rem;
   border-bottom: 2px solid var(--border-color);
   font-weight: 600;
   color: var(--text-secondary);
 }
 
 td {
-  padding: 0.5rem;
+  padding: 0.3rem 0.5rem;
   border-bottom: 1px solid var(--border-color);
 }
 
