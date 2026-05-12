@@ -20,6 +20,10 @@ jobs:
           # Debian family — covers .profile skel + apt
           - debian:13
           - ubuntu:26.04
+          # SUSE family — covers zypper
+          - opensuse/leap:15.6
+          # Arch — covers minimal skel + pacman
+          - archlinux:latest
     steps:
       - uses: actions/checkout@v4
 

@@ -35,8 +35,17 @@ case "$ID" in
         SETUP_SCRIPT="tests/integration/setup/debian.sh"
         EXPECTED_PROFILE=".profile"
         ;;
+    opensuse-leap|opensuse-tumbleweed|opensuse|sles)
+        SETUP_SCRIPT="tests/integration/setup/opensuse.sh"
+        EXPECTED_PROFILE=".profile"
+        ;;
+    arch|archlinux)
+        SETUP_SCRIPT="tests/integration/setup/arch.sh"
+        EXPECTED_PROFILE=".profile"
+        ;;
     *)
-        echo "FATAL: unsupported distro '$ID' (only rocky/almalinux/debian/ubuntu in v1)" >&2
+        echo "FATAL: unsupported distro '$ID'" >&2
+        echo "       Add a tests/integration/setup/<distro>.sh and a case branch in run.sh." >&2
         exit 2
         ;;
 esac
