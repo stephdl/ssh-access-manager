@@ -352,16 +352,20 @@ Le formulaire demande :
 - **Durée** — heures / date précise / illimité
 - **Justification** — obligatoire
 
+> **Prérequis sur l'hôte distant** : `bash` et `sudo` doivent être installés. Les utilisateurs SAM sont créés avec `useradd -m -s /bin/bash`, et le hook de premier login dépend du shell de login de bash. Les distributions sans `bash` par défaut (Alpine en configuration minimale, par exemple) doivent installer le paquet `bash` avant d'être provisionnées par SAM.
+
 À la soumission, `sam-add` est exécuté sur le serveur distant via SSH :
 1. Crée l'utilisateur Unix s'il n'existe pas (avec `usermod -aG sam-users` — interdit l'authentification SSH par mot de passe)
-2. Si le compte est créé : génère un mot de passe temporaire, le set via `chpasswd`, écrit `~/README_first_login.txt`, et configure `~/.profile` pour invoquer `passwd` au premier login interactif
+2. Si le compte est créé : génère un mot de passe temporaire, le set via `chpasswd`, écrit `~/README_first_login.txt`, et installe un hook qui invoque `passwd` au premier login interactif
 3. Ajoute la clé dans `~/.ssh/authorized_keys`
 4. Si un Groupe SAM est sélectionné : `sam-grant-group` ajoute l'utilisateur au groupe choisi
 5. Enregistre la clé dans la base avec statut `ACTIVE`, l'expiration choisie, et le `sam_group` éventuel
 
 ### Premier login d'un utilisateur SAM
 
-Lors du premier login SSH (par clé), l'utilisateur voit le contenu de `~/README_first_login.txt` (mot de passe temporaire) affiché par `~/.profile`, puis `passwd` est invoqué automatiquement pour le forcer à choisir un mot de passe personnel. Ce mot de passe est requis pour `sudo` (les règles sudoers SAM exigent `PASSWD:`).
+Lors du premier login SSH (par clé), l'utilisateur voit le contenu de `~/README_first_login.txt` (mot de passe temporaire), puis `passwd` est invoqué automatiquement pour le forcer à choisir un mot de passe personnel. Ce mot de passe est requis pour `sudo` (les règles sudoers SAM exigent `PASSWD:`).
+
+Le fichier qui porte ce hook varie selon la distribution. `sam-add` reproduit fidèlement l'ordre que bash utilise lui-même pour choisir son fichier d'init en shell de login : il écrit dans `~/.bash_profile` s'il existe (cas des familles RHEL / Rocky / Alma / CentOS où `/etc/skel/` le fournit), sinon dans `~/.bash_login` (rarissime), sinon dans `~/.profile` (Debian / Ubuntu / openSUSE / Arch — créé si absent). Cette détection garantit que le hook est sourcé sur tous les Linux mainstream sans dépendre de la distribution. Pour qu'elle fonctionne, le shell de l'utilisateur doit rester `bash` ; un changement manuel ultérieur vers `zsh` ou `fish` empêcherait le hook de s'exécuter.
 
 ### Authentification SSH — publickey uniquement pour `sam-users`
 
