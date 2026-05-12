@@ -83,9 +83,11 @@ ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-sessions
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-grant-group *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke-group *
+${COLLECTOR_USER} ALL=(root) NOPASSWD: <sshd_path> -T
 ```
-Aucune règle `ALL=(ALL) NOPASSWD: ALL` ou équivalent permissif.
-Généré avec `printf` ligne par ligne (résistant au CRLF PTY). Créé via `install -m 440` (évite ":" dans les args — #161).
+- **`sshd -T`** : strict argument — only `-T` is allowed (least privilege principle). Used for SSH config audit panel (issue #392).
+- Aucune règle `ALL=(ALL) NOPASSWD: ALL` ou équivalent permissif.
+- Généré avec `printf` ligne par ligne (résistant au CRLF PTY). Créé via `install -m 440` (évite ":" dans les args — #161).
 
 Pour les **règles sudoers des groupes SAM** (`sam-operator`, `sam-pkg`, `sam-root`, #383, #384) :
 - **`PASSWD:` obligatoire** — jamais `NOPASSWD:` (différent d'audit-collector). Toute occurrence `NOPASSWD:` dans un fichier `/etc/sudoers.d/sam-*` est une vulnérabilité CRITIQUE.

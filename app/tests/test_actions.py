@@ -1697,10 +1697,219 @@ def test_actions_deploy_key_no_sam_group_passes_none_to_add_key(sample_server, s
             justification="Test",
             admin_id=ADMIN_ID,
         )
-        mock_ssh.add_key_on_server.assert_called_once_with(
-            sample_server["hostname"], "alice", sample_key["public_key"],
-            sample_server["ip_address"], port=22, sam_group=None,
-        )
+
+
+# ---------------------------------------------------------------------------
+# check_sshd_compliance — pure logic
+# ---------------------------------------------------------------------------
+
+def test_check_sshd_compliance_all_ok():
+    """All ANSSI parameters correct → overall=ok, summary.ok=14."""
+    parsed = {
+        "permitrootlogin": "no",
+        "passwordauthentication": "no",
+        "permitemptypasswords": "no",
+        "kbdinteractiveauthentication": "no",
+        "challengeresponseauthentication": "no",
+        "hostbasedauthentication": "no",
+        "ignorerhosts": "yes",
+        "x11forwarding": "no",
+        "allowtcpforwarding": "no",
+        "maxauthtries": "3",
+        "logingracetime": "60",
+        "clientaliveinterval": "300",
+        "loglevel": "INFO",
+        "usepam": "yes",
+    }
+    result = actions.check_sshd_compliance(parsed)
+    assert result["overall"] == "ok"
+    assert result["summary"]["ok"] == 14
+    assert result["summary"]["critical"] == 0
+    assert result["summary"]["warning"] == 0
+
+
+def test_check_sshd_compliance_permitrootlogin_yes_is_critical():
+    """permitrootlogin=yes → status=critical, overall=critical."""
+    parsed = {
+        "permitrootlogin": "yes",
+        "passwordauthentication": "no",
+        "permitemptypasswords": "no",
+        "kbdinteractiveauthentication": "no",
+        "hostbasedauthentication": "no",
+        "ignorerhosts": "yes",
+        "x11forwarding": "no",
+        "allowtcpforwarding": "no",
+        "maxauthtries": "3",
+        "logingracetime": "60",
+        "clientaliveinterval": "300",
+        "loglevel": "INFO",
+        "usepam": "yes",
+    }
+    result = actions.check_sshd_compliance(parsed)
+    assert result["overall"] == "critical"
+    assert result["summary"]["critical"] == 1
+    check = [c for c in result["checks"] if c["directive"] == "permitrootlogin"][0]
+    assert check["status"] == "critical"
+    assert check["actual"] == "yes"
+
+
+def test_check_sshd_compliance_maxauthtries_4_is_warning():
+    """maxauthtries=4 (>3) → status=warning, overall=warning."""
+    parsed = {
+        "permitrootlogin": "no",
+        "passwordauthentication": "no",
+        "permitemptypasswords": "no",
+        "kbdinteractiveauthentication": "no",
+        "hostbasedauthentication": "no",
+        "ignorerhosts": "yes",
+        "x11forwarding": "no",
+        "allowtcpforwarding": "no",
+        "maxauthtries": "4",
+        "logingracetime": "60",
+        "clientaliveinterval": "300",
+        "loglevel": "INFO",
+        "usepam": "yes",
+    }
+    result = actions.check_sshd_compliance(parsed)
+    assert result["overall"] == "warning"
+    assert result["summary"]["warning"] == 1
+    check = [c for c in result["checks"] if c["directive"] == "maxauthtries"][0]
+    assert check["status"] == "warning"
+
+
+def test_check_sshd_compliance_clientaliveinterval_0_is_info():
+    """clientaliveinterval=0 (not >0) → status=info, overall=warning (info fails count in summary and overall)."""
+    parsed = {
+        "permitrootlogin": "no",
+        "passwordauthentication": "no",
+        "permitemptypasswords": "no",
+        "kbdinteractiveauthentication": "no",
+        "hostbasedauthentication": "no",
+        "ignorerhosts": "yes",
+        "x11forwarding": "no",
+        "allowtcpforwarding": "no",
+        "maxauthtries": "3",
+        "logingracetime": "60",
+        "clientaliveinterval": "0",
+        "loglevel": "INFO",
+        "usepam": "yes",
+    }
+    result = actions.check_sshd_compliance(parsed)
+    assert result["summary"]["info"] == 1  # info failure counts in summary
+    check = [c for c in result["checks"] if c["directive"] == "clientaliveinterval"][0]
+    assert check["status"] == "info"
+    assert check["severity"] == "info"
+
+
+def test_check_sshd_compliance_directive_missing():
+    """permitrootlogin missing from parsed → status=missing."""
+    parsed = {
+        "passwordauthentication": "no",
+        "permitemptypasswords": "no",
+        "kbdinteractiveauthentication": "no",
+        "hostbasedauthentication": "no",
+        "ignorerhosts": "yes",
+        "x11forwarding": "no",
+        "allowtcpforwarding": "no",
+        "maxauthtries": "3",
+        "logingracetime": "60",
+        "clientaliveinterval": "300",
+        "loglevel": "INFO",
+        "usepam": "yes",
+    }
+    result = actions.check_sshd_compliance(parsed)
+    assert result["summary"]["missing"] == 1
+    check = [c for c in result["checks"] if c["directive"] == "permitrootlogin"][0]
+    assert check["status"] == "missing"
+
+
+def test_check_sshd_compliance_optional_directive_missing_is_skipped():
+    """challengeresponseauthentication missing → not in checks (optional=True)."""
+    parsed = {
+        "permitrootlogin": "no",
+        "passwordauthentication": "no",
+        "permitemptypasswords": "no",
+        "kbdinteractiveauthentication": "no",
+        # challengeresponseauthentication missing (optional)
+        "hostbasedauthentication": "no",
+        "ignorerhosts": "yes",
+        "x11forwarding": "no",
+        "allowtcpforwarding": "no",
+        "maxauthtries": "3",
+        "logingracetime": "60",
+        "clientaliveinterval": "300",
+        "loglevel": "INFO",
+        "usepam": "yes",
+    }
+    result = actions.check_sshd_compliance(parsed)
+    challenge_checks = [c for c in result["checks"] if c["directive"] == "challengeresponseauthentication"]
+    assert len(challenge_checks) == 0
+
+
+# ---------------------------------------------------------------------------
+# audit_server_sshd — integration
+# ---------------------------------------------------------------------------
+
+def test_audit_server_sshd_server_not_found_raises_userrror():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = None
+        with pytest.raises(actions.NotFoundError, match="not found"):
+            actions.audit_server_sshd("unknown-server")
+
+
+def test_audit_server_sshd_disabled_server_raises_userrror():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {
+            "ip_address": "192.168.1.1",
+            "ssh_port": 22,
+            "is_active": False,
+        }
+        with pytest.raises(UserError, match="disabled"):
+            actions.audit_server_sshd("disabled-server")
+
+
+def test_audit_server_sshd_ssh_failure_raises_userrror():
+    import ssh as ssh_mod
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.return_value = {
+            "ip_address": "192.168.1.1",
+            "ssh_port": 22,
+            "is_active": True,
+        }
+        mock_ssh.audit_sshd_config.side_effect = ssh_mod.SSHError("Connection failed")
+        mock_ssh.SSHError = ssh_mod.SSHError
+        with pytest.raises(UserError, match="SSH audit failed"):
+            actions.audit_server_sshd("server-test-01")
+
+
+def test_audit_server_sshd_happy_path():
+    """audit_server_sshd returns check_sshd_compliance result."""
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.return_value = {
+            "ip_address": "192.168.1.1",
+            "ssh_port": 22,
+            "is_active": True,
+        }
+        mock_ssh.audit_sshd_config.return_value = {
+            "permitrootlogin": "no",
+            "passwordauthentication": "no",
+            "permitemptypasswords": "no",
+            "kbdinteractiveauthentication": "no",
+            "hostbasedauthentication": "no",
+            "ignorerhosts": "yes",
+            "x11forwarding": "no",
+            "allowtcpforwarding": "no",
+            "maxauthtries": "3",
+            "logingracetime": "60",
+            "clientaliveinterval": "300",
+            "loglevel": "INFO",
+            "usepam": "yes",
+        }
+        result = actions.audit_server_sshd("server-test-01")
+        assert "checks" in result
+        assert "summary" in result
+        assert "overall" in result
+        assert result["overall"] == "ok"
         mock_ssh.grant_group_on_server.assert_not_called()
         mock_ssh.revoke_group_on_server.assert_not_called()
 

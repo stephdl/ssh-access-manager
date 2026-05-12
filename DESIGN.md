@@ -417,6 +417,45 @@ Au premier login interactif (TTY), `~/.profile` affiche le contenu du README, su
 
 La route `GET /api/servers` expose désormais un champ booléen `has_anomalies` par serveur (calculé via une jointure SQL sur `ssh_keys.status IN ('PENDING_REVIEW') OR key_authorizations.revoked_automatically = TRUE` sur les 24 dernières heures). Le Dashboard utilise ce champ pour afficher un compteur Alertes sans avoir à charger toutes les clés.
 
+### 6.9 Audit de la configuration sshd du serveur géré (issue #392)
+
+La vue détail d'un serveur intègre un panneau lisant la configuration sshd **effective** du serveur audité et la confrontant aux recommandations ANSSI BP-099. La feature est purement déclarative : aucune modification de la config du serveur n'est jamais effectuée par SAM.
+
+**Chaîne de lecture** :
+
+1. Une règle sudoers dédiée installée par `provision-host.sh` autorise `audit-collector` à exécuter **uniquement** `sshd -T` en tant que root (NOPASSWD, argument strict, pas de wildcard) :
+   ```
+   audit-collector ALL=(root) NOPASSWD: <sshd_path> -T
+   ```
+2. `ssh.audit_sshd_config(hostname, ip, port)` ouvre une connexion paramiko (RejectPolicy) et exécute `sudo sshd -T`. La sortie — une ligne par directive — est parsée en `dict[str, str]` (clés en lowercase). Source de vérité : sshd lui-même, ce qui couvre les `Include`, les blocs `Match` et les valeurs par défaut implicites.
+3. `actions.check_sshd_compliance(parsed)` applique la policy ANSSI déclarée en code (constante `ANSSI_SSHD_POLICY`, voir tableau ci-dessous). Pure, testable, sans I/O — chaque directive devient un dict `{directive, expected, actual, status, severity, ref}`.
+4. `actions.audit_server_sshd(hostname, admin_id)` orchestre 2 et 3, lève `UserError(404)` si serveur inconnu, `UserError(409)` si désactivé, `UserError(502)` si SSH échoue.
+5. La route `GET /api/servers/<hostname>/sshd-audit` (require_auth, **tous rôles**, lecture seule) retourne le résultat sans le persister — la feature est stateless.
+6. Le composant `SshAuditCard.vue` est inséré inline dans `ServerDetail.vue` après `SessionsCard`, affiche un voyant global (vert / orange / rouge) et un tableau de directives filtrable « Tous / Non conformes ».
+
+**Policy ANSSI BP-099 v1** :
+
+| Directive | Règle | Sévérité | Réf ANSSI |
+|---|---|---|---|
+| PermitRootLogin | `no` | critical | R5 |
+| PasswordAuthentication | `no` | critical | R7 |
+| PermitEmptyPasswords | `no` | critical | R7 |
+| HostbasedAuthentication | `no` | critical | R7 |
+| IgnoreRhosts | `yes` | critical | R7 |
+| KbdInteractiveAuthentication | `no` | warning | R7 |
+| ChallengeResponseAuthentication | `no` (optionnel) | warning | R7 |
+| X11Forwarding | `no` | warning | R10 |
+| AllowTcpForwarding | `no` ou `local` | warning | R10 |
+| MaxAuthTries | ≤ 3 | warning | R8 |
+| LoginGraceTime | ≤ 60 | warning | R8 |
+| UsePAM | `yes` | warning | R7 |
+| ClientAliveInterval | > 0 | info | R9 |
+| LogLevel | `INFO` ou `VERBOSE` | info | R3 |
+
+**Statut global** : `critical` s'il existe au moins une directive critical non conforme, `warning` sinon s'il y a au moins une non-conformité ou directive manquante, `ok` sinon.
+
+**Hors périmètre v1** : audit des algos crypto (`Ciphers`, `MACs`, `KexAlgorithms`, `HostKeyAlgorithms`), historique persisté, export PDF/CSV, alertes email sur régression.
+
 ---
 
 ## 7. Politique de conformité ANSSI (BP-099)

@@ -96,6 +96,9 @@
       <!-- SSH Sessions -->
       <SessionsCard :hostname="hostname" :current-role="currentRole" :scan-ok="scanOk" />
 
+      <!-- SSH Audit -->
+      <SshAuditCard :hostname="hostname" />
+
       <!-- SSH Keys -->
       <section class="card">
         <h2>{{ $t('server_detail.section_keys') }}</h2>
@@ -387,6 +390,7 @@ import { useAuth, apiFetch } from '../composables/useAuth.js'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import KeyTable from '../components/KeyTable.vue'
 import SessionsCard from '../components/SessionsCard.vue'
+import SshAuditCard from '../components/SshAuditCard.vue'
 import Spinner from '../components/Spinner.vue'
 import EditServerModal from '../components/EditServerModal.vue'
 

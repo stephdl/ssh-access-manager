@@ -531,6 +531,12 @@ def get_server_sessions_history(hostname):
     return jsonify([_serialize_session(r) for r in rows])
 
 
+@app.route("/api/servers/<hostname>/sshd-audit", methods=["GET"])
+@require_auth
+def get_sshd_audit(hostname):
+    return jsonify(actions.audit_server_sshd(hostname, admin_id=g.admin_id))
+
+
 # ---------------------------------------------------------------------------
 # SSH Keys
 # ---------------------------------------------------------------------------

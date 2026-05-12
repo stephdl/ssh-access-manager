@@ -43,6 +43,11 @@ class SSHScriptError(SSHError):
     error_code = "SSH_SCRIPT_FAILED"
 
 
+# Aliases for backward compatibility
+SudoError = SSHSudoError
+ScriptError = SSHScriptError
+
+
 KNOWN_HOSTS = os.environ.get("KNOWN_HOSTS", "/data/keys/known_hosts")
 COLLECTOR_KEY = os.environ.get("COLLECTOR_KEY", "/data/keys/collector_key")
 SSH_USER = os.environ.get("SSH_USER", "audit-collector")
@@ -593,6 +598,39 @@ def _is_valid_ip(s: str) -> bool:
         return True
     except ValueError:
         return False
+
+
+def audit_sshd_config(hostname: str, ip: str, port: int = 22) -> dict[str, str]:
+    """Run `sudo sshd -T` on the remote host and return the parsed config.
+
+    Each line of sshd -T output is `<directive_lower> <value...>`. Returns
+    a dict {directive_lower: value_str}. Multi-value directives (Ciphers,
+    MACs...) are returned as-is (space-joined string).
+
+    Raises SSHSudoError if sudo sshd -T exits non-zero, SSHScriptError on parse
+    failure.
+    """
+    client = _connect(ip, port)
+    try:
+        stdout, stderr, exit_code = _run(client, "sudo sshd -T")
+        if exit_code != 0:
+            raise SSHSudoError(f"sshd -T failed (exit {exit_code}): {stderr.strip()}")
+        result = {}
+        for line in stdout.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(None, 1)
+            if not parts:
+                continue
+            key = parts[0].lower()
+            value = parts[1] if len(parts) > 1 else ""
+            result[key] = value
+        if not result:
+            raise SSHScriptError("sshd -T produced no parseable output")
+        return result
+    finally:
+        client.close()
 
 
 def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int = 22) -> None:
