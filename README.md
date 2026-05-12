@@ -365,25 +365,11 @@ Lors du premier login SSH (par clé), l'utilisateur voit le contenu de `~/README
 
 ### Authentification SSH — publickey uniquement pour `sam-users`
 
-`provision-host.sh` installe `/etc/ssh/sshd_config.d/50-sam-users.conf` (chmod 600, root:root) avec un bloc Match durci :
+Un utilisateur du groupe `sam-users` ne peut **jamais** se connecter en SSH autrement qu'avec sa clé publique enregistrée dans SAM — ni par mot de passe, ni par mot de passe vide, ni via un mécanisme interactif (PAM keyboard-interactive). Cette règle est appliquée par `provision-host.sh` sur chaque serveur géré, et reste active même si l'authentification par mot de passe est activée globalement sur l'hôte.
 
-```
-Match Group sam-users
-    PasswordAuthentication no
-    PermitEmptyPasswords no
-    KbdInteractiveAuthentication no
-    PubkeyAuthentication yes
-    AuthenticationMethods publickey
-```
+Le mot de passe Unix de l'utilisateur (défini au premier login) sert **uniquement à `sudo`**, jamais à la connexion SSH.
 
-Conséquence : un utilisateur du groupe `sam-users` ne peut **jamais** se connecter en SSH autrement qu'avec sa clé publique enregistrée — ni par mot de passe, ni par mot de passe vide, ni via PAM keyboard-interactive. `AuthenticationMethods publickey` force ce comportement même si une autre méthode est activée globalement sur l'hôte.
-
-Avant chaque reload de sshd, `provision-host.sh` :
-1. Sauvegarde le fichier existant en `.bak` (`cp -p`)
-2. Écrit la nouvelle config
-3. Exécute `sshd -t` pour valider l'ensemble de la configuration sshd
-4. Si invalide : restaure le `.bak` (ou supprime si nouveau fichier) et sort en erreur **sans recharger sshd** — aucune config invalide n'est jamais activée
-5. Si valide : supprime le `.bak` et exécute `systemctl reload sshd`
+`provision-host.sh` valide la configuration sshd avant de l'appliquer : si la validation échoue, l'ancienne configuration est restaurée et sshd n'est pas rechargé — aucune configuration invalide ne peut être mise en production par mégarde.
 
 ---
 
