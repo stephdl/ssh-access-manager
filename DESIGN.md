@@ -1362,6 +1362,7 @@ Matrice :
 | `debian:13` | Debian | `.profile` | `apt` |
 | `ubuntu:26.04` | Debian | `.profile` | `apt` |
 | `opensuse/leap:15.6` | SUSE | `.profile` | `zypper` |
+| `opensuse/leap:16.0` | SUSE (etc-overlay) | `.profile` | `zypper` |
 | `archlinux:latest` | Arch | minimal | `pacman` |
 
 Chaque job lance le conteneur Docker correspondant et exécute `tests/integration/run.sh`. AlmaLinux n'est pas couverte explicitement car essentiellement un clone fonctionnel de Rocky. Alpine est différé — son base image utilise busybox (pas `useradd` ni `bash` par défaut) et demande `apk add shadow bash sudo openssh-server` upfront, donc un setup script dédié à ajouter si le besoin se présente.
