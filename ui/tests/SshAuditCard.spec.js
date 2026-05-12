@@ -244,7 +244,7 @@ describe('SshAuditCard.vue', () => {
   it('renders directive label from i18n and exposes ANSSI ref in row tooltip', async () => {
     fetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => mockAuditOk,
+      json: async () => mockAuditCritical,
     })
 
     const wrapper = mount(SshAuditCard, {

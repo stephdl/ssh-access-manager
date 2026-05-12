@@ -95,7 +95,7 @@ const { t, te } = useI18n()
 const loading = ref(true)
 const error = ref(null)
 const data = ref(null)
-const showOnlyNonCompliant = ref(false)
+const showOnlyNonCompliant = ref(true)
 
 const canRetry = computed(() => {
   return error.value && (error.value.status === 502 || error.value.status === 404)
