@@ -153,7 +153,27 @@ ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-add *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-lock-user *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-sessions
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-grant-group *
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke-group *
 ```
+
+## SAM sudo groups + sshd Match Group sam-users (#383, #384)
+
+`provision-host.sh` doit également :
+
+1. **Créer 4 groupes Unix** s'ils n'existent pas : `sam-operator`, `sam-pkg`, `sam-root`, `sam-users` (via `getent group ... || groupadd ...`)
+2. **Installer 3 fichiers sudoers SAM** dans `/etc/sudoers.d/` (chmod 440, validation `visudo -c` avant move) :
+   - `sam-operator` : commandes opérateur (systemctl, journalctl, etc.), `PASSWD:` obligatoire
+   - `sam-pkg` : gestion paquets (dnf, apt), `PASSWD:` obligatoire
+   - `sam-root` : `(ALL) PASSWD: ALL`, réservé `sysadmin`
+   - Tous : `Defaults:%sam-* secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"` pour résoudre `runagent`/`api-cli`
+   - **Helper `_bin()`** dans le script : retourne le path absolu d'une commande (cherche dans `/usr/local/bin`, `/usr/sbin`, etc.) — utilisé pour générer les règles
+3. **Installer `/etc/ssh/sshd_config.d/sam-users.conf`** avec `Match Group sam-users` → `PasswordAuthentication no`, `KbdInteractiveAuthentication no` (puis `systemctl reload sshd` ou équivalent)
+
+**Invariants** :
+- Jamais `NOPASSWD:` pour les groupes SAM (différent d'`audit-collector` qui doit rester NOPASSWD)
+- Toujours `visudo -c <fichier-temp>` avant `install -m 440` ; si validation KO → erreur, pas d'installation
+- Le script est idempotent : peut être rejoué sans risque (créations conditionnelles, `install` qui écrase)
 
 ## Tu ne touches jamais à...
 

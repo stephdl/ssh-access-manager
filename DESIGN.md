@@ -359,6 +359,64 @@ fi
 
 Le `mktemp` + `mv` est atomique au niveau du système de fichiers. La comparaison se fait par fingerprint SHA256 via `ssh-keygen -l -E sha256` (pas par regex sur la clé brute). Le `chown` préserve le propriétaire du répertoire parent avant le remplacement.
 
+### 6.6 Modèle SAM sudo groups (issues #383, #384)
+
+Trois groupes Unix prédéfinis sont créés sur chaque serveur par `provision-host.sh` pour structurer les privilèges sudo des utilisateurs déployés via `sam-add` :
+
+| Groupe | Périmètre sudo | Rôle minimal requis |
+|---|---|---|
+| `sam-operator` | Commandes d'exploitation (systemctl, journalctl, etc.) | operator |
+| `sam-pkg` | Gestion paquets (dnf, apt) | operator |
+| `sam-root` | Accès root équivalent | sysadmin uniquement |
+
+**Invariants sécurité** :
+
+- Toutes les règles sudoers SAM utilisent `PASSWD:` — **jamais `NOPASSWD:`** (contrairement à `audit-collector` qui reste `NOPASSWD` car SAM authentifie via la clé). L'utilisateur doit saisir son mot de passe personnel (défini au premier login) pour `sudo`.
+- `secure_path` est explicitement défini pour inclure `/usr/local/bin` afin que les outils NS8 (`runagent`, `api-cli`) soient résolvables.
+- Chaque fichier sudoers est **validé par `visudo -c` avant installation** : une règle invalide est rejetée sans casser la config sudo existante.
+- Le compte `root` est **non-promotable** : `actions.deploy_key()`, `grant_group()` et `change_group()` lèvent `UserError` si `unix_user == 'root'` ou si une entrée audit `unix_user='root'` correspond au fingerprint visé.
+
+Le cycle de vie est tracé par la colonne `key_authorizations.sam_group` (VARCHAR(20) nullable, contrainte `CHECK IN ('sam-operator','sam-pkg','sam-root')`, schéma audit v4) et par les événements `audit_log` `GROUP_GRANTED` / `GROUP_REVOKED` / `GROUP_CHANGED`. Les scripts distants `sam-grant-group <user> <group>` (`gpasswd -a`) et `sam-revoke-group <user> <group>` (`gpasswd -d ... || true`, idempotent) appliquent les changements à chaud — fonctionne même quand l'utilisateur est connecté en SSH.
+
+Routes Flask correspondantes :
+- `POST /api/access/grant-group` — operator pour sam-operator/sam-pkg, sysadmin pour sam-root
+- `POST /api/access/revoke-group` — operator sauf si le groupe actuel est sam-root (sysadmin requis)
+- `PUT /api/access/change-group` — sysadmin requis si sam-root est l'ancien **ou** le nouveau groupe
+
+### 6.7 Premier login d'un utilisateur SAM et blocage du mot de passe SSH
+
+Les utilisateurs Unix créés par `sam-add` ne doivent **jamais** pouvoir se connecter en SSH par mot de passe. Deux mécanismes l'empêchent :
+
+1. Tous les comptes créés par `sam-add` sont ajoutés au groupe `sam-users` (via `usermod -aG sam-users`).
+2. `provision-host.sh` installe dans `/etc/ssh/sshd_config.d/` un bloc `Match Group sam-users` avec `PasswordAuthentication no` et `KbdInteractiveAuthentication no`.
+
+Conséquence : seule la clé SSH publique déployée permet la connexion. Le mot de passe Unix sert uniquement à `sudo` (règles SAM `PASSWD:`).
+
+Pour activer la saisie d'un mot de passe personnel sans bloquer la première lecture du README, `sam-add` à la création applique cette séquence :
+
+```sh
+# Génération d'un mot de passe temporaire 12 caractères base64
+temp_pw=$(openssl rand -base64 12)
+echo "${unix_user}:${temp_pw}" | chpasswd
+
+# Écriture du README dans le home utilisateur (chmod 600)
+cat > "/home/${unix_user}/README_first_login.txt" <<EOF
+Temporary password: ${temp_pw}
+You will be asked to change it on next login.
+EOF
+chown ${unix_user}:${unix_user} "/home/${unix_user}/README_first_login.txt"
+chmod 600 "/home/${unix_user}/README_first_login.txt"
+
+# ~/.profile affiche le README puis force passwd au premier login interactif
+# (pas de chage -d 0 — bloquerait la lecture du README avant le shell)
+```
+
+Au premier login interactif (TTY), `~/.profile` affiche le contenu du README, supprime le fichier, puis invoque `passwd` pour que l'utilisateur définisse son propre mot de passe. Ce flux est testé dans `app/tests/test_ssh.py` (vérification du contenu de la constante `SAM_ADD`).
+
+### 6.8 Détection d'anomalies au niveau serveur (has_anomalies)
+
+La route `GET /api/servers` expose désormais un champ booléen `has_anomalies` par serveur (calculé via une jointure SQL sur `ssh_keys.status IN ('PENDING_REVIEW') OR key_authorizations.revoked_automatically = TRUE` sur les 24 dernières heures). Le Dashboard utilise ce champ pour afficher un compteur Alertes sans avoir à charger toutes les clés.
+
 ---
 
 ## 7. Politique de conformité ANSSI (BP-099)

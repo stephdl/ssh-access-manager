@@ -270,6 +270,8 @@ sudo -l -U audit-collector
 
 La sortie doit inclure les commandes SAM (`/usr/local/bin/sam-*`) sans demande de mot de passe (`NOPASSWD`).
 
+`provision-host.sh` installe également les règles sudoers dédiées aux groupes SAM (`sam-operator`, `sam-pkg`, `sam-root`) — voir section [SAM sudo groups](#workflow--sam-sudo-groups). Toutes ces règles sont validées par `visudo -c` avant installation et exigent `PASSWD:` (jamais NOPASSWD pour les utilisateurs SAM). Le bloc sshd `Match Group sam-users` est aussi posé pour interdire l'authentification par mot de passe aux utilisateurs créés via `sam-add`.
+
 ---
 
 ## Workflow — Traitement des clés PENDING_REVIEW
@@ -343,24 +345,46 @@ Pour donner accès à un utilisateur sur un serveur depuis l'interface :
 **Via l'interface web** : Accès → section **Déployer une clé SSH**.
 
 Le formulaire demande :
-- **Utilisateur Unix** — nom du compte à créer sur le serveur cible (créé s'il n'existe pas)
+- **Utilisateur Unix** — nom du compte à créer sur le serveur cible (créé s'il n'existe pas). Le compte `root` est interdit (#386).
 - **Clé publique** — le contenu de la clé `ssh-ed25519` ou `ssh-rsa` (format authorized_keys)
 - **Serveur cible** — dropdown des serveurs actifs
+- **Groupe SAM** — *optionnel* : `sam-operator`, `sam-pkg` ou `sam-root` (réservé `sysadmin`). Voir section [SAM sudo groups](#workflow--sam-sudo-groups).
 - **Durée** — heures / date précise / illimité
 - **Justification** — obligatoire
 
 À la soumission, `sam-add` est exécuté sur le serveur distant via SSH :
-1. Crée l'utilisateur Unix s'il n'existe pas
-2. Ajoute la clé dans `~/.ssh/authorized_keys`
-3. Enregistre la clé dans la base avec statut `ACTIVE` et l'expiration choisie
+1. Crée l'utilisateur Unix s'il n'existe pas (avec `usermod -aG sam-users` — interdit l'authentification SSH par mot de passe)
+2. Si le compte est créé : génère un mot de passe temporaire, le set via `chpasswd`, écrit `~/README_first_login.txt`, et configure `~/.profile` pour invoquer `passwd` au premier login interactif
+3. Ajoute la clé dans `~/.ssh/authorized_keys`
+4. Si un Groupe SAM est sélectionné : `sam-grant-group` ajoute l'utilisateur au groupe choisi
+5. Enregistre la clé dans la base avec statut `ACTIVE`, l'expiration choisie, et le `sam_group` éventuel
 
-> **Privilèges sudo du nouvel utilisateur** : `sam-add` crée le compte Unix mais ne lui attribue aucun privilège sudo. C'est à l'administrateur système de décider. Pour donner les droits sudo :
-> ```bash
-> # Debian/Ubuntu
-> usermod -aG sudo alice
-> # RHEL/CentOS/Rocky
-> usermod -aG wheel alice
-> ```
+### Premier login d'un utilisateur SAM
+
+Lors du premier login SSH (par clé), l'utilisateur voit le contenu de `~/README_first_login.txt` (mot de passe temporaire) affiché par `~/.profile`, puis `passwd` est invoqué automatiquement pour le forcer à choisir un mot de passe personnel. Ce mot de passe est requis pour `sudo` (les règles sudoers SAM exigent `PASSWD:`). L'authentification SSH par mot de passe reste **interdite** par le bloc sshd `Match Group sam-users` — seule la clé permet de se connecter.
+
+---
+
+## Workflow — SAM sudo groups
+
+Trois groupes Unix prédéfinis sont créés par `provision-host.sh` sur chaque serveur géré : `sam-operator`, `sam-pkg`, `sam-root`. Chaque groupe a un jeu de règles sudoers dédié (validé par `visudo -c`, exigeant `PASSWD:`, avec `secure_path` incluant `/usr/local/bin` pour trouver les binaires NS8 type `runagent` / `api-cli`).
+
+| Groupe | Périmètre sudo |
+|---|---|
+| `sam-operator` | Commandes opérateur (systemctl, journalctl, etc.) |
+| `sam-pkg` | Gestion paquets (dnf/apt) |
+| `sam-root` | Accès root équivalent — réservé `sysadmin` |
+
+**Assignation du groupe** :
+- À la création de la clé : champ Groupe SAM du formulaire « Déployer une clé SSH »
+- Après création : actions **Promouvoir / Changer / Révoquer le groupe** depuis la vue Accès (rôles autorisés : `operator` pour sam-operator/sam-pkg, `sysadmin` uniquement pour sam-root)
+
+**Cycle de vie** :
+- Promotion : `POST /api/access/grant-group`
+- Changement : `PUT /api/access/change-group` (révoque l'ancien, assigne le nouveau)
+- Révocation : `POST /api/access/revoke-group` (l'utilisateur Unix reste actif, seul le groupe SAM est retiré)
+
+Tracé en base dans `key_authorizations.sam_group` (audit v4) et dans `audit_log` (`GROUP_GRANTED`, `GROUP_REVOKED`, `GROUP_CHANGED`).
 
 ---
 

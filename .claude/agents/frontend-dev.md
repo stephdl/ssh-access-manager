@@ -61,9 +61,9 @@ server: {
 | KeyTable.vue | Tableau clés + filtres texte + dropdown statut (#189) + bouton Illimité (#93) + tooltip non-conformité + sélection en masse (bulk validate/revoke, #345) + tri colonnes |
 | KeyActions.vue | Boutons valider/révoquer/expiry |
 | ExpiryPicker.vue | Modes exclusifs heures / date précise |
-| DeployKeyForm.vue | Formulaire déploiement clé SSH |
+| DeployKeyForm.vue | Formulaire déploiement clé SSH — champ optionnel **SAM group** (sam-operator/sam-pkg/sam-root) ; option sam-root masquée si rôle ≠ sysadmin ; refuse `unix_user='root'` côté client (#383, #384, #386) |
 | UserLockForm.vue | Verrouillage/déverrouillage compte Unix (#181) |
-| DeployedUsersTable.vue | Utilisateurs Unix déployés + filtres + RBAC operator/viewer + tri colonnes |
+| DeployedUsersTable.vue | Utilisateurs Unix déployés + filtres + RBAC operator/viewer + tri colonnes + colonne **SAM group** avec actions Promote/Change/Revoke (RBAC : sam-root = sysadmin uniquement). Refuse `unix_user='root'` (#383, #384, #386) |
 | AdminsTable.vue | Tableau administrateurs + filtre texte + pagination + garde-fou self (#250) + tri colonnes |
 | AuditTable.vue | Tableau audit + filtres serveur/action/date + pagination (#250) + export CSV (#343) + tri colonnes |
 | AnomaliesTable.vue | Tableau anomalies + filtres texte/type/serveur/conformité + pagination (#250) + export CSV (#343) + tri colonnes |
@@ -123,6 +123,8 @@ POST /api/access/request                             POST /api/access/deploy
 POST /api/access/lock-user                           POST /api/access/unlock-user
 POST /api/access/<id>/approve                        POST /api/access/<id>/reject
 POST /api/access/<id>/revoke
+POST /api/access/grant-group                         POST /api/access/revoke-group
+PUT  /api/access/change-group
 
 GET    /api/admins                                   GET  /api/admins/me
 POST   /api/admins                                   PUT  /api/admins/<username>

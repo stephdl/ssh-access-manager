@@ -57,16 +57,18 @@ known_hosts : `/data/keys/known_hosts`. Clé privée : `/data/keys/collector_key
 **Connexions SSH via ip_address uniquement** — pas le hostname (non résolvable depuis le container, #80, #84).
 known_hosts indexé par IP : `ssh-keyscan -H -T 10 <ip_address>`.
 
-### Scripts distants — 6 constantes Python `bytes` dans ssh.py
+### Scripts distants — 8 constantes Python `bytes` dans ssh.py
 
 | Constante | Path distant | Action |
 |-----------|-------------|--------|
 | SAM_COLLECT | /usr/local/bin/sam-collect (root, 750) | Lit toutes les authorized_keys → stdout : `unix_user\tkey_type key_b64 [comment]` |
 | SAM_REVOKE | /usr/local/bin/sam-revoke \<fp_hex\> (root, 750) | Révoque par fingerprint SHA256 hex. Atomique mktemp+mv. Préserve ownership (#104) |
-| SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> (root, 750) | Crée user Unix + authorized_keys idempotent (#164) |
+| SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> (root, 750) | Crée user Unix + authorized_keys idempotent (#164). À la création : mot de passe temporaire (`openssl rand -base64 12`), `chpasswd`, `~/README_first_login.txt` (chmod 600), `~/.profile` invoque `passwd` au premier login. `usermod -aG sam-users` — l'authentification SSH par mot de passe est interdite (bloc sshd `Match Group sam-users`). Pas de `chage -d 0` (#383) |
 | SAM_LOCK_USER | /usr/local/bin/sam-lock-user \<unix_user\> (root, 750) | `usermod -L -s /sbin/nologin` (#181) |
 | SAM_UNLOCK_USER | /usr/local/bin/sam-unlock-user \<unix_user\> (root, 750) | `usermod -U -s /bin/bash` (#181) |
 | SAM_SESSIONS | /usr/local/bin/sam-sessions (root, 750) | Collecte sessions SSH actives + historique → stdout : `A\|H\tuser\ttty\tip\trest`. `utmpdump /var/run/utmp` + fallback `LANG=C last -F` (#253, #322) |
+| SAM_GRANT_GROUP | /usr/local/bin/sam-grant-group \<unix_user\> \<group\> (root, 750) | Valide groupe (sam-operator\|sam-pkg\|sam-root), `gpasswd -a` — fonctionne même quand l'utilisateur est connecté (#383) |
+| SAM_REVOKE_GROUP | /usr/local/bin/sam-revoke-group \<unix_user\> \<group\> (root, 750) | Valide groupe, `gpasswd -d ... \|\| true` — idempotent (#383) |
 
 ### ensure_scripts()
 
@@ -86,9 +88,17 @@ known_hosts indexé par IP : `ssh-keyscan -H -T 10 <ip_address>`.
 
 ### Accès temporaires
 - `grant_access`, `approve_request`, `reject_request`, `revoke_request`
-- `deploy_key(public_key, unix_user, hostname, expires_at, justification, admin_id)` — parse + fingerprint, INSERT ssh_keys, sam-add, key_authorization ACTIVE (#164, #185)
+- `deploy_key(public_key, unix_user, hostname, expires_at, justification, admin_id, sam_group=None)` — parse + fingerprint, INSERT ssh_keys, sam-add, key_authorization ACTIVE (#164, #185). Si `sam_group` fourni : valide contre `VALID_SAM_GROUPS` + appelle `ssh.grant_group_on_server()`. **Refuse `unix_user == 'root'`** (#386). Révoque l'éventuel groupe précédent lors d'un redéploiement.
 - `lock_user(unix_user, hostname, admin_id)` — valide POSIX, sam-lock-user, USER_LOCKED (#181)
 - `unlock_user(unix_user, hostname, admin_id)` — valide POSIX, sam-unlock-user, USER_UNLOCKED (#181)
+
+### Groupes SAM sudo (#383, #384)
+- `VALID_SAM_GROUPS = ("sam-operator", "sam-pkg", "sam-root")` — constante partagée
+- `_get_current_group(unix_user, hostname) -> str | None` — helper interne
+- `grant_group(unix_user, hostname, group, admin_id)` — vérifie déploiement actif, sam-grant-group, UPDATE BDD, log GROUP_GRANTED
+- `revoke_group(unix_user, hostname, admin_id)` — récupère groupe actuel, sam-revoke-group, nullifie BDD, log GROUP_REVOKED
+- `change_group(unix_user, hostname, new_group, admin_id)` — noop si même groupe, sinon revoke + grant, log GROUP_CHANGED
+- **Protection root** : toute fonction de cette section refuse `unix_user == 'root'`
 
 ### Serveurs
 - `add_server(hostname, ip, ssh_user, ssh_password, env, os_family, ssh_port, admin_id)` — provisionnement atomique : keyscan → SSH → INSERT (#299, #301). SSH password non stocké.
@@ -163,6 +173,8 @@ POST /api/access/request                             POST /api/access/deploy
 POST /api/access/lock-user                           POST /api/access/unlock-user
 POST /api/access/<id>/approve                        POST /api/access/<id>/reject
 POST /api/access/<id>/revoke
+POST /api/access/grant-group                         POST /api/access/revoke-group
+PUT  /api/access/change-group
 
 GET    /api/admins                                   GET  /api/admins/me
 POST   /api/admins                                   PUT  /api/admins/<username>
@@ -182,7 +194,7 @@ PUT  /api/system/config                              POST /api/system/test-smtp
 ```
 servers list / add / update / disable / enable / show / scan
 keys list / show / validate / revoke / assign / set-expiry / remove-expiry / search
-access list / show / grant / request / approve / reject / revoke / lock-user / unlock-user
+access list / show / grant / request / approve / reject / revoke / lock-user / unlock-user / grant-group / revoke-group / change-group
 admin list / add / update / disable / enable / delete / reset-password
 audit list
 system status / report
