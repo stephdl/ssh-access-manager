@@ -225,6 +225,48 @@ Si le scan d'un serveur échoue (SSH injoignable, sudo manquant, timeout…), le
 
 ---
 
+## Audit de la configuration sshd du serveur
+
+La vue détail d'un serveur affiche un panneau **SSH config audit** qui lit la configuration `sshd` effective de l'hôte (via `sudo sshd -T`, lecture seule, aucune modification effectuée par SAM) et la confronte à une politique de durcissement déclarative. Le panneau est disponible pour tous les rôles (sysadmin, operator, viewer).
+
+> **Important — périmètre de l'audit** : `sshd -T` retourne la configuration **globale** du démon (hors blocs `Match`). Cet audit décrit donc le comportement de sshd pour les utilisateurs qui ne sont **pas** membres du groupe `sam-users` : `root`, comptes système, comptes créés manuellement par l'administrateur hors SAM. Les utilisateurs SAM, eux, sont déjà couverts par le bloc `Match Group sam-users` posé par `provision-host.sh` (publickey-only, pas de mot de passe, pas de keyboard-interactive — voir section *Authentification SSH — publickey uniquement pour `sam-users`*). En clair : un voyant rouge ici ne met pas en danger les comptes SAM, mais il signale par exemple que `root` ou un compte legacy peut se connecter par mot de passe.
+
+### Bandeau global
+
+Trois états possibles, calculés à chaque ouverture du panneau :
+
+| Bandeau | Couleur | Signification |
+|---|---|---|
+| ✓ **Compliant** | vert | toutes les directives auditées sont conformes |
+| ⚠ **Hardening needed** | orange | au moins un avertissement ou une directive manquante, sans non-conformité critique |
+| ✗ **Lax configuration** | rouge | au moins une directive critique non conforme |
+
+### Directives auditées
+
+| Sévérité | Directives | Règle attendue |
+|---|---|---|
+| **Critical** | PermitRootLogin, PasswordAuthentication, PermitEmptyPasswords, HostbasedAuthentication | `no` |
+| **Critical** | IgnoreRhosts | `yes` |
+| **Warning** | KbdInteractiveAuthentication, ChallengeResponseAuthentication, X11Forwarding | `no` |
+| **Warning** | AllowTcpForwarding | `no` ou `local` |
+| **Warning** | MaxAuthTries | ≤ 3 |
+| **Warning** | LoginGraceTime | ≤ 60 |
+| **Warning** | UsePAM | `yes` |
+| **Info** | ClientAliveInterval | > 0 |
+| **Info** | LogLevel | `INFO` ou `VERBOSE` |
+
+Survoler la cellule **Expected** affiche un tooltip décrivant la directive.
+
+### Filtrage
+
+La case **Non-compliant only** est cochée par défaut : sur un serveur conforme la table est vide (aucune action requise) ; sur un serveur laxiste seules les lignes problématiques s'affichent. Décocher la case pour voir l'ensemble des directives auditées.
+
+### Note sur la politique
+
+Les seuils ci-dessus représentent des valeurs de durcissement OpenSSH généralement attendues. SAM ne prétend pas à une conformité formelle à une norme spécifique (CIS, STIG, ANSSI BP-099 ont des recommandations équivalentes pour la majorité de ces directives, mais c'est une politique déclarative, modifiable dans `app/actions.py` via la constante `SSHD_HARDENING_POLICY`).
+
+---
+
 ## Dépannage — Problèmes de connexion SSH
 
 Si le provisionnement ou le scan d'un serveur distant échoue, les erreurs sont à chercher **dans deux endroits**.

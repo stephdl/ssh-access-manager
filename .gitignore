@@ -7,3 +7,4 @@ __pycache__/
 app/.coverage
 app/__pycache__/
 app/tests/__pycache__/
+node_modules

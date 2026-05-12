@@ -19,19 +19,23 @@ VALID_ROLES = {"sysadmin", "operator", "viewer"}
 class UserError(Exception):
     """User-facing error — safe to include in HTTP response."""
 
-    status = 400
+    def __init__(self, message, status=400):
+        super().__init__(message)
+        self.status = status
 
 
 class NotFoundError(UserError):
     """Resource not found — HTTP 404."""
 
-    status = 404
+    def __init__(self, message):
+        super().__init__(message, status=404)
 
 
 class ForbiddenError(UserError):
     """Forbidden action — HTTP 403."""
 
-    status = 403
+    def __init__(self, message):
+        super().__init__(message, status=403)
 
 
 def _validate_ip(ip: str) -> str:
@@ -1392,3 +1396,124 @@ def unlock_user(unix_user: str, hostname: str, admin_id: str) -> dict:
         (admin_id, server["id"], json.dumps({"unix_user": unix_user, "hostname": hostname}))
     )
     return {"unix_user": unix_user, "hostname": hostname, "status": "unlocked"}
+
+
+# ---------------------------------------------------------------------------
+# Audit sshd config
+# ---------------------------------------------------------------------------
+
+# sshd hardening policy (read-only audit, not a conformance claim).
+# Each entry: directive_lower, rule, severity, ref, optional
+# rule is a tuple ("in", [values]) | ("le", n) | ("ge", n) | ("gt", n)
+SSHD_HARDENING_POLICY = [
+    {"directive": "permitrootlogin",                "rule": ("in", ["no"]),             "severity": "critical"},
+    {"directive": "passwordauthentication",         "rule": ("in", ["no"]),             "severity": "critical"},
+    {"directive": "permitemptypasswords",           "rule": ("in", ["no"]),             "severity": "critical"},
+    {"directive": "kbdinteractiveauthentication",   "rule": ("in", ["no"]),             "severity": "warning"},
+    {"directive": "challengeresponseauthentication","rule": ("in", ["no"]),             "severity": "warning", "optional": True},
+    {"directive": "hostbasedauthentication",        "rule": ("in", ["no"]),             "severity": "critical"},
+    {"directive": "ignorerhosts",                   "rule": ("in", ["yes"]),            "severity": "critical"},
+    {"directive": "x11forwarding",                  "rule": ("in", ["no"]),             "severity": "warning"},
+    {"directive": "allowtcpforwarding",             "rule": ("in", ["no", "local"]),    "severity": "warning"},
+    {"directive": "maxauthtries",                   "rule": ("le", 3),                  "severity": "warning"},
+    {"directive": "logingracetime",                 "rule": ("le", 60),                 "severity": "warning"},
+    {"directive": "clientaliveinterval",            "rule": ("gt", 0),                  "severity": "info"},
+    {"directive": "loglevel",                       "rule": ("in", ["INFO", "VERBOSE"]),"severity": "info"},
+    {"directive": "usepam",                         "rule": ("in", ["yes"]),            "severity": "warning"},
+]
+
+
+def _evaluate_rule(rule, actual: str | None) -> str:
+    """Return 'ok' | 'fail' | 'missing'. `actual` is the sshd -T value (lowercase for in-rules)."""
+    if actual is None:
+        return "missing"
+    op, expected = rule
+    if op == "in":
+        return "ok" if actual.lower() in [str(v).lower() for v in expected] else "fail"
+    try:
+        n = int(actual)
+    except (TypeError, ValueError):
+        return "fail"
+    if op == "le":
+        return "ok" if n <= expected else "fail"
+    if op == "ge":
+        return "ok" if n >= expected else "fail"
+    if op == "gt":
+        return "ok" if n > expected else "fail"
+    return "fail"
+
+
+def _format_expected(rule) -> str:
+    op, val = rule
+    if op == "in":
+        return " | ".join(str(v) for v in val)
+    if op == "le": return f"<= {val}"
+    if op == "ge": return f">= {val}"
+    if op == "gt": return f"> {val}"
+    return str(val)
+
+
+def check_sshd_compliance(parsed: dict) -> dict:
+    """Apply SSHD_HARDENING_POLICY to a sshd -T parsed dict.
+
+    Returns {"checks": [...], "summary": {ok, warning, critical, info, missing}, "overall": ...}.
+    No I/O, pure function.
+    """
+    checks = []
+    summary = {"ok": 0, "warning": 0, "critical": 0, "info": 0, "missing": 0}
+    for entry in SSHD_HARDENING_POLICY:
+        directive = entry["directive"]
+        actual = parsed.get(directive)
+        verdict = _evaluate_rule(entry["rule"], actual)
+        is_optional = entry.get("optional", False)
+        if verdict == "missing" and is_optional:
+            continue  # skip silently
+        if verdict == "ok":
+            status = "ok"
+            summary["ok"] += 1
+        elif verdict == "missing":
+            status = "missing"
+            summary["missing"] += 1
+        else:
+            # fail -> use declared severity
+            status = entry["severity"]
+            summary[status] += 1
+        checks.append({
+            "directive": directive,
+            "expected": _format_expected(entry["rule"]),
+            "actual": actual,
+            "status": status,
+            "severity": entry["severity"],
+        })
+    if summary["critical"]:
+        overall = "critical"
+    elif summary["warning"]:
+        overall = "warning"
+    elif summary["missing"]:
+        overall = "warning"
+    elif summary["info"]:
+        overall = "warning"
+    else:
+        overall = "ok"
+    return {"checks": checks, "summary": summary, "overall": overall}
+
+
+def audit_server_sshd(hostname: str, admin_id: str | None = None) -> dict:
+    """Read server (ip, port) from DB, call ssh.audit_sshd_config, apply policy.
+
+    Raises UserError(404) if server unknown, UserError(503/502) if SSH fails.
+    No DB write, no audit_log (read-only).
+    """
+    row = db.query_one(
+        "SELECT ip_address, ssh_port, is_active FROM servers WHERE hostname = %s",
+        (hostname,),
+    )
+    if not row:
+        raise NotFoundError(f"Server {hostname!r} not found")
+    if not row["is_active"]:
+        raise UserError("Server is disabled", status=409)
+    try:
+        parsed = ssh.audit_sshd_config(hostname, row["ip_address"], row["ssh_port"])
+    except ssh.SSHError as exc:
+        raise UserError(f"SSH audit failed: {exc}", status=502)
+    return check_sshd_compliance(parsed)

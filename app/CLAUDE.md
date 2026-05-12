@@ -192,6 +192,11 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 ### Sessions
 - `check_session_limit(server_id, hostname, session_count, max_sessions)` — envoie alerte WARNING si session_count > max_sessions, avec anti-spam 24h via audit_log (SESSION_LIMIT_EXCEEDED, #360)
 
+### Audit sshd (#392)
+- `audit_server_sshd(hostname, admin_id) -> dict` — récupère IP+port depuis DB, exécute `ssh.audit_sshd_config()`, applique `check_sshd_compliance()`. Lecture seule, pas d'audit_log. Raise NotFoundError(404) si serveur inconnu, UserError(409) si désactivé, UserError(502) si SSH échoue.
+- `check_sshd_compliance(parsed: dict) -> dict` — pure function, applique `SSHD_HARDENING_POLICY` à un dict de directives sshd. Retourne `{"checks": [...], "summary": {ok, warning, critical, info, missing}, "overall": ...}`
+- `SSHD_HARDENING_POLICY` — 14 directives de durcissement sshd : permitrootlogin (critical), passwordauthentication (critical), permitemptypasswords (critical), kbdinteractiveauthentication (warning), challengeresponseauthentication (warning, optional), hostbasedauthentication (critical), ignorerhosts (critical), x11forwarding (warning), allowtcpforwarding (warning), maxauthtries (warning, ≤3), logingracetime (warning, ≤60), clientaliveinterval (info, >0), loglevel (info, INFO/VERBOSE), usepam (warning)
+
 ### Groupes SAM sudo (#383)
 - `VALID_SAM_GROUPS = ("sam-operator", "sam-pkg", "sam-root")` — constante partagée validation
 - `_get_current_group(unix_user, hostname) -> str | None` — helper interne, retourne le sam_group actif
@@ -218,6 +223,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 | POST /api/servers/\*/scan, /api/system/scan | ✓ | ✓ | 403 |
 | GET /api/servers/\*/sessions, /api/servers/\*/sessions/history | ✓ | ✓ | 403 |
 | POST /api/servers/\*/sessions/refresh | ✓ | ✓ | 403 |
+| GET /api/servers/\*/sshd-audit | ✓ | ✓ | ✓ |
 | POST /api/keys/validate, revoke, assign, set-expiry, remove-expiry, bulk-validate, bulk-revoke | ✓ | ✓ | 403 |
 | POST /api/access/grant, deploy, lock-user, unlock-user, request, approve, reject, revoke | ✓ | ✓ | 403 |
 | POST /api/access/grant-group, revoke-group (sam-operator/sam-pkg) | ✓ | ✓ | 403 |
@@ -243,7 +249,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 - Couverture minimale actions.py : 80%
 - pytest doit passer avant tout commit
 
-Fichiers : conftest.py, test_db.py (7), test_servers.py (10), test_ssh.py (66), test_actions.py (176), test_collect.py (35), test_expire.py (16), test_alerts.py (23), test_web.py (172), test_manage.py (46), test_rbac.py (3).
+Fichiers : conftest.py, test_db.py (7), test_servers.py (10), test_ssh.py (70), test_actions.py (186), test_collect.py (35), test_expire.py (16), test_alerts.py (23), test_web.py (178), test_manage.py (46), test_rbac.py (3).
 
 Fixtures obligatoires dans conftest.py : `mock_db`, `mock_ssh_client`, `mock_smtp`, `sample_server`, `sample_key`.
 
@@ -273,3 +279,14 @@ Permissions appliquées (#260) :
 - `chmod 700 /home/${COLLECTOR_USER}` — home non listable par les autres utilisateurs
 - Scripts SAM déployés avec `-m 750` (root:root) — non lisibles/exécutables par les non-root
 - Sudoers hardcode `-m 750` : si cette valeur change dans `ssh.py`, il faut re-provisionner les serveurs
+
+## Audit sshd config (#392)
+
+**ssh.py** : `audit_sshd_config(hostname, ip, port) -> dict[str, str]` — exécute `sudo sshd -T` sur le serveur distant et retourne les directives parsées. Raise SSHSudoError si exit ≠ 0, SSHScriptError si stdout vide.
+
+**actions.py** :
+- `SSHD_HARDENING_POLICY` — 14 directives de durcissement sshd : permitrootlogin, passwordauthentication, permitemptypasswords, kbdinteractiveauthentication, challengeresponseauthentication (optional), hostbasedauthentication, ignorerhosts, x11forwarding, allowtcpforwarding, maxauthtries, logingracetime, clientaliveinterval, loglevel, usepam
+- `check_sshd_compliance(parsed: dict) -> dict` — pure function, applique la policy à un dict de config sshd. Retourne `{"checks": [...], "summary": {ok, warning, critical, info, missing}, "overall": ...}`
+- `audit_server_sshd(hostname, admin_id) -> dict` — lecture seule, pas d'audit_log. Récupère IP+port de la DB, appelle ssh.audit_sshd_config(), applique check_sshd_compliance(). Raise NotFoundError si serveur inconnu, UserError(409) si désactivé, UserError(502) si SSH échoue.
+
+**web.py** : `GET /api/servers/<hostname>/sshd-audit` — require_auth (tous rôles), retourne le résultat de audit_server_sshd(). Pas de contrôle d'accès restreint : lecture seule, information publique pour tous les utilisateurs connectés.

@@ -634,6 +634,92 @@ def test_ssh_is_valid_ip_invalid():
     assert ssh._is_valid_ip("") is False
 
 
+# ---------------------------------------------------------------------------
+# audit_sshd_config
+# ---------------------------------------------------------------------------
+
+def test_ssh_audit_sshd_config_parses_output():
+    """audit_sshd_config parses sshd -T output into a dict {directive_lower: value}."""
+    from unittest.mock import MagicMock, patch
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
+    sshd_output = b"""
+port 22
+permitrootlogin no
+passwordauthentication no
+pubkeyauthentication yes
+maxauthtries 3
+loglevel INFO
+usepam yes
+x11forwarding no
+ciphers aes256-gcm@openssh.com,aes128-gcm@openssh.com
+"""
+    mock_stdout.read.return_value = sshd_output
+    mock_stdout.channel.recv_exit_status.return_value = 0
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b""
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    with patch("ssh._connect", return_value=mock_client):
+        result = ssh.audit_sshd_config("server1", "192.168.1.1")
+        assert "port" in result
+        assert result["port"] == "22"
+        assert result["permitrootlogin"] == "no"
+        assert result["passwordauthentication"] == "no"
+        assert result["maxauthtries"] == "3"
+        assert result["loglevel"] == "INFO"
+        assert "ciphers" in result
+
+
+def test_ssh_audit_sshd_config_raises_sudo_error_on_nonzero():
+    """audit_sshd_config raises SSHSudoError when sshd -T exits non-zero."""
+    from unittest.mock import MagicMock, patch
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
+    mock_stdout.read.return_value = b""
+    mock_stdout.channel.recv_exit_status.return_value = 1
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b"sshd: error reading config\n"
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    with patch("ssh._connect", return_value=mock_client):
+        with pytest.raises(ssh.SSHSudoError, match="sshd -T failed"):
+            ssh.audit_sshd_config("server1", "192.168.1.1")
+
+
+def test_ssh_audit_sshd_config_raises_script_error_on_empty():
+    """audit_sshd_config raises SSHScriptError when sshd -T produces no output."""
+    from unittest.mock import MagicMock, patch
+    mock_client = MagicMock()
+    mock_stdout = MagicMock()
+    mock_stdout.read.return_value = b""
+    mock_stdout.channel.recv_exit_status.return_value = 0
+    mock_stderr = MagicMock()
+    mock_stderr.read.return_value = b""
+    mock_client.exec_command.return_value = (None, mock_stdout, mock_stderr)
+
+    with patch("ssh._connect", return_value=mock_client):
+        with pytest.raises(ssh.SSHScriptError, match="no parseable output"):
+            ssh.audit_sshd_config("server1", "192.168.1.1")
+
+
+def test_ssh_audit_sshd_config_uses_reject_policy():
+    """audit_sshd_config uses RejectPolicy (consistency check)."""
+    from unittest.mock import MagicMock, patch
+    with patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy") as mock_policy:
+        client_instance = MagicMock()
+        mock_cls.return_value = client_instance
+        client_instance.connect.side_effect = Exception("stop")
+        try:
+            ssh._connect("host")
+        except Exception:
+            pass
+        client_instance.set_missing_host_key_policy.assert_called_once_with(
+            mock_policy.return_value
+        )
+
+
 def test_ssh_collect_sessions_calls_sam_sessions(mock_ssh_client):
     """collect_sessions_on_server runs sam-sessions and upserts results (utmpdump ISO format)."""
     from unittest.mock import MagicMock, patch

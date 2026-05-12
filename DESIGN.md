@@ -417,6 +417,49 @@ Au premier login interactif (TTY), `~/.profile` affiche le contenu du README, su
 
 La route `GET /api/servers` expose désormais un champ booléen `has_anomalies` par serveur (calculé via une jointure SQL sur `ssh_keys.status IN ('PENDING_REVIEW') OR key_authorizations.revoked_automatically = TRUE` sur les 24 dernières heures). Le Dashboard utilise ce champ pour afficher un compteur Alertes sans avoir à charger toutes les clés.
 
+### 6.9 Audit de la configuration sshd du serveur géré (issue #392)
+
+La vue détail d'un serveur intègre un panneau lisant la configuration sshd **effective** du serveur audité et la confrontant à une policy de durcissement (inspirée des bonnes pratiques OpenSSH usuelles, sans claim de conformité à une norme spécifique). La feature est purement déclarative : aucune modification de la config du serveur n'est jamais effectuée par SAM.
+
+**Périmètre exact de l'audit** : `sudo sshd -T` (sans `-C user=...`) dump la configuration **globale** du démon, hors blocs `Match`. L'audit décrit donc le comportement de sshd pour les utilisateurs **hors `sam-users`** — typiquement `root`, comptes système et comptes créés manuellement par l'administrateur. Les utilisateurs SAM sont déjà couverts par le bloc `Match Group sam-users` posé par `provision-host.sh` (sous-section 6.7) qui force `AuthenticationMethods publickey` quelle que soit la valeur globale. Un statut `critical` sur `PasswordAuthentication` ici ne met donc pas en danger les comptes SAM, mais il signale que d'autres comptes du serveur (notamment `root`) peuvent se connecter par mot de passe.
+
+**Chaîne de lecture** :
+
+1. Une règle sudoers dédiée installée par `provision-host.sh` autorise `audit-collector` à exécuter **uniquement** `sshd -T` en tant que root (NOPASSWD, argument strict, pas de wildcard) :
+   ```
+   audit-collector ALL=(root) NOPASSWD: <sshd_path> -T
+   ```
+2. `ssh.audit_sshd_config(hostname, ip, port)` ouvre une connexion paramiko (RejectPolicy) et exécute `sudo sshd -T`. La sortie — une ligne par directive — est parsée en `dict[str, str]` (clés en lowercase). Source de vérité : sshd lui-même, ce qui couvre les `Include`, les blocs `Match` et les valeurs par défaut implicites.
+3. `actions.check_sshd_compliance(parsed)` applique la policy déclarée en code (constante `SSHD_HARDENING_POLICY`, voir tableau ci-dessous). Pure, testable, sans I/O — chaque directive devient un dict `{directive, expected, actual, status, severity}`.
+4. `actions.audit_server_sshd(hostname, admin_id)` orchestre 2 et 3, lève `UserError(404)` si serveur inconnu, `UserError(409)` si désactivé, `UserError(502)` si SSH échoue.
+5. La route `GET /api/servers/<hostname>/sshd-audit` (require_auth, **tous rôles**, lecture seule) retourne le résultat sans le persister — la feature est stateless.
+6. Le composant `SshAuditCard.vue` est inséré inline dans `ServerDetail.vue` après `SessionsCard`, affiche un voyant global (vert / orange / rouge) et un tableau de directives filtrable « Tous / Non conformes » (filtré par défaut).
+
+**Policy de durcissement v1** :
+
+| Directive | Règle | Sévérité |
+|---|---|---|
+| PermitRootLogin | `no` | critical |
+| PasswordAuthentication | `no` | critical |
+| PermitEmptyPasswords | `no` | critical |
+| HostbasedAuthentication | `no` | critical |
+| IgnoreRhosts | `yes` | critical |
+| KbdInteractiveAuthentication | `no` | warning |
+| ChallengeResponseAuthentication | `no` (optionnel) | warning |
+| X11Forwarding | `no` | warning |
+| AllowTcpForwarding | `no` ou `local` | warning |
+| MaxAuthTries | ≤ 3 | warning |
+| LoginGraceTime | ≤ 60 | warning |
+| UsePAM | `yes` | warning |
+| ClientAliveInterval | > 0 | info |
+| LogLevel | `INFO` ou `VERBOSE` | info |
+
+Les seuils sont déclarés une fois pour toutes dans `SSHD_HARDENING_POLICY` et explicitement non rattachés à une référence normative — ils représentent des valeurs de durcissement OpenSSH généralement attendues (CIS, STIG, ANSSI BP-099 ont des recommandations équivalentes pour la majorité de ces directives, mais SAM ne prétend pas à une conformité formelle à l'une d'elles). Mettre à jour les seuils = modifier la constante.
+
+**Statut global** : `critical` s'il existe au moins une directive critical non conforme, `warning` sinon s'il y a au moins une non-conformité ou directive manquante, `ok` sinon.
+
+**Hors périmètre v1** : audit des algos crypto (`Ciphers`, `MACs`, `KexAlgorithms`, `HostKeyAlgorithms`), historique persisté, export PDF/CSV, alertes email sur régression.
+
 ---
 
 ## 7. Politique de conformité ANSSI (BP-099)

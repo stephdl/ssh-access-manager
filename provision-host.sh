@@ -40,6 +40,9 @@ chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "${AUTH_KEYS}"
 echo "[provision] Public key deployed in ${AUTH_KEYS}."
 
 # 4. Create sudoers file
+# Detect sshd binary path (typically /usr/sbin/sshd on Debian/RHEL/Alpine)
+SSHD=$(command -v sshd 2>/dev/null || echo /usr/sbin/sshd)
+
 # printf with explicit \n: resistant to \r\n introduced by sudo PTY during pipe
 printf "# ssh-access-manager — sudo rights for ${COLLECTOR_USER}\n" > "${SUDOERS_FILE}"
 printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-collect\n" >> "${SUDOERS_FILE}"
@@ -48,6 +51,7 @@ printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-add\n" >> "${S
 printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-lock-user\n" >> "${SUDOERS_FILE}"
 printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user\n" >> "${SUDOERS_FILE}"
 printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-sessions\n" >> "${SUDOERS_FILE}"
+printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: ${SSHD} -T\n" >> "${SUDOERS_FILE}"
 printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-collect /usr/local/bin/sam-collect\n" >> "${SUDOERS_FILE}"
 printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-revoke /usr/local/bin/sam-revoke\n" >> "${SUDOERS_FILE}"
 printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-add /usr/local/bin/sam-add\n" >> "${SUDOERS_FILE}"

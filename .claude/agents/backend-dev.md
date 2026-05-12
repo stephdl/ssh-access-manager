@@ -109,6 +109,11 @@ known_hosts indexé par IP : `ssh-keyscan -H -T 10 <ip_address>`.
 ### Sessions
 - `check_session_limit(server_id, hostname, session_count, max_sessions)` — alerte WARNING si session_count > max_sessions, anti-spam 24h via audit_log SESSION_LIMIT_EXCEEDED (#360)
 
+### Audit sshd (#392)
+- `audit_server_sshd(hostname, admin_id) -> dict` — lecture seule, pas d'audit_log. Récupère IP+port depuis DB, exécute `ssh.audit_sshd_config()`, applique `check_sshd_compliance()`. Raise NotFoundError(404) si serveur inconnu, UserError(409) si désactivé, UserError(502) si SSH échoue.
+- `check_sshd_compliance(parsed: dict) -> dict` — pure function, applique `SSHD_HARDENING_POLICY`. Retourne `{"checks": [...], "summary": {ok, warning, critical, info, missing}, "overall": ...}`
+- `SSHD_HARDENING_POLICY` — 14 directives de durcissement sshd (seuils déclaratifs, pas de claim de conformité à une norme)
+
 ### Administrateurs
 - `add_admin(username, email, password, admin_id, role='operator')` — hash werkzeug, valide role
 - `update_admin(username, email, role, admin_id)` — ne peut pas modifier son propre rôle
@@ -160,6 +165,7 @@ PUT    /api/servers/<hostname>/enable                DELETE /api/servers/<hostna
 POST   /api/servers/<hostname>/scan
 GET    /api/servers/<hostname>/sessions              POST /api/servers/<hostname>/sessions/refresh
 GET    /api/servers/<hostname>/sessions/history
+GET    /api/servers/<hostname>/sshd-audit
 
 GET  /api/keys                                       GET  /api/keys/get/<fingerprint>
 GET  /api/keys/search?q=                             POST /api/keys/validate/<fingerprint>

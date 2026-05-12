@@ -155,6 +155,7 @@ ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-sessions
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-grant-group *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke-group *
+${COLLECTOR_USER} ALL=(root) NOPASSWD: <sshd_path> -T
 ```
 
 ## SAM sudo groups + sshd Match Group sam-users (#383, #384)

@@ -2043,6 +2043,84 @@ def test_web_sessions_history_operator_200(client):
 
 
 # ---------------------------------------------------------------------------
+# GET /api/servers/<hostname>/sshd-audit — hardening audit
+# ---------------------------------------------------------------------------
+
+def test_web_sshd_audit_sysadmin_200(auth_client):
+    """GET /api/servers/<hostname>/sshd-audit returns 200 for sysadmin."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.audit_server_sshd.return_value = {
+            "checks": [],
+            "summary": {"ok": 14, "warning": 0, "critical": 0, "missing": 0},
+            "overall": "ok"
+        }
+        resp = auth_client.get("/api/servers/server1/sshd-audit")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "checks" in data
+    assert "summary" in data
+    assert "overall" in data
+
+
+def test_web_sshd_audit_operator_200(client):
+    """GET /api/servers/<hostname>/sshd-audit returns 200 for operator."""
+    with client.session_transaction() as sess:
+        sess["admin_id"] = ADMIN_ID
+        sess["admin_username"] = "operator"
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "operator", "role": "operator"}
+        mock_actions.audit_server_sshd.return_value = {
+            "checks": [],
+            "summary": {"ok": 14, "warning": 0, "critical": 0, "missing": 0},
+            "overall": "ok"
+        }
+        resp = client.get("/api/servers/server1/sshd-audit")
+    assert resp.status_code == 200
+
+
+def test_web_sshd_audit_viewer_200(client):
+    """GET /api/servers/<hostname>/sshd-audit returns 200 for viewer (read-only)."""
+    with client.session_transaction() as sess:
+        sess["admin_id"] = ADMIN_ID
+        sess["admin_username"] = "viewer"
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "username": "viewer", "role": "viewer"}
+        mock_actions.audit_server_sshd.return_value = {
+            "checks": [],
+            "summary": {"ok": 14, "warning": 0, "critical": 0, "missing": 0},
+            "overall": "ok"
+        }
+        resp = client.get("/api/servers/server1/sshd-audit")
+    assert resp.status_code == 200
+
+
+def test_web_sshd_audit_no_session_returns_401(client):
+    """GET /api/servers/<hostname>/sshd-audit without session returns 401."""
+    with patch("web.db") as mock_db:
+        resp = client.get("/api/servers/server1/sshd-audit")
+    assert resp.status_code == 401
+
+
+def test_web_sshd_audit_server_not_found_returns_404(auth_client):
+    """GET /api/servers/<hostname>/sshd-audit returns 404 if server does not exist."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.audit_server_sshd.side_effect = web.NotFoundError("Server not found")
+        resp = auth_client.get("/api/servers/unknown-server/sshd-audit")
+    assert resp.status_code == 404
+
+
+def test_web_sshd_audit_ssh_failure_returns_502(auth_client):
+    """GET /api/servers/<hostname>/sshd-audit returns 502 if SSH fails."""
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.audit_server_sshd.side_effect = web.UserError("SSH audit failed", status=502)
+        resp = auth_client.get("/api/servers/server1/sshd-audit")
+    assert resp.status_code == 502
+
+
+# ---------------------------------------------------------------------------
 # POST /api/keys/bulk-validate
 # ---------------------------------------------------------------------------
 
