@@ -16,6 +16,7 @@ apt-get install -y --no-install-recommends \
     findutils \
     grep \
     procps \
+    python3 \
     >/dev/null
 
 # Debian's openssh-server postinst usually generates host keys; force in case

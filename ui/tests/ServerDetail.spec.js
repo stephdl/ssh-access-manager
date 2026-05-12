@@ -187,3 +187,88 @@ describe('ServerDetail — expiry scoped to unix_user + hostname', () => {
     expect(body.hostname).toBe('test-server')
   })
 })
+
+describe('ServerDetail — provision version display', () => {
+  it('displays first 8 chars of provision_version with tooltip showing full version', async () => {
+    const fetchSpy = vi.fn((url) => {
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ...MOCK_SERVER, provision_version: 'abcdef1234567890' }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    const infoGrid = w.find('.info-grid')
+    expect(infoGrid.text()).toContain('abcdef12')
+    const versionSpan = infoGrid.findAll('span').find((s) => s.text() === 'abcdef12')
+    expect(versionSpan.attributes('title')).toBe('abcdef1234567890')
+  })
+
+  it('displays — when provision_version is null', async () => {
+    const fetchSpy = vi.fn((url) => {
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ...MOCK_SERVER, provision_version: null }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    const infoGrid = w.find('.info-grid')
+    expect(infoGrid.text()).toContain('—')
+  })
+
+  it('displays Re-provision needed badge when provision_drift is true', async () => {
+    const fetchSpy = vi.fn((url) => {
+      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              ...MOCK_SERVER,
+              provision_version: 'abc123',
+              provision_drift: true,
+            }),
+        })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    const badge = w.find('.badge-drift')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toContain('Re-provision needed')
+  })
+
+  it('does not display Re-provision needed badge when provision_drift is false', async () => {
+    const w = await mountServerDetail()
+    expect(w.find('.badge-drift').exists()).toBe(false)
+  })
+})

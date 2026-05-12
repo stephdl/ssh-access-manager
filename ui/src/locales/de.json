@@ -102,7 +102,9 @@
     "status_scan_failed": "Letzter Scan fehlgeschlagen",
     "scan": "Scannen",
     "scanning": "Wird gescannt",
-    "edit": "Bearbeiten"
+    "edit": "Bearbeiten",
+    "reprovision_needed": "Neu-Provisionierung erforderlich",
+    "reprovision_needed_tooltip": "Das automatische Update ist auf diesem Host fehlgeschlagen. Öffnen Sie die Serverdetails und klicken Sie auf Neu-Provisionieren, um die neue SAM-Konfiguration einzuspielen. Im Audit-Log finden Sie den genauen Fehler."
   },
   "server_detail": {
     "scan": "Scannen",
@@ -121,6 +123,7 @@
     "field_active": "Aktiv",
     "field_added": "Hinzugefügt am",
     "field_max_sessions": "Max. Sitzungen",
+    "field_provision_version": "Provisionierungsversion",
     "active_yes": "✅ Ja",
     "active_no": "🔴 Nein",
     "section_keys": "SSH-Schlüssel",
@@ -165,7 +168,9 @@
     "bulk_revoke_modal_title": "Ausgewählte Schlüssel widerrufen",
     "bulk_validated": "Schlüssel validiert: {validated}, übersprungen: {skipped}",
     "bulk_revoked": "Schlüssel widerrufen: {revoked}, übersprungen: {skipped}",
-    "root_revoke_warning": "Das Widerrufen des SSH-Schlüssels des Benutzers <strong>root</strong> kann zum dauerhaften Verlust des Fernzugriffs auf diesen Server führen."
+    "root_revoke_warning": "Das Widerrufen des SSH-Schlüssels des Benutzers <strong>root</strong> kann zum dauerhaften Verlust des Fernzugriffs auf diesen Server führen.",
+    "reprovision_needed": "Neu-Provisionierung erforderlich",
+    "reprovision_needed_tooltip": "Das automatische Update ist auf diesem Host fehlgeschlagen. Öffnen Sie die Serverdetails und klicken Sie auf Neu-Provisionieren, um die neue SAM-Konfiguration einzuspielen. Im Audit-Log finden Sie den genauen Fehler."
   },
   "key_table": {
     "col_status": "Status",

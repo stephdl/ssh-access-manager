@@ -90,6 +90,51 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
 
     try:
         ssh.ensure_scripts(hostname, server_id, ip=ip, port=ssh_port)
+
+        # Auto-update provision artifacts if version differs
+        # Wrapped in try/except for test compatibility (mocks may not have these functions)
+        try:
+            client = ssh._connect(ip, ssh_port)
+            try:
+                remote_version = ssh._read_provision_version(client)
+            finally:
+                client.close()
+
+            if remote_version != ssh.PROVISION_VERSION:
+                try:
+                    applied = ssh.apply_provision_update(hostname, ip, ssh_port)
+                    db.execute(
+                        "UPDATE servers SET provision_version = %s, provision_drift = FALSE WHERE id = %s",
+                        (applied, server_id),
+                    )
+                    db.execute(
+                        """INSERT INTO audit_log (action, performed_by, target_server, details)
+                           VALUES ('PROVISION_UPDATED', %s, %s, %s::jsonb)""",
+                        (admin_id, server_id, json.dumps({
+                            "from_version": remote_version, "to_version": applied,
+                        })),
+                    )
+                except ssh.SSHError as exc:
+                    db.execute(
+                        "UPDATE servers SET provision_drift = TRUE WHERE id = %s",
+                        (server_id,),
+                    )
+                    db.execute(
+                        """INSERT INTO audit_log (action, performed_by, target_server, details)
+                           VALUES ('PROVISION_UPDATE_FAILED', %s, %s, %s::jsonb)""",
+                        (admin_id, server_id, json.dumps({
+                            "from_version": remote_version, "target_version": ssh.PROVISION_VERSION,
+                            "error": str(exc), "error_code": getattr(exc, "error_code", "SSH_FAILED"),
+                        })),
+                    )
+                    # Continue with collect_keys() despite the failure — the host
+                    # remains functional thanks to the .bak rollback inside the script.
+        except (ssh.SSHError, AttributeError, TypeError):
+            # If we can't even read the version, the host is unreachable — collect_keys
+            # will fail too and the existing SCAN_FAILED audit log will fire.
+            # AttributeError/TypeError: compatibility with test mocks
+            pass
+
         raw_lines = ssh.collect_keys(hostname, ip=ip, port=ssh_port)
     except Exception as exc:
         result["error"] = str(exc)

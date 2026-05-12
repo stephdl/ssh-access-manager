@@ -82,6 +82,12 @@
             <span v-if="!s.is_active" class="badge badge-disabled">{{
               $t('server_table.disabled_badge')
             }}</span>
+            <span
+              v-if="s.provision_drift"
+              class="badge badge-drift"
+              :title="$t('server_table.reprovision_needed_tooltip')"
+              >{{ $t('server_table.reprovision_needed') }}</span
+            >
           </td>
           <td>{{ s.ip_address }}</td>
           <td>
@@ -169,14 +175,14 @@ const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSi
 function statusIcon(s) {
   if (!s.is_active) return '🔴'
   if (s.last_scan_ok === false) return '🟠'
-  if (s.has_anomalies) return '🟡'
+  if (s.has_anomalies || s.provision_drift) return '🟡'
   return '✅'
 }
 
 function rowClass(s) {
   if (!s.is_active) return 'row-danger'
   if (s.last_scan_ok === false) return 'row-scan-fail'
-  if (s.has_anomalies) return 'row-warning'
+  if (s.has_anomalies || s.provision_drift) return 'row-warning'
   return ''
 }
 
@@ -246,6 +252,14 @@ function envBadge(env) {
 .badge-disabled {
   background: #dc3545;
   color: #fff;
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+}
+
+.badge-drift {
+  background: #fff3cd;
+  color: #856404;
   margin-left: 0.5rem;
   font-size: 0.7rem;
   padding: 0.1rem 0.4rem;

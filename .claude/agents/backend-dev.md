@@ -57,7 +57,7 @@ known_hosts : `/data/keys/known_hosts`. Clé privée : `/data/keys/collector_key
 **Connexions SSH via ip_address uniquement** — pas le hostname (non résolvable depuis le container, #80, #84).
 known_hosts indexé par IP : `ssh-keyscan -H -T 10 <ip_address>`.
 
-### Scripts distants — 8 constantes Python `bytes` dans ssh.py
+### Scripts distants — 9 constantes Python `bytes` dans ssh.py
 
 | Constante | Path distant | Action |
 |-----------|-------------|--------|
@@ -69,6 +69,21 @@ known_hosts indexé par IP : `ssh-keyscan -H -T 10 <ip_address>`.
 | SAM_SESSIONS | /usr/local/bin/sam-sessions (root, 750) | Collecte sessions SSH actives + historique → stdout : `A\|H\tuser\ttty\tip\trest`. `utmpdump /var/run/utmp` + fallback `LANG=C last -F` (#253, #322) |
 | SAM_GRANT_GROUP | /usr/local/bin/sam-grant-group \<unix_user\> \<group\> (root, 750) | Valide groupe (sam-operator\|sam-pkg\|sam-root), `gpasswd -a` — fonctionne même quand l'utilisateur est connecté (#383) |
 | SAM_REVOKE_GROUP | /usr/local/bin/sam-revoke-group \<unix_user\> \<group\> (root, 750) | Valide groupe, `gpasswd -d ... \|\| true` — idempotent (#383) |
+| SAM_SELF_UPDATE | /usr/local/bin/sam-self-update [\<version\>] (root, 750) | Applique config dynamique SAM en idempotent avec rollback `.bak` (#400). Écrit version dans `/etc/sam-provision-version` |
+
+### Auto-update orchestration (#400)
+
+**ssh.py constantes** :
+- `PROVISION_VERSION` : SHA256(SAM_SELF_UPDATE)[:16]
+- `PROVISION_VERSION_PATH` : `/etc/sam-provision-version`
+- `_read_provision_version(client) -> str | None` : lit version distante
+- `apply_provision_update(hostname, ip, port) -> str` : applique update, raise SSHSudoError si échec
+
+**collect.py orchestration** (dans `scan_server`, après `ensure_scripts`, avant `collect_keys`) :
+- Compare version distante vs `PROVISION_VERSION`
+- Si différente : `apply_provision_update()` → UPDATE `servers.provision_version`, `provision_drift=FALSE`, audit PROVISION_UPDATED
+- Si échec : `provision_drift=TRUE`, audit PROVISION_UPDATE_FAILED, continue scan
+- Bloc `try/except (ssh.SSHError, AttributeError, TypeError)` — résilience mocks tests
 
 ### ensure_scripts()
 
@@ -160,9 +175,9 @@ POST /api/auth/login      POST /api/auth/logout     GET /api/auth/me
 
 GET    /api/servers                                  POST /api/servers
 GET    /api/servers/<hostname>                       PUT  /api/servers/<hostname>
-POST   /api/servers/<hostname>/provision             PUT  /api/servers/<hostname>/disable
-PUT    /api/servers/<hostname>/enable                DELETE /api/servers/<hostname>
-POST   /api/servers/<hostname>/scan
+POST   /api/servers/<hostname>/provision             POST /api/servers/<hostname>/sync
+PUT    /api/servers/<hostname>/disable               PUT  /api/servers/<hostname>/enable
+DELETE /api/servers/<hostname>                      POST /api/servers/<hostname>/scan
 GET    /api/servers/<hostname>/sessions              POST /api/servers/<hostname>/sessions/refresh
 GET    /api/servers/<hostname>/sessions/history
 GET    /api/servers/<hostname>/sshd-audit

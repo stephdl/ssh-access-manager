@@ -26,20 +26,24 @@ Authentification locale : `scram-sha-256` (pg_hba.conf).
 ### servers
 ```sql
 CREATE TABLE servers (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    hostname     VARCHAR(255) NOT NULL UNIQUE,
-    ip_address   INET NOT NULL,
-    ssh_port     INTEGER NOT NULL DEFAULT 22,
-    os_family    VARCHAR(50),
-    os_version   VARCHAR(50),
-    environment  VARCHAR(20) CHECK (environment IN ('production','staging','lab')),
-    is_active    BOOLEAN DEFAULT true,
-    max_sessions INTEGER NOT NULL DEFAULT 2,
-    added_at     TIMESTAMPTZ DEFAULT now()
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    hostname          VARCHAR(255) NOT NULL UNIQUE,
+    ip_address        INET NOT NULL,
+    ssh_port          INTEGER NOT NULL DEFAULT 22,
+    os_family         VARCHAR(50),
+    os_version        VARCHAR(50),
+    environment       VARCHAR(20) CHECK (environment IN ('production','staging','lab')),
+    is_active         BOOLEAN DEFAULT true,
+    max_sessions      INTEGER NOT NULL DEFAULT 2,
+    provision_version VARCHAR(64),
+    provision_drift   BOOLEAN NOT NULL DEFAULT FALSE,
+    added_at          TIMESTAMPTZ DEFAULT now()
 );
 ```
 
 Index unique : `servers_ip_unique ON servers(ip_address)` — une IP ne peut appartenir qu'à un seul serveur actif ou désactivé.
+
+**Colonnes `provision_version` et `provision_drift`** (issue #400) — auto-update des scripts de provisioning. `provision_version` contient le SHA256 (ou prefix) du dernier déploiement réussi de `SAM_SELF_UPDATE`. `provision_drift` passe à TRUE quand l'invocation de `sam-self-update` retourne un exit non-zero (le serveur distant reste fonctionnel grâce au rollback automatique `.bak`).
 
 ### administrators
 ```sql
@@ -141,7 +145,8 @@ CREATE TABLE audit_log (
                      'USER_LOCKED', 'USER_UNLOCKED',
                      'LOGIN_FAILED', 'LOGIN_BANNED', 'PASSWORD_RESET',
                      'SERVER_PROVISIONED', 'SESSION_LIMIT_EXCEEDED',
-                     'GROUP_GRANTED', 'GROUP_REVOKED', 'GROUP_CHANGED'
+                     'GROUP_GRANTED', 'GROUP_REVOKED', 'GROUP_CHANGED',
+                     'PROVISION_UPDATED', 'PROVISION_UPDATE_FAILED'
                  )),
     performed_by UUID REFERENCES administrators(id) ON DELETE SET NULL,
     target_key   UUID REFERENCES ssh_keys(id),
@@ -153,6 +158,8 @@ CREATE TABLE audit_log (
 
 Jamais de UPDATE ni DELETE sur `audit_log` — journal immuable.
 `audit_retention_days` (settings) contrôle la purge automatique via `expire.py`.
+
+**Actions `PROVISION_UPDATED` et `PROVISION_UPDATE_FAILED`** (issue #400) — enregistrent le résultat d'une invocation de `sam-self-update`. Le champ `details` JSONB contient `{"version": "<sha256>", "stderr": "<error>"}` selon le cas. Ces actions utilisent l'index existant `idx_audit_log_action`.
 
 ### settings
 ```sql

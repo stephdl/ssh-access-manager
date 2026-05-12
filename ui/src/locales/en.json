@@ -102,7 +102,9 @@
     "status_scan_failed": "Last scan failed",
     "scan": "Scan",
     "scanning": "Scanning",
-    "edit": "Edit"
+    "edit": "Edit",
+    "reprovision_needed": "Re-provision needed",
+    "reprovision_needed_tooltip": "Automatic update failed on this host. Open the server detail and click Re-provision to push the new SAM configuration. See the Audit view for the exact error."
   },
   "server_detail": {
     "scan": "Scan",
@@ -121,6 +123,7 @@
     "field_active": "Active",
     "field_added": "Added on",
     "field_max_sessions": "Max sessions",
+    "field_provision_version": "Provision version",
     "active_yes": "✅ Yes",
     "active_no": "🔴 No",
     "section_keys": "SSH Keys",
@@ -165,7 +168,9 @@
     "bulk_revoke_modal_title": "Revoke selected keys",
     "bulk_validated": "Keys validated: {validated}, skipped: {skipped}",
     "bulk_revoked": "Keys revoked: {revoked}, skipped: {skipped}",
-    "root_revoke_warning": "Revoking the SSH key of user <strong>root</strong> may result in permanent loss of remote access to this server."
+    "root_revoke_warning": "Revoking the SSH key of user <strong>root</strong> may result in permanent loss of remote access to this server.",
+    "reprovision_needed": "Re-provision needed",
+    "reprovision_needed_tooltip": "Automatic update failed on this host. Open the server detail and click Re-provision to push the new SAM configuration. See the Audit view for the exact error."
   },
   "key_table": {
     "col_status": "Status",

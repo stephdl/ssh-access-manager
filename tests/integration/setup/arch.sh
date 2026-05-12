@@ -18,6 +18,7 @@ pacman -S --noconfirm --noprogressbar --needed \
     findutils \
     grep \
     procps-ng \
+    python \
     >/dev/null 2>&1
 
 # `sshd -t` needs the host keys to exist before it will validate the config.

@@ -46,7 +46,7 @@ server: {
 |-----|------|
 | Login.vue | Connexion + checkbox "Keep me logged on this device" (#239) |
 | Dashboard.vue | Tableau serveurs + compteurs + modal ajout serveur (SSH user/password obligatoires, #299) + clé collecteur (#74). Auto-scan après ajout (#332). Validation hostname RFC 1123 (#303). |
-| ServerDetail.vue | Détail serveur + clés + actions + bandeau rouge si désactivé (#91) + bandeau orange si `last_scan_ok === false` (#324). Bouton **Edit** (sysadmin, `EditServerModal`) + bouton **Re-provisionner** (violet, sysadmin, #302). `max_sessions` affiché et configurable via EditServerModal (#360). |
+| ServerDetail.vue | Détail serveur + clés + actions + bandeau rouge si désactivé (#91) + bandeau orange si `last_scan_ok === false` (#324). Bouton **Edit** (sysadmin, `EditServerModal`) + bouton **Re-provisionner** (violet, sysadmin, #302). `max_sessions` affiché et configurable via EditServerModal (#360). Affiche `provision_version` (8 premiers chars, tooltip complet) + badge orange "Update available" si `provision_drift === true` (#400). |
 | Anomalies.vue | Anomalies actives + filtres texte/type/serveur/conformité + unix_user (#195) |
 | AccessRequests.vue | DeployKeyForm + UserLockForm |
 | Audit.vue | Historique filtrable + export CSV (#343) |
@@ -57,7 +57,7 @@ server: {
 
 | Composant | Rôle |
 |-----------|------|
-| ServerTable.vue | Tableau serveurs + ligne grisée + badge rouge si désactivé (#91) + tri colonnes |
+| ServerTable.vue | Tableau serveurs + ligne grisée + badge rouge si désactivé (#91) + badge orange "Update available" si `provision_drift === true` (#400) + tri colonnes |
 | KeyTable.vue | Tableau clés + filtres texte + dropdown statut (#189) + bouton Illimité (#93) + tooltip non-conformité + sélection en masse (bulk validate/revoke, #345) + tri colonnes |
 | KeyActions.vue | Boutons valider/révoquer/expiry |
 | ExpiryPicker.vue | Modes exclusifs heures / date précise |

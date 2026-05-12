@@ -40,6 +40,16 @@ ED25519_B64 = "AAAAC3NzaC1lZDI1NTE5AAAAIBqGBCEpGAhHTB0sklNmFpRGoXv7K3p9iFaQJoWqY
 SAMPLE_LINE = f"testuser\tssh-ed25519 {ED25519_B64} testuser@host"
 
 
+def _setup_ssh_mocks(mock_ssh):
+    """Helper to setup default SSH mocks for scan_server tests."""
+    mock_ssh.ensure_scripts.return_value = None
+    mock_ssh.collect_sessions_on_server.return_value = None
+    client_mock = MagicMock()
+    mock_ssh._connect.return_value = client_mock
+    mock_ssh.PROVISION_VERSION = "test-version"
+    mock_ssh._read_provision_version.return_value = "test-version"  # version matches by default
+
+
 # ---------------------------------------------------------------------------
 # Tests _parse_key_line()
 # ---------------------------------------------------------------------------
@@ -91,6 +101,7 @@ def test_collect_scan_server_same_key_two_users_creates_two_auth_rows():
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts"):
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = [alice_line, bob_line]
         # same key_id for both (same fingerprint)
         mock_db.query_one.side_effect = [
@@ -98,6 +109,7 @@ def test_collect_scan_server_same_key_two_users_creates_two_auth_rows():
             None,                  # no auth for alice → PENDING_REVIEW
             {"id": KEY_ID},       # key found for bob
             None,                  # no auth for bob → PENDING_REVIEW
+            {"n": 0},             # sessions count (at end of scan)
         ]
         mock_db.query.return_value = []  # no disappeared keys
 
@@ -118,6 +130,7 @@ def test_collect_scan_server_unix_user_passed_to_handle_unknown_key():
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts"):
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.return_value = None   # unknown key
         mock_db.query.return_value = []
@@ -140,6 +153,7 @@ def test_collect_scan_server_only_disappeared_unix_user_row_triggers_scenario2()
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts"):
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = [bob_line]  # only bob remains
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},        # key found for bob
@@ -170,6 +184,7 @@ def test_collect_scan_server_scenario3_unknown_key_calls_handle_unknown_key():
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts") as mock_alerts:
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.side_effect = [
             None,   # key not in DB → unknown
@@ -189,6 +204,7 @@ def test_collect_scan_server_scenario3_logs_scan_completed():
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts"):
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.return_value = None
         mock_db.query.return_value = []
@@ -210,6 +226,7 @@ def test_collect_scan_server_scenario2_disappeared_key_calls_handle_disappeared(
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts"):
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = []  # empty scan — key disappeared
         mock_db.query_one.return_value = None
         mock_db.query.return_value = [
@@ -234,6 +251,7 @@ def test_collect_scan_server_scenario5_revoked_key_reappeared_calls_handle_reapp
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts"):
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},              # key found in DB
@@ -260,6 +278,7 @@ def test_collect_scan_server_scenario5_expired_key_reappeared_calls_handle_reapp
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts"):
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},              # key found in DB
@@ -282,6 +301,7 @@ def test_collect_scan_server_scenario5_active_key_not_treated_as_reappeared():
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts"):
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},
@@ -302,6 +322,7 @@ def test_collect_scan_server_scenario5_pending_review_not_treated_as_reappeared(
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts"):
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},
@@ -352,6 +373,7 @@ def test_collect_scan_server_known_active_key_updates_last_seen():
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts"):
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},                  # key found in DB
@@ -378,6 +400,7 @@ def test_collect_scan_server_scan_failed_logs_scan_failed():
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts") as mock_alerts:
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.ensure_scripts.side_effect = Exception("Connection refused")
 
         result = collect.scan_server(SAMPLE_SERVER)
@@ -535,6 +558,7 @@ def test_collect_scan_server_updates_key_size_bits_on_rescan():
          patch("collect.actions") as mock_actions, \
          patch("collect.alerts"):
 
+        _setup_ssh_mocks(mock_ssh)
         mock_ssh.collect_keys.return_value = [rsa_line]
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},           # key found in DB
@@ -613,3 +637,174 @@ def test_collect_run_scan_does_not_skip_for_manual_hostname():
         mock_scan.return_value = {"hostname": "server-test-01", "new": 0, "disappeared": 0, "known": 0, "error": None, "anomalies": []}
         collect.run_scan(hostname="server-test-01")
         mock_check.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Tests provision auto-update orchestration
+# ---------------------------------------------------------------------------
+
+def test_collect_skips_provision_update_when_version_matches():
+    """scan_server skips apply_provision_update when remote version matches PROVISION_VERSION."""
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions"), \
+         patch("collect.alerts"):
+
+        _setup_ssh_mocks(mock_ssh)
+        mock_ssh.ensure_scripts.return_value = None
+        mock_ssh.collect_keys.return_value = []
+        mock_ssh.collect_sessions_on_server.return_value = None
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.return_value = []
+
+        # _connect returns a client mock
+        client_mock = MagicMock()
+        mock_ssh._connect.return_value = client_mock
+        # Remote version matches current PROVISION_VERSION → no update
+        mock_ssh.PROVISION_VERSION = "abc123def456"
+        mock_ssh._read_provision_version.return_value = "abc123def456"
+
+        collect.scan_server(SAMPLE_SERVER)
+
+        mock_ssh.apply_provision_update.assert_not_called()
+
+
+def test_collect_triggers_provision_update_when_version_differs():
+    """scan_server triggers apply_provision_update when remote version differs."""
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions"), \
+         patch("collect.alerts"):
+
+        _setup_ssh_mocks(mock_ssh)
+        mock_ssh.ensure_scripts.return_value = None
+        mock_ssh.collect_keys.return_value = []
+        mock_ssh.collect_sessions_on_server.return_value = None
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.return_value = []
+
+        client_mock = MagicMock()
+        mock_ssh._connect.return_value = client_mock
+        mock_ssh._read_provision_version.return_value = "old-version"
+        mock_ssh.PROVISION_VERSION = "new-version"
+        mock_ssh.apply_provision_update.return_value = "new-version"
+
+        collect.scan_server(SAMPLE_SERVER)
+
+        mock_ssh.apply_provision_update.assert_called_once_with("server-test-01", "192.168.1.10", 22)
+        # Check UPDATE servers was called
+        update_calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("provision_version" in sql and "provision_drift = FALSE" in sql for sql in update_calls)
+        # Check audit log PROVISION_UPDATED
+        assert any("PROVISION_UPDATED" in str(c) for c in mock_db.execute.call_args_list)
+
+
+def test_collect_triggers_provision_update_when_version_absent():
+    """scan_server triggers apply_provision_update when remote version is None (never updated)."""
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions"), \
+         patch("collect.alerts"):
+
+        _setup_ssh_mocks(mock_ssh)
+        mock_ssh.ensure_scripts.return_value = None
+        mock_ssh.collect_keys.return_value = []
+        mock_ssh.collect_sessions_on_server.return_value = None
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.return_value = []
+
+        client_mock = MagicMock()
+        mock_ssh._connect.return_value = client_mock
+        mock_ssh._read_provision_version.return_value = None
+        mock_ssh.PROVISION_VERSION = "new-version"
+        mock_ssh.apply_provision_update.return_value = "new-version"
+
+        collect.scan_server(SAMPLE_SERVER)
+
+        mock_ssh.apply_provision_update.assert_called_once()
+
+
+def test_collect_marks_drift_on_failure():
+    """scan_server sets provision_drift=TRUE when apply_provision_update fails."""
+    import ssh as ssh_mod
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions"), \
+         patch("collect.alerts"):
+
+        _setup_ssh_mocks(mock_ssh)
+        mock_ssh.ensure_scripts.return_value = None
+        mock_ssh.collect_keys.return_value = []
+        mock_ssh.collect_sessions_on_server.return_value = None
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.return_value = []
+
+        client_mock = MagicMock()
+        mock_ssh._connect.return_value = client_mock
+        mock_ssh._read_provision_version.return_value = "old-version"
+        mock_ssh.PROVISION_VERSION = "new-version"
+        mock_ssh.SSHError = ssh_mod.SSHError
+        mock_ssh.apply_provision_update.side_effect = ssh_mod.SSHError("visudo validation failed")
+
+        collect.scan_server(SAMPLE_SERVER)
+
+        # Check UPDATE servers set drift=TRUE
+        update_calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("provision_drift = TRUE" in sql for sql in update_calls)
+        # Check audit log PROVISION_UPDATE_FAILED
+        assert any("PROVISION_UPDATE_FAILED" in str(c) for c in mock_db.execute.call_args_list)
+
+
+def test_collect_clears_drift_on_success_after_previous_failure():
+    """scan_server sets provision_drift=FALSE when update succeeds after previous failure."""
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions"), \
+         patch("collect.alerts"):
+
+        _setup_ssh_mocks(mock_ssh)
+        mock_ssh.ensure_scripts.return_value = None
+        mock_ssh.collect_keys.return_value = []
+        mock_ssh.collect_sessions_on_server.return_value = None
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.return_value = []
+
+        client_mock = MagicMock()
+        mock_ssh._connect.return_value = client_mock
+        mock_ssh._read_provision_version.return_value = "old-version"
+        mock_ssh.PROVISION_VERSION = "new-version"
+        mock_ssh.apply_provision_update.return_value = "new-version"
+
+        collect.scan_server(SAMPLE_SERVER)
+
+        # Check UPDATE servers set drift=FALSE
+        update_calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("provision_drift = FALSE" in sql for sql in update_calls)
+
+
+def test_collect_continues_scan_after_provision_failure():
+    """scan_server continues to collect_keys even when apply_provision_update fails."""
+    import ssh as ssh_mod
+    with patch("collect.ssh") as mock_ssh, \
+         patch("collect.db") as mock_db, \
+         patch("collect.actions"), \
+         patch("collect.alerts"):
+
+        _setup_ssh_mocks(mock_ssh)
+        mock_ssh.ensure_scripts.return_value = None
+        mock_ssh.collect_keys.return_value = []
+        mock_ssh.collect_sessions_on_server.return_value = None
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.return_value = []
+
+        client_mock = MagicMock()
+        mock_ssh._connect.return_value = client_mock
+        mock_ssh._read_provision_version.return_value = "old-version"
+        mock_ssh.PROVISION_VERSION = "new-version"
+        mock_ssh.SSHError = ssh_mod.SSHError
+        mock_ssh.apply_provision_update.side_effect = ssh_mod.SSHError("failed")
+
+        collect.scan_server(SAMPLE_SERVER)
+
+        # collect_keys() must be called despite the provision update failure
+        mock_ssh.collect_keys.assert_called_once()

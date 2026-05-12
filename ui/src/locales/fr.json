@@ -102,7 +102,9 @@
     "status_scan_failed": "Dernier scan échoué",
     "scan": "Scanner",
     "scanning": "Scan en cours",
-    "edit": "Éditer"
+    "edit": "Éditer",
+    "reprovision_needed": "Reprovisionnement requis",
+    "reprovision_needed_tooltip": "La mise à jour automatique a échoué sur cet hôte. Ouvrez le détail du serveur et cliquez sur Re-provisionner pour pousser la nouvelle configuration SAM. Consultez la vue Audit pour le détail de l'erreur."
   },
   "server_detail": {
     "scan": "Scanner",
@@ -121,6 +123,7 @@
     "field_active": "Actif",
     "field_added": "Ajouté le",
     "field_max_sessions": "Sessions max",
+    "field_provision_version": "Version provisioning",
     "active_yes": "✅ Oui",
     "active_no": "🔴 Non",
     "section_keys": "Clés SSH",
@@ -165,7 +168,9 @@
     "bulk_revoke_modal_title": "Révoquer les clés sélectionnées",
     "bulk_validated": "Clés validées : {validated}, ignorées : {skipped}",
     "bulk_revoked": "Clés révoquées : {revoked}, ignorées : {skipped}",
-    "root_revoke_warning": "Révoquer la clé SSH de l'utilisateur <strong>root</strong> peut entraîner une perte définitive d'accès distant à ce serveur."
+    "root_revoke_warning": "Révoquer la clé SSH de l'utilisateur <strong>root</strong> peut entraîner une perte définitive d'accès distant à ce serveur.",
+    "reprovision_needed": "Reprovisionnement requis",
+    "reprovision_needed_tooltip": "La mise à jour automatique a échoué sur cet hôte. Ouvrez le détail du serveur et cliquez sur Re-provisionner pour pousser la nouvelle configuration SAM. Consultez la vue Audit pour le détail de l'erreur."
   },
   "key_table": {
     "col_status": "Statut",

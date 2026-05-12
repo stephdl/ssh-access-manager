@@ -520,6 +520,56 @@ Les seuils sont déclarés une fois pour toutes dans `SSHD_HARDENING_POLICY` et 
 
 **Hors périmètre v1** : audit des algos crypto (`Ciphers`, `MACs`, `KexAlgorithms`, `HostKeyAlgorithms`), historique persisté, export PDF/CSV, alertes email sur régression.
 
+### 6.10 Auto-update des artefacts de provisioning (issue #400)
+
+Le provisionnement initial d'un serveur via `provision-host.sh` nécessite le mot de passe SSH root et dépose :
+
+1. L'utilisateur `audit-collector` et sa clé publique.
+2. Les règles sudoers NOPASSWD pour que `audit-collector` puisse exécuter les scripts SAM (`sam-collect`, `sam-revoke`, `sam-add`, etc.) et déployer de nouveaux scripts via `install`.
+
+Historiquement, `provision-host.sh` déposait également la configuration « dynamique » (les groupes Unix `sam-operator`, `sam-pkg`, `sam-root`, `sam-users`, les fichiers sudoers `/etc/sudoers.d/sam-operator`, `/etc/sudoers.d/sam-pkg`, `/etc/sudoers.d/sam-root`, et le drop-in sshd `/etc/ssh/sshd_config.d/50-sam-users.conf`). Cette approche posait un problème d'évolutivité : toute modification à ces artefacts (ajout d'une commande dans les sudoers, changement de durcissement sshd) nécessitait de re-provisionner manuellement chaque serveur et de ressaisir le mot de passe root.
+
+**Architecture cible** : `provision-host.sh` est désormais réduit au strict minimum **qui exige réellement le mot de passe root et qu'on ne modifie jamais** (création de `audit-collector`, dépôt de la clé publique, sudoers de base avec les règles NOPASSWD pour `sam-*` et `sam-self-update`). Toute la partie dynamique migre vers un script `sam-self-update`, versionné comme les autres scripts SAM (constante `SAM_SELF_UPDATE` bytes dans `app/ssh.py`), déployé via SFTP par `ensure_scripts()`, et invoqué automatiquement à chaque scan via la clé collecteur.
+
+**Périmètre de `sam-self-update`** :
+
+1. Créer idempotamment les 4 groupes Unix (`sam-operator`, `sam-pkg`, `sam-root`, `sam-users`).
+2. Détecter les binaires hôtes (systemctl, journalctl, ss, dmesg, lsof, du, apt/dnf/zypper/pacman...) pour construire dynamiquement les règles sudoers.
+3. Construire et installer transactionnellement les 3 fichiers sudoers (`/etc/sudoers.d/sam-operator`, `/etc/sudoers.d/sam-pkg`, `/etc/sudoers.d/sam-root`) :
+   - Backup `.bak` si le fichier existe.
+   - Écrire `.tmp`.
+   - Valider avec `visudo -c -f <file>.tmp` ; si KO : restaurer `.bak` (ou supprimer si neuf), log erreur, exit 1 sans rien écrire d'autre.
+   - Si OK : `install -m 440 -o root -g root <file>.tmp <file>`, supprimer `.bak`.
+4. Construire et installer transactionnellement le drop-in sshd `/etc/ssh/sshd_config.d/50-sam-users.conf` (ou fallback append sur `/etc/ssh/sshd_config` si le drop-in dir n'est pas sourcé — cf. fix Leap 16, issue #399) :
+   - Backup `.bak`.
+   - Écrire le nouveau contenu.
+   - Valider avec `sshd -t` ; si KO : restaurer `.bak`, exit 1.
+   - Si OK : supprimer `.bak`, marquer `SSHD_INSTALLED=1`.
+5. Si `SSHD_INSTALLED=1` : recharger sshd via `systemctl reload sshd` (ou `ssh` selon distro).
+6. Si tous les fichiers ont passé la validation : écrire `/etc/sam-provision-version` avec la version passée en argument (`$1`, calculée côté SAM comme `sha256(SAM_SELF_UPDATE)[:16]`).
+
+**Invariant transactionnel** : si la moindre étape échoue (visudo ou sshd -t), aucun reload sshd ne doit avoir lieu, et `/etc/sam-provision-version` ne doit PAS être écrit. L'administrateur sera alerté via le flag `provision_drift = true` dans la base (orchestration backend-dev, vague 2).
+
+**Modèle de confiance** : la clé collecteur **EST** la racine de confiance. Elle peut déjà implicitement modifier la configuration sudo des serveurs via `sam-add` (déploiement d'utilisateurs Unix avec groupes SAM) et `sam-grant-group` (affectation à `sam-root`). `sam-self-update` rend explicite ce pouvoir en permettant de modifier les sudoers SAM eux-mêmes. **Le bootstrap initial reste manuel** (exige le mot de passe root), garantissant que la relation de confiance est établie par l'administrateur humain et non par un processus automatisé.
+
+**Sudoers bootstrap** : `provision-host.sh` pose dans `/etc/sudoers.d/audit-collector` deux règles supplémentaires :
+
+```
+audit-collector ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/audit-collector/sam-self-update /usr/local/bin/sam-self-update
+audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-self-update
+audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-self-update *
+```
+
+Après le premier scan post-bootstrap, `ensure_scripts()` déploie `sam-self-update` via SFTP, et le collecteur peut invoquer `sudo sam-self-update <version>` pour poser toute la configuration dynamique.
+
+**Mode dry-run** : `sam-self-update --dry-run` affiche les diffs avec `diff -u` entre la configuration actuelle et la future, sans rien écrire. Utilisable en test local.
+
+**Rollback** : si `visudo -c` ou `sshd -t` échoue, le fichier `.bak` est restauré immédiatement et le script exit 1. Aucun état partiel ne persiste. Les tests d'intégration couvrent ce scénario (phase 5 : injection d'un sudoers invalide volontaire, vérification que la version et les fichiers restent inchangés).
+
+**Évolutivité** : toute évolution future des sudoers SAM, du drop-in sshd ou de la liste des groupes se fait en modifiant `SAM_SELF_UPDATE` dans `app/ssh.py`. Au prochain pull de l'image Docker, les nouveaux scans déploient automatiquement la version mise à jour sur l'ensemble de la flotte sans re-provisionnement manuel. Le nombre de caractères SHA256 (16) suffit à détecter les collisions dans l'espace d'un parc de serveurs typique (dizaines à centaines).
+
+**Tests** : les phases 4 et 5 de `tests/integration/run.sh` simulent un cycle d'upgrade (`sam-self-update version-v2` avec injection d'une règle marker dans sam-pkg, puis tentative avec sudoers invalide → rollback vérifié).
+
 ---
 
 ## 7. Politique de conformité ANSSI (BP-099)

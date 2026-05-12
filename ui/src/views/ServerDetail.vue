@@ -90,6 +90,23 @@
           <dd>{{ formatDate(server.added_at) }}</dd>
           <dt>{{ $t('server_detail.field_max_sessions') }}</dt>
           <dd>{{ server.max_sessions ?? 2 }}</dd>
+          <dt>{{ $t('server_detail.field_provision_version') }}</dt>
+          <dd>
+            <span
+              v-if="server.provision_version"
+              :title="server.provision_version"
+              style="font-family: monospace"
+              >{{ server.provision_version.substring(0, 8) }}</span
+            >
+            <span v-else>—</span>
+            <span
+              v-if="server.provision_drift"
+              class="badge badge-drift"
+              :title="$t('server_detail.reprovision_needed_tooltip')"
+            >
+              {{ $t('server_detail.reprovision_needed') }}
+            </span>
+          </dd>
         </dl>
       </section>
 
@@ -901,5 +918,14 @@ dd {
 }
 .btn-eye:hover {
   color: var(--text-primary);
+}
+
+.badge-drift {
+  background: #fff3cd;
+  color: #856404;
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
 }
 </style>

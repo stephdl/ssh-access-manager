@@ -140,7 +140,12 @@ const ACTIONS = [
   'ADMIN_DISABLED',
 ]
 
-const CRITICAL_ACTIONS = new Set(['ANOMALY_DETECTED', 'SCAN_FAILED', 'KEY_REVOKED'])
+const CRITICAL_ACTIONS = new Set([
+  'ANOMALY_DETECTED',
+  'SCAN_FAILED',
+  'KEY_REVOKED',
+  'PROVISION_UPDATE_FAILED',
+])
 const WARNING_ACTIONS = new Set(['EXPIRY_WARNING', 'KEY_EXPIRED'])
 
 const filters = ref({ server: '', action: '', since: '' })
@@ -287,6 +292,17 @@ select {
 table {
   table-layout: fixed;
   width: 100%;
+}
+
+/* Action column badge — wrap long action names (PROVISION_UPDATE_FAILED…)
+   so they stay inside their td instead of overflowing into the BY column. */
+tbody td .badge {
+  display: inline-block;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.2;
+  vertical-align: middle;
 }
 
 .fp {

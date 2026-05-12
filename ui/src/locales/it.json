@@ -102,7 +102,9 @@
     "status_scan_failed": "Ultima scansione fallita",
     "scan": "Scansiona",
     "scanning": "Scansione",
-    "edit": "Modifica"
+    "edit": "Modifica",
+    "reprovision_needed": "Riapprontamento richiesto",
+    "reprovision_needed_tooltip": "L'aggiornamento automatico è fallito su questo host. Apri il dettaglio del server e fai clic su Reapprontamento per inviare la nuova configurazione SAM. Consulta la vista Audit per i dettagli dell'errore."
   },
   "server_detail": {
     "scan": "Scansiona",
@@ -121,6 +123,7 @@
     "field_active": "Attivo",
     "field_added": "Aggiunto il",
     "field_max_sessions": "Sessioni max",
+    "field_provision_version": "Versione provisioning",
     "active_yes": "✅ Sì",
     "active_no": "🔴 No",
     "section_keys": "Chiavi SSH",
@@ -165,7 +168,9 @@
     "bulk_revoke_modal_title": "Revocare le chiavi selezionate",
     "bulk_validated": "Chiavi validate: {validated}, saltate: {skipped}",
     "bulk_revoked": "Chiavi revocate: {revoked}, saltate: {skipped}",
-    "root_revoke_warning": "La revoca della chiave SSH dell'utente <strong>root</strong> può causare la perdita permanente dell'accesso remoto a questo server."
+    "root_revoke_warning": "La revoca della chiave SSH dell'utente <strong>root</strong> può causare la perdita permanente dell'accesso remoto a questo server.",
+    "reprovision_needed": "Riapprontamento richiesto",
+    "reprovision_needed_tooltip": "L'aggiornamento automatico è fallito su questo host. Apri il dettaglio del server e fai clic su Reapprontamento per inviare la nuova configurazione SAM. Consulta la vista Audit per i dettagli dell'errore."
   },
   "key_table": {
     "col_status": "Stato",

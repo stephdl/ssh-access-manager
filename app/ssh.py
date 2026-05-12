@@ -11,11 +11,11 @@ import db
 
 
 # ---------------------------------------------------------------------------
-# SSH exceptions — typed hierarchy for safer error handling
+# SSH exceptions - typed hierarchy for safer error handling
 # ---------------------------------------------------------------------------
 
 class SSHError(RuntimeError):
-    """Base SSH error — catch this to handle all SSH failures."""
+    """Base SSH error - catch this to handle all SSH failures."""
     error_code = "SSH_FAILED"
 
 
@@ -59,7 +59,7 @@ SAM_LOCK_USER_PATH = "/usr/local/bin/sam-lock-user"
 SAM_UNLOCK_USER_PATH = "/usr/local/bin/sam-unlock-user"
 
 # ---------------------------------------------------------------------------
-# Remote scripts — versioned as Python constants.
+# Remote scripts - versioned as Python constants.
 # Deployed via SFTP if absent or if SHA256 hash differs.
 # ---------------------------------------------------------------------------
 
@@ -238,6 +238,7 @@ usermod -U -s /bin/bash "$USER"
 SAM_SESSIONS_PATH = "/usr/local/bin/sam-sessions"
 SAM_GRANT_GROUP_PATH = "/usr/local/bin/sam-grant-group"
 SAM_REVOKE_GROUP_PATH = "/usr/local/bin/sam-revoke-group"
+SAM_SELF_UPDATE_PATH = "/usr/local/bin/sam-self-update"
 
 SAM_SESSIONS = b"""#!/bin/sh
 # sam-sessions - collect SSH session data
@@ -354,6 +355,364 @@ fi
 printf 'GROUPS:%s\\n' "$(id -Gn "$USERNAME" 2>/dev/null || echo '')"
 """
 
+SAM_SELF_UPDATE = b"""#!/bin/sh
+# sam-self-update [version] [--dry-run]
+# Apply dynamic provisioning configuration (SAM groups, sudoers, sshd drop-in).
+# This script is deployed and invoked by the collector key after initial bootstrap.
+# If version is given, it is written to /etc/sam-provision-version on success.
+
+VERSION="${1}"
+DRY_RUN=0
+[ "${2}" = "--dry-run" ] && DRY_RUN=1
+
+# Detect sshd binary path
+SSHD_BIN=$(command -v sshd 2>/dev/null || echo /usr/sbin/sshd)
+
+# Helper: detect binary path
+_bin() {
+    local p
+    p=$(command -v "$1" 2>/dev/null)
+    [ -n "$p" ] && echo "$p" && return
+    [ -x "/usr/local/bin/$1" ] && echo "/usr/local/bin/$1" && return
+    echo "/usr/bin/$1"
+}
+
+# Helper: append sudoers rule (bare command + wildcard variant)
+_rule() {
+    local file="$1" group="$2" cmd="$3"
+    printf "%%${group} ALL=(root) PASSWD: ${cmd}\\n"     >> "${file}"
+    printf "%%${group} ALL=(root) PASSWD: ${cmd} *\\n"   >> "${file}"
+}
+
+# Step 1: Create SAM groups idempotently
+for grp in sam-operator sam-pkg sam-root sam-users; do
+    if ! getent group "$grp" >/dev/null 2>&1; then
+        if [ "$DRY_RUN" -eq 1 ]; then
+            echo "[DRY-RUN] Would create group $grp"
+        else
+            groupadd "$grp"
+            echo "[sam-self-update] Group $grp created."
+        fi
+    fi
+done
+
+# Step 2: Detect binaries for sudoers rules
+SYSTEMCTL=$(_bin systemctl)
+JOURNALCTL=$(_bin journalctl)
+SS=$(_bin ss)
+DMESG=$(_bin dmesg)
+LSOF=$(_bin lsof)
+DU=$(_bin du)
+
+# Step 3: Build and install sudoers files with transactional rollback
+_install_sudoers() {
+    local target="$1"
+    local tmp="${target}.tmp"
+    local backup="${target}.bak"
+    local had_previous=0
+
+    # Backup existing file
+    if [ -f "$target" ]; then
+        cp -p "$target" "$backup"
+        had_previous=1
+    fi
+
+    # Validate with visudo
+    if ! visudo -c -f "$tmp" 2>/dev/null; then
+        echo "[sam-self-update] ERROR: invalid sudoers ${target} - rolling back" >&2
+        if [ "$had_previous" -eq 1 ]; then
+            mv "$backup" "$target"
+        else
+            rm -f "$target"
+        fi
+        exit 1
+    fi
+
+    # Install
+    install -m 440 -o root -g root "$tmp" "$target"
+    rm -f "$backup" "$tmp"
+}
+
+# sam-operator sudoers
+OP_FILE="/etc/sudoers.d/sam-operator"
+if [ "$DRY_RUN" -eq 1 ] && [ -f "$OP_FILE" ]; then
+    printf "# ssh-access-manager - sam-operator sudo rights\\n" > "${OP_FILE}.tmp"
+    printf "Defaults:%%sam-operator secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${OP_FILE}.tmp"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} restart"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} reload"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} status"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} start"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -u"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -f"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -n"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} --since"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -b"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -e"
+    printf "%%sam-operator ALL=(root) PASSWD: ${SS} -tlnp\\n"                    >> "${OP_FILE}.tmp"
+    printf "%%sam-operator ALL=(root) PASSWD: ${DMESG}\\n"                       >> "${OP_FILE}.tmp"
+    printf "%%sam-operator ALL=(root) PASSWD: ${LSOF}\\n"                        >> "${OP_FILE}.tmp"
+    printf "%%sam-operator ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "${OP_FILE}.tmp"
+    printf "%%sam-operator ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "${OP_FILE}.tmp"
+    for bin in runagent; do
+        bin_path=$(_bin "$bin")
+        [ -x "$bin_path" ] && _rule "${OP_FILE}.tmp" "sam-operator" "${bin_path}"
+    done
+    echo "--- ${OP_FILE} diff:"
+    diff -u "$OP_FILE" "${OP_FILE}.tmp" || true
+    rm -f "${OP_FILE}.tmp"
+else
+    printf "# ssh-access-manager - sam-operator sudo rights\\n" > "${OP_FILE}.tmp"
+    printf "Defaults:%%sam-operator secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${OP_FILE}.tmp"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} restart"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} reload"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} status"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} start"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -u"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -f"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -n"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} --since"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -b"
+    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -e"
+    printf "%%sam-operator ALL=(root) PASSWD: ${SS} -tlnp\\n"                    >> "${OP_FILE}.tmp"
+    printf "%%sam-operator ALL=(root) PASSWD: ${DMESG}\\n"                       >> "${OP_FILE}.tmp"
+    printf "%%sam-operator ALL=(root) PASSWD: ${LSOF}\\n"                        >> "${OP_FILE}.tmp"
+    printf "%%sam-operator ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "${OP_FILE}.tmp"
+    printf "%%sam-operator ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "${OP_FILE}.tmp"
+    for bin in runagent; do
+        bin_path=$(_bin "$bin")
+        [ -x "$bin_path" ] && _rule "${OP_FILE}.tmp" "sam-operator" "${bin_path}"
+    done
+    _install_sudoers "$OP_FILE"
+    echo "[sam-self-update] Sudoers sam-operator configured."
+fi
+
+# sam-pkg sudoers
+PKG_FILE="/etc/sudoers.d/sam-pkg"
+if [ "$DRY_RUN" -eq 1 ] && [ -f "$PKG_FILE" ]; then
+    printf "# ssh-access-manager - sam-pkg sudo rights\\n" > "${PKG_FILE}.tmp"
+    printf "Defaults:%%sam-pkg secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${PKG_FILE}.tmp"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} reload"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} status"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} start"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -u"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -f"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -n"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} --since"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -b"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -e"
+    printf "%%sam-pkg ALL=(root) PASSWD: ${SS} -tlnp\\n"                    >> "${PKG_FILE}.tmp"
+    printf "%%sam-pkg ALL=(root) PASSWD: ${DMESG}\\n"                       >> "${PKG_FILE}.tmp"
+    printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF}\\n"                        >> "${PKG_FILE}.tmp"
+    printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "${PKG_FILE}.tmp"
+    printf "%%sam-pkg ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "${PKG_FILE}.tmp"
+    for bin in runagent api-cli; do
+        bin_path=$(_bin "$bin")
+        [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
+    done
+    if command -v apt >/dev/null 2>&1; then
+        APT=$(_bin apt)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APT} install"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APT} upgrade"
+    elif command -v dnf >/dev/null 2>&1; then
+        DNF=$(_bin dnf)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${DNF} install"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${DNF} upgrade"
+    elif command -v yum >/dev/null 2>&1; then
+        YUM=$(_bin yum)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${YUM} install"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${YUM} update"
+    elif command -v zypper >/dev/null 2>&1; then
+        ZYPPER=$(_bin zypper)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${ZYPPER} install"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${ZYPPER} update"
+    elif command -v apk >/dev/null 2>&1; then
+        APK=$(_bin apk)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APK} add"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APK} upgrade"
+    elif command -v pacman >/dev/null 2>&1; then
+        PACMAN=$(_bin pacman)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -S"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -Syu"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -Sy"
+    fi
+    for bin in add-module remove-module; do
+        bin_path="/usr/local/bin/$bin"
+        [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
+    done
+    echo "--- ${PKG_FILE} diff:"
+    diff -u "$PKG_FILE" "${PKG_FILE}.tmp" || true
+    rm -f "${PKG_FILE}.tmp"
+else
+    printf "# ssh-access-manager - sam-pkg sudo rights\\n" > "${PKG_FILE}.tmp"
+    printf "Defaults:%%sam-pkg secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${PKG_FILE}.tmp"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} reload"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} status"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} start"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -u"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -f"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -n"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} --since"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -b"
+    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -e"
+    printf "%%sam-pkg ALL=(root) PASSWD: ${SS} -tlnp\\n"                    >> "${PKG_FILE}.tmp"
+    printf "%%sam-pkg ALL=(root) PASSWD: ${DMESG}\\n"                       >> "${PKG_FILE}.tmp"
+    printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF}\\n"                        >> "${PKG_FILE}.tmp"
+    printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "${PKG_FILE}.tmp"
+    printf "%%sam-pkg ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "${PKG_FILE}.tmp"
+    for bin in runagent api-cli; do
+        bin_path=$(_bin "$bin")
+        [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
+    done
+    if command -v apt >/dev/null 2>&1; then
+        APT=$(_bin apt)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APT} install"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APT} upgrade"
+    elif command -v dnf >/dev/null 2>&1; then
+        DNF=$(_bin dnf)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${DNF} install"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${DNF} upgrade"
+    elif command -v yum >/dev/null 2>&1; then
+        YUM=$(_bin yum)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${YUM} install"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${YUM} update"
+    elif command -v zypper >/dev/null 2>&1; then
+        ZYPPER=$(_bin zypper)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${ZYPPER} install"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${ZYPPER} update"
+    elif command -v apk >/dev/null 2>&1; then
+        APK=$(_bin apk)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APK} add"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APK} upgrade"
+    elif command -v pacman >/dev/null 2>&1; then
+        PACMAN=$(_bin pacman)
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -S"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -Syu"
+        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -Sy"
+    fi
+    for bin in add-module remove-module; do
+        bin_path="/usr/local/bin/$bin"
+        [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
+    done
+    _install_sudoers "$PKG_FILE"
+    echo "[sam-self-update] Sudoers sam-pkg configured."
+fi
+
+# sam-root sudoers
+ROOT_FILE="/etc/sudoers.d/sam-root"
+if [ "$DRY_RUN" -eq 1 ] && [ -f "$ROOT_FILE" ]; then
+    printf "# ssh-access-manager - sam-root sudo rights\\n" > "${ROOT_FILE}.tmp"
+    printf "%%sam-root ALL=(ALL) ALL\\n" >> "${ROOT_FILE}.tmp"
+    echo "--- ${ROOT_FILE} diff:"
+    diff -u "$ROOT_FILE" "${ROOT_FILE}.tmp" || true
+    rm -f "${ROOT_FILE}.tmp"
+else
+    printf "# ssh-access-manager - sam-root sudo rights\\n" > "${ROOT_FILE}.tmp"
+    printf "%%sam-root ALL=(ALL) ALL\\n" >> "${ROOT_FILE}.tmp"
+    _install_sudoers "$ROOT_FILE"
+    echo "[sam-self-update] Sudoers sam-root configured."
+fi
+
+# Step 4: sshd drop-in configuration
+SAM_SSHD_CONF="Match Group sam-users
+    PasswordAuthentication no
+    PermitEmptyPasswords no
+    KbdInteractiveAuthentication no
+    PubkeyAuthentication yes
+    AuthenticationMethods publickey"
+SSHD_D="/etc/ssh/sshd_config.d"
+SSHD_INSTALLED=0
+
+_install_sam_sshd_dropin() {
+    local target="${SSHD_D}/50-sam-users.conf"
+    local backup="${target}.bak"
+    local had_previous=0
+    if [ -f "$target" ]; then
+        cp -p "$target" "$backup"
+        had_previous=1
+    fi
+    printf '%s\\n' "${SAM_SSHD_CONF}" > "$target"
+    chown root:root "$target"
+    chmod 600 "$target"
+    if ! "$SSHD_BIN" -t 2>/dev/null; then
+        echo "[sam-self-update] ERROR: sshd -t rejected ${target} - rolling back" >&2
+        if [ "$had_previous" -eq 1 ]; then
+            mv "$backup" "$target"
+        else
+            rm -f "$target"
+        fi
+        exit 1
+    fi
+    rm -f "$backup"
+    echo "[sam-self-update] ${target} written and validated by sshd -t."
+    SSHD_INSTALLED=1
+}
+
+SSHD_DROPIN_ENABLED=0
+if [ -d "$SSHD_D" ]; then
+    for cfg in /etc/ssh/sshd_config /usr/etc/ssh/sshd_config; do
+        if [ -f "$cfg" ] && grep -qE "^Include.*sshd_config\\.d" "$cfg" 2>/dev/null; then
+            SSHD_DROPIN_ENABLED=1
+            break
+        fi
+    done
+fi
+
+if [ "$DRY_RUN" -eq 1 ]; then
+    if [ "$SSHD_DROPIN_ENABLED" -eq 1 ]; then
+        target="${SSHD_D}/50-sam-users.conf"
+        if [ -f "$target" ]; then
+            printf '%s\\n' "${SAM_SSHD_CONF}" > "${target}.tmp"
+            echo "--- ${target} diff:"
+            diff -u "$target" "${target}.tmp" || true
+            rm -f "${target}.tmp"
+        else
+            echo "[DRY-RUN] Would create ${target}"
+        fi
+    elif [ -f /etc/ssh/sshd_config ] && ! grep -q "Match Group sam-users" /etc/ssh/sshd_config 2>/dev/null; then
+        echo "[DRY-RUN] Would append to /etc/ssh/sshd_config"
+    fi
+elif [ "$SSHD_DROPIN_ENABLED" -eq 1 ]; then
+    _install_sam_sshd_dropin
+elif [ -f /etc/ssh/sshd_config ] && ! grep -q "Match Group sam-users" /etc/ssh/sshd_config 2>/dev/null; then
+    # Fallback for distros without working sshd_config.d include
+    cp -p /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+    printf '\\n# ssh-access-manager\\n%s\\n' "${SAM_SSHD_CONF}" >> /etc/ssh/sshd_config
+    if ! "$SSHD_BIN" -t 2>/dev/null; then
+        echo "[sam-self-update] ERROR: sshd -t rejected /etc/ssh/sshd_config - rolling back" >&2
+        mv /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
+        exit 1
+    fi
+    rm -f /etc/ssh/sshd_config.bak
+    echo "[sam-self-update] /etc/ssh/sshd_config updated and validated by sshd -t."
+    SSHD_INSTALLED=1
+elif [ ! -f /etc/ssh/sshd_config ] && [ ! -d "$SSHD_D" ]; then
+    echo "[sam-self-update] ERROR: neither /etc/ssh/sshd_config nor ${SSHD_D} exists" >&2
+    echo "[sam-self-update]        cannot pose the sam-users SSH restriction" >&2
+    exit 1
+fi
+
+# Step 5: Reload sshd if we just changed the config
+if [ "$DRY_RUN" -eq 0 ] && [ "$SSHD_INSTALLED" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then
+    systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true
+fi
+
+# Step 6: Write version marker on success
+if [ "$DRY_RUN" -eq 0 ] && [ -n "$VERSION" ]; then
+    printf '%s\\n' "$VERSION" > /etc/sam-provision-version
+    echo "[sam-self-update] Version ${VERSION} written to /etc/sam-provision-version."
+fi
+
+if [ "$DRY_RUN" -eq 1 ]; then
+    echo "[DRY-RUN] No changes applied."
+fi
+"""
+
+# Provision version tracking — auto-update orchestration
+PROVISION_VERSION = hashlib.sha256(SAM_SELF_UPDATE).hexdigest()[:16]
+PROVISION_VERSION_PATH = "/etc/sam-provision-version"
+
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -365,6 +724,38 @@ def _parse_groups_output(out: str) -> list[str]:
         if line.startswith("GROUPS:"):
             return line[7:].split()
     return []
+
+
+def _read_provision_version(client) -> str | None:
+    """Read /etc/sam-provision-version from the remote host.
+
+    Returns None if the file is missing (host newly provisioned, never updated yet).
+    """
+    stdout, _stderr, exit_code = _run(client, f"cat {PROVISION_VERSION_PATH} 2>/dev/null")
+    if exit_code != 0:
+        return None
+    value = stdout.strip()
+    return value or None
+
+
+def apply_provision_update(hostname: str, ip: str, port: int = 22) -> str:
+    """Run `sudo sam-self-update <version>` on the remote host.
+
+    Returns the applied version on success. Raises SSHSudoError if the script
+    exits non-zero (the script itself has already rolled back any partial
+    change on its end before exiting).
+    """
+    client = _connect(ip, port)
+    try:
+        cmd = f"sudo {SAM_SELF_UPDATE_PATH} {PROVISION_VERSION}"
+        stdout, stderr, exit_code = _run(client, cmd)
+        if exit_code != 0:
+            raise SSHSudoError(
+                f"sam-self-update failed (exit {exit_code}): {stderr.strip() or stdout.strip()}"
+            )
+        return PROVISION_VERSION
+    finally:
+        client.close()
 
 
 def _connect(ip: str, port: int = 22) -> paramiko.SSHClient:
@@ -420,6 +811,7 @@ def ensure_scripts(hostname: str, server_id: str, ip: str, port: int = 22) -> No
             (SAM_SESSIONS, SAM_SESSIONS_PATH),
             (SAM_GRANT_GROUP, SAM_GRANT_GROUP_PATH),
             (SAM_REVOKE_GROUP, SAM_REVOKE_GROUP_PATH),
+            (SAM_SELF_UPDATE, SAM_SELF_UPDATE_PATH),
         ):
             local_hash = _sha256(content)
             remote_hash = _remote_sha256(client, remote_path)
@@ -568,7 +960,7 @@ def _parse_session_datetime(s: str, now) -> "datetime | None":
             return datetime.fromisoformat(s.replace(',', '.')).astimezone(timezone.utc)
         except ValueError:
             pass
-    # ISO date from who: 2026-05-01 07:35 (no timezone — treat as UTC)
+    # ISO date from who: 2026-05-01 07:35 (no timezone - treat as UTC)
     if re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}', s):
         try:
             dt = datetime.strptime(s[:16], "%Y-%m-%d %H:%M")
@@ -576,7 +968,7 @@ def _parse_session_datetime(s: str, now) -> "datetime | None":
         except ValueError:
             pass
     # last / last -F fallback: strip leading weekday abbreviation (Mon, Fri, …)
-    # then inject current year when absent — avoids DeprecationWarning in Python
+    # then inject current year when absent - avoids DeprecationWarning in Python
     # 3.12 and the upcoming ValueError in Python 3.15 for year-less formats.
     s = re.sub(r'^[A-Z][a-z]{2}\s+', '', s)
     has_year = bool(re.search(r'\b\d{4}\b', s))
@@ -649,14 +1041,14 @@ def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int
     try:
         client = _connect(ip, port)
     except paramiko.AuthenticationException:
-        raise SSHAuthError("Authentication failed — check collector key authorization")
+        raise SSHAuthError("Authentication failed - check collector key authorization")
     except paramiko.SSHException as exc:
         raise SSHError(f"SSH error connecting to {hostname}: {exc}")
     except socket.timeout:
-        raise SSHTimeoutError("Connection timed out — server did not respond within 15 seconds")
+        raise SSHTimeoutError("Connection timed out - server did not respond within 15 seconds")
     except OSError as exc:
         if "Connection refused" in str(exc):
-            raise SSHUnreachableError("Server unreachable — check the IP and network connectivity")
+            raise SSHUnreachableError("Server unreachable - check the IP and network connectivity")
         raise SSHError(f"Connection failed: {exc}")
     try:
         out, err, rc = _run(client, f"sudo {SAM_SESSIONS_PATH}")
@@ -743,10 +1135,10 @@ def _fetch_host_key(ip: str, port: int, known_hosts_path: str | None = None) -> 
         msg = str(exc)
         if "Connection refused" in msg or "refused" in msg:
             raise SSHPortRefusedError(
-                f"SSH port {port} refused — check that SSH is running on that port"
+                f"SSH port {port} refused - check that SSH is running on that port"
             ) from exc
         raise SSHUnreachableError(
-            f"Server unreachable — could not get host key on port {port}. "
+            f"Server unreachable - could not get host key on port {port}. "
             "Check the IP address and that SSH is running."
         ) from exc
     finally:
@@ -767,7 +1159,7 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
     """
     import socket
 
-    # Step 1 — fetch host key via single Paramiko Transport (1 TCP connection, no preauth events)
+    # Step 1 - fetch host key via single Paramiko Transport (1 TCP connection, no preauth events)
     _fetch_host_key(ip, ssh_port)
 
     if not ssh_password:
@@ -777,23 +1169,23 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
             client.close()
         except paramiko.AuthenticationException:
             raise SSHAuthError(
-                "Key authentication failed — the collector key is not authorized on this server. "
+                "Key authentication failed - the collector key is not authorized on this server. "
                 "Provide an SSH password to provision it automatically."
             )
         except socket.timeout:
-            raise SSHTimeoutError("Connection timed out — server did not respond within 15 seconds")
+            raise SSHTimeoutError("Connection timed out - server did not respond within 15 seconds")
         except Exception as exc:
             msg = str(exc)
             if any(k in msg for k in ("No route to host", "Network unreachable", "No address associated")):
-                raise SSHUnreachableError("Server unreachable — check the IP and network connectivity")
+                raise SSHUnreachableError("Server unreachable - check the IP and network connectivity")
             if "Connection refused" in msg:
                 raise SSHPortRefusedError(
-                    f"SSH port {ssh_port} refused — check that SSH is running on that port"
+                    f"SSH port {ssh_port} refused - check that SSH is running on that port"
                 )
             raise SSHError(f"Connection failed: {exc}")
         return
 
-    # Step 2 — connect with password auth
+    # Step 2 - connect with password auth
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.RejectPolicy())
     client.load_host_keys(KNOWN_HOSTS)
@@ -809,33 +1201,33 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
             allow_agent=False,
         )
     except paramiko.AuthenticationException:
-        raise SSHAuthError("Authentication failed — check your username and password")
+        raise SSHAuthError("Authentication failed - check your username and password")
     except socket.timeout:
-        raise SSHTimeoutError("Connection timed out — server did not respond within 15 seconds")
+        raise SSHTimeoutError("Connection timed out - server did not respond within 15 seconds")
     except Exception as exc:
         msg = str(exc)
         if any(k in msg for k in ("No route to host", "Network unreachable", "No address associated")):
-            raise SSHUnreachableError("Server unreachable — check the IP and network connectivity")
+            raise SSHUnreachableError("Server unreachable - check the IP and network connectivity")
         if "Connection refused" in msg:
             raise SSHPortRefusedError(
-                f"SSH port {ssh_port} refused — check that SSH is running on that port"
+                f"SSH port {ssh_port} refused - check that SSH is running on that port"
             )
         raise SSHError(f"Connection failed: {exc}")
 
     try:
-        # Step 3 — read provision script and collector public key
+        # Step 3 - read provision script and collector public key
         with open("/app/provision-host.sh", "rb") as fh:
             script = fh.read()
         with open(f"{COLLECTOR_KEY}.pub") as fh:
             collector_pubkey = fh.read().strip()
 
-        # Step 4 — upload provision script via SFTP
+        # Step 4 - upload provision script via SFTP
         sftp = client.open_sftp()
         sftp.putfo(io.BytesIO(script), "/tmp/sam-provision.sh")
         sftp.chmod("/tmp/sam-provision.sh", 0o700)
         sftp.close()
 
-        # Step 5 — execute via sudo -S (password on stdin)
+        # Step 5 - execute via sudo -S (password on stdin)
         cmd = (
             f"sudo -S bash /tmp/sam-provision.sh "
             f"{shlex.quote(collector_pubkey)} {shlex.quote(SSH_USER)}"
@@ -848,7 +1240,7 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
         exit_code = stdout.channel.recv_exit_status()
         err_out = stderr.read().decode(errors="replace")
 
-        # Step 6 — cleanup (best-effort)
+        # Step 6 - cleanup (best-effort)
         try:
             client.exec_command("rm -f /tmp/sam-provision.sh")
         except Exception:
@@ -859,7 +1251,7 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
                 k in err_out.lower() for k in ("incorrect password", "no password", "not allowed")
             ):
                 raise SSHSudoError(
-                    "Provisioning failed — check that the user has sudo privileges"
+                    "Provisioning failed - check that the user has sudo privileges"
                 )
             raise SSHScriptError(
                 f"Provisioning script failed (exit {exit_code}): {err_out[:300]}"
