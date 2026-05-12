@@ -91,7 +91,7 @@ Pour les **règles sudoers des groupes SAM** (`sam-operator`, `sam-pkg`, `sam-ro
 - **`PASSWD:` obligatoire** — jamais `NOPASSWD:` (différent d'audit-collector). Toute occurrence `NOPASSWD:` dans un fichier `/etc/sudoers.d/sam-*` est une vulnérabilité CRITIQUE.
 - **`visudo -c <fichier-temp>` avant `install -m 440`** — une règle invalide ne doit jamais être installée.
 - `secure_path` explicite incluant `/usr/local/bin` pour résoudre `runagent`/`api-cli`.
-- Bloc `Match Group sam-users` dans `/etc/ssh/sshd_config.d/` avec `PasswordAuthentication no` + `KbdInteractiveAuthentication no` — les utilisateurs SAM ne peuvent **jamais** se connecter en SSH par mot de passe.
+- Bloc `Match Group sam-users` dans `/etc/ssh/sshd_config.d/50-sam-users.conf` (chmod 600, root:root) contenant **cinq** directives : `PasswordAuthentication no`, `PermitEmptyPasswords no`, `KbdInteractiveAuthentication no`, `PubkeyAuthentication yes`, `AuthenticationMethods publickey`. **`sshd -t` doit être invoqué après écriture** ; si la validation échoue, le fichier `.bak` doit être restauré et le script doit `exit 1` sans recharger sshd. Aucune config invalide ne doit jamais être activée.
 
 ### 8. Audit trail — intégrité
 

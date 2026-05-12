@@ -388,7 +388,18 @@ Routes Flask correspondantes :
 Les utilisateurs Unix créés par `sam-add` ne doivent **jamais** pouvoir se connecter en SSH par mot de passe. Deux mécanismes l'empêchent :
 
 1. Tous les comptes créés par `sam-add` sont ajoutés au groupe `sam-users` (via `usermod -aG sam-users`).
-2. `provision-host.sh` installe dans `/etc/ssh/sshd_config.d/` un bloc `Match Group sam-users` avec `PasswordAuthentication no` et `KbdInteractiveAuthentication no`.
+2. `provision-host.sh` installe dans `/etc/ssh/sshd_config.d/50-sam-users.conf` un bloc `Match Group sam-users` durci (chmod 600, root:root) :
+
+```
+Match Group sam-users
+    PasswordAuthentication no
+    PermitEmptyPasswords no
+    KbdInteractiveAuthentication no
+    PubkeyAuthentication yes
+    AuthenticationMethods publickey
+```
+
+`AuthenticationMethods publickey` est la défense en profondeur : même si une autre méthode (PAM, keyboard-interactive…) est globalement activée, sshd ignore tous les autres mécanismes pour ce groupe et exige une clé publique. Après écriture, `provision-host.sh` exécute `sshd -t` ; si la validation échoue, le fichier précédent (sauvegardé en `.bak`) est restauré et le script sort en erreur sans recharger sshd — aucune config invalide n'est jamais activée.
 
 Conséquence : seule la clé SSH publique déployée permet la connexion. Le mot de passe Unix sert uniquement à `sudo` (règles SAM `PASSWD:`).
 
