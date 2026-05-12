@@ -439,6 +439,45 @@ def scan_server(hostname):
     return jsonify(results)
 
 
+@app.route("/api/servers/<hostname>/sync", methods=["POST"])
+@require_auth
+@require_role("sysadmin")
+def force_provision_sync(hostname):
+    """Force an immediate sam-self-update on the remote host outside the scan cycle."""
+    server = db.query_one(
+        "SELECT id, host(ip_address) AS ip_address, ssh_port FROM servers WHERE hostname = %s AND is_active = true",
+        (hostname,),
+    )
+    if not server:
+        return jsonify({"error": "Server not found or inactive"}), 404
+    try:
+        applied = ssh.apply_provision_update(hostname, str(server["ip_address"]), server.get("ssh_port", 22))
+        db.execute(
+            "UPDATE servers SET provision_version = %s, provision_drift = FALSE WHERE id = %s",
+            (applied, server["id"]),
+        )
+        db.execute(
+            """INSERT INTO audit_log (action, performed_by, target_server, details)
+               VALUES ('PROVISION_UPDATED', %s, %s, %s::jsonb)""",
+            (g.admin_id, server["id"], json.dumps({"to_version": applied, "manual": True})),
+        )
+        return jsonify({"status": "updated", "version": applied}), 200
+    except ssh.SSHError as exc:
+        db.execute(
+            "UPDATE servers SET provision_drift = TRUE WHERE id = %s",
+            (server["id"],),
+        )
+        db.execute(
+            """INSERT INTO audit_log (action, performed_by, target_server, details)
+               VALUES ('PROVISION_UPDATE_FAILED', %s, %s, %s::jsonb)""",
+            (g.admin_id, server["id"], json.dumps({
+                "target_version": ssh.PROVISION_VERSION,
+                "error": str(exc), "error_code": exc.error_code, "manual": True
+            })),
+        )
+        return jsonify({"error": str(exc), "error_code": exc.error_code}), 502
+
+
 def _serialize_session(row) -> dict:
     d = dict(row)
     for k in ('login_at', 'logout_at', 'collected_at'):

@@ -156,26 +156,41 @@ ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-sessions
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-grant-group *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke-group *
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-self-update
+${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-self-update *
 ${COLLECTOR_USER} ALL=(root) NOPASSWD: <sshd_path> -T
 ```
 
-## SAM sudo groups + sshd Match Group sam-users (#383, #384)
+## SAM sudo groups + sshd Match Group sam-users (#383, #384, #400)
 
-`provision-host.sh` doit également :
+**Depuis #400 (auto-update), toute la partie dynamique (groupes, sudoers SAM, drop-in sshd) a migré dans le script `sam-self-update`**. `provision-host.sh` pose désormais uniquement la base nécessitant le mot de passe root :
 
-1. **Créer 4 groupes Unix** s'ils n'existent pas : `sam-operator`, `sam-pkg`, `sam-root`, `sam-users` (via `getent group ... || groupadd ...`)
-2. **Installer 3 fichiers sudoers SAM** dans `/etc/sudoers.d/` (chmod 440, validation `visudo -c` avant move) :
-   - `sam-operator` : commandes opérateur (systemctl, journalctl, etc.), `PASSWD:` obligatoire
-   - `sam-pkg` : gestion paquets (dnf, apt), `PASSWD:` obligatoire
-   - `sam-root` : `(ALL) PASSWD: ALL`, réservé `sysadmin`
-   - Tous : `Defaults:%sam-* secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"` pour résoudre `runagent`/`api-cli`
-   - **Helper `_bin()`** dans le script : retourne le path absolu d'une commande (cherche dans `/usr/local/bin`, `/usr/sbin`, etc.) — utilisé pour générer les règles
-3. **Installer `/etc/ssh/sshd_config.d/50-sam-users.conf`** (chmod 600, root:root) avec `Match Group sam-users` → `PasswordAuthentication no` + `PermitEmptyPasswords no` + `KbdInteractiveAuthentication no` + `PubkeyAuthentication yes` + `AuthenticationMethods publickey`. **Backup `.bak` puis `sshd -t` après écriture** ; si KO, restaurer le `.bak` (ou `rm` si nouveau) et `exit 1` sans recharger sshd. Reload uniquement après validation OK.
+1. Création de l'utilisateur `audit-collector`
+2. Dépôt de la clé publique
+3. Sudoers NOPASSWD pour tous les scripts SAM (y compris `sam-self-update`)
 
-**Invariants** :
-- Jamais `NOPASSWD:` pour les groupes SAM (différent d'`audit-collector` qui doit rester NOPASSWD)
-- Toujours `visudo -c <fichier-temp>` avant `install -m 440` ; si validation KO → erreur, pas d'installation
-- Le script est idempotent : peut être rejoué sans risque (créations conditionnelles, `install` qui écrase)
+**La configuration dynamique (groupes Unix, sudoers sam-operator/sam-pkg/sam-root, drop-in sshd) est gérée par `sam-self-update`**, déployé comme les autres scripts SAM via SFTP par `ensure_scripts()` (constante `SAM_SELF_UPDATE` dans `app/ssh.py`). Ce script :
+
+1. Crée idempotamment les 4 groupes Unix (`sam-operator`, `sam-pkg`, `sam-root`, `sam-users`)
+2. Installe transactionnellement les 3 fichiers sudoers SAM (`/etc/sudoers.d/sam-operator`, `/etc/sudoers.d/sam-pkg`, `/etc/sudoers.d/sam-root`) avec validation `visudo -c` et rollback `.bak` en cas d'échec
+3. Installe transactionnellement le drop-in sshd `/etc/ssh/sshd_config.d/50-sam-users.conf` avec validation `sshd -t` et rollback `.bak` en cas d'échec
+4. Reload sshd si la config a changé
+5. Écrit `/etc/sam-provision-version` avec la version passée en argument (calculée côté SAM comme `sha256(SAM_SELF_UPDATE)[:16]`)
+
+**Avantages** : toute évolution de la configuration SAM (ajout d'une commande dans les sudoers, modification du durcissement sshd) est automatiquement propagée à l'ensemble de la flotte à chaque scan, sans nécessiter de re-provisionnement manuel avec mot de passe root. Le bootstrap initial reste manuel (garantit que la relation de confiance est établie par l'administrateur humain).
+
+**Scripts SAM** (constantes `bytes` dans `app/ssh.py`, déployées via SFTP si hash SHA256 diffère) :
+- `SAM_COLLECT` → `/usr/local/bin/sam-collect`
+- `SAM_REVOKE` → `/usr/local/bin/sam-revoke`
+- `SAM_ADD` → `/usr/local/bin/sam-add`
+- `SAM_LOCK_USER` → `/usr/local/bin/sam-lock-user`
+- `SAM_UNLOCK_USER` → `/usr/local/bin/sam-unlock-user`
+- `SAM_SESSIONS` → `/usr/local/bin/sam-sessions`
+- `SAM_GRANT_GROUP` → `/usr/local/bin/sam-grant-group`
+- `SAM_REVOKE_GROUP` → `/usr/local/bin/sam-revoke-group`
+- `SAM_SELF_UPDATE` → `/usr/local/bin/sam-self-update` **(nouveau #400)**
+
+**Changements futurs** : si tu as besoin de modifier la « partie dynamique » (sudoers SAM, groupes, drop-in sshd), modifie `SAM_SELF_UPDATE` dans `app/ssh.py`, **pas** `provision-host.sh`. Ce dernier ne doit contenir que ce qui exige réellement le mot de passe root et qu'on ne change jamais.
 
 ## Tu ne touches jamais à...
 

@@ -102,7 +102,9 @@
     "status_scan_failed": "Last scan failed",
     "scan": "Scan",
     "scanning": "Scanning",
-    "edit": "Edit"
+    "edit": "Edit",
+    "update_available": "Update available",
+    "update_available_tooltip": "The remote host runs an outdated SAM provision config; the next scan will try to apply the new version."
   },
   "server_detail": {
     "scan": "Scan",
@@ -121,8 +123,11 @@
     "field_active": "Active",
     "field_added": "Added on",
     "field_max_sessions": "Max sessions",
+    "field_provision_version": "Provision version",
     "active_yes": "✅ Yes",
     "active_no": "🔴 No",
+    "update_available": "Update available",
+    "update_available_tooltip": "The remote host runs an outdated SAM provision config; the next scan will try to apply the new version.",
     "section_keys": "SSH Keys",
     "load_error": "Server not found (HTTP {status})",
     "scan_success": "Scan launched successfully.",

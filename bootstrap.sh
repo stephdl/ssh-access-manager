@@ -272,16 +272,19 @@ else
 
     _psql "ALTER TABLE servers ADD COLUMN IF NOT EXISTS ssh_port INTEGER NOT NULL DEFAULT 22;"
     _psql "ALTER TABLE servers ADD COLUMN IF NOT EXISTS max_sessions INTEGER NOT NULL DEFAULT 2;"
+    _psql "ALTER TABLE servers ADD COLUMN IF NOT EXISTS provision_version VARCHAR(64);"
+    _psql "ALTER TABLE servers ADD COLUMN IF NOT EXISTS provision_drift BOOLEAN NOT NULL DEFAULT FALSE;"
     _psql "ALTER TABLE key_authorizations ADD COLUMN IF NOT EXISTS sam_group VARCHAR(20) CHECK (sam_group IN ('sam-operator', 'sam-pkg', 'sam-root'));"
 
     # Audit log action constraint — versioned, each version is a superset of the previous
     su -s /bin/sh postgres -c "psql -h /tmp -U postgres -d ${POSTGRES_DB:-ssh_manager} -c \
         \"DO \\\$\\\$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'audit_log_action_check_v4') THEN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'audit_log_action_check_v5') THEN
+                ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check_v4;
                 ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check_v3;
                 ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check_v2;
                 ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check;
-                ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check_v4 CHECK (action IN (
+                ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check_v5 CHECK (action IN (
                     'KEY_ADDED','KEY_REVOKED','KEY_EXPIRED','EXPIRY_WARNING',
                     'REQUEST_APPROVED','REQUEST_REJECTED','ANOMALY_DETECTED',
                     'SCAN_COMPLETED','SCAN_FAILED','SCRIPT_DEPLOYED',
@@ -290,7 +293,8 @@ else
                     'USER_LOCKED','USER_UNLOCKED',
                     'LOGIN_FAILED','LOGIN_BANNED','PASSWORD_RESET',
                     'SERVER_PROVISIONED','SESSION_LIMIT_EXCEEDED',
-                    'GROUP_GRANTED','GROUP_REVOKED','GROUP_CHANGED'
+                    'GROUP_GRANTED','GROUP_REVOKED','GROUP_CHANGED',
+                    'PROVISION_UPDATED','PROVISION_UPDATE_FAILED'
                 ));
             END IF;
         END \\\$\\\$;\""

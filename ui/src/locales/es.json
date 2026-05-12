@@ -102,7 +102,9 @@
     "status_scan_failed": "Último escaneo fallido",
     "scan": "Escanear",
     "scanning": "Escaneando",
-    "edit": "Editar"
+    "edit": "Editar",
+    "update_available": "Actualización disponible",
+    "update_available_tooltip": "El host remoto ejecuta una configuración SAM obsoleta; el próximo escaneo intentará aplicar la nueva versión."
   },
   "server_detail": {
     "scan": "Escanear",
@@ -121,8 +123,11 @@
     "field_active": "Activo",
     "field_added": "Añadido el",
     "field_max_sessions": "Sesiones máx.",
+    "field_provision_version": "Versión de aprovisionamiento",
     "active_yes": "✅ Sí",
     "active_no": "🔴 No",
+    "update_available": "Actualización disponible",
+    "update_available_tooltip": "El host remoto ejecuta una configuración SAM obsoleta; el próximo escaneo intentará aplicar la nueva versión.",
     "section_keys": "Claves SSH",
     "load_error": "Servidor no encontrado (HTTP {status})",
     "scan_success": "Escaneo iniciado con éxito.",

@@ -114,6 +114,7 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
     local_hash_sessions = ssh._sha256(ssh.SAM_SESSIONS)
     local_hash_grant_group = ssh._sha256(ssh.SAM_GRANT_GROUP)
     local_hash_revoke_group = ssh._sha256(ssh.SAM_REVOKE_GROUP)
+    local_hash_self_update = ssh._sha256(ssh.SAM_SELF_UPDATE)
 
     with patch("ssh._connect") as mock_connect, \
          patch("ssh.db") as mock_db:
@@ -126,12 +127,12 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
         hashes = [
             local_hash_collect, local_hash_revoke, local_hash_add,
             local_hash_lock, local_hash_unlock, local_hash_sessions,
-            local_hash_grant_group, local_hash_revoke_group,
+            local_hash_grant_group, local_hash_revoke_group, local_hash_self_update,
         ]
 
         def exec_side_effect(cmd):
             stdout = MagicMock()
-            h = hashes[call_count[0] % 8]
+            h = hashes[call_count[0] % 9]
             stdout.read.return_value = f"{h}  path\n".encode()
             stdout.channel.recv_exit_status.return_value = 0
             call_count[0] += 1
@@ -293,6 +294,7 @@ def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
             "/usr/local/bin/sam-sessions",
             "/usr/local/bin/sam-grant-group",
             "/usr/local/bin/sam-revoke-group",
+            "/usr/local/bin/sam-self-update",
         )
         for cmd in install_cmds:
             dest = cmd.split()[-1]
@@ -1295,3 +1297,140 @@ def test_ssh_grant_group_on_server_raises_on_failure():
 
         with pytest.raises(ssh.SSHError):
             ssh.grant_group_on_server("web-01", "alice", "sam-operator", "192.168.1.10")
+
+
+# ---------------------------------------------------------------------------
+# SAM_SELF_UPDATE — provision auto-update
+# ---------------------------------------------------------------------------
+
+def test_ssh_sam_self_update_is_bytes():
+    """SAM_SELF_UPDATE must be a bytes constant."""
+    assert isinstance(ssh.SAM_SELF_UPDATE, bytes)
+    assert b"#!/bin/sh" in ssh.SAM_SELF_UPDATE
+    assert b"sam-operator" in ssh.SAM_SELF_UPDATE
+    assert b"sam-users" in ssh.SAM_SELF_UPDATE
+
+
+def test_ssh_provision_version_is_stable():
+    """PROVISION_VERSION must be a stable 16-char hex derived from SAM_SELF_UPDATE."""
+    assert isinstance(ssh.PROVISION_VERSION, str)
+    assert len(ssh.PROVISION_VERSION) == 16
+    assert ssh.PROVISION_VERSION == hashlib.sha256(ssh.SAM_SELF_UPDATE).hexdigest()[:16]
+
+
+def test_ssh_read_provision_version_returns_value():
+    """_read_provision_version returns the trimmed version string when file exists."""
+    from unittest.mock import MagicMock, patch
+
+    client = MagicMock()
+    stdout = MagicMock()
+    stdout.read.return_value = b"abc123\n"
+    stdout.channel.recv_exit_status.return_value = 0
+    client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
+
+    with patch("ssh._run", return_value=("abc123\n", "", 0)):
+        result = ssh._read_provision_version(client)
+        assert result == "abc123"
+
+
+def test_ssh_read_provision_version_returns_none_when_missing():
+    """_read_provision_version returns None when the file is missing (exit ≠ 0)."""
+    from unittest.mock import MagicMock, patch
+
+    client = MagicMock()
+    with patch("ssh._run", return_value=("", "cat: file not found", 1)):
+        result = ssh._read_provision_version(client)
+        assert result is None
+
+
+def test_ssh_read_provision_version_strips_whitespace():
+    """_read_provision_version strips whitespace from the version string."""
+    from unittest.mock import MagicMock, patch
+
+    client = MagicMock()
+    with patch("ssh._run", return_value=("  abc  \n  \t  ", "", 0)):
+        result = ssh._read_provision_version(client)
+        assert result == "abc"
+
+
+def test_ssh_read_provision_version_empty_string_returns_none():
+    """_read_provision_version returns None when the file exists but is empty."""
+    from unittest.mock import MagicMock, patch
+
+    client = MagicMock()
+    with patch("ssh._run", return_value=("   \n\t  ", "", 0)):
+        result = ssh._read_provision_version(client)
+        assert result is None
+
+
+def test_ssh_apply_provision_update_invokes_correct_command():
+    """apply_provision_update runs sudo sam-self-update <version>."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("ssh._connect") as mock_connect:
+        client = MagicMock()
+        mock_connect.return_value = client
+        stdout = MagicMock()
+        stdout.read.return_value = b"[sam-self-update] Done.\n"
+        stdout.channel.recv_exit_status.return_value = 0
+        client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
+
+        result = ssh.apply_provision_update("web-01", "192.168.1.10", 22)
+
+        cmd = client.exec_command.call_args[0][0]
+        assert "sudo" in cmd
+        assert "/usr/local/bin/sam-self-update" in cmd
+        assert ssh.PROVISION_VERSION in cmd
+        assert result == ssh.PROVISION_VERSION
+
+
+def test_ssh_apply_provision_update_raises_on_nonzero_exit():
+    """apply_provision_update raises SSHSudoError when the script exits non-zero."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("ssh._connect") as mock_connect:
+        client = MagicMock()
+        mock_connect.return_value = client
+        stdout = MagicMock()
+        stderr = MagicMock()
+        stdout.read.return_value = b""
+        stderr.read.return_value = b"ERROR: visudo validation failed"
+        stdout.channel.recv_exit_status.return_value = 1
+        client.exec_command.return_value = (MagicMock(), stdout, stderr)
+
+        with pytest.raises(ssh.SSHSudoError, match="sam-self-update failed.*exit 1.*visudo validation failed"):
+            ssh.apply_provision_update("web-01", "192.168.1.10", 22)
+
+
+def test_ssh_apply_provision_update_returns_version():
+    """apply_provision_update returns PROVISION_VERSION on success."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("ssh._connect") as mock_connect:
+        client = MagicMock()
+        mock_connect.return_value = client
+        stdout = MagicMock()
+        stdout.read.return_value = b"[sam-self-update] Version written.\n"
+        stdout.channel.recv_exit_status.return_value = 0
+        client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
+
+        result = ssh.apply_provision_update("web-01", "192.168.1.10", 22)
+        assert result == ssh.PROVISION_VERSION
+
+
+def test_ssh_apply_provision_update_uses_reject_policy():
+    """apply_provision_update connects with RejectPolicy."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy") as mock_policy:
+        client = MagicMock()
+        mock_cls.return_value = client
+        stdout = MagicMock()
+        stdout.read.return_value = b"[sam-self-update] Done.\n"
+        stdout.channel.recv_exit_status.return_value = 0
+        client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
+
+        ssh.apply_provision_update("web-01", "192.168.1.10", 22)
+
+        client.set_missing_host_key_policy.assert_called_once_with(mock_policy.return_value)

@@ -14,6 +14,7 @@ dnf install -y --setopt=install_weak_deps=False \
     findutils \
     grep \
     procps-ng \
+    python3 \
     >/dev/null
 
 # `sshd -t` needs the host keys to exist before it will validate the config.

@@ -33,6 +33,10 @@ CREATE TABLE servers (
     is_active   BOOLEAN DEFAULT true,
     -- Maximum allowed concurrent SSH sessions (alert if exceeded)
     max_sessions INTEGER NOT NULL DEFAULT 2,
+    -- SHA256 (or prefix) of the last successful SAM_SELF_UPDATE deployment
+    provision_version VARCHAR(64),
+    -- TRUE if the last provision update attempt failed (rollback succeeded)
+    provision_drift BOOLEAN NOT NULL DEFAULT FALSE,
     -- Timestamp when added to the system
     added_at    TIMESTAMPTZ DEFAULT now()
 );
@@ -47,6 +51,8 @@ COMMENT ON COLUMN servers.os_version IS 'Precise OS version';
 COMMENT ON COLUMN servers.environment IS 'Environment: production, staging or lab';
 COMMENT ON COLUMN servers.is_active IS 'False = excluded from SSH collection scope';
 COMMENT ON COLUMN servers.max_sessions IS 'Max concurrent SSH sessions threshold - WARNING alert if exceeded (24h anti-spam)';
+COMMENT ON COLUMN servers.provision_version IS 'SHA256 (or prefix) of last successful SAM_SELF_UPDATE deployment';
+COMMENT ON COLUMN servers.provision_drift IS 'TRUE if the last provision update attempt failed (remote remains functional via rollback)';
 COMMENT ON COLUMN servers.added_at IS 'Record timestamp in the system';
 
 -- ---------------------------------------------------------------------------
@@ -277,7 +283,9 @@ CREATE TABLE audit_log (
                       'SESSION_LIMIT_EXCEEDED',
                       'GROUP_GRANTED',
                       'GROUP_REVOKED',
-                      'GROUP_CHANGED'
+                      'GROUP_CHANGED',
+                      'PROVISION_UPDATED',
+                      'PROVISION_UPDATE_FAILED'
                   )),
     -- Administrator who triggered the action (NULL if automatic)
     performed_by  UUID REFERENCES administrators(id) ON DELETE SET NULL,

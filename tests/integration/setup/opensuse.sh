@@ -13,6 +13,7 @@ zypper --non-interactive install --no-recommends \
     findutils \
     grep \
     procps \
+    python3 \
     >/dev/null
 
 # `sshd -t` needs the host keys to exist before it will validate the config.

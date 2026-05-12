@@ -63,7 +63,7 @@ Les routes clés sont structurées en `/api/keys/<action>/<fingerprint>` pour é
 
 ## Logique métier — scripts distants (ssh.py)
 
-Huit constantes Python `bytes` dans ssh.py. Déployées via SFTP si absentes ou hash SHA256 différent.
+Neuf constantes Python `bytes` dans ssh.py. Déployées via SFTP si absentes ou hash SHA256 différent.
 Tracées dans audit_log (SCRIPT_DEPLOYED).
 
 | Constante | Path distant | Droits | Action |
@@ -76,6 +76,25 @@ Tracées dans audit_log (SCRIPT_DEPLOYED).
 | SAM_SESSIONS | /usr/local/bin/sam-sessions | root, 750 | Collecte sessions SSH actives + historique → stdout : `A\|H\tuser\ttty\tip\trest`. Utilise `utmpdump /var/run/utmp` (ISO 8601, locale-safe), fallback `LANG=C last -F` (#253, #322) |
 | SAM_GRANT_GROUP | /usr/local/bin/sam-grant-group \<unix_user\> \<group\> | root, 750 | Valide groupe (sam-operator\|sam-pkg\|sam-root), `gpasswd -a` — works even when user is logged in (#383) |
 | SAM_REVOKE_GROUP | /usr/local/bin/sam-revoke-group \<unix_user\> \<group\> | root, 750 | Valide groupe, `gpasswd -d ... \|\| true` — idempotent (#383) |
+| SAM_SELF_UPDATE | /usr/local/bin/sam-self-update [\<version\>] | root, 750 | Applique config dynamique SAM (groupes, sudoers, drop-in sshd) de manière idempotente avec rollback `.bak`. Écrit version dans `/etc/sam-provision-version` (#400) |
+
+### Auto-update des artefacts de provisioning (#400)
+
+Constantes Python supplémentaires dans ssh.py :
+- `PROVISION_VERSION` : hash SHA256 16 premiers caractères de `SAM_SELF_UPDATE`
+- `PROVISION_VERSION_PATH` : `/etc/sam-provision-version`
+
+Fonctions ssh.py :
+- `_read_provision_version(client) -> str | None` : lit `/etc/sam-provision-version` distant, retourne None si fichier absent
+- `apply_provision_update(hostname, ip, port) -> str` : exécute `sudo sam-self-update <PROVISION_VERSION>`, raise SSHSudoError en cas d'échec
+
+Orchestration collect.py (dans `scan_server`) :
+- Après `ensure_scripts()`, avant `collect_keys()`
+- Compare version distante avec `PROVISION_VERSION`
+- Si différente : `apply_provision_update()` + UPDATE `servers.provision_version`, `provision_drift=FALSE`, audit PROVISION_UPDATED
+- Si échec : UPDATE `provision_drift=TRUE`, audit PROVISION_UPDATE_FAILED, continue scan (rollback `.bak` côté script)
+- Si serveur injoignable : skip silencieux, SCAN_FAILED couvrira l'erreur
+- Résilient aux mocks tests : bloc `try/except (ssh.SSHError, AttributeError, TypeError)`
 
 ## Logique métier — known_hosts et connexions SSH
 
@@ -219,6 +238,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 | GET /api/servers, /api/keys, /api/access, /api/admins, /api/audit, /api/system/status, /api/system/config, /api/system/collector-key | ✓ | ✓ | ✓ |
 | POST /api/servers | ✓ | 403 | 403 |
 | POST /api/servers/\*/provision | ✓ | 403 | 403 |
+| POST /api/servers/\*/sync | ✓ | 403 | 403 |
 | PUT/DELETE /api/servers/\*/disable, enable, DELETE | ✓ | 403 | 403 |
 | POST /api/servers/\*/scan, /api/system/scan | ✓ | ✓ | 403 |
 | GET /api/servers/\*/sessions, /api/servers/\*/sessions/history | ✓ | ✓ | 403 |

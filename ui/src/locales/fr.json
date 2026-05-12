@@ -102,7 +102,9 @@
     "status_scan_failed": "Dernier scan échoué",
     "scan": "Scanner",
     "scanning": "Scan en cours",
-    "edit": "Éditer"
+    "edit": "Éditer",
+    "update_available": "Mise à jour disponible",
+    "update_available_tooltip": "L'hôte distant exécute une configuration SAM obsolète ; le prochain scan tentera d'appliquer la nouvelle version."
   },
   "server_detail": {
     "scan": "Scanner",
@@ -121,8 +123,11 @@
     "field_active": "Actif",
     "field_added": "Ajouté le",
     "field_max_sessions": "Sessions max",
+    "field_provision_version": "Version provisioning",
     "active_yes": "✅ Oui",
     "active_no": "🔴 Non",
+    "update_available": "Mise à jour disponible",
+    "update_available_tooltip": "L'hôte distant exécute une configuration SAM obsolète ; le prochain scan tentera d'appliquer la nouvelle version.",
     "section_keys": "Clés SSH",
     "load_error": "Serveur introuvable (HTTP {status})",
     "scan_success": "Scan lancé avec succès.",

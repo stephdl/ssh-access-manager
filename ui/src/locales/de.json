@@ -102,7 +102,9 @@
     "status_scan_failed": "Letzter Scan fehlgeschlagen",
     "scan": "Scannen",
     "scanning": "Wird gescannt",
-    "edit": "Bearbeiten"
+    "edit": "Bearbeiten",
+    "update_available": "Update verfügbar",
+    "update_available_tooltip": "Der Remote-Host führt eine veraltete SAM-Konfiguration aus; der nächste Scan wird versuchen, die neue Version anzuwenden."
   },
   "server_detail": {
     "scan": "Scannen",
@@ -121,8 +123,11 @@
     "field_active": "Aktiv",
     "field_added": "Hinzugefügt am",
     "field_max_sessions": "Max. Sitzungen",
+    "field_provision_version": "Provisionierungsversion",
     "active_yes": "✅ Ja",
     "active_no": "🔴 Nein",
+    "update_available": "Update verfügbar",
+    "update_available_tooltip": "Der Remote-Host führt eine veraltete SAM-Konfiguration aus; der nächste Scan wird versuchen, die neue Version anzuwenden.",
     "section_keys": "SSH-Schlüssel",
     "load_error": "Server nicht gefunden (HTTP {status})",
     "scan_success": "Scan erfolgreich gestartet.",

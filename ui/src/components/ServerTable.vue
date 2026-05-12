@@ -82,6 +82,12 @@
             <span v-if="!s.is_active" class="badge badge-disabled">{{
               $t('server_table.disabled_badge')
             }}</span>
+            <span
+              v-if="s.provision_drift"
+              class="badge badge-drift"
+              :title="$t('server_table.update_available_tooltip')"
+              >{{ $t('server_table.update_available') }}</span
+            >
           </td>
           <td>{{ s.ip_address }}</td>
           <td>
@@ -246,6 +252,14 @@ function envBadge(env) {
 .badge-disabled {
   background: #dc3545;
   color: #fff;
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+}
+
+.badge-drift {
+  background: #fff3cd;
+  color: #856404;
   margin-left: 0.5rem;
   font-size: 0.7rem;
   padding: 0.1rem 0.4rem;

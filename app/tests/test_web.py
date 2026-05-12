@@ -2467,3 +2467,102 @@ def test_web_change_group_viewer_forbidden(client):
             "unix_user": "alice", "hostname": "server-01", "sam_group": "sam-pkg"
         })
         assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# GET /api/servers — provision_version and provision_drift fields
+# ---------------------------------------------------------------------------
+
+def test_web_get_servers_includes_provision_fields(auth_client):
+    """GET /api/servers includes provision_version and provision_drift in response."""
+    server_row = {
+        "id": SERVER_ID, "hostname": "server-01", "ip_address": "192.168.1.10",
+        "is_active": True, "provision_version": "abc123", "provision_drift": False,
+        "last_scan_action": "SCAN_COMPLETED", "has_anomalies": False,
+    }
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = [server_row]
+        resp = auth_client.get("/api/servers")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, list)
+        assert "provision_version" in data[0]
+        assert "provision_drift" in data[0]
+        assert data[0]["provision_version"] == "abc123"
+        assert data[0]["provision_drift"] is False
+
+
+# ---------------------------------------------------------------------------
+# POST /api/servers/<hostname>/sync — force provision update
+# ---------------------------------------------------------------------------
+
+def test_web_force_provision_sync_sysadmin_returns_200(auth_client):
+    """POST /api/servers/<hostname>/sync returns 200 for sysadmin."""
+    with patch("web.db") as mock_db, patch("web.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22},
+        ]
+        mock_ssh.apply_provision_update.return_value = "new-version"
+        mock_ssh.PROVISION_VERSION = "new-version"
+
+        resp = auth_client.post("/api/servers/server-01/sync")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "updated"
+        assert data["version"] == "new-version"
+
+
+def test_web_force_provision_sync_operator_forbidden(client):
+    """POST /api/servers/<hostname>/sync returns 403 for operator."""
+    operator_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = operator_id
+        sess["admin_username"] = "operator"
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": operator_id, "username": "operator", "role": "operator"}
+        resp = client.post("/api/servers/server-01/sync")
+        assert resp.status_code == 403
+
+
+def test_web_force_provision_sync_viewer_forbidden(client):
+    """POST /api/servers/<hostname>/sync returns 403 for viewer."""
+    viewer_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = viewer_id
+        sess["admin_username"] = "viewer"
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = {"id": viewer_id, "username": "viewer", "role": "viewer"}
+        resp = client.post("/api/servers/server-01/sync")
+        assert resp.status_code == 403
+
+
+def test_web_force_provision_sync_ssh_error_returns_502(auth_client):
+    """POST /api/servers/<hostname>/sync returns 502 when SSH fails."""
+    with patch("web.db") as mock_db, patch("web.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22},
+        ]
+        mock_ssh.SSHError = ssh.SSHError
+        mock_ssh.SSHSudoError = ssh.SSHSudoError
+        mock_ssh.PROVISION_VERSION = "test-version"
+        mock_ssh.apply_provision_update.side_effect = ssh.SSHSudoError("visudo validation failed")
+
+        resp = auth_client.post("/api/servers/server-01/sync")
+        assert resp.status_code == 502
+        data = resp.get_json()
+        assert "error" in data
+        assert "error_code" in data
+
+
+def test_web_force_provision_sync_unknown_server_returns_404(auth_client):
+    """POST /api/servers/<hostname>/sync returns 404 when server not found."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            _admin_row(),
+            None,  # server not found
+        ]
+        resp = auth_client.post("/api/servers/unknown-server/sync")
+        assert resp.status_code == 404

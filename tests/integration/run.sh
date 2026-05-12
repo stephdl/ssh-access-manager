@@ -76,16 +76,65 @@ bash provision-host.sh "$PUBKEY" "$COLLECTOR_USER"
 assert_exit_zero id "$COLLECTOR_USER"
 COLLECTOR_HOME=$(getent passwd "$COLLECTOR_USER" | cut -d: -f6)
 
-# Groups
-for grp in sam-operator sam-pkg sam-root sam-users; do
-    assert_exit_zero getent group "$grp"
-done
-
-# Sudoers files
+# Sudoers file for collector
 assert_file_exists "/etc/sudoers.d/${COLLECTOR_USER}"
 assert_file_perms  "/etc/sudoers.d/${COLLECTOR_USER}" 440
 assert_visudo_ok   "/etc/sudoers.d/${COLLECTOR_USER}"
 
+# audit-collector sudoers must use NOPASSWD on the sam-* binaries
+assert_grep "NOPASSWD: /usr/local/bin/sam-collect" "/etc/sudoers.d/${COLLECTOR_USER}"
+assert_grep "NOPASSWD: /usr/local/bin/sam-self-update" "/etc/sudoers.d/${COLLECTOR_USER}"
+
+# Collector authorized_keys
+AUTH_KEYS="${COLLECTOR_HOME}/.ssh/authorized_keys"
+assert_file_exists "$AUTH_KEYS"
+assert_file_perms  "$AUTH_KEYS" 600
+assert_file_owner  "$AUTH_KEYS" "${COLLECTOR_USER}:${COLLECTOR_USER}"
+assert_grep "ed25519" "$AUTH_KEYS"
+
+# No leftover .bak after a clean run
+assert_no_bak_residue /etc/sudoers.d
+assert_no_bak_residue /etc/ssh/sshd_config.d
+
+# ---------------------------------------------------------------------------
+# Phase 2 — idempotence
+# ---------------------------------------------------------------------------
+section "Phase 2 — idempotence (second provision)"
+cp /etc/sudoers.d/audit-collector /tmp/sam-it/collector-sudoers.before
+
+bash provision-host.sh "$PUBKEY" "$COLLECTOR_USER"
+
+assert_visudo_ok "/etc/sudoers.d/${COLLECTOR_USER}"
+assert_files_equal /tmp/sam-it/collector-sudoers.before /etc/sudoers.d/audit-collector \
+    "collector sudoers unchanged across two runs"
+assert_no_bak_residue /etc/sudoers.d
+assert_no_bak_residue /etc/ssh/sshd_config.d
+
+# authorized_keys must not have grown a duplicate line
+auth_count=$(grep -cF "$PUBKEY" "$AUTH_KEYS" || true)
+assert_eq "1" "$auth_count" "collector key appears exactly once in authorized_keys"
+
+# ---------------------------------------------------------------------------
+# Phase 3 — deploy sam-self-update and run initial provisioning
+# ---------------------------------------------------------------------------
+section "Phase 3 — deploy sam-self-update and run initial provisioning"
+
+# Extract the current SAM_SELF_UPDATE script content from ssh.py
+python3 tests/integration/extract_sam_self_update.py > /tmp/sam-it/sam-self-update.v1
+chmod +x /tmp/sam-it/sam-self-update.v1
+
+# Deploy the script
+install -m 750 -o root -g root /tmp/sam-it/sam-self-update.v1 /usr/local/bin/sam-self-update
+
+# Run sam-self-update to deploy the dynamic configuration (no version argument)
+sudo /usr/local/bin/sam-self-update
+
+# Verify groups created
+for grp in sam-operator sam-pkg sam-root sam-users; do
+    assert_exit_zero getent group "$grp"
+done
+
+# Verify sudoers files created
 for grp in sam-operator sam-pkg sam-root; do
     assert_file_exists "/etc/sudoers.d/${grp}"
     assert_file_perms  "/etc/sudoers.d/${grp}" 440
@@ -102,10 +151,13 @@ done
 assert_grep "PASSWD:" "/etc/sudoers.d/sam-operator"
 assert_grep "PASSWD:" "/etc/sudoers.d/sam-pkg"
 
-# audit-collector sudoers must use NOPASSWD on the sam-* binaries
-assert_grep "NOPASSWD: /usr/local/bin/sam-collect" "/etc/sudoers.d/${COLLECTOR_USER}"
+# api-cli must NOT be in sam-operator (#394), but if api-cli is present must be in sam-pkg
+if command -v api-cli >/dev/null 2>&1; then
+    assert_nogrep "api-cli" "/etc/sudoers.d/sam-operator"
+    assert_grep   "api-cli" "/etc/sudoers.d/sam-pkg"
+fi
 
-# sshd drop-in
+# Verify sshd drop-in created
 assert_file_exists "/etc/ssh/sshd_config.d/50-sam-users.conf"
 assert_file_perms  "/etc/ssh/sshd_config.d/50-sam-users.conf" 600
 assert_file_owner  "/etc/ssh/sshd_config.d/50-sam-users.conf" root:root
@@ -119,66 +171,76 @@ for directive in \
 done
 assert_sshd_ok
 
-# Collector authorized_keys
-AUTH_KEYS="${COLLECTOR_HOME}/.ssh/authorized_keys"
-assert_file_exists "$AUTH_KEYS"
-assert_file_perms  "$AUTH_KEYS" 600
-assert_file_owner  "$AUTH_KEYS" "${COLLECTOR_USER}:${COLLECTOR_USER}"
-assert_grep "ed25519" "$AUTH_KEYS"
-
 # No leftover .bak after a clean run
 assert_no_bak_residue /etc/sudoers.d
 assert_no_bak_residue /etc/ssh/sshd_config.d
 
-# api-cli must NOT be in sam-operator (#394), but if api-cli is present must be in sam-pkg
-if command -v api-cli >/dev/null 2>&1; then
-    assert_nogrep "api-cli" "/etc/sudoers.d/sam-operator"
-    assert_grep   "api-cli" "/etc/sudoers.d/sam-pkg"
-fi
-
 # ---------------------------------------------------------------------------
-# Phase 2 — idempotence
+# Phase 4 — upgrade simulation via sam-self-update
 # ---------------------------------------------------------------------------
-section "Phase 2 — idempotence (second provision)"
-cp /etc/sudoers.d/sam-pkg /tmp/sam-it/sam-pkg.before
-cp /etc/ssh/sshd_config.d/50-sam-users.conf /tmp/sam-it/sshd.before
+section "Phase 4 — upgrade simulation via sam-self-update"
 
-bash provision-host.sh "$PUBKEY" "$COLLECTOR_USER"
+# Extract the current SAM_SELF_UPDATE script content from ssh.py
+python3 tests/integration/extract_sam_self_update.py > /tmp/sam-it/sam-self-update.v1
+chmod +x /tmp/sam-it/sam-self-update.v1
 
+# sam-self-update must be in sudoers for audit-collector
+assert_grep "sam-self-update" "/etc/sudoers.d/${COLLECTOR_USER}"
+
+# Simulate an upgrade by injecting a new version of sam-self-update
+# For this test, we add a marker rule to sam-pkg sudoers
+cat /tmp/sam-it/sam-self-update.v1 | \
+    sed 's|_rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"|_rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"\n    _rule "${PKG_FILE}.tmp" "sam-pkg" "/usr/bin/echo upgrade-marker"|' \
+    > /tmp/sam-it/sam-self-update.v2
+
+# Deploy the upgraded script
+install -m 750 -o root -g root /tmp/sam-it/sam-self-update.v2 /usr/local/bin/sam-self-update
+
+# Run the upgrade
+sudo /usr/local/bin/sam-self-update version-v2
+
+# Verify the upgrade succeeded
+assert_file_exists "/etc/sam-provision-version"
+assert_grep "version-v2" "/etc/sam-provision-version"
+assert_grep "upgrade-marker" "/etc/sudoers.d/sam-pkg"
 assert_visudo_ok "/etc/sudoers.d/sam-operator"
 assert_visudo_ok "/etc/sudoers.d/sam-pkg"
 assert_visudo_ok "/etc/sudoers.d/sam-root"
 assert_sshd_ok
-assert_files_equal /tmp/sam-it/sam-pkg.before /etc/sudoers.d/sam-pkg \
-    "sam-pkg unchanged across two runs"
-assert_files_equal /tmp/sam-it/sshd.before /etc/ssh/sshd_config.d/50-sam-users.conf \
-    "sshd drop-in unchanged across two runs"
 assert_no_bak_residue /etc/sudoers.d
 assert_no_bak_residue /etc/ssh/sshd_config.d
 
-# authorized_keys must not have grown a duplicate line
-auth_count=$(grep -cF "$PUBKEY" "$AUTH_KEYS" || true)
-assert_eq "1" "$auth_count" "collector key appears exactly once in authorized_keys"
-
 # ---------------------------------------------------------------------------
-# Phase 3 — rollback on bad sshd config
+# Phase 5 — test negative sam-self-update (validation failure)
 # ---------------------------------------------------------------------------
-section "Phase 3 — rollback when injected sshd config is invalid"
+section "Phase 5 — test negative sam-self-update (validation failure)"
 
-# Snapshot the current good config so we can prove it survives the failed run.
-cp /etc/ssh/sshd_config.d/50-sam-users.conf /tmp/sam-it/sshd.good
+# Construct a v3 with an intentional sudoers error
+# Replace the valid sam-root line with an invalid one (missing colon)
+cat /tmp/sam-it/sam-self-update.v2 | \
+    sed 's|printf "%%sam-root ALL=(ALL) ALL|printf "%%sam-root INVALID|' \
+    > /tmp/sam-it/sam-self-update.v3
 
+# Deploy the broken script
+install -m 750 -o root -g root /tmp/sam-it/sam-self-update.v3 /usr/local/bin/sam-self-update
+
+# Run it — must fail
 set +e
-bash tests/integration/fixtures/bad_sshd_config.sh "$PUBKEY" "$COLLECTOR_USER"
+sudo /usr/local/bin/sam-self-update version-v3
 rc=$?
 set -e
-assert_eq "0" "$([ "$rc" -ne 0 ] && echo 0 || echo 1)" \
-    "bad_sshd_config.sh exits non-zero (rc=$rc)"
 
-# The drop-in on disk must still be the previous, valid one.
-assert_files_equal /tmp/sam-it/sshd.good /etc/ssh/sshd_config.d/50-sam-users.conf \
-    "sshd drop-in restored from .bak after rollback"
+assert_eq "0" "$([ "$rc" -ne 0 ] && echo 0 || echo 1)" \
+    "sam-self-update exits non-zero when sudoers validation fails (rc=$rc)"
+
+# Verify rollback: version unchanged, sam-pkg still has upgrade-marker from v2
+assert_grep "version-v2" "/etc/sam-provision-version"
+assert_grep "upgrade-marker" "/etc/sudoers.d/sam-pkg"
+assert_visudo_ok "/etc/sudoers.d/sam-operator"
+assert_visudo_ok "/etc/sudoers.d/sam-pkg"
+assert_visudo_ok "/etc/sudoers.d/sam-root"
 assert_sshd_ok
+assert_no_bak_residue /etc/sudoers.d
 assert_no_bak_residue /etc/ssh/sshd_config.d
 
 section "All integration assertions passed on $ID $VERSION_ID"
