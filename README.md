@@ -422,7 +422,9 @@ Cible : opérateurs qui doivent superviser et redémarrer des services sans pouv
 | Réseau / processus | `ss -tlnp`, `lsof`, `lsof -i` |
 | Diagnostic noyau | `dmesg` |
 | Disque | `du -sh /var/* /opt/* /home/*` |
-| Outils NS8 (si présents) | `runagent`, `api-cli` |
+| Outils NS8 (si présents) | `runagent` |
+
+`api-cli` est **volontairement absent** de `sam-operator` : cet outil de gestion NS8 dépasse le périmètre d'exploitation et reste réservé à `sam-pkg` (#394).
 
 ### `sam-pkg` — exploitation + gestion paquets
 
@@ -436,6 +438,7 @@ Cible : utilisateurs qui doivent en plus installer ou mettre à jour des paquets
 | Alpine | `apk add`, `apk upgrade` |
 | Arch | `pacman -S`, `pacman -Syu`, `pacman -Sy` |
 | Modules NS8 (si présents) | `add-module`, `remove-module` |
+| Outils NS8 (si présents) | `api-cli` |
 
 ### `sam-root` — équivalent root
 

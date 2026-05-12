@@ -137,7 +137,9 @@ printf "%%sam-operator ALL=(root) PASSWD: ${DMESG}\n"                       >> "
 printf "%%sam-operator ALL=(root) PASSWD: ${LSOF}\n"                        >> "${OP_FILE}.tmp"
 printf "%%sam-operator ALL=(root) PASSWD: ${LSOF} -i\n"                     >> "${OP_FILE}.tmp"
 printf "%%sam-operator ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\n" >> "${OP_FILE}.tmp"
-for bin in runagent api-cli; do
+# api-cli is intentionally NOT exposed to sam-operator (NS8 management
+# scope). It stays available to sam-pkg only — see issue #394.
+for bin in runagent; do
     bin_path=$(_bin "$bin")
     [ -x "$bin_path" ] && _rule "${OP_FILE}.tmp" "sam-operator" "${bin_path}"
 done
