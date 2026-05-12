@@ -367,13 +367,53 @@ Lors du premier login SSH (par clé), l'utilisateur voit le contenu de `~/README
 
 ## Workflow — SAM sudo groups
 
-Trois groupes Unix prédéfinis sont créés par `provision-host.sh` sur chaque serveur géré : `sam-operator`, `sam-pkg`, `sam-root`. Chaque groupe a un jeu de règles sudoers dédié (validé par `visudo -c`, exigeant `PASSWD:`, avec `secure_path` incluant `/usr/local/bin` pour trouver les binaires NS8 type `runagent` / `api-cli`).
+Trois groupes Unix prédéfinis sont créés par `provision-host.sh` sur chaque serveur géré : `sam-operator`, `sam-pkg`, `sam-root`. Chaque groupe a un jeu de règles sudoers dédié (validé par `visudo -c` avant installation, exigeant `PASSWD:` — jamais `NOPASSWD:`, avec `secure_path` explicite incluant `/usr/local/bin` pour résoudre les binaires NS8 type `runagent` / `api-cli`).
 
-| Groupe | Périmètre sudo |
+### `sam-operator` — exploitation et diagnostic
+
+Cible : opérateurs qui doivent superviser et redémarrer des services sans pouvoir installer de paquets ni accéder à des données sensibles. Règles sudoers installées dans `/etc/sudoers.d/sam-operator` :
+
+| Catégorie | Commandes autorisées (en tant que `root`, `PASSWD:`) |
 |---|---|
-| `sam-operator` | Commandes opérateur (systemctl, journalctl, etc.) |
-| `sam-pkg` | Gestion paquets (dnf/apt) |
-| `sam-root` | Accès root équivalent — réservé `sysadmin` |
+| Services systemd | `systemctl restart`, `systemctl reload`, `systemctl status`, `systemctl start` |
+| Journaux | `journalctl -u`, `journalctl -f`, `journalctl -n`, `journalctl --since`, `journalctl -b`, `journalctl -e` |
+| Réseau / processus | `ss -tlnp`, `lsof`, `lsof -i` |
+| Diagnostic noyau | `dmesg` |
+| Disque | `du -sh /var/* /opt/* /home/*` |
+| Outils NS8 (si présents) | `runagent`, `api-cli` |
+
+### `sam-pkg` — exploitation + gestion paquets
+
+Cible : utilisateurs qui doivent en plus installer ou mettre à jour des paquets. Hérite **de toutes les commandes `sam-operator`** et ajoute la gestion paquets adaptée à la distribution détectée par `provision-host.sh`. Règles sudoers dans `/etc/sudoers.d/sam-pkg` :
+
+| Catégorie | Commandes autorisées (en plus de sam-operator) |
+|---|---|
+| Debian / Ubuntu | `apt install`, `apt upgrade` |
+| RHEL / Rocky / Alma | `dnf install`, `dnf upgrade` (ou `yum install`, `yum update`) |
+| SUSE | `zypper install`, `zypper update` |
+| Alpine | `apk add`, `apk upgrade` |
+| Arch | `pacman -S`, `pacman -Syu`, `pacman -Sy` |
+| Modules NS8 (si présents) | `add-module`, `remove-module` |
+
+### `sam-root` — équivalent root
+
+Cible : administrateurs ayant besoin d'un accès root complet. Règles sudoers dans `/etc/sudoers.d/sam-root` :
+
+```
+%sam-root ALL=(ALL) ALL
+```
+
+Le mot de passe personnel reste exigé (`PASSWD:` implicite — il n'y a pas de `NOPASSWD`). L'attribution du groupe `sam-root` est réservée au rôle `sysadmin` côté API SAM (voir matrice RBAC dans `app/CLAUDE.md`).
+
+### Vérifier la configuration sur un serveur
+
+```bash
+# Sur le serveur géré
+sudo -l -U alice                   # liste les commandes autorisées pour alice
+getent group sam-operator sam-pkg sam-root sam-users
+cat /etc/sudoers.d/sam-operator
+visudo -c                          # valide tous les fichiers /etc/sudoers.d/
+```
 
 **Assignation du groupe** :
 - À la création de la clé : champ Groupe SAM du formulaire « Déployer une clé SSH »
