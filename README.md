@@ -268,7 +268,6 @@ Depuis **ServerDetail** (rôle `sysadmin`) → bouton **Edit** → champ Hostnam
 
 - Valide le nouveau nom (RFC 1123)
 - Refuse si le nouveau nom est déjà utilisé par un autre serveur
-- Affiche un avertissement contextuel : « Renaming changes the URL. A SERVER_RENAMED audit entry records the change. »
 
 Après save, l'UI redirige vers `/servers/<nouveau-hostname>` (le component remount proprement). Un audit `SERVER_RENAMED` enregistre `{old_hostname, new_hostname}` avec l'admin et l'horodatage.
 
