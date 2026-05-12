@@ -1347,7 +1347,26 @@ coûteuse en temps).
 
 `provision-host.sh` pose la configuration SAM côté hôte distant en root (utilisateur `audit-collector`, sudoers, groupes `sam-*`, drop-in sshd `Match Group sam-users` durci). Une régression silencieuse (option `useradd` indisponible, binaire absent du PATH, syntaxe sudoers rejetée) casserait le provisioning sans qu'on s'en aperçoive avant la prod.
 
-Le workflow tourne sur chaque PR touchant `provision-host.sh` ou `tests/integration/**`, et sur push main. Matrice v1 : `rockylinux:9` (skel `.bash_profile`, `dnf`) et `debian:13` (skel `.profile`, `apt`). Chaque job lance le conteneur Docker correspondant et exécute `tests/integration/run.sh`. AlmaLinux/Ubuntu/openSUSE/Alpine/Arch sont différés à une v2.
+Le workflow tourne sur chaque PR touchant `provision-host.sh` ou `tests/integration/**`, et sur push main. Matrice :
+
+| Image Docker | Famille | Skel | Package manager |
+|---|---|---|---|
+| `rockylinux/rockylinux:9` | RHEL | `.bash_profile` | `dnf` |
+| `rockylinux/rockylinux:10` | RHEL | `.bash_profile` | `dnf` |
+| `debian:13` | Debian | `.profile` | `apt` |
+| `ubuntu:26.04` | Debian | `.profile` | `apt` |
+
+Chaque job lance le conteneur Docker correspondant et exécute `tests/integration/run.sh`. AlmaLinux, openSUSE, Alpine et Arch sont différés à une v2 si le besoin se présente — Alpine demande un setup spécifique (busybox, `apk add shadow bash sudo openssh-server`), openSUSE introduit `zypper`, AlmaLinux est essentiellement Rocky.
+
+#### Maintenir la CI vivante face aux développements futurs
+
+Trois mécanismes assurent que cette CI reste alignée avec l'évolution du projet :
+
+1. **Triggers path-based** — le workflow se déclenche automatiquement dès qu'une PR touche `provision-host.sh` ou `tests/integration/`. Un dev ne peut donc pas modifier le script sans voir la CI rouler immédiatement sur sa PR. Aucune action volontaire requise.
+2. **Branch protection requise** sur `main` (à activer manuellement dans GitHub Settings → Branches après le premier merge) — les jobs `rockylinux/rockylinux:9`, `rockylinux/rockylinux:10`, `debian:13` et `ubuntu:26.04` deviennent des required checks. Un PR qui ferait régresser le provisioning sur une distro ne peut plus être mergé.
+3. **Contrat documenté** dans `.claude/agents/infra-dev.md` : toute modification de `provision-host.sh` qui change le contrat (nouvelle règle sudoers, nouvelle directive sshd, nouveau groupe Unix, nouvelle constante `SAM_*` dans `app/ssh.py` également déployée par bootstrap) doit s'accompagner d'une mise à jour correspondante dans `tests/integration/run.sh` (nouvelle assertion) — sinon la PR sera bloquée par la review humaine ou (mieux) la CI mettra en évidence l'oubli en cassant.
+
+Pour étendre la matrice à une nouvelle distro plus tard, deux ajouts suffisent : une entrée dans la liste `image:` du workflow et un fichier `tests/integration/setup/<distro>.sh` qui installe les prérequis. La détection dans `run.sh` se base sur le champ `ID` de `/etc/os-release` et est déjà branchée pour `rocky`/`almalinux`/`debian`/`ubuntu` (RHEL et Debian families se factorisent sur les mêmes deux setup scripts).
 
 Le script `run.sh` enchaîne trois phases :
 

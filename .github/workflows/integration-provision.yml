@@ -17,8 +17,12 @@ jobs:
       fail-fast: false
       matrix:
         image:
-          - rockylinux:9
+          # RHEL family — covers .bash_profile skel + dnf
+          - rockylinux/rockylinux:9
+          - rockylinux/rockylinux:10
+          # Debian family — covers .profile skel + apt
           - debian:13
+          - ubuntu:26.04
     steps:
       - uses: actions/checkout@v4
 
