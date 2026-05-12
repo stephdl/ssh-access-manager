@@ -361,7 +361,29 @@ Le formulaire demande :
 
 ### Premier login d'un utilisateur SAM
 
-Lors du premier login SSH (par clé), l'utilisateur voit le contenu de `~/README_first_login.txt` (mot de passe temporaire) affiché par `~/.profile`, puis `passwd` est invoqué automatiquement pour le forcer à choisir un mot de passe personnel. Ce mot de passe est requis pour `sudo` (les règles sudoers SAM exigent `PASSWD:`). L'authentification SSH par mot de passe reste **interdite** par le bloc sshd `Match Group sam-users` — seule la clé permet de se connecter.
+Lors du premier login SSH (par clé), l'utilisateur voit le contenu de `~/README_first_login.txt` (mot de passe temporaire) affiché par `~/.profile`, puis `passwd` est invoqué automatiquement pour le forcer à choisir un mot de passe personnel. Ce mot de passe est requis pour `sudo` (les règles sudoers SAM exigent `PASSWD:`).
+
+### Authentification SSH — publickey uniquement pour `sam-users`
+
+`provision-host.sh` installe `/etc/ssh/sshd_config.d/50-sam-users.conf` (chmod 600, root:root) avec un bloc Match durci :
+
+```
+Match Group sam-users
+    PasswordAuthentication no
+    PermitEmptyPasswords no
+    KbdInteractiveAuthentication no
+    PubkeyAuthentication yes
+    AuthenticationMethods publickey
+```
+
+Conséquence : un utilisateur du groupe `sam-users` ne peut **jamais** se connecter en SSH autrement qu'avec sa clé publique enregistrée — ni par mot de passe, ni par mot de passe vide, ni via PAM keyboard-interactive. `AuthenticationMethods publickey` force ce comportement même si une autre méthode est activée globalement sur l'hôte.
+
+Avant chaque reload de sshd, `provision-host.sh` :
+1. Sauvegarde le fichier existant en `.bak` (`cp -p`)
+2. Écrit la nouvelle config
+3. Exécute `sshd -t` pour valider l'ensemble de la configuration sshd
+4. Si invalide : restaure le `.bak` (ou supprime si nouveau fichier) et sort en erreur **sans recharger sshd** — aucune config invalide n'est jamais activée
+5. Si valide : supprime le `.bak` et exécute `systemctl reload sshd`
 
 ---
 
