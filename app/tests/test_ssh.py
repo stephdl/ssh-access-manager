@@ -392,6 +392,16 @@ def test_ssh_sam_add_idempotent_key_add():
     assert b"grep -qF" in ssh.SAM_ADD
 
 
+def test_ssh_sam_add_appends_first_login_hook_to_bash_profile_when_present():
+    """RHEL/Rocky skel creates ~/.bash_profile, which bash sources instead
+    of ~/.profile. The first-login hook must target the right file."""
+    assert b".bash_profile" in ssh.SAM_ADD
+    assert b".bash_login" in ssh.SAM_ADD
+    assert b".profile" in ssh.SAM_ADD
+    assert b"README_first_login.txt" in ssh.SAM_ADD
+    assert b"passwd && rm -f" in ssh.SAM_ADD
+
+
 def test_ssh_add_key_on_server_calls_sam_add(sample_server):
     with patch("ssh._connect") as mock_connect:
         client = MagicMock()

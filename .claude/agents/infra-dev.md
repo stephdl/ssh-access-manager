@@ -169,7 +169,7 @@ ${COLLECTOR_USER} ALL=(root) NOPASSWD: <sshd_path> -T
    - `sam-root` : `(ALL) PASSWD: ALL`, réservé `sysadmin`
    - Tous : `Defaults:%sam-* secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"` pour résoudre `runagent`/`api-cli`
    - **Helper `_bin()`** dans le script : retourne le path absolu d'une commande (cherche dans `/usr/local/bin`, `/usr/sbin`, etc.) — utilisé pour générer les règles
-3. **Installer `/etc/ssh/sshd_config.d/sam-users.conf`** avec `Match Group sam-users` → `PasswordAuthentication no`, `KbdInteractiveAuthentication no` (puis `systemctl reload sshd` ou équivalent)
+3. **Installer `/etc/ssh/sshd_config.d/50-sam-users.conf`** (chmod 600, root:root) avec `Match Group sam-users` → `PasswordAuthentication no` + `PermitEmptyPasswords no` + `KbdInteractiveAuthentication no` + `PubkeyAuthentication yes` + `AuthenticationMethods publickey`. **Backup `.bak` puis `sshd -t` après écriture** ; si KO, restaurer le `.bak` (ou `rm` si nouveau) et `exit 1` sans recharger sshd. Reload uniquement après validation OK.
 
 **Invariants** :
 - Jamais `NOPASSWD:` pour les groupes SAM (différent d'`audit-collector` qui doit rester NOPASSWD)

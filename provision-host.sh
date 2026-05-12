@@ -76,21 +76,62 @@ for grp in sam-operator sam-pkg sam-root sam-users; do
     fi
 done
 
-# Disable SSH password authentication for sam-users group.
-# sam-add adds every SAM-managed user to this group so they can only connect
-# via SSH key — even if they have a Unix password set (for sudo PASSWD:).
+# Force publickey-only authentication for the sam-users group.
+# sam-add adds every SAM-managed user to this group so they cannot SSH-login
+# with a password, empty password, or PAM keyboard-interactive — even if they
+# have a Unix password set (which is still required for sudo PASSWD:).
 SAM_SSHD_CONF="Match Group sam-users
-    PasswordAuthentication no"
+    PasswordAuthentication no
+    PermitEmptyPasswords no
+    KbdInteractiveAuthentication no
+    PubkeyAuthentication yes
+    AuthenticationMethods publickey"
 SSHD_D="/etc/ssh/sshd_config.d"
+SSHD_BIN=$(command -v sshd 2>/dev/null || echo /usr/sbin/sshd)
+SAM_SSHD_INSTALLED=0
+
+# Install drop-in atomically and validate with `sshd -t`; rollback on failure.
+_install_sam_sshd_dropin() {
+    local target="${SSHD_D}/50-sam-users.conf"
+    local backup="${target}.bak"
+    local had_previous=0
+    if [ -f "$target" ]; then
+        cp -p "$target" "$backup"
+        had_previous=1
+    fi
+    printf '%s\n' "${SAM_SSHD_CONF}" > "$target"
+    chown root:root "$target"
+    chmod 600 "$target"
+    if ! "$SSHD_BIN" -t 2>/dev/null; then
+        echo "[provision] ERROR: sshd -t rejected ${target} — rolling back"
+        if [ "$had_previous" -eq 1 ]; then
+            mv "$backup" "$target"
+        else
+            rm -f "$target"
+        fi
+        exit 1
+    fi
+    rm -f "$backup"
+    echo "[provision] ${target} written and validated by sshd -t."
+    SAM_SSHD_INSTALLED=1
+}
+
 if [ -d "$SSHD_D" ] && grep -qE "^Include.*sshd_config\.d" /etc/ssh/sshd_config 2>/dev/null; then
-    printf '%s\n' "${SAM_SSHD_CONF}" > "${SSHD_D}/50-sam-users.conf"
-    chmod 600 "${SSHD_D}/50-sam-users.conf"
-    echo "[provision] ${SSHD_D}/50-sam-users.conf written."
+    _install_sam_sshd_dropin
 elif ! grep -q "Match Group sam-users" /etc/ssh/sshd_config 2>/dev/null; then
+    cp -p /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
     printf '\n# ssh-access-manager\n%s\n' "${SAM_SSHD_CONF}" >> /etc/ssh/sshd_config
-    echo "[provision] /etc/ssh/sshd_config updated (Match Group sam-users)."
+    if ! "$SSHD_BIN" -t 2>/dev/null; then
+        echo "[provision] ERROR: sshd -t rejected /etc/ssh/sshd_config — rolling back"
+        mv /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
+        exit 1
+    fi
+    rm -f /etc/ssh/sshd_config.bak
+    echo "[provision] /etc/ssh/sshd_config updated and validated by sshd -t."
+    SAM_SSHD_INSTALLED=1
 fi
-if command -v systemctl >/dev/null 2>&1; then
+# Reload sshd only when we just changed the config and it validated.
+if [ "$SAM_SSHD_INSTALLED" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then
     systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true
 fi
 

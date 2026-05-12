@@ -388,7 +388,18 @@ Routes Flask correspondantes :
 Les utilisateurs Unix créés par `sam-add` ne doivent **jamais** pouvoir se connecter en SSH par mot de passe. Deux mécanismes l'empêchent :
 
 1. Tous les comptes créés par `sam-add` sont ajoutés au groupe `sam-users` (via `usermod -aG sam-users`).
-2. `provision-host.sh` installe dans `/etc/ssh/sshd_config.d/` un bloc `Match Group sam-users` avec `PasswordAuthentication no` et `KbdInteractiveAuthentication no`.
+2. `provision-host.sh` installe dans `/etc/ssh/sshd_config.d/50-sam-users.conf` un bloc `Match Group sam-users` durci (chmod 600, root:root) :
+
+```
+Match Group sam-users
+    PasswordAuthentication no
+    PermitEmptyPasswords no
+    KbdInteractiveAuthentication no
+    PubkeyAuthentication yes
+    AuthenticationMethods publickey
+```
+
+`AuthenticationMethods publickey` est la défense en profondeur : même si une autre méthode (PAM, keyboard-interactive…) est globalement activée, sshd ignore tous les autres mécanismes pour ce groupe et exige une clé publique. Après écriture, `provision-host.sh` exécute `sshd -t` ; si la validation échoue, le fichier précédent (sauvegardé en `.bak`) est restauré et le script sort en erreur sans recharger sshd — aucune config invalide n'est jamais activée.
 
 Conséquence : seule la clé SSH publique déployée permet la connexion. Le mot de passe Unix sert uniquement à `sudo` (règles SAM `PASSWD:`).
 
@@ -411,7 +422,47 @@ chmod 600 "/home/${unix_user}/README_first_login.txt"
 # (pas de chage -d 0 — bloquerait la lecture du README avant le shell)
 ```
 
-Au premier login interactif (TTY), `~/.profile` affiche le contenu du README, supprime le fichier, puis invoque `passwd` pour que l'utilisateur définisse son propre mot de passe. Ce flux est testé dans `app/tests/test_ssh.py` (vérification du contenu de la constante `SAM_ADD`).
+Au premier login interactif (TTY), le fichier d'init du shell affiche le contenu du README, supprime le fichier, puis invoque `passwd` pour que l'utilisateur définisse son propre mot de passe. Ce flux est testé dans `app/tests/test_ssh.py` (vérification du contenu de la constante `SAM_ADD`).
+
+#### Choix du fichier d'init — compatibilité multi-distros
+
+Le snippet n'est pas systématiquement écrit dans `~/.profile`. `sam-add` reproduit fidèlement l'ordre de résolution que **bash** applique lui-même pour décider quel fichier d'init lire en shell de login (voir `man bash`, section INVOCATION — « Bash attempts to read and execute commands from the first of the following files that exists ») :
+
+1. `~/.bash_profile`
+2. `~/.bash_login`
+3. `~/.profile`
+
+Dès que l'un de ces fichiers existe, bash ignore les suivants. Le script d'init choisi diffère donc d'une distribution à l'autre selon ce que `/etc/skel/` fournit au moment du `useradd -m` :
+
+| Distribution | `/etc/skel/` typique | Fichier choisi par bash | Fichier écrit par `sam-add` |
+|---|---|---|---|
+| RHEL / Rocky / Alma / CentOS | `.bash_profile`, `.bashrc`, `.bash_logout` | `~/.bash_profile` | `~/.bash_profile` |
+| Debian / Ubuntu | `.profile`, `.bashrc`, `.bash_logout` | `~/.profile` | `~/.profile` |
+| openSUSE Leap / Tumbleweed | variable : `.profile` toujours, `.bash_profile` parfois | celui qui existe | celui qui existe |
+| Arch Linux | skel quasi-vide (souvent rien ou juste `.bashrc`) | aucun par défaut | `~/.profile` (créé par `touch`) |
+| Alpine *(avec `bash` installé)* | minimal | `~/.profile` ou `~/.bash_profile` selon skel | celui qui existe ou créé |
+
+La logique dans `SAM_ADD` :
+
+```sh
+if [ -f "${home}/.bash_profile" ]; then
+    profile="${home}/.bash_profile"     # RHEL family
+elif [ -f "${home}/.bash_login" ]; then
+    profile="${home}/.bash_login"        # rarissime
+else
+    profile="${home}/.profile"           # Debian, openSUSE, Arch, sh/dash
+    touch "$profile"                     # crée si absent (Arch)
+fi
+```
+
+**Garantie** : tant que `useradd -m -s /bin/bash` est utilisé (toujours le cas dans SAM_ADD), bash trouvera notre hook au premier login, quel que soit le Linux mainstream géré.
+
+**Limites connues** :
+- Un changement manuel du shell après création (`chsh -s /bin/zsh alice`) sort de ce contrat — zsh lit `~/.zprofile`/`~/.zlogin`, pas les fichiers couverts par `sam-add`. Documenté comme comportement attendu ; SAM ne re-déploie pas le hook après coup.
+- Sur Alpine sans paquet `bash`, `useradd -m -s /bin/bash` échouerait dès la création de l'utilisateur — l'erreur remonte au scan et le user n'est pas créé. Prérequis hôte : `bash` + `sudo` installés.
+- Les shells non interactifs (commande SSH directe `ssh alice@host 'cmd'`) ne sourcent ni `.bash_profile` ni `.profile` : c'est attendu, le hook ne se déclenche que pour les sessions interactives — le premier login interactif réel servira.
+
+Cette logique est testée dans `app/tests/test_ssh.py::test_ssh_sam_add_appends_first_login_hook_to_bash_profile_when_present` qui vérifie que les trois noms de fichiers (`.bash_profile`, `.bash_login`, `.profile`) sont référencés dans le corps de la constante `SAM_ADD`.
 
 ### 6.8 Détection d'anomalies au niveau serveur (has_anomalies)
 
