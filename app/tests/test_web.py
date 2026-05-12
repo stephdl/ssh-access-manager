@@ -398,6 +398,42 @@ def test_web_get_servers_last_scan_ok_none(auth_client):
         assert data[0]["last_scan_ok"] is None
 
 
+def test_web_get_servers_propagates_has_anomalies(auth_client):
+    """GET /api/servers propagates the SQL-computed has_anomalies field."""
+    with patch("web.db") as mock_db:
+        mock_db.query_one.return_value = _admin_row()
+        mock_db.query.return_value = [
+            {"hostname": "srv-01", "last_scan_action": "SCAN_COMPLETED", "has_anomalies": True},
+            {"hostname": "srv-02", "last_scan_action": "SCAN_COMPLETED", "has_anomalies": False},
+        ]
+        resp = auth_client.get("/api/servers")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data[0]["has_anomalies"] is True
+        assert data[1]["has_anomalies"] is False
+
+
+def test_web_get_servers_has_anomalies_query_excludes_audit_log():
+    """Regression guard for #396 — has_anomalies must NOT read audit_log.
+
+    audit_log is immutable; reading ANOMALY_DETECTED from it kept the server
+    flagged for 30 days even after pending keys had been validated. The query
+    must derive has_anomalies from key_authorizations only.
+    """
+    import inspect
+    import web
+    source = inspect.getsource(web.list_servers)
+    # The has_anomalies subquery itself must not reference ANOMALY_DETECTED.
+    # (The LATERAL join below references SCAN_COMPLETED/SCAN_FAILED — those
+    # are unrelated and stay on audit_log.)
+    assert "ANOMALY_DETECTED" not in source, (
+        "has_anomalies must not depend on audit_log.ANOMALY_DETECTED — see #396"
+    )
+    # Must derive out-of-system revocations from key_authorizations.
+    assert "revoked_automatically = TRUE" in source
+    assert "revoked_by IS NULL" in source
+
+
 # ---------------------------------------------------------------------------
 # GET /api/servers/<hostname>
 # ---------------------------------------------------------------------------

@@ -282,9 +282,18 @@ def list_servers():
                     WHERE server_id = s.id AND status = 'PENDING_REVIEW'
                 )
                 OR EXISTS(
-                    SELECT 1 FROM audit_log
-                    WHERE target_server = s.id AND action = 'ANOMALY_DETECTED'
-                    AND performed_at > NOW() - INTERVAL '30 days'
+                    -- Out-of-system revocations still considered "current"
+                    -- (mirrors the Anomalies view filter — 30-day window).
+                    -- We intentionally do NOT read audit_log here: it is
+                    -- an immutable trail of past events and would keep the
+                    -- server flagged for 30 days even after operators
+                    -- validated or revoked the offending key (#396).
+                    SELECT 1 FROM key_authorizations
+                    WHERE server_id = s.id
+                      AND status = 'REVOKED'
+                      AND revoked_automatically = TRUE
+                      AND revoked_by IS NULL
+                      AND revoked_at > NOW() - INTERVAL '30 days'
                 )
             ) AS has_anomalies
         FROM servers s

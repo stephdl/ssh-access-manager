@@ -466,7 +466,16 @@ Cette logique est testée dans `app/tests/test_ssh.py::test_ssh_sam_add_appends_
 
 ### 6.8 Détection d'anomalies au niveau serveur (has_anomalies)
 
-La route `GET /api/servers` expose désormais un champ booléen `has_anomalies` par serveur (calculé via une jointure SQL sur `ssh_keys.status IN ('PENDING_REVIEW') OR key_authorizations.revoked_automatically = TRUE` sur les 24 dernières heures). Le Dashboard utilise ce champ pour afficher un compteur Alertes sans avoir à charger toutes les clés.
+La route `GET /api/servers` expose un champ booléen `has_anomalies` par serveur, utilisé par le Dashboard (compteur Alertes) et par `ServerTable.vue` (badge 🟡). Le champ est calculé en SQL pour éviter de charger toutes les clés côté client.
+
+**Définition** — `has_anomalies` est vrai si **au moins une** des deux conditions est remplie :
+
+1. Au moins une `key_authorizations` du serveur a `status = 'PENDING_REVIEW'` (clé en attente de validation).
+2. Au moins une `key_authorizations` du serveur correspond à une **révocation hors système récente** : `status = 'REVOKED' AND revoked_automatically = TRUE AND revoked_by IS NULL AND revoked_at > NOW() - INTERVAL '30 days'`.
+
+La définition reflète strictement ce que la vue **Anomalies** affiche (`Anomalies.vue:143-155`) afin que Dashboard, ServerTable et Anomalies soient toujours cohérents.
+
+**Important** : `has_anomalies` ne consulte **jamais** `audit_log`. Une première version interrogeait les entrées `ANOMALY_DETECTED` sur les 30 derniers jours ; le bug fixé en #396 a remplacé cette logique. `audit_log` est immuable par design (aucun `UPDATE`/`DELETE`), donc une entrée `ANOMALY_DETECTED` reste visible 30 jours même après que l'opérateur ait validé ou révoqué la clé fautive — ce qui maintenait à tort le badge orange. La règle est : `has_anomalies` reflète l'**état courant** des `key_authorizations`, pas l'historique des événements.
 
 ### 6.9 Audit de la configuration sshd du serveur géré (issue #392)
 
