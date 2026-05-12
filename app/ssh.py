@@ -178,8 +178,17 @@ if [ -n "$TMPPASS" ]; then
     printf 'Temporary password: %s\\nType it below as "Current password" to set your permanent password.\\n' "$TMPPASS" > "${home}/README_first_login.txt"
     chmod 600 "${home}/README_first_login.txt"
     chown "${TARGET_USER}:${TARGET_USER}" "${home}/README_first_login.txt"
-    profile="${home}/.profile"
-    touch "$profile"
+    # bash login shells read ~/.bash_profile first (RHEL/Rocky/Alma skel),
+    # then ~/.bash_login, then ~/.profile (Debian/Ubuntu skel). Pick the
+    # first existing one so the hook fires on the actual login shell.
+    if [ -f "${home}/.bash_profile" ]; then
+        profile="${home}/.bash_profile"
+    elif [ -f "${home}/.bash_login" ]; then
+        profile="${home}/.bash_login"
+    else
+        profile="${home}/.profile"
+        touch "$profile"
+    fi
     printf '\\n# ssh-access-manager\\nif [ -f "$HOME/README_first_login.txt" ]; then\\n    echo ""; cat "$HOME/README_first_login.txt"; echo ""\\n    passwd && rm -f "$HOME/README_first_login.txt"\\nfi\\n' >> "$profile"
     chown "${TARGET_USER}:${TARGET_USER}" "$profile"
 fi
