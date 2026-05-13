@@ -673,7 +673,10 @@ td {
 }
 
 .row-root {
-  opacity: 0.65;
+  /* Muted background only — see KeyTable.vue for the rationale on why
+     we do NOT apply `opacity` on the <tr> (cascades to descendant
+     buttons and erases the visual contrast between enabled and
+     disabled ones). */
   background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
 }
 

@@ -68,24 +68,42 @@ SAM_COLLECT = b"""#!/bin/sh
 # sam-collect - list all authorized_keys on the system
 set -e
 
-getent passwd | while IFS=: read user _ _ _ _ home _; do
-    keyfile="${home}/.ssh/authorized_keys"
-    [ -f "$keyfile" ] || continue
+# Some distros pre-create system accounts that share a home directory
+# (notably `operator:x:11:0:operator:/root:...` on RHEL/Rocky, sometimes
+# additional ones with home=`/`). Without deduplication every key in
+# /root/.ssh/authorized_keys would also be attributed to operator,
+# inflating the anomaly list with phantom rows.
+#
+# Strategy: track the realpath of each authorized_keys we've already
+# emitted and skip if it has been seen -- the FIRST user encountered
+# with that file owns it. /etc/passwd iteration order is stable per scan.
+seen_files=""
+
+emit_file() {
+    user="$1"
+    keyfile="$2"
+    [ -f "$keyfile" ] || return 0
+    real=$(readlink -f "$keyfile" 2>/dev/null || echo "$keyfile")
+    case " ${seen_files} " in
+        *" ${real} "*) return 0 ;;
+    esac
+    seen_files="${seen_files} ${real}"
     while IFS= read -r line || [ -n "$line" ]; do
         [ -z "$line" ] && continue
         case "$line" in '#'*) continue ;; esac
         printf '%s\\t%s\\n' "$user" "$line"
     done < "$keyfile"
-done
+}
 
-rootkeys="/root/.ssh/authorized_keys"
-if [ -f "$rootkeys" ]; then
-    while IFS= read -r line || [ -n "$line" ]; do
-        [ -z "$line" ] && continue
-        case "$line" in '#'*) continue ;; esac
-        printf 'root\\t%s\\n' "$line"
-    done < "$rootkeys"
-fi
+# Root first so /root/.ssh/authorized_keys is always attributed to
+# the root account, even if another system user (e.g. operator)
+# shares home=/root and would otherwise win the iteration race.
+emit_file root /root/.ssh/authorized_keys
+
+getent passwd | while IFS=: read user _ _ _ _ home _; do
+    [ "$user" = "root" ] && continue
+    emit_file "$user" "${home}/.ssh/authorized_keys"
+done
 """
 
 SAM_REVOKE = b"""#!/bin/sh
@@ -844,6 +862,39 @@ def _remove_pubkey_remote(client: paramiko.SSHClient, pubkey: str) -> None:
         raise SSHError(f"Failed to remove pubkey: {err}")
 
 
+def _replace_authorized_keys_remote(client: paramiko.SSHClient, pubkey: str) -> None:
+    """Replace ~/.ssh/authorized_keys with exactly one line: `pubkey`.
+
+    Used at the end of a key rotation to guarantee the audit-collector
+    account ends up with ONLY the freshly-generated collector key.
+
+    The audit-collector Unix account is dedicated to SAM — it has no
+    legitimate human user, no shell login besides this key, and no
+    reason to hold any other entry. Historical accumulation we have
+    observed in the wild (early provision-host.sh deployments + partial
+    rotations + manually-added probe keys) leaves multiple stale lines
+    in authorized_keys. The previous "grep -vxF current" approach only
+    removed the SINGLE line the local <uuid>.key.pub file knew about,
+    leaving everything else untouched.
+
+    Truncating is safe at this point because the rotation flow has
+    already verified that `pubkey` works (step 6 connected with it and
+    ran `true`). The write uses tmp+mv so a failed write keeps the
+    pre-existing multi-line file intact — SAM is never locked out.
+
+    chmod 600 is reapplied since `>` may not preserve the previous
+    permissions when followed by `mv` on a freshly-created tmp file.
+    """
+    cmd = (
+        f"printf '%s\\n' {shlex.quote(pubkey)} > ~/.ssh/authorized_keys.tmp && "
+        f"chmod 600 ~/.ssh/authorized_keys.tmp && "
+        f"mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys"
+    )
+    _, err, rc = _run(client, cmd)
+    if rc != 0:
+        raise SSHError(f"Failed to replace authorized_keys: {err}")
+
+
 def rotate_per_server_key(hostname: str, ip: str, port: int, server_id: str) -> str:
     """Rotate the collector key for one server, atomically with rollback.
 
@@ -903,8 +954,12 @@ def rotate_per_server_key(hostname: str, ip: str, port: int, server_id: str) -> 
         except Exception as exc:
             raise SSHError(f"New key verification failed: {exc}")
 
-        # Step 7: remove old pubkey with new connection
-        _remove_pubkey_remote(client_new, current_pubkey)
+        # Step 7: replace authorized_keys with ONLY the new pubkey.
+        # See _replace_authorized_keys_remote for the rationale on why
+        # we don't just `grep -vxF current` here: any stale keys that
+        # accumulated from previous (partial) rotations or from manual
+        # operator additions would otherwise survive forever.
+        _replace_authorized_keys_remote(client_new, new_pubkey)
         client_new.close()
         client_new = None
 

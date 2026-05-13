@@ -30,14 +30,22 @@ mkdir -p "${SSH_DIR}"
 chmod 700 "${SSH_DIR}"
 chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "${SSH_DIR}"
 
-# 3. Deploy public key (append if absent, do not overwrite existing keys)
-touch "${AUTH_KEYS}"
-if ! grep -qF "${COLLECTOR_PUBKEY}" "${AUTH_KEYS}" 2>/dev/null; then
-    echo "${COLLECTOR_PUBKEY}" >> "${AUTH_KEYS}"
-fi
-chmod 600 "${AUTH_KEYS}"
-chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "${AUTH_KEYS}"
-echo "[provision] Public key deployed in ${AUTH_KEYS}."
+# 3. Deploy public key — REPLACE authorized_keys with exactly this line.
+# Rationale: the audit-collector Unix account is dedicated to SAM and has
+# no legitimate human user, no shell login besides this key. Any pre-
+# existing entry is at best a residue of a previous SAM install, at worst
+# an unmanaged key with persistent access. Same semantic as the rotation
+# flow (ssh._replace_authorized_keys_remote), kept in sync to avoid the
+# inconsistency where rotate cleans up but (re)provision does not.
+#
+# Atomic via tmp+mv so a failed write cannot leave the file empty and
+# lock the host out — the pre-existing file stays in place on error.
+TMP_AUTH_KEYS="${AUTH_KEYS}.provision.$$"
+printf '%s\n' "${COLLECTOR_PUBKEY}" > "${TMP_AUTH_KEYS}"
+chmod 600 "${TMP_AUTH_KEYS}"
+chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "${TMP_AUTH_KEYS}"
+mv -f "${TMP_AUTH_KEYS}" "${AUTH_KEYS}"
+echo "[provision] Public key deployed in ${AUTH_KEYS} (file replaced — only the SAM collector key remains)."
 
 # 4. Create sudoers file
 # Detect sshd binary path (typically /usr/sbin/sshd on Debian/RHEL/Alpine)

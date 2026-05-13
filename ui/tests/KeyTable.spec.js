@@ -48,7 +48,7 @@ describe('KeyTable', () => {
     expect(w.find('.btn-success').exists()).toBe(true)
   })
 
-  it("ACTIVE does not show Validate button", () => {
+  it('ACTIVE does not show Validate button', () => {
     const w = mountTable([makeKey({ status: 'ACTIVE' })])
     expect(w.find('.btn-success').exists()).toBe(false)
   })
@@ -63,7 +63,7 @@ describe('KeyTable', () => {
     expect(w.find('.btn-danger').exists()).toBe(true)
   })
 
-  it("REVOKED does not show Revoke button", () => {
+  it('REVOKED does not show Revoke button', () => {
     const w = mountTable([makeKey({ status: 'REVOKED' })])
     expect(w.find('.btn-danger').exists()).toBe(false)
   })
@@ -73,7 +73,7 @@ describe('KeyTable', () => {
     expect(w.find('.btn-warning').exists()).toBe(true)
   })
 
-  it("PENDING_REVIEW does not show Expire button", () => {
+  it('PENDING_REVIEW does not show Expire button', () => {
     const w = mountTable([makeKey({ status: 'PENDING_REVIEW' })])
     expect(w.find('.btn-warning').exists()).toBe(false)
   })
@@ -83,7 +83,7 @@ describe('KeyTable', () => {
     expect(w.find('.btn-unlimited').exists()).toBe(true)
   })
 
-  it("ACTIVE without expires_at does not show Unlimited button", () => {
+  it('ACTIVE without expires_at does not show Unlimited button', () => {
     const w = mountTable([makeKey({ status: 'ACTIVE', expires_at: null })])
     expect(w.find('.btn-unlimited').exists()).toBe(false)
   })
@@ -93,7 +93,7 @@ describe('KeyTable', () => {
     expect(w.find('.btn-primary').exists()).toBe(true)
   })
 
-  it("ACTIVE with owner does not show Assign button", () => {
+  it('ACTIVE with owner does not show Assign button', () => {
     const w = mountTable([makeKey({ status: 'ACTIVE', owner: 'alice' })])
     expect(w.find('.btn-primary').exists()).toBe(false)
   })
@@ -119,7 +119,7 @@ describe('KeyTable', () => {
     expect(w.find('.non-compliant').exists()).toBe(true)
   })
 
-  it("emits validate with key object", async () => {
+  it('emits validate with key object', async () => {
     const key = makeKey({ status: 'PENDING_REVIEW' })
     const w = mountTable([key])
     await w.find('.btn-success').trigger('click')
@@ -127,7 +127,7 @@ describe('KeyTable', () => {
     expect(w.emitted('validate')[0][0].fingerprint).toBe(FP)
   })
 
-  it("emits revoke with key object", async () => {
+  it('emits revoke with key object', async () => {
     const key = makeKey({ status: 'ACTIVE' })
     const w = mountTable([key])
     await w.find('.btn-danger').trigger('click')
@@ -135,7 +135,7 @@ describe('KeyTable', () => {
     expect(w.emitted('revoke')[0][0].fingerprint).toBe(FP)
   })
 
-  it("emits set-expiry with key object", async () => {
+  it('emits set-expiry with key object', async () => {
     const w = mountTable([makeKey({ status: 'ACTIVE' })])
     await w.find('.btn-warning').trigger('click')
     expect(w.emitted('set-expiry')).toBeTruthy()
@@ -176,7 +176,7 @@ describe('KeyTable', () => {
     expect(w.find('[data-testid="keytable-filters"]').exists()).toBe(true)
   })
 
-  it("does not show filter bar when list is empty", () => {
+  it('does not show filter bar when list is empty', () => {
     const w = mountTable([])
     expect(w.find('[data-testid="keytable-filters"]').exists()).toBe(false)
   })
@@ -412,5 +412,31 @@ describe('KeyTable', () => {
     const w = mountTable([makeKey({ status: 'ACTIVE', unix_user: 'root' })])
     const rows = w.findAll('tbody tr').filter((r) => r.find('code').exists())
     expect(rows[0].classes()).toContain('row-root')
+  })
+
+  // --- audit-collector protection (mirrors root protection) ---
+
+  it('audit-collector ACTIVE row is not selectable (no checkbox)', () => {
+    const w = mountTable([makeKey({ status: 'ACTIVE', unix_user: 'audit-collector' })])
+    expect(w.find('tbody input[type="checkbox"]').exists()).toBe(false)
+  })
+
+  it('audit-collector ACTIVE row has Revoke button disabled', () => {
+    const w = mountTable([makeKey({ status: 'ACTIVE', unix_user: 'audit-collector' })])
+    const btn = w.find('.btn-danger')
+    expect(btn.attributes('disabled')).toBeDefined()
+    // The tooltip must explain that rotation is the right path.
+    expect(btn.element.parentElement.title).toMatch(/rotate|rotation|ruota|rotar/i)
+  })
+
+  it('audit-collector ACTIVE row has Expiry button disabled', () => {
+    const w = mountTable([makeKey({ status: 'ACTIVE', unix_user: 'audit-collector' })])
+    const expiryBtn = w.find('.btn-warning')
+    expect(expiryBtn.attributes('disabled')).toBeDefined()
+  })
+
+  it('audit-collector row shows protected badge', () => {
+    const w = mountTable([makeKey({ status: 'ACTIVE', unix_user: 'audit-collector' })])
+    expect(w.find('.badge-root-protected').exists()).toBe(true)
   })
 })

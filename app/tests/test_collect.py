@@ -50,6 +50,16 @@ def _setup_ssh_mocks(mock_ssh):
     mock_ssh._read_provision_version.return_value = "test-version"  # version matches by default
 
 
+def _no_collector_recognition(mock_actions):
+    """Default for scan_server tests that exercise scenario 3 / 5 / known /
+    disappeared branches: actions.try_recognize_collector_key must return
+    False so the parsed line falls through to the scenario being tested.
+    Without this, the auto-generated MagicMock returns a truthy value and
+    scan_server short-circuits to known +=1 on every iteration.
+    """
+    mock_actions.try_recognize_collector_key.return_value = False
+
+
 # ---------------------------------------------------------------------------
 # Tests _parse_key_line()
 # ---------------------------------------------------------------------------
@@ -102,6 +112,7 @@ def test_collect_scan_server_same_key_two_users_creates_two_auth_rows():
          patch("collect.alerts"):
 
         _setup_ssh_mocks(mock_ssh)
+        _no_collector_recognition(mock_actions)
         mock_ssh.collect_keys.return_value = [alice_line, bob_line]
         # same key_id for both (same fingerprint)
         mock_db.query_one.side_effect = [
@@ -131,6 +142,7 @@ def test_collect_scan_server_unix_user_passed_to_handle_unknown_key():
          patch("collect.alerts"):
 
         _setup_ssh_mocks(mock_ssh)
+        _no_collector_recognition(mock_actions)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.return_value = None   # unknown key
         mock_db.query.return_value = []
@@ -161,8 +173,8 @@ def test_collect_scan_server_only_disappeared_unix_user_row_triggers_scenario2()
         ]
         # active_on_server: both alice and bob were ACTIVE
         mock_db.query.return_value = [
-            {"key_id": KEY_ID, "fingerprint": fp, "unix_user": "alice"},
-            {"key_id": KEY_ID, "fingerprint": fp, "unix_user": "bob"},
+            {"key_id": KEY_ID, "fingerprint": fp, "unix_user": "alice", "status": "ACTIVE"},
+            {"key_id": KEY_ID, "fingerprint": fp, "unix_user": "bob", "status": "ACTIVE"},
         ]
 
         result = collect.scan_server(SAMPLE_SERVER)
@@ -185,6 +197,7 @@ def test_collect_scan_server_scenario3_unknown_key_calls_handle_unknown_key():
          patch("collect.alerts") as mock_alerts:
 
         _setup_ssh_mocks(mock_ssh)
+        _no_collector_recognition(mock_actions)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.side_effect = [
             None,   # key not in DB → unknown
@@ -230,7 +243,7 @@ def test_collect_scan_server_scenario2_disappeared_key_calls_handle_disappeared(
         mock_ssh.collect_keys.return_value = []  # empty scan — key disappeared
         mock_db.query_one.return_value = None
         mock_db.query.return_value = [
-            {"key_id": KEY_ID, "fingerprint": fp, "unix_user": "alice"}  # was ACTIVE
+            {"key_id": KEY_ID, "fingerprint": fp, "unix_user": "alice", "status": "ACTIVE"}
         ]
 
         result = collect.scan_server(SAMPLE_SERVER)
@@ -252,6 +265,7 @@ def test_collect_scan_server_scenario5_revoked_key_reappeared_calls_handle_reapp
          patch("collect.alerts"):
 
         _setup_ssh_mocks(mock_ssh)
+        _no_collector_recognition(mock_actions)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},              # key found in DB
@@ -279,6 +293,7 @@ def test_collect_scan_server_scenario5_expired_key_reappeared_calls_handle_reapp
          patch("collect.alerts"):
 
         _setup_ssh_mocks(mock_ssh)
+        _no_collector_recognition(mock_actions)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},              # key found in DB
@@ -374,6 +389,7 @@ def test_collect_scan_server_known_active_key_updates_last_seen():
          patch("collect.alerts"):
 
         _setup_ssh_mocks(mock_ssh)
+        _no_collector_recognition(mock_actions)
         mock_ssh.collect_keys.return_value = [SAMPLE_LINE]
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},                  # key found in DB
@@ -592,6 +608,7 @@ def test_collect_scan_server_updates_key_size_bits_on_rescan():
          patch("collect.alerts"):
 
         _setup_ssh_mocks(mock_ssh)
+        _no_collector_recognition(mock_actions)
         mock_ssh.collect_keys.return_value = [rsa_line]
         mock_db.query_one.side_effect = [
             {"id": KEY_ID},           # key found in DB

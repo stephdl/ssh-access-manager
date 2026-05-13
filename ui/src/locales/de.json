@@ -215,7 +215,9 @@
     "bulk_revoke": "Auswahl widerrufen",
     "bulk_clear": "Auswahl aufheben",
     "root_expiry_tooltip": "Ablaufzeit für root nicht setzbar — automatischer Widerruf würde dauerhaften Zugriffsverlust verursachen",
+    "collector_expiry_tooltip": "Der audit-collector-Schlüssel hat keine Ablaufzeit — sein Lebenszyklus wird über die Schaltfläche Schlüssel rotieren verwaltet",
     "root_revoke_tooltip": "Root-Konto geschützt — Widerruf deaktiviert, um Zugriffsverlust auf den Server zu verhindern",
+    "collector_revoke_tooltip": "Der audit-collector-Schlüssel ist geschützt — verwenden Sie die Schaltfläche Schlüssel rotieren, um ihn sicher zu ändern",
     "root_protected_badge": "geschützt"
   },
   "access": {
@@ -347,6 +349,9 @@
     "col_details": "Details",
     "btn_validate": "Validieren",
     "btn_revoke": "Widerrufen",
+    "root_revoke_tooltip": "Das root-Konto ist geschützt — der Widerruf ist deaktiviert, um den Serverzugriff nicht zu verlieren",
+    "collector_revoke_tooltip": "Der audit-collector-Schlüssel ist geschützt — verwenden Sie die Schaltfläche Schlüssel rotieren, um ihn sicher zu ändern",
+    "root_protected_badge": "geschützt",
     "no_pending": "Keine Schlüssel warten auf Validierung.",
     "no_revoked": "Keine systemfremden Widerrufe in 30 Tagen.",
     "revoke_modal_title": "Schlüssel widerrufen",
