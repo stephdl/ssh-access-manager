@@ -134,6 +134,26 @@ describe('AuditTable.vue', () => {
     })
   })
 
+  it('auto-emits fetch when the server select changes (no filter button click)', async () => {
+    const wrapper = mount(AuditTable, {
+      props: { logs, facets },
+      global: { plugins: [i18n], stubs: { PaginationBar } },
+    })
+    await wrapper.find('#f-server').setValue('server2')
+    expect(wrapper.emitted('fetch')).toBeTruthy()
+    expect(wrapper.emitted('fetch')[0][0]).toMatchObject({ server: 'server2' })
+  })
+
+  it('auto-emits fetch when the action select changes (no filter button click)', async () => {
+    const wrapper = mount(AuditTable, {
+      props: { logs, facets },
+      global: { plugins: [i18n], stubs: { PaginationBar } },
+    })
+    await wrapper.find('#f-action').setValue('KEY_ADDED')
+    expect(wrapper.emitted('fetch')).toBeTruthy()
+    expect(wrapper.emitted('fetch')[0][0]).toMatchObject({ action: 'KEY_ADDED' })
+  })
+
   it('paginates at 10 rows by default', () => {
     const manyLogs = Array.from({ length: 25 }, (_, i) => ({
       id: `${i}`,

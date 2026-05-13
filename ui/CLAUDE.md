@@ -72,7 +72,7 @@ Détection automatique de la langue du navigateur via vue-i18n v9 (i18n.js).
 | Anomalies.spec.js | 20 | filtres texte + dropdowns, unix_user, badges |
 | Login.spec.js | 8 | checkbox remember-me, payload remember_me |
 | AdminsTable.spec.js | 13 | filtre texte, pagination, RBAC, garde-fou self, events (#250) |
-| AuditTable.spec.js | 13 | recherche full-text + debounce 250ms, dropdowns server/action peuplés depuis facets, pagination, events (#250, #435) |
+| AuditTable.spec.js | 15 | recherche full-text + debounce 250ms, dropdowns server/action peuplés depuis facets + auto-fetch au change, pagination, events (#250, #435) |
 | AnomaliesTable.spec.js | 22 | filtres texte/type/conformité, pagination, RBAC, events (#250) |
 | SessionsCard.spec.js | 17 | sessions actives, modal historique, filtres, pagination, CSV export, RBAC (#253) |
 | Dashboard.spec.js | 8 | champs SSH obligatoires, submit désactivé sans password/hostname invalide, POST avec ssh_user/password/port, port 22 par défaut, fermeture modal, validation RFC 1123 (#299, #303) |

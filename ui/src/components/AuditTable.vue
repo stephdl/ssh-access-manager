@@ -16,14 +16,14 @@
         </div>
         <div class="field">
           <label for="f-server">{{ $t('audit.filter_server') }}</label>
-          <select id="f-server" v-model="filters.server">
+          <select id="f-server" v-model="filters.server" @change="applyFilters">
             <option value="">{{ $t('audit.filter_all') }}</option>
             <option v-for="s in props.facets.servers" :key="s" :value="s">{{ s }}</option>
           </select>
         </div>
         <div class="field">
           <label for="f-action">{{ $t('audit.filter_action') }}</label>
-          <select id="f-action" v-model="filters.action">
+          <select id="f-action" v-model="filters.action" @change="applyFilters">
             <option value="">{{ $t('audit.filter_all') }}</option>
             <option v-for="a in props.facets.actions" :key="a" :value="a">{{ a }}</option>
           </select>
