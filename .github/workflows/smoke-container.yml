@@ -42,8 +42,65 @@ jobs:
       - name: Start the container
         run: docker compose up -d
 
-      - name: Run smoke assertions
+      - name: Run smoke HTTP assertions (first boot)
         run: bash tests/smoke/run.sh http://127.0.0.1:8080 admin smoke-admin-pw
+
+      - name: Assert supervisord shows all 4 services RUNNING
+        # postgresql, flask, nginx and crond are all declared in
+        # supervisord.conf. Any STARTING/EXITED/FATAL line means the
+        # service crash-loops or never came up — exactly the silent
+        # failure mode this job is designed to catch.
+        run: |
+          out=$(docker compose exec -T sam-server supervisorctl status)
+          echo "$out"
+          for svc in postgresql flask nginx crond; do
+            if ! echo "$out" | grep -E "^${svc}[[:space:]]+RUNNING" >/dev/null; then
+              echo "::error::supervisord shows ${svc} not RUNNING"
+              exit 1
+            fi
+          done
+          echo "All 4 supervised services are RUNNING."
+
+      - name: Capture first-boot logs for the idempotence check
+        # bootstrap.sh logs "First startup detected." on the very first
+        # boot, then "Normal startup (existing data)." on every reboot
+        # that finds /data/pg/PG_VERSION already there. The presence of
+        # the first line on boot #1 + the second line on boot #2 is the
+        # proof that bootstrap.sh is correctly idempotent.
+        run: |
+          docker compose logs --no-color sam-server > /tmp/first-boot.log
+          grep -q "\[bootstrap\] First startup detected" /tmp/first-boot.log \
+              || (echo "::error::expected 'First startup detected' in first-boot logs"; \
+                  tail -50 /tmp/first-boot.log; exit 1)
+          if grep -q "\[bootstrap\] Normal startup" /tmp/first-boot.log; then
+              echo "::error::Normal startup logged on first boot — bootstrap thinks the DB already exists"
+              exit 1
+          fi
+          echo "First-boot log shape OK."
+
+      - name: Restart the container (volume preserved — proves persistence)
+        # `docker compose down` (no -v) preserves the named volume, so
+        # /data/pg/ survives. `up` again must reuse the existing PGDATA,
+        # the admin row, the schema and all settings.
+        run: |
+          docker compose down
+          docker compose up -d
+
+      - name: Wait for the container to come back up + re-run HTTP smoke
+        # Same admin credentials must still log in. If bootstrap.sh
+        # re-runs initdb / re-applies schema / re-seeds the admin, the
+        # smoke either fails (admin password reset to ENV default) or
+        # the existing data is wiped — both are catastrophic in prod
+        # upgrade flows and entirely invisible to pytest.
+        run: bash tests/smoke/run.sh http://127.0.0.1:8080 admin smoke-admin-pw
+
+      - name: Assert second boot took the "Normal startup" branch
+        run: |
+          docker compose logs --no-color sam-server > /tmp/second-boot.log
+          grep -q "\[bootstrap\] Normal startup (existing data)" /tmp/second-boot.log \
+              || (echo "::error::expected 'Normal startup (existing data)' on reboot — bootstrap may have reinitialised the DB"; \
+                  tail -80 /tmp/second-boot.log; exit 1)
+          echo "Second-boot log confirms bootstrap took the idempotent path."
 
       - name: Dump container logs on failure
         if: failure()
