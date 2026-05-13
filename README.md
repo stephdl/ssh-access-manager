@@ -452,6 +452,56 @@ La sortie doit inclure les commandes SAM (`/usr/local/bin/sam-*`) sans demande d
 
 `provision-host.sh` installe également les règles sudoers dédiées aux groupes SAM (`sam-operator`, `sam-pkg`, `sam-root`) — voir section [SAM sudo groups](#workflow--sam-sudo-groups). Toutes ces règles sont validées par `visudo -c` avant installation et exigent `PASSWD:` (jamais NOPASSWD pour les utilisateurs SAM). Le bloc sshd `Match Group sam-users` est aussi posé pour interdire l'authentification par mot de passe aux utilisateurs créés via `sam-add`.
 
+### 4. Known limitations — sshd AllowGroups/AllowUsers
+
+Si l'hôte distant a configuré les directives `AllowGroups` ou `AllowUsers` dans `/etc/ssh/sshd_config` (ou dans `/etc/ssh/sshd_config.d/*.conf`), le provisionnement de SAM échouera **si `audit-collector` n'est pas autorisé**.
+
+#### Contexte technique
+
+Ces directives OpenSSH sont **globales uniquement** et **non overridables via Match blocks**. SAM ne peut donc pas les contourner avec une configuration sshd dédiée. Le script `provision-host.sh` détecte cette limitation automatiquement (#438) et refusera de terminer le provisionnement.
+
+#### Symptômes
+
+Dans les logs sshd de l'hôte distant (via `journalctl -u sshd` ou `/var/log/auth.log`) :
+
+```
+User audit-collector from <SAM-IP> not allowed because none of user's groups are listed in AllowGroups
+input_userauth_request: invalid user audit-collector [preauth]
+```
+
+Côté SAM : le provisionnement initial peut réussir (l'utilisateur est créé), mais **chaque scan échouera immédiatement à l'authentification SSH**. Le serveur est marqué comme `UNREACHABLE` après 3 échecs consécutifs.
+
+#### Solution
+
+**Avant de provisionner** (ou lors du re-provisionnement), un administrateur doit manuellement autoriser `audit-collector` :
+
+**Option 1 — AllowGroups** : ajouter `audit-collector` à l'un des groupes autorisés
+
+```bash
+# Sur l'hôte distant (en root)
+usermod -aG <allowed-group> audit-collector
+```
+
+**Option 2 — AllowUsers** : ajouter `audit-collector` à la liste dans `/etc/ssh/sshd_config`
+
+```bash
+# Éditer /etc/ssh/sshd_config
+AllowUsers existing-user1 existing-user2 audit-collector
+
+# Recharger sshd
+systemctl reload sshd
+```
+
+Après modification, relancer le provisionnement SAM (le script détectera que la contrainte est levée et continuera normalement).
+
+#### Détection automatique
+
+Depuis #438, `provision-host.sh` :
+1. Parse `/etc/ssh/sshd_config` et tous les `sshd_config.d/*.conf` (avec fallback gracieux si absents)
+2. Extrait les directives `AllowGroups` et `AllowUsers` (insensible à la casse, supporte multiple directives)
+3. Vérifie que `audit-collector` passe les contraintes (groupe OU utilisateur — les deux sont en AND logique côté OpenSSH)
+4. **Exit 1** avec un message clair si la contrainte n'est pas satisfaite (le message remonte via SSH stderr → API → modal UI)
+
 ---
 
 ## Workflow — Traitement des clés PENDING_REVIEW

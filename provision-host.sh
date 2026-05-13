@@ -77,4 +77,82 @@ printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-self-update *\
 chmod 440 "${SUDOERS_FILE}"
 echo "[provision] Sudoers configured in ${SUDOERS_FILE}."
 
+# 5. Check sshd AllowGroups/AllowUsers directives
+# OpenSSH AllowGroups/AllowUsers are global-only directives (not overridable via Match blocks).
+# If present, they restrict which users can authenticate via SSH. Detect and fail early.
+SSHD_CONFIG="/etc/ssh/sshd_config"
+SSHD_CONFIG_DIR="/etc/ssh/sshd_config.d"
+
+# Parse all sshd config files (main + includes), strip comments and blank lines
+SSHD_ALL_LINES=""
+if [ -f "${SSHD_CONFIG}" ]; then
+    SSHD_ALL_LINES="$(grep -vE '^\s*(#|$)' "${SSHD_CONFIG}" 2>/dev/null || true)"
+fi
+if [ -d "${SSHD_CONFIG_DIR}" ]; then
+    for conf_file in "${SSHD_CONFIG_DIR}"/*.conf; do
+        [ -f "${conf_file}" ] || continue
+        SSHD_ALL_LINES="${SSHD_ALL_LINES}
+$(grep -vE '^\s*(#|$)' "${conf_file}" 2>/dev/null || true)"
+    done
+fi
+
+# Extract AllowGroups directives (case-insensitive, can appear multiple times)
+ALLOW_GROUPS=$(echo "${SSHD_ALL_LINES}" | grep -iE '^\s*AllowGroups\s+' | sed -E 's/^\s*AllowGroups\s+//i' || true)
+
+# Extract AllowUsers directives (case-insensitive, can appear multiple times)
+ALLOW_USERS=$(echo "${SSHD_ALL_LINES}" | grep -iE '^\s*AllowUsers\s+' | sed -E 's/^\s*AllowUsers\s+//i' || true)
+
+# Check AllowGroups constraint
+if [ -n "${ALLOW_GROUPS}" ]; then
+    # Get all groups of the collector user
+    COLLECTOR_GROUPS=$(id -Gn "${COLLECTOR_USER}" 2>/dev/null || echo "")
+
+    # Build union of all allowed groups (multiple directives → union)
+    ALL_ALLOWED_GROUPS=$(echo "${ALLOW_GROUPS}" | tr '\n' ' ')
+
+    # Check if any collector group is in the allowed list
+    MATCH_FOUND=false
+    for user_group in ${COLLECTOR_GROUPS}; do
+        for allowed_group in ${ALL_ALLOWED_GROUPS}; do
+            # Exact match only (wildcards like *admin are not expanded)
+            if [ "${user_group}" = "${allowed_group}" ]; then
+                MATCH_FOUND=true
+                break 2
+            fi
+        done
+    done
+
+    if [ "${MATCH_FOUND}" = "false" ]; then
+        printf "ERROR: sshd is configured with 'AllowGroups %s' which restricts SSH access.\n" "${ALL_ALLOWED_GROUPS}" >&2
+        printf "%s is in groups: %s\n" "${COLLECTOR_USER}" "${COLLECTOR_GROUPS}" >&2
+        printf "Action required: add %s to one of the AllowGroups manually, e.g.:\n" "${COLLECTOR_USER}" >&2
+        printf "    usermod -aG <allowed-group> %s\n" "${COLLECTOR_USER}" >&2
+        printf "Then re-run SAM provisioning for this server.\n" >&2
+        exit 1
+    fi
+fi
+
+# Check AllowUsers constraint
+if [ -n "${ALLOW_USERS}" ]; then
+    # Build union of all allowed users
+    ALL_ALLOWED_USERS=$(echo "${ALLOW_USERS}" | tr '\n' ' ')
+
+    # Check if collector user is in the allowed list (exact match)
+    USER_MATCH_FOUND=false
+    for allowed_user in ${ALL_ALLOWED_USERS}; do
+        if [ "${COLLECTOR_USER}" = "${allowed_user}" ]; then
+            USER_MATCH_FOUND=true
+            break
+        fi
+    done
+
+    if [ "${USER_MATCH_FOUND}" = "false" ]; then
+        printf "ERROR: sshd is configured with 'AllowUsers %s' which restricts SSH access.\n" "${ALL_ALLOWED_USERS}" >&2
+        printf "Action required: add %s to AllowUsers in %s:\n" "${COLLECTOR_USER}" "${SSHD_CONFIG}" >&2
+        printf "    AllowUsers %s %s\n" "${ALL_ALLOWED_USERS}" "${COLLECTOR_USER}" >&2
+        printf "Then reload sshd and re-run SAM provisioning.\n" >&2
+        exit 1
+    fi
+fi
+
 echo "[provision] Host ready for SSH collection by ${COLLECTOR_USER}."
