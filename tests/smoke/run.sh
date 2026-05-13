@@ -310,6 +310,149 @@ for header in \
 done
 
 # ---------------------------------------------------------------------------
+section "Step 5c — settings round-trip (sets a recognisable value; persistence checked by workflow)"
+# ---------------------------------------------------------------------------
+# Write scan_interval_hours=6 (default is 4). The workflow captures this
+# value via a separate curl AFTER the first smoke run completes, then
+# verifies it survives a `docker compose down` + `up` cycle. On boot #2
+# the PUT is idempotent (value is already 6) so this step is replay-safe.
+SETTINGS_BEFORE=$(curl $CURL_FLAGS -b "$COOKIE_JAR" "${BASE_URL}/api/system/config")
+echo "  Settings before: $(printf '%s' "$SETTINGS_BEFORE" | head -c 200)"
+
+code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' -b "$COOKIE_JAR" \
+    -H 'Content-Type: application/json' -X PUT \
+    -d '{"scan_interval_hours":6,"expire_warn_days":7,"expire_warn_days_2":2,"login_max_attempts":10,"login_ban_seconds":300,"audit_retention_days":365}' \
+    "${BASE_URL}/api/system/config")
+[ "$code" = "200" ] || fail "PUT /api/system/config — expected 200, got $code"
+pass "PUT /api/system/config scan_interval_hours=6 → 200"
+
+SETTINGS_AFTER=$(curl $CURL_FLAGS -b "$COOKIE_JAR" "${BASE_URL}/api/system/config")
+case "$SETTINGS_AFTER" in
+    *'"scan_interval_hours"'*'6'*) pass "GET /api/system/config returns scan_interval_hours=6" ;;
+    *) fail "GET /api/system/config does not reflect scan_interval_hours=6 — got: $(printf '%s' "$SETTINGS_AFTER" | head -c 200)" ;;
+esac
+
+# ---------------------------------------------------------------------------
+section "Step 5d — audit log records LOGIN_FAILED entries (persistence via workflow)"
+# ---------------------------------------------------------------------------
+# Generate 3 LOGIN_FAILED entries with a username that does NOT exist so the
+# rate limiter (threshold 10) is not tripped. Verify the audit_log grew by
+# exactly 3 entries with action=LOGIN_FAILED. The workflow then verifies the
+# audit count survives a restart.
+AUDIT_BEFORE=$(curl $CURL_FLAGS -b "$COOKIE_JAR" "${BASE_URL}/api/audit?action=LOGIN_FAILED&limit=1000" \
+    | grep -oE '"id":"[^"]+"' | wc -l)
+echo "  LOGIN_FAILED rows before: $AUDIT_BEFORE"
+
+for _ in 1 2 3; do
+    curl $CURL_FLAGS -o /dev/null \
+        -H 'Content-Type: application/json' -X POST \
+        -d '{"username":"audit-probe-not-an-admin","password":"wrong"}' \
+        "${BASE_URL}/api/auth/login" >/dev/null
+done
+
+AUDIT_AFTER=$(curl $CURL_FLAGS -b "$COOKIE_JAR" "${BASE_URL}/api/audit?action=LOGIN_FAILED&limit=1000" \
+    | grep -oE '"id":"[^"]+"' | wc -l)
+echo "  LOGIN_FAILED rows after:  $AUDIT_AFTER"
+
+delta=$(( AUDIT_AFTER - AUDIT_BEFORE ))
+if [ "$delta" -ge 3 ]; then
+    pass "audit log grew by ≥3 LOGIN_FAILED entries (delta=$delta)"
+else
+    fail "audit log did not grow as expected (delta=$delta, expected ≥3)"
+fi
+
+# ---------------------------------------------------------------------------
+section "Step 5e — password change flow (first-login state transition)"
+# ---------------------------------------------------------------------------
+# GET /api/auth/me returns must_change_password=true iff password_changed_at
+# IS NULL in the DB. The default admin seeded from ENV starts with NULL.
+# After any password change, the flag flips to false permanently.
+#
+# Two cases:
+#   Boot 1: must_change_password=true on entry. Do the full flow and
+#           restore the original password (must_change_password stays false
+#           because password_changed_at was set).
+#   Boot 2 (same volume): must_change_password=false on entry. Skip the
+#           mutation (would be no-op) — already validated in boot 1.
+ME_BEFORE=$(curl $CURL_FLAGS -b "$COOKIE_JAR" "${BASE_URL}/api/auth/me")
+case "$ME_BEFORE" in
+    *'"must_change_password":true'*)
+        pass "boot 1: /api/auth/me reports must_change_password=true (NULL password_changed_at)"
+        NEW_PW="Sm0kePw!New123"
+        code=$(curl $CURL_FLAGS -o "$RESP_BODY" -w '%{http_code}' -b "$COOKIE_JAR" \
+            -H 'Content-Type: application/json' -X PUT \
+            -d "{\"password\":\"${NEW_PW}\"}" \
+            "${BASE_URL}/api/admins/${ADMIN_USER}/password")
+        [ "$code" = "200" ] || { cat "$RESP_BODY"; echo; fail "PUT password — expected 200, got $code"; }
+        pass "PUT /api/admins/${ADMIN_USER}/password → 200"
+
+        # Re-login with the new password — the previous session may still be
+        # valid (depends on whether changing password invalidates sessions).
+        # Use a fresh cookie jar to be unambiguous.
+        TMP_JAR=$(mktemp /tmp/sam-smoke-pwflow.XXXXXX)
+        code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' -c "$TMP_JAR" \
+            -H 'Content-Type: application/json' -X POST \
+            -d "{\"username\":\"${ADMIN_USER}\",\"password\":\"${NEW_PW}\"}" \
+            "${BASE_URL}/api/auth/login")
+        [ "$code" = "200" ] || { rm -f "$TMP_JAR"; fail "login with new password — expected 200, got $code"; }
+        pass "re-login with the new password → 200"
+
+        ME_AFTER=$(curl $CURL_FLAGS -b "$TMP_JAR" "${BASE_URL}/api/auth/me")
+        case "$ME_AFTER" in
+            *'"must_change_password":false'*)
+                pass "/api/auth/me now reports must_change_password=false (flag flipped)" ;;
+            *)
+                rm -f "$TMP_JAR"
+                fail "must_change_password did not flip to false: $ME_AFTER" ;;
+        esac
+
+        # Restore the original password so the workflow's second smoke run
+        # (and the rate limiter test below) can keep authenticating as the
+        # same admin with the same credentials.
+        code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' -b "$TMP_JAR" \
+            -H 'Content-Type: application/json' -X PUT \
+            -d "{\"password\":\"${ADMIN_PASSWORD}\"}" \
+            "${BASE_URL}/api/admins/${ADMIN_USER}/password")
+        rm -f "$TMP_JAR"
+        [ "$code" = "200" ] || fail "restore original password — expected 200, got $code"
+        pass "original password restored (must_change_password stays false because password_changed_at is now set)"
+        ;;
+    *'"must_change_password":false'*)
+        pass "boot 2+: must_change_password already false — flow validated on a prior boot (persistence check)" ;;
+    *)
+        fail "must_change_password field missing from /api/auth/me payload: $ME_BEFORE" ;;
+esac
+
+# ---------------------------------------------------------------------------
+section "Step 5f — static asset MIME types (Vite-hashed JS + CSS)"
+# ---------------------------------------------------------------------------
+# Vue/Vite produces hashed bundles in /assets/ and references them from
+# index.html via <script type="module" src="/assets/index-XXXXX.js"> and
+# <link rel="stylesheet" href="/assets/index-XXXXX.css">. If
+# `include /etc/nginx/mime.types;` is missing from nginx.conf, the .js
+# file is served with default_type application/octet-stream — modern
+# browsers refuse to execute ES modules with the wrong MIME type and the
+# SPA never starts.
+SPA_HTML=$(curl $CURL_FLAGS "${BASE_URL}/")
+JS_URL=$(printf '%s' "$SPA_HTML" | grep -oE '/assets/[A-Za-z0-9._-]+\.js' | head -1)
+CSS_URL=$(printf '%s' "$SPA_HTML" | grep -oE '/assets/[A-Za-z0-9._-]+\.css' | head -1)
+
+[ -n "$JS_URL" ] || fail "no /assets/*.js reference found in index.html"
+[ -n "$CSS_URL" ] || fail "no /assets/*.css reference found in index.html"
+
+js_ctype=$(curl $CURL_FLAGS -D - -o /dev/null "${BASE_URL}${JS_URL}" | grep -i '^content-type:' | head -1)
+case "$js_ctype" in
+    *application/javascript*|*text/javascript*) pass "asset ${JS_URL}: $js_ctype" ;;
+    *) fail "asset ${JS_URL} has wrong Content-Type: $js_ctype" ;;
+esac
+
+css_ctype=$(curl $CURL_FLAGS -D - -o /dev/null "${BASE_URL}${CSS_URL}" | grep -i '^content-type:' | head -1)
+case "$css_ctype" in
+    *text/css*) pass "asset ${CSS_URL}: $css_ctype" ;;
+    *) fail "asset ${CSS_URL} has wrong Content-Type: $css_ctype" ;;
+esac
+
+# ---------------------------------------------------------------------------
 section "Step 6 — RBAC roundtrip (sysadmin / operator / viewer enforced at runtime)"
 # ---------------------------------------------------------------------------
 # Pytest covers `require_role` with mocks. This step proves the wiring
@@ -452,6 +595,32 @@ rbac_check "$COOKIE_VW" POST   /api/servers                         '{}'        
 rbac_check "$COOKIE_VW" PUT    "/api/servers/${NIL_HOST}/disable"   ""                         403 "viewer PUT /api/servers/<h>/disable (forbidden)"
 rbac_check "$COOKIE_VW" DELETE "/api/servers/${NIL_HOST}"           ""                         403 "viewer DELETE /api/servers/<h> (forbidden)"
 rbac_check "$COOKIE_VW" POST   "/api/servers/${NIL_HOST}/scan"      ""                         403 "viewer POST /api/servers/<h>/scan (forbidden)"
+
+# ---------------------------------------------------------------------------
+# Snapshot for the workflow's persistence check.
+# Captured here, with the admin session still active, BEFORE Step 8's rate
+# limiter bans the runner's IP — re-authenticating after the ban would
+# require waiting login_ban_seconds.
+# ---------------------------------------------------------------------------
+if [ -n "${SMOKE_STATE_FILE:-}" ]; then
+    audit_count=$(curl $CURL_FLAGS -b "$COOKIE_JAR" \
+        "${BASE_URL}/api/audit?limit=10000" \
+        | grep -oE '"id":"[^"]+"' | wc -l)
+    # /api/system/config returns settings values as JSON strings, not
+    # numbers — e.g. "scan_interval_hours":"6". Match the surrounding key
+    # then strip everything that isn't a digit (tr -dc) to extract the
+    # value regardless of whether quotes appear.
+    scan_interval=$(curl $CURL_FLAGS -b "$COOKIE_JAR" \
+        "${BASE_URL}/api/system/config" \
+        | grep -oE '"scan_interval_hours":"?[0-9]+"?' \
+        | head -1 \
+        | tr -dc 0-9 || true)
+    {
+        echo "AUDIT_COUNT=${audit_count}"
+        echo "SCAN_INTERVAL=${scan_interval}"
+    } > "$SMOKE_STATE_FILE"
+    pass "smoke state snapshot written to ${SMOKE_STATE_FILE} (audit=${audit_count}, scan=${scan_interval})"
+fi
 
 # ---------------------------------------------------------------------------
 section "Step 7 — logout invalidates the session"
