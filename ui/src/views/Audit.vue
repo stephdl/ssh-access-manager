@@ -3,9 +3,16 @@
     <h1>{{ $t('audit.title') }}</h1>
 
     <div v-if="error" class="alert-error">{{ error }}</div>
-    <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
+    <div v-if="initialLoading" class="loading">{{ $t('common.loading') }}</div>
 
-    <AuditTable v-else :logs="entries" :total="total" :facets="facets" @fetch="handleFetch" />
+    <AuditTable
+      v-else
+      :logs="entries"
+      :total="total"
+      :facets="facets"
+      :loading="loading"
+      @fetch="handleFetch"
+    />
   </div>
 </template>
 
@@ -20,7 +27,8 @@ const { t } = useI18n()
 const entries = ref([])
 const total = ref(0)
 const facets = ref({ servers: [], actions: [] })
-const loading = ref(true)
+const initialLoading = ref(true)
+const loading = ref(false)
 const error = ref('')
 
 async function load(params = {}) {
@@ -45,6 +53,7 @@ async function load(params = {}) {
     error.value = t('audit.load_error', { error: e.message })
   } finally {
     loading.value = false
+    initialLoading.value = false
   }
 }
 

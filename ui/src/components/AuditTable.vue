@@ -3,7 +3,10 @@
     <section class="filters card">
       <div class="filter-row">
         <div class="field">
-          <label for="f-search">{{ $t('audit.search_label') }}</label>
+          <label for="f-search">
+            {{ $t('audit.search_label') }}
+            <span v-if="props.loading" class="search-spinner" />
+          </label>
           <input
             id="f-search"
             v-model="searchQuery"
@@ -135,6 +138,7 @@ const props = defineProps({
     type: Object,
     default: () => ({ servers: [], actions: [] }),
   },
+  loading: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['fetch'])
@@ -347,5 +351,22 @@ code {
 
 :global(html[data-theme='dark'] .row-warning) {
   background: rgba(255, 193, 7, 0.12) !important;
+}
+
+.search-spinner {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  margin-left: 0.4em;
+  border: 2px solid var(--text-secondary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
