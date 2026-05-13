@@ -3,14 +3,26 @@
     <section class="filters card">
       <div class="filter-row">
         <div class="field">
+          <label for="f-search">{{ $t('audit.search_label') }}</label>
+          <input
+            id="f-search"
+            v-model="searchQuery"
+            type="text"
+            :placeholder="$t('audit.search_placeholder')"
+          />
+        </div>
+        <div class="field">
           <label for="f-server">{{ $t('audit.filter_server') }}</label>
-          <input id="f-server" v-model="filters.server" type="text" placeholder="hostname" />
+          <select id="f-server" v-model="filters.server">
+            <option value="">{{ $t('audit.filter_all') }}</option>
+            <option v-for="s in props.facets.servers" :key="s" :value="s">{{ s }}</option>
+          </select>
         </div>
         <div class="field">
           <label for="f-action">{{ $t('audit.filter_action') }}</label>
           <select id="f-action" v-model="filters.action">
             <option value="">{{ $t('audit.filter_all') }}</option>
-            <option v-for="a in sortedActions" :key="a" :value="a">{{ a }}</option>
+            <option v-for="a in props.facets.actions" :key="a" :value="a">{{ a }}</option>
           </select>
         </div>
         <div class="field">
@@ -72,10 +84,8 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-if="filtered.length === 0">
-            <td colspan="6" class="empty">
-              {{ props.logs.length === 0 ? $t('audit.empty') : $t('audit_table.no_results') }}
-            </td>
+          <tr v-if="props.logs.length === 0">
+            <td colspan="6" class="empty">{{ $t('audit.empty') }}</td>
           </tr>
           <tr v-for="e in paginatedItems" :key="e.id" :class="rowClass(e.action)">
             <td class="date">{{ formatDate(e.performed_at) }}</td>
@@ -94,7 +104,7 @@
       </table>
 
       <PaginationBar
-        v-if="filtered.length > 0"
+        v-if="props.logs.length > 0"
         :current-page="currentPage"
         :total-pages="totalPages"
         :total-items="totalItems"
@@ -107,7 +117,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useFormatDate } from '../composables/useFormatDate.js'
 import { usePagination } from '../composables/usePagination.js'
@@ -120,50 +130,14 @@ const { sortKey, toggleSort, sorted, sortIndicator } = useSort()
 
 const props = defineProps({
   logs: { type: Array, default: () => [] },
-  servers: { type: Array, default: () => [] },
+  total: { type: Number, default: 0 },
+  facets: {
+    type: Object,
+    default: () => ({ servers: [], actions: [] }),
+  },
 })
 
-// Keep aligned with audit_log_action_check_v7 in sql/schema.sql / bootstrap.sh
-const ACTIONS = [
-  'KEY_ADDED',
-  'KEY_REVOKED',
-  'KEY_EXPIRED',
-  'EXPIRY_WARNING',
-  'REQUEST_APPROVED',
-  'REQUEST_REJECTED',
-  'ANOMALY_DETECTED',
-  'SCAN_COMPLETED',
-  'SCAN_FAILED',
-  'SCRIPT_DEPLOYED',
-  'SERVER_ADDED',
-  'SERVER_DISABLED',
-  'SERVER_UPDATED',
-  'SERVER_RENAMED',
-  'SERVER_PROVISIONED',
-  'ADMIN_ADDED',
-  'ADMIN_DISABLED',
-  'ADMIN_ENABLED',
-  'ADMIN_DELETED',
-  'ADMIN_UPDATED',
-  'USER_LOCKED',
-  'USER_UNLOCKED',
-  'LOGIN_FAILED',
-  'LOGIN_BANNED',
-  'PASSWORD_RESET',
-  'SESSION_LIMIT_EXCEEDED',
-  'GROUP_GRANTED',
-  'GROUP_REVOKED',
-  'GROUP_CHANGED',
-  'PROVISION_UPDATED',
-  'PROVISION_UPDATE_FAILED',
-  'COLLECTOR_KEY_GENERATED',
-  'COLLECTOR_KEY_ROTATED',
-  'COLLECTOR_KEY_ROTATION_FAILED',
-]
-
-// Alphabetically sorted clone so future additions land in the right spot
-// in the dropdown without manual reordering.
-const sortedActions = [...ACTIONS].sort()
+const emit = defineEmits(['fetch'])
 
 const CRITICAL_ACTIONS = new Set([
   'ANOMALY_DETECTED',
@@ -175,27 +149,21 @@ const CRITICAL_ACTIONS = new Set([
 ])
 const WARNING_ACTIONS = new Set(['EXPIRY_WARNING', 'KEY_EXPIRED'])
 
+const searchQuery = ref('')
 const filters = ref({ server: '', action: '', since: '' })
+let searchDebounce = null
 
-const filtered = computed(() => {
-  let items = props.logs
-  if (filters.value.server) {
-    items = items.filter((e) =>
-      (e.server_hostname || '').toLowerCase().includes(filters.value.server.toLowerCase())
-    )
-  }
-  if (filters.value.action) {
-    items = items.filter((e) => e.action === filters.value.action)
-  }
-  if (filters.value.since) {
-    const sinceDate = new Date(filters.value.since)
-    items = items.filter((e) => new Date(e.performed_at) >= sinceDate)
-  }
-  return items
+// Watch search query with 250ms debounce
+watch(searchQuery, () => {
+  if (searchDebounce) clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(() => {
+    applyFilters()
+  }, 250)
 })
 
+// Client-side filtering is removed — backend handles all filtering
 const { pageSize, currentPage, totalItems, totalPages, paginatedItems, setPageSize } =
-  usePagination(computed(() => sorted(filtered.value)))
+  usePagination(computed(() => sorted(props.logs)))
 
 function rowClass(action) {
   if (CRITICAL_ACTIONS.has(action)) return 'row-danger'
@@ -219,11 +187,19 @@ function formatDetails(details) {
 
 function applyFilters() {
   currentPage.value = 1
+  emit('fetch', {
+    q: searchQuery.value.trim(),
+    server: filters.value.server,
+    action: filters.value.action,
+    since: filters.value.since,
+  })
 }
 
 function resetFilters() {
+  searchQuery.value = ''
   filters.value = { server: '', action: '', since: '' }
   currentPage.value = 1
+  emit('fetch', {})
 }
 
 function exportCsv() {
@@ -235,7 +211,7 @@ function exportCsv() {
     t('audit.col_key'),
     t('audit.col_details'),
   ]
-  const rows = filtered.value.map((e) => [
+  const rows = props.logs.map((e) => [
     e.performed_at ? formatDate(e.performed_at) : '',
     e.action || '',
     e.performed_by_username || '',

@@ -1998,6 +1998,149 @@ def check_sshd_compliance(parsed: dict) -> dict:
     return {"checks": checks, "summary": summary, "overall": overall}
 
 
+def list_audit_logs(
+    server: str | None = None,
+    action: str | None = None,
+    since: str | None = None,
+    q: str | None = None,
+) -> dict:
+    """List audit logs with optional filters and dynamic facets.
+
+    Args:
+        server: exact match on server hostname
+        action: exact match on action type
+        since: ISO 8601 datetime string
+        q: full-text search (ILIKE OR on details, action, username, fingerprint, hostname)
+
+    Returns:
+        {
+            "rows": [...],
+            "total": N,
+            "facets": {
+                "servers": [...],  # filter-minus-self: all filters EXCEPT server
+                "actions": [...],  # filter-minus-self: all filters EXCEPT action
+            }
+        }
+    """
+    # Base query for rows
+    sql = """
+        SELECT al.*,
+               adm.username   AS performed_by_username,
+               s.hostname     AS server_hostname,
+               sk.fingerprint AS key_fingerprint
+        FROM audit_log al
+        LEFT JOIN administrators adm ON adm.id = al.performed_by
+        LEFT JOIN servers        s   ON s.id   = al.target_server
+        LEFT JOIN ssh_keys       sk  ON sk.id  = al.target_key
+        WHERE 1=1
+    """
+    params = []
+
+    # Apply filters
+    if server:
+        sql += " AND s.hostname = %s"
+        params.append(server)
+    if action:
+        sql += " AND al.action = %s"
+        params.append(action)
+    if since:
+        sql += " AND al.performed_at >= %s::timestamp"
+        params.append(since)
+    if q:
+        # Full-text search — ILIKE OR on text columns
+        # Escape wildcards: % and _ in user input should match literally
+        escaped_q = q.replace("%", "\\%").replace("_", "\\_")
+        sql += """ AND (
+            al.details ILIKE %s OR
+            al.action ILIKE %s OR
+            adm.username ILIKE %s OR
+            sk.fingerprint ILIKE %s OR
+            s.hostname ILIKE %s
+        )"""
+        pattern = f"%{escaped_q}%"
+        params.extend([pattern] * 5)
+
+    # Get total count
+    count_sql = f"SELECT COUNT(*) as n FROM ({sql}) sub"
+    total = db.query_one(count_sql, tuple(params))["n"]
+
+    # Get rows (limit 500)
+    sql += " ORDER BY al.performed_at DESC LIMIT 500"
+    rows = db.query(sql, tuple(params))
+
+    # Compute facets (filter-minus-self)
+    # facets.servers: all filters EXCEPT server
+    facet_servers_sql = """
+        SELECT DISTINCT s.hostname
+        FROM audit_log al
+        LEFT JOIN administrators adm ON adm.id = al.performed_by
+        LEFT JOIN servers        s   ON s.id   = al.target_server
+        LEFT JOIN ssh_keys       sk  ON sk.id  = al.target_key
+        WHERE s.hostname IS NOT NULL
+    """
+    facet_servers_params = []
+    # Apply action, since, q (but NOT server)
+    if action:
+        facet_servers_sql += " AND al.action = %s"
+        facet_servers_params.append(action)
+    if since:
+        facet_servers_sql += " AND al.performed_at >= %s::timestamp"
+        facet_servers_params.append(since)
+    if q:
+        escaped_q = q.replace("%", "\\%").replace("_", "\\_")
+        facet_servers_sql += """ AND (
+            al.details ILIKE %s OR
+            al.action ILIKE %s OR
+            adm.username ILIKE %s OR
+            sk.fingerprint ILIKE %s OR
+            s.hostname ILIKE %s
+        )"""
+        pattern = f"%{escaped_q}%"
+        facet_servers_params.extend([pattern] * 5)
+    facet_servers_sql += " ORDER BY s.hostname"
+    servers_facet = [r["hostname"] for r in db.query(facet_servers_sql, tuple(facet_servers_params))]
+
+    # facets.actions: all filters EXCEPT action
+    facet_actions_sql = """
+        SELECT DISTINCT al.action
+        FROM audit_log al
+        LEFT JOIN administrators adm ON adm.id = al.performed_by
+        LEFT JOIN servers        s   ON s.id   = al.target_server
+        LEFT JOIN ssh_keys       sk  ON sk.id  = al.target_key
+        WHERE 1=1
+    """
+    facet_actions_params = []
+    # Apply server, since, q (but NOT action)
+    if server:
+        facet_actions_sql += " AND s.hostname = %s"
+        facet_actions_params.append(server)
+    if since:
+        facet_actions_sql += " AND al.performed_at >= %s::timestamp"
+        facet_actions_params.append(since)
+    if q:
+        escaped_q = q.replace("%", "\\%").replace("_", "\\_")
+        facet_actions_sql += """ AND (
+            al.details ILIKE %s OR
+            al.action ILIKE %s OR
+            adm.username ILIKE %s OR
+            sk.fingerprint ILIKE %s OR
+            s.hostname ILIKE %s
+        )"""
+        pattern = f"%{escaped_q}%"
+        facet_actions_params.extend([pattern] * 5)
+    facet_actions_sql += " ORDER BY al.action"
+    actions_facet = [r["action"] for r in db.query(facet_actions_sql, tuple(facet_actions_params))]
+
+    return {
+        "rows": rows,
+        "total": total,
+        "facets": {
+            "servers": servers_facet,
+            "actions": actions_facet,
+        },
+    }
+
+
 def audit_server_sshd(hostname: str, admin_id: str | None = None) -> dict:
     """Read server (ip, port) from DB, call ssh.audit_sshd_config, apply policy.
 

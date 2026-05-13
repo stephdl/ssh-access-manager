@@ -249,6 +249,8 @@
     "col_key": "Chiave",
     "col_details": "Dettagli",
     "empty": "Nessuna voce di audit.",
+    "search_label": "Cerca",
+    "search_placeholder": "Cerca nell'audit...",
     "filter_server": "Server",
     "filter_action": "Azione",
     "filter_all": "Tutte",

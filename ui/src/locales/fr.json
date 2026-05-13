@@ -249,6 +249,8 @@
     "col_key": "Clé",
     "col_details": "Détails",
     "empty": "Aucune entrée d'audit.",
+    "search_label": "Rechercher",
+    "search_placeholder": "Rechercher dans l'audit...",
     "filter_server": "Serveur",
     "filter_action": "Action",
     "filter_all": "Toutes",

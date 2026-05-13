@@ -9,7 +9,7 @@
 | ServerDetail.vue | Détail serveur + clés + actions + bandeau rouge si désactivé (#91). Bouton **Edit** (sysadmin) : ouvre `EditServerModal` pour modifier IP, env, OS, port SSH (#339) ; `max_sessions` configurable via `EditServerModal` (seuil alertes sessions, #360). Bandeau orange si `last_scan_ok === false` (#324). Bouton **Re-provisionner** (violet, sysadmin + serveur actif) : modal SSH credentials, spinner, traduction error_code (#302). `bulkRevokeHasRoot` vérifie les clés composées (`\|root`) — évite faux positif quand un non-root partage le même fingerprint que root. **Bulk revoke fait du targeted per-row** : loop sur les composites, POST `/api/keys/revoke/<fp>` avec `{hostname, unix_user, reason}` au lieu d'un global `/api/keys/bulk-revoke` (qui serait refusé dès que root partage le fingerprint, #429). |
 | Anomalies.vue | Anomalies actives + filtres texte/type/serveur/conformité + colonne unix_user (#195) |
 | AccessRequests.vue | DeployKeyForm + UserLockForm |
-| Audit.vue | Historique filtrable |
+| Audit.vue | Historique filtrable + recherche full-text + facets dynamiques pour filtres server/action (#435) |
 | Admins.vue | Gestion admins + modals enable/delete/password + garde-fou self (#116) + toggle alerts (#223) |
 | Settings.vue | scan_interval_hours, expire_warn_days*, login_max_attempts, login_ban_seconds (#236), audit_retention_days (#346) + test SMTP |
 
@@ -25,7 +25,7 @@
 | UserLockForm.vue | Verrouillage/déverrouillage compte Unix (#181) |
 | DeployedUsersTable.vue | Utilisateurs Unix déployés + filtres + RBAC operator/viewer ; lignes root visuellement grisées (`.row-root`), badge "protected", tooltips sur boutons désactivés via `<span class="btn-tooltip-wrapper">` (fix navigateur : buttons disabled ne reçoivent pas les événements souris) |
 | AdminsTable.vue | Tableau administrateurs + filtre texte + pagination + garde-fou self (#250) |
-| AuditTable.vue | Tableau audit + filtres serveur/action/date + pagination (#250) |
+| AuditTable.vue | Tableau audit + recherche full-text (debounce 250ms) + filtres serveur (select)/action (select)/date + facets dynamiques (filter-minus-self) + pagination (#250, #435) |
 | AnomaliesTable.vue | Tableau anomalies + filtres texte/type/serveur/conformité + pagination (#250). Même protection `PROTECTED_USERS = ['root', 'audit-collector']` que KeyTable : pas de checkbox sur ces lignes, badge "protected", classe `.row-root`, Revoke disabled avec tooltip dédié. Sélection composite à 3 niveaux **`fingerprint\|server_hostname\|unix_user`** (matchant la PK composite de `key_authorizations` #185) — sans le 3ᵉ niveau, deux lignes même fp+serveur mais users différents partageaient la même clé de sélection (#429). `bulk-revoke` émet `{fingerprint, hostname, unix_user}[]` ; le single-Revoke émet `{fingerprint, hostname, unix_user}` aussi pour que la modal fasse un revoke ciblé (sinon le global revoke est refusé par le backend dès que root partage le fingerprint) |
 | PaginationBar.vue | Composant pagination réutilisable avec contrôles taille de page |
 | SessionsCard.vue | Sessions SSH actives + modal Full History (filtres user/ip/date, pagination, export CSV) — sysadmin/operator uniquement (#253) |
@@ -72,7 +72,7 @@ Détection automatique de la langue du navigateur via vue-i18n v9 (i18n.js).
 | Anomalies.spec.js | 20 | filtres texte + dropdowns, unix_user, badges |
 | Login.spec.js | 8 | checkbox remember-me, payload remember_me |
 | AdminsTable.spec.js | 13 | filtre texte, pagination, RBAC, garde-fou self, events (#250) |
-| AuditTable.spec.js | 10 | filtres serveur/action/date, pagination, row classes (#250) |
+| AuditTable.spec.js | 13 | recherche full-text + debounce 250ms, dropdowns server/action peuplés depuis facets, pagination, events (#250, #435) |
 | AnomaliesTable.spec.js | 22 | filtres texte/type/conformité, pagination, RBAC, events (#250) |
 | SessionsCard.spec.js | 17 | sessions actives, modal historique, filtres, pagination, CSV export, RBAC (#253) |
 | Dashboard.spec.js | 8 | champs SSH obligatoires, submit désactivé sans password/hostname invalide, POST avec ssh_user/password/port, port 22 par défaut, fermeture modal, validation RFC 1123 (#299, #303) |

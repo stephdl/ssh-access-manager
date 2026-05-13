@@ -1123,31 +1123,19 @@ def list_audit():
     server = request.args.get("server")
     action = request.args.get("action")
     since = request.args.get("since")
-    sql = """
-        SELECT al.*,
-               adm.username   AS performed_by_username,
-               s.hostname     AS server_hostname,
-               sk.fingerprint AS key_fingerprint
-        FROM audit_log al
-        LEFT JOIN administrators adm ON adm.id = al.performed_by
-        LEFT JOIN servers        s   ON s.id   = al.target_server
-        LEFT JOIN ssh_keys       sk  ON sk.id  = al.target_key
-        WHERE 1=1
-    """
-    params = []
-    if server:
-        sql += " AND s.hostname = %s"
-        params.append(server)
-    if action:
-        sql += " AND al.action = %s"
-        params.append(action)
+    q = request.args.get("q")
+
+    # Parse datetime if provided (keep backward compat with _parse_datetime)
     if since:
         dt = _parse_datetime(since)
-        if dt:
-            sql += " AND al.performed_at >= %s"
-            params.append(dt)
-    sql += " ORDER BY al.performed_at DESC LIMIT 500"
-    return jsonify(db.query(sql, tuple(params)))
+        since = dt.isoformat() if dt else None
+
+    return jsonify(actions.list_audit_logs(
+        server=server,
+        action=action,
+        since=since,
+        q=q,
+    ))
 
 
 # ---------------------------------------------------------------------------

@@ -249,6 +249,8 @@
     "col_key": "Clave",
     "col_details": "Detalles",
     "empty": "No hay entradas de auditoría.",
+    "search_label": "Buscar",
+    "search_placeholder": "Buscar en auditoría...",
     "filter_server": "Servidor",
     "filter_action": "Acción",
     "filter_all": "Todas",
