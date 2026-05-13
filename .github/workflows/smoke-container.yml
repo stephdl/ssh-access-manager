@@ -1,0 +1,60 @@
+name: Smoke — container boots
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: docker compose up + REST roundtrip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write deterministic .env for the smoke run
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_DB=ssh_manager
+          POSTGRES_USER=ssh_manager
+          POSTGRES_PASSWORD=smoke-postgres-pw
+          NGINX_PORT=8080
+          FLASK_SECRET_KEY=smoke-flask-secret-key-not-for-prod
+          SMTP_HOST=localhost
+          SMTP_PORT=587
+          SMTP_USERNAME=
+          SMTP_PASSWORD=
+          SMTP_FROM=alerts@example.com
+          SMTP_ENCRYPTION=none
+          SMTP_TLSVERIFY=0
+          SMTP_ENABLED=
+          ADMIN_USERNAME=admin
+          ADMIN_EMAIL=admin@example.com
+          ADMIN_PASSWORD=smoke-admin-pw
+          EOF
+
+      - name: Build the image
+        run: docker compose build
+
+      - name: Start the container
+        run: docker compose up -d
+
+      - name: Run smoke assertions
+        run: bash tests/smoke/run.sh http://127.0.0.1:8080 admin smoke-admin-pw
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          echo "::group::docker compose logs"
+          docker compose logs --no-color || true
+          echo "::endgroup::"
+          echo "::group::supervisord status from inside the container"
+          docker compose exec -T sam-server supervisorctl status || true
+          echo "::endgroup::"
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v
