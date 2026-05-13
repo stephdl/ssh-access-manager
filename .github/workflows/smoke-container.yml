@@ -33,7 +33,7 @@ jobs:
           SMTP_ENABLED=
           ADMIN_USERNAME=admin
           ADMIN_EMAIL=admin@example.com
-          ADMIN_PASSWORD=smoke-admin-pw
+          ADMIN_PASSWORD=Sm0keAdmin!Pw
           EOF
 
       - name: Build the image
@@ -61,7 +61,7 @@ jobs:
         run: docker compose up -d
 
       - name: Run smoke HTTP assertions (first boot)
-        run: bash tests/smoke/run.sh http://127.0.0.1:8080 admin smoke-admin-pw
+        run: bash tests/smoke/run.sh http://127.0.0.1:8080 admin Sm0keAdmin!Pw
 
       - name: Assert no secret leaks into container logs
         # docker compose logs aggregates supervisord + every service. A
@@ -71,7 +71,7 @@ jobs:
         # used by the job are unique fixed strings so grep is reliable.
         run: |
           logs=$(docker compose logs --no-color 2>&1)
-          for secret in smoke-postgres-pw smoke-flask-secret-key-not-for-prod smoke-admin-pw; do
+          for secret in smoke-postgres-pw smoke-flask-secret-key-not-for-prod Sm0keAdmin!Pw; do
             if printf '%s' "$logs" | grep -qF "$secret"; then
               echo "::error::secret value leaked into container logs: $secret"
               printf '%s' "$logs" | grep -nF "$secret" | head -5
@@ -176,6 +176,29 @@ jobs:
           fi
           echo "First-boot log shape OK."
 
+      - name: Capture audit count + settings before restart
+        # The first smoke run wrote scan_interval_hours=6 (Step 5c) and
+        # generated LOGIN_FAILED + LOGIN_BANNED entries (Steps 5d, 8).
+        # We snapshot both values now; after the restart they must
+        # survive on the same named volume.
+        run: |
+          jar=$(mktemp)
+          curl -s -c "$jar" -H 'Content-Type: application/json' \
+              -d '{"username":"admin","password":"Sm0keAdmin!Pw"}' \
+              http://127.0.0.1:8080/api/auth/login >/dev/null
+          AUDIT_COUNT_BEFORE=$(curl -s -b "$jar" \
+              "http://127.0.0.1:8080/api/audit?limit=10000" \
+              | grep -oE '"id":"[^"]+"' | wc -l)
+          SCAN_BEFORE=$(curl -s -b "$jar" \
+              http://127.0.0.1:8080/api/system/config \
+              | grep -oE '"scan_interval_hours":[0-9]+' \
+              | grep -oE '[0-9]+$')
+          rm -f "$jar"
+          echo "AUDIT_COUNT_BEFORE=$AUDIT_COUNT_BEFORE" | tee -a "$GITHUB_ENV"
+          echo "SCAN_BEFORE=$SCAN_BEFORE" | tee -a "$GITHUB_ENV"
+          [ "$SCAN_BEFORE" = "6" ] || (echo "::error::scan_interval_hours expected 6, got $SCAN_BEFORE"; exit 1)
+          [ "$AUDIT_COUNT_BEFORE" -gt "0" ] || (echo "::error::audit_log is empty after first smoke — should have LOGIN_FAILED entries"; exit 1)
+
       - name: Restart the container (volume preserved — proves persistence)
         # `docker compose down` (no -v) preserves the named volume, so
         # /data/pg/ survives. `up` again must reuse the existing PGDATA,
@@ -190,7 +213,7 @@ jobs:
         # smoke either fails (admin password reset to ENV default) or
         # the existing data is wiped — both are catastrophic in prod
         # upgrade flows and entirely invisible to pytest.
-        run: bash tests/smoke/run.sh http://127.0.0.1:8080 admin smoke-admin-pw
+        run: bash tests/smoke/run.sh http://127.0.0.1:8080 admin Sm0keAdmin!Pw
 
       - name: Assert second boot took the "Normal startup" branch
         run: |
@@ -199,6 +222,37 @@ jobs:
               || (echo "::error::expected 'Normal startup (existing data)' on reboot — bootstrap may have reinitialised the DB"; \
                   tail -80 /tmp/second-boot.log; exit 1)
           echo "Second-boot log confirms bootstrap took the idempotent path."
+
+      - name: Assert audit log + settings persisted across restart
+        # AUDIT_COUNT_AFTER must be >= AUDIT_COUNT_BEFORE: the second smoke
+        # run adds even more LOGIN_FAILED entries, so the count grows. A
+        # value < BEFORE would mean rows were truncated or audit_log was
+        # recreated empty (catastrophic for conformity audit trails).
+        #
+        # SCAN_AFTER must equal SCAN_BEFORE (6): the second smoke re-PUTs
+        # the same value, so a strict equality is the right check. A
+        # different value would mean the settings table was reset or
+        # re-seeded from defaults at boot.
+        run: |
+          jar=$(mktemp)
+          curl -s -c "$jar" -H 'Content-Type: application/json' \
+              -d '{"username":"admin","password":"Sm0keAdmin!Pw"}' \
+              http://127.0.0.1:8080/api/auth/login >/dev/null
+          AUDIT_COUNT_AFTER=$(curl -s -b "$jar" \
+              "http://127.0.0.1:8080/api/audit?limit=10000" \
+              | grep -oE '"id":"[^"]+"' | wc -l)
+          SCAN_AFTER=$(curl -s -b "$jar" \
+              http://127.0.0.1:8080/api/system/config \
+              | grep -oE '"scan_interval_hours":[0-9]+' \
+              | grep -oE '[0-9]+$')
+          rm -f "$jar"
+          echo "AUDIT before/after restart: $AUDIT_COUNT_BEFORE / $AUDIT_COUNT_AFTER"
+          echo "SCAN  before/after restart: $SCAN_BEFORE / $SCAN_AFTER"
+          [ "$AUDIT_COUNT_AFTER" -ge "$AUDIT_COUNT_BEFORE" ] \
+              || (echo "::error::audit_log shrank across restart ($AUDIT_COUNT_AFTER < $AUDIT_COUNT_BEFORE) — rows lost"; exit 1)
+          [ "$SCAN_AFTER" = "$SCAN_BEFORE" ] \
+              || (echo "::error::settings.scan_interval_hours changed across restart ($SCAN_AFTER ≠ $SCAN_BEFORE) — value not persisted"; exit 1)
+          echo "Audit log + settings survived restart."
 
       - name: Dump container logs on failure
         if: failure()
@@ -250,7 +304,7 @@ jobs:
           SMTP_ENABLED=
           ADMIN_USERNAME=admin
           ADMIN_EMAIL=admin@example.com
-          ADMIN_PASSWORD=smoke-admin-pw
+          ADMIN_PASSWORD=Sm0keAdmin!Pw
           EOF
 
       - name: Build the image
@@ -284,7 +338,7 @@ jobs:
         # assertions (route sweep, RBAC matrix, rate limiter…) are
         # identical between HTTP and HTTPS — proving the entire stack
         # works the same regardless of TLS termination.
-        run: bash tests/smoke/run.sh https://127.0.0.1:8443 admin smoke-admin-pw
+        run: bash tests/smoke/run.sh https://127.0.0.1:8443 admin Sm0keAdmin!Pw
 
       - name: Assert HSTS header is present and well-formed
         # The HTTPS template advertises HSTS with a 2-year max-age. A
