@@ -33,6 +33,12 @@ http {
         ssl_session_tickets  off;
         add_header           Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
 
+        # Hardening response headers — see nginx.conf.http.template for rationale.
+        add_header X-Frame-Options          "DENY" always;
+        add_header X-Content-Type-Options   "nosniff" always;
+        add_header Referrer-Policy          "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy  "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'" always;
+
         # Flask API — proxy to 127.0.0.1:5000
         location /api/ {
             proxy_pass         http://127.0.0.1:5000;

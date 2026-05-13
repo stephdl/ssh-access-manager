@@ -243,6 +243,73 @@ sweep PUT    /api/system/config '{}'
 sweep POST   /api/system/test-smtp '{}'
 
 # ---------------------------------------------------------------------------
+section "Step 5b — security headers (cookie flags + JSON Content-Type + nginx hardening)"
+# ---------------------------------------------------------------------------
+# These three sub-checks are inexpensive (one curl each) and cover the most
+# dangerous silent regressions a Vue SPA / Flask container can ship with.
+
+# --- Cookie flags on the session cookie ---
+# HttpOnly is set unconditionally; SameSite=Lax is always set; Secure is set
+# only when the container was started with NGINX_TLS_* (the smoke detects this
+# from BASE_URL).
+COOKIE_HEADER=$(curl $CURL_FLAGS -D - -o /dev/null \
+    -H 'Content-Type: application/json' -X POST \
+    -d "$login_body" "${BASE_URL}/api/auth/login" | grep -i '^set-cookie:' || true)
+echo "  Set-Cookie line: $(printf '%s' "$COOKIE_HEADER" | head -c 200)"
+
+case "$COOKIE_HEADER" in
+    *HttpOnly*) pass "session cookie has HttpOnly" ;;
+    *)          fail "session cookie missing HttpOnly — XSS could exfiltrate it" ;;
+esac
+case "$COOKIE_HEADER" in
+    *SameSite=Lax*|*SameSite=Strict*) pass "session cookie has SameSite Lax/Strict" ;;
+    *)                                fail "session cookie missing SameSite" ;;
+esac
+case "$BASE_URL" in
+    https://*)
+        case "$COOKIE_HEADER" in
+            *Secure*) pass "session cookie has Secure (HTTPS mode)" ;;
+            *)        fail "session cookie missing Secure under HTTPS — downgrade attack possible" ;;
+        esac
+        ;;
+    *)
+        # HTTP mode: Secure must NOT be set (the browser would drop the cookie).
+        case "$COOKIE_HEADER" in
+            *Secure*) fail "session cookie has Secure under HTTP — browser will drop it" ;;
+            *)        pass "session cookie does not have Secure under HTTP (expected)" ;;
+        esac
+        ;;
+esac
+
+# --- Content-Type: application/json on the API surface ---
+# A regression where an endpoint returns text/html (debug print, leaked
+# traceback page) would be invisible to a JSON-only frontend until the user
+# hits a parse error.
+for api_path in /api/auth/me /api/servers /api/keys /api/audit /api/system/status; do
+    ctype=$(curl $CURL_FLAGS -D - -o /dev/null -b "$COOKIE_JAR" "${BASE_URL}${api_path}" \
+        | grep -i '^content-type:' | head -1)
+    case "$ctype" in
+        *application/json*) pass "Content-Type on ${api_path}: application/json" ;;
+        *)                  fail "Content-Type on ${api_path} is not JSON — got: $ctype" ;;
+    esac
+done
+
+# --- Nginx hardening response headers on / (covers /api too because they're
+# declared at server level in both nginx templates) ---
+HEADERS=$(curl $CURL_FLAGS -D - -o /dev/null "${BASE_URL}/")
+for header in \
+    "X-Frame-Options: DENY" \
+    "X-Content-Type-Options: nosniff" \
+    "Referrer-Policy:" \
+    "Content-Security-Policy:"; do
+    if printf '%s' "$HEADERS" | grep -qi "^${header}"; then
+        pass "nginx serves header '${header}'"
+    else
+        fail "nginx is NOT serving '${header}' — hardening regression in the template"
+    fi
+done
+
+# ---------------------------------------------------------------------------
 section "Step 6 — RBAC roundtrip (sysadmin / operator / viewer enforced at runtime)"
 # ---------------------------------------------------------------------------
 # Pytest covers `require_role` with mocks. This step proves the wiring
