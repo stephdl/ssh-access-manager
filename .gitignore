@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 .coverage
 app/.coverage
+app/coverage.json
 app/__pycache__/
 app/tests/__pycache__/
 node_modules
