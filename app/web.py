@@ -844,20 +844,16 @@ def api_deploy_key():
         except ValueError:
             return jsonify({"error": "expires_at must be in ISO 8601 format (e.g., 2026-05-07T16:00:00)"}), 400
 
-    try:
-        result = actions.deploy_key(
-            public_key=public_key,
-            unix_user=unix_user,
-            hostname=hostname,
-            expires_at=expires_at,
-            justification=justification,
-            admin_id=g.admin_id,
-            sam_group=sam_group,
-        )
-        return jsonify(result), 201
-    except Exception:
-        logging.warning("deploy_key failed: unexpected error")
-        return jsonify({"error": "Internal server error"}), 500
+    result = actions.deploy_key(
+        public_key=public_key,
+        unix_user=unix_user,
+        hostname=hostname,
+        expires_at=expires_at,
+        justification=justification,
+        admin_id=g.admin_id,
+        sam_group=sam_group,
+    )
+    return jsonify(result), 201
 
 
 @app.route("/api/access/grant-group", methods=["POST"])
@@ -872,12 +868,8 @@ def api_grant_group():
         return jsonify({"error": "unix_user, hostname, sam_group required"}), 400
     if group == "sam-root" and g.admin_role != "sysadmin":
         return jsonify({"error": "Only sysadmin can assign sam-root"}), 403
-    try:
-        result = actions.grant_group(unix_user, hostname, group, g.admin_id)
-        return jsonify(result), 200
-    except Exception:
-        logging.warning("grant_group failed: unexpected error")
-        return jsonify({"error": "Internal server error"}), 500
+    result = actions.grant_group(unix_user, hostname, group, g.admin_id)
+    return jsonify(result), 200
 
 
 @app.route("/api/access/revoke-group", methods=["POST"])
@@ -892,12 +884,8 @@ def api_revoke_group():
     existing = actions._get_current_group(unix_user, hostname)
     if existing == "sam-root" and g.admin_role != "sysadmin":
         return jsonify({"error": "Only sysadmin can revoke sam-root"}), 403
-    try:
-        result = actions.revoke_group(unix_user, hostname, g.admin_id)
-        return jsonify(result), 200
-    except Exception:
-        logging.warning("revoke_group failed: unexpected error")
-        return jsonify({"error": "Internal server error"}), 500
+    result = actions.revoke_group(unix_user, hostname, g.admin_id)
+    return jsonify(result), 200
 
 
 @app.route("/api/access/change-group", methods=["PUT"])
@@ -915,12 +903,8 @@ def api_change_group():
     existing = actions._get_current_group(unix_user, hostname)
     if existing == "sam-root" and g.admin_role != "sysadmin":
         return jsonify({"error": "Only sysadmin can change sam-root"}), 403
-    try:
-        result = actions.change_group(unix_user, hostname, new_group, g.admin_id)
-        return jsonify(result), 200
-    except Exception:
-        logging.warning("change_group failed: unexpected error")
-        return jsonify({"error": "Internal server error"}), 500
+    result = actions.change_group(unix_user, hostname, new_group, g.admin_id)
+    return jsonify(result), 200
 
 
 @app.route("/api/access/lock-user", methods=["POST"])
@@ -932,12 +916,8 @@ def api_lock_user():
     hostname = (data.get("hostname") or "").strip()
     if not unix_user or not hostname:
         return jsonify({"error": "unix_user and hostname required"}), 400
-    try:
-        result = actions.lock_user(unix_user, hostname, g.admin_id)
-        return jsonify(result), 200
-    except Exception:
-        logging.warning("lock_user failed: unexpected error")
-        return jsonify({"error": "Internal server error"}), 500
+    result = actions.lock_user(unix_user, hostname, g.admin_id)
+    return jsonify(result), 200
 
 
 @app.route("/api/access/unlock-user", methods=["POST"])
@@ -949,12 +929,8 @@ def api_unlock_user():
     hostname = (data.get("hostname") or "").strip()
     if not unix_user or not hostname:
         return jsonify({"error": "unix_user and hostname required"}), 400
-    try:
-        result = actions.unlock_user(unix_user, hostname, g.admin_id)
-        return jsonify(result), 200
-    except Exception:
-        logging.warning("unlock_user failed: unexpected error")
-        return jsonify({"error": "Internal server error"}), 500
+    result = actions.unlock_user(unix_user, hostname, g.admin_id)
+    return jsonify(result), 200
 
 
 @app.route("/api/access/deployed-users", methods=["GET"])
