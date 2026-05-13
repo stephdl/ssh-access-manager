@@ -513,7 +513,11 @@ def force_provision_sync(hostname):
                 "error": str(exc), "error_code": exc.error_code, "manual": True
             })),
         )
-        return jsonify({"error": "Provision update failed", "error_code": exc.error_code}), 502
+        return jsonify({
+            "error": "Provision update failed",
+            "error_code": exc.error_code,
+            "details": str(exc)[:500],
+        }), 422
 
 
 def _serialize_session(row) -> dict:
@@ -575,6 +579,12 @@ def refresh_server_sessions(hostname):
     except KeyError as e:
         logging.warning("collect_sessions_on_server: no per-server key for %s: %s", hostname.replace("\n", "").replace("\r", ""), str(e).replace("\n", " ").replace("\r", ""))
         return jsonify({"error": "No per-server collector key — re-add this server"}), 502
+    except ssh.SSHError as exc:
+        return jsonify({
+            "error": "SSH operation failed",
+            "error_code": exc.error_code,
+            "details": str(exc)[:500],
+        }), 422
     except RuntimeError as e:
         logging.warning("collect_sessions_on_server failed on %s (%s): %s", hostname.replace("\n", "").replace("\r", ""), ip, str(e).replace("\n", " ").replace("\r", ""))
         return jsonify({"error": "Session collection failed"}), 502

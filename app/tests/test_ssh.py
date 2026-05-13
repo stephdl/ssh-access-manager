@@ -1510,3 +1510,91 @@ def test_ssh_apply_provision_update_uses_reject_policy():
         ssh.apply_provision_update("web-01", "192.168.1.10", 22, key_path="/tmp/fake.key")
 
         client.set_missing_host_key_policy.assert_called_once_with(mock_policy.return_value)
+
+
+# ---------------------------------------------------------------------------
+# _connect exception wrapping (#437)
+# ---------------------------------------------------------------------------
+
+def test_ssh_connect_auth_failure_raises_ssh_auth_error():
+    """_connect converts paramiko.AuthenticationException to SSHAuthError."""
+    from unittest.mock import patch
+    import paramiko
+
+    with patch("ssh.paramiko.SSHClient") as mock_cls:
+        client = MagicMock()
+        mock_cls.return_value = client
+        client.connect.side_effect = paramiko.AuthenticationException("auth failed")
+
+        with pytest.raises(ssh.SSHAuthError, match="SSH authentication failed"):
+            ssh._connect("192.168.1.10", 22, key_path="/tmp/fake.key")
+
+
+def test_ssh_connect_ssh_exception_raises_ssh_error():
+    """_connect converts paramiko.SSHException to SSHError."""
+    from unittest.mock import patch
+    import paramiko
+
+    with patch("ssh.paramiko.SSHClient") as mock_cls:
+        client = MagicMock()
+        mock_cls.return_value = client
+        client.connect.side_effect = paramiko.SSHException("channel failed")
+
+        with pytest.raises(ssh.SSHError, match="SSH protocol error"):
+            ssh._connect("192.168.1.10", 22, key_path="/tmp/fake.key")
+
+
+def test_ssh_connect_timeout_raises_ssh_timeout_error():
+    """_connect converts socket.timeout to SSHTimeoutError."""
+    from unittest.mock import patch
+    import socket
+
+    with patch("ssh.paramiko.SSHClient") as mock_cls:
+        client = MagicMock()
+        mock_cls.return_value = client
+        client.connect.side_effect = socket.timeout()
+
+        with pytest.raises(ssh.SSHTimeoutError, match="timed out after 15s"):
+            ssh._connect("192.168.1.10", 22, key_path="/tmp/fake.key")
+
+
+def test_ssh_connect_connection_refused_raises_ssh_port_refused_error():
+    """_connect converts OSError with Connection refused to SSHPortRefusedError."""
+    from unittest.mock import patch
+
+    with patch("ssh.paramiko.SSHClient") as mock_cls:
+        client = MagicMock()
+        mock_cls.return_value = client
+        client.connect.side_effect = OSError("Connection refused")
+
+        with pytest.raises(ssh.SSHPortRefusedError, match="Connection refused on.*is sshd running"):
+            ssh._connect("192.168.1.10", 22, key_path="/tmp/fake.key")
+
+
+def test_ssh_connect_os_error_raises_ssh_unreachable_error():
+    """_connect converts generic OSError to SSHUnreachableError."""
+    from unittest.mock import patch
+
+    with patch("ssh.paramiko.SSHClient") as mock_cls:
+        client = MagicMock()
+        mock_cls.return_value = client
+        client.connect.side_effect = OSError("No route to host")
+
+        with pytest.raises(ssh.SSHUnreachableError, match="Cannot reach"):
+            ssh._connect("192.168.1.10", 22, key_path="/tmp/fake.key")
+
+
+def test_ssh_connect_uses_reject_policy_before_connect():
+    """_connect applies RejectPolicy before calling connect."""
+    from unittest.mock import patch
+
+    with patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy") as mock_policy:
+        client = MagicMock()
+        mock_cls.return_value = client
+
+        ssh._connect("192.168.1.10", 22, key_path="/tmp/fake.key")
+
+        client.set_missing_host_key_policy.assert_called_once_with(mock_policy.return_value)
+        client.load_host_keys.assert_called_once()
+        client.connect.assert_called_once()

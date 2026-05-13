@@ -2106,6 +2106,7 @@ def test_audit_server_sshd_disabled_server_raises_userrror():
 
 
 def test_audit_server_sshd_ssh_failure_raises_userrror():
+    """audit_server_sshd converts ssh.SSHError to UserError(502) with message."""
     import ssh as ssh_mod
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
         mock_db.query_one.return_value = {
@@ -2114,9 +2115,9 @@ def test_audit_server_sshd_ssh_failure_raises_userrror():
             "ssh_port": 22,
             "is_active": True,
         }
-        mock_ssh.audit_sshd_config.side_effect = ssh_mod.SSHError("Connection failed")
+        mock_ssh.audit_sshd_config.side_effect = ssh_mod.SSHAuthError("Authentication failed for audit-collector@192.168.1.1:22")
         mock_ssh.SSHError = ssh_mod.SSHError
-        with pytest.raises(UserError, match="SSH audit failed"):
+        with pytest.raises(UserError, match="SSH audit failed.*Authentication failed"):
             actions.audit_server_sshd("server-test-01")
 
 

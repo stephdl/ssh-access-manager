@@ -184,13 +184,26 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 
 - `UserError(message)` — exception user-safe exposée directement dans les réponses HTTP (400/404/409). Ne pas l'attraper dans web.py : le décorateur `@require_auth` la transforme automatiquement en `{"error": message}`. Résout l'exposition de stack-traces Python dans les réponses API (#314).
 
-## Réponses SSH d'erreur — payload 422 avec `details` (#433)
+## SSH exceptions — centralized wrapping (#437)
 
-Les routes `POST /api/servers` et `POST /api/servers/<hostname>/provision` retournent 422 sur `ssh.SSHError` avec :
+**All paramiko exceptions are converted to SSHError subclasses in `ssh._connect`** — the single point of entry for SSH connections. Every caller benefits automatically:
+- `paramiko.AuthenticationException` → `SSHAuthError("SSH authentication failed for user@ip:port...")`
+- `paramiko.SSHException` → `SSHError("SSH protocol error for ip:port...")`
+- `socket.timeout` → `SSHTimeoutError("Connection to ip:port timed out after 15s")`
+- `OSError("Connection refused")` → `SSHPortRefusedError("Connection refused on ip:port — is sshd running...")`
+- Other `OSError` → `SSHUnreachableError("Cannot reach ip:port...")`
+
+This eliminates duplicate exception handling in callers and ensures consistent error messages.
+
+## Réponses SSH d'erreur — payload 422 avec `details` (#433, #437)
+
+Routes that perform SSH operations return 422 on `ssh.SSHError` with:
 ```json
-{"error": "SSH operation failed", "error_code": "SSH_SCRIPT_FAILED", "details": "Provisioning script failed (exit 127): bash: line 1: sudo: command not found"}
+{"error": "SSH operation failed", "error_code": "SSH_AUTH_FAILED", "details": "SSH authentication failed for audit-collector@192.168.1.10:22 — check that audit-collector is allowed to log in (sshd AllowGroups/AllowUsers) and that the collector key is authorized"}
 ```
 Le champ `details` (clamp 500 chars) porte le `str(exc)` brut — destiné à un bloc `<details>` collapsible côté UI pour exposer la vraie cause sans forcer l'admin à lire les logs container. Le password SSH n'apparaît jamais dans stderr (paramiko le passe en handshake, pas via le script).
+
+Routes concernées : `POST /api/servers`, `POST /api/servers/<hostname>/provision`, `POST /api/servers/<hostname>/sync`, `POST /api/servers/<hostname>/sessions/refresh`. Les autres routes (scan, rotate-key, sshd-audit) passent par `actions.py` qui convertit `ssh.SSHError` → `UserError(502)` (catch global via `@require_auth`).
 
 ## actions.py — fonctions
 
