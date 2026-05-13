@@ -111,6 +111,32 @@ def test_actions_revoke_key_scoped_calls_sam_revoke_with_unix_user(sample_key):
          key_path=ANY)
 
 
+def test_actions_revoke_key_targeted_refreshes_scripts_before_sam_revoke(sample_key):
+    """ensure_scripts must be called BEFORE revoke_on_server.
+
+    An older sam-revoke deployed on the host (before the [unix_user]
+    second-arg support landed) silently ignores the second argument
+    and runs the GLOBAL branch — stripping the key from every user's
+    authorized_keys (including root). ensure_scripts upgrades the
+    binary first so the targeted revoke stays scoped to the requested
+    user.
+    """
+    server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22}
+    auth = {"status": "ACTIVE"}
+    call_order = []
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, server, auth]
+        mock_ssh.ensure_scripts.side_effect = lambda *a, **kw: call_order.append("ensure_scripts")
+        mock_ssh.revoke_on_server.side_effect = lambda *a, **kw: call_order.append("revoke_on_server")
+        actions.revoke_key(
+            sample_key["fingerprint"], ADMIN_ID, "test",
+            hostname="server-test-01", unix_user="alice",
+        )
+        assert call_order == ["ensure_scripts", "revoke_on_server"], (
+            f"expected ensure_scripts then revoke_on_server, got {call_order}"
+        )
+
+
 def test_actions_revoke_key_scoped_sets_revoked_for_unix_user_only(sample_key):
     """Targeted revocation — the UPDATE includes unix_user in the WHERE clause."""
     server = {"id": SERVER_ID, "ip_address": "192.168.1.10", "ssh_port": 22}
@@ -154,6 +180,82 @@ def test_actions_handle_disappeared_key_scenario2_returns_info_dict():
         assert info["type"] == "disappeared"
         assert info["fingerprint"] == "SHA256:abc"
         assert info["hostname"] == "server-test-01"
+
+
+# ---------------------------------------------------------------------------
+# try_recognize_collector_key — short-circuit known SAM-generated keys
+# ---------------------------------------------------------------------------
+
+def test_actions_try_recognize_collector_key_returns_false_for_non_collector_user():
+    """A line under any unix_user other than audit-collector must NOT
+    be auto-recognised — it has to go through the normal anomaly flow.
+    """
+    parsed = {"unix_user": "alice", "fingerprint": "SHA256:abc"}
+    with patch("actions.db"), patch("actions.ssh") as mock_ssh:
+        mock_ssh.SSH_USER = "audit-collector"
+        assert actions.try_recognize_collector_key(parsed, SERVER_ID) is False
+
+
+def test_actions_try_recognize_collector_key_returns_false_when_local_pubkey_missing():
+    """If the per-server <uuid>.key.pub file doesn't exist, we can't
+    verify the key is ours — fall back to the anomaly path.
+    """
+    parsed = {"unix_user": "audit-collector", "fingerprint": "SHA256:abc"}
+    with patch("actions.db"), patch("actions.ssh") as mock_ssh, \
+         patch("os.path.isfile", return_value=False):
+        mock_ssh.SSH_USER = "audit-collector"
+        mock_ssh.PER_SERVER_KEYS_DIR = "/data/keys/per-server"
+        assert actions.try_recognize_collector_key(parsed, SERVER_ID) is False
+
+
+def test_actions_try_recognize_collector_key_returns_false_on_fingerprint_mismatch(tmp_path, monkeypatch):
+    """A foreign key under audit-collector (fingerprint doesn't match
+    the local per-server pubkey) is still an anomaly — return False so
+    the caller treats it as unknown.
+    """
+    parsed = {
+        "unix_user": "audit-collector",
+        "fingerprint": "SHA256:WRONG",
+        "key_type": "ssh-ed25519",
+        "public_key": "ssh-ed25519 AAAA",
+        "comment": "",
+        "key_size_bits": None,
+    }
+    pubkey_path = tmp_path / f"{SERVER_ID}.key.pub"
+    pubkey_path.write_text("ssh-ed25519 AAAA legit-collector\n")
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.SSH_USER = "audit-collector"
+        mock_ssh.PER_SERVER_KEYS_DIR = str(tmp_path)
+        mock_ssh._compute_pubkey_fingerprint.return_value = "SHA256:RIGHT"
+        assert actions.try_recognize_collector_key(parsed, SERVER_ID) is False
+        mock_db.execute.assert_not_called()
+
+
+def test_actions_try_recognize_collector_key_inserts_active_on_match(tmp_path):
+    """Matching fingerprint under audit-collector → insert as ACTIVE,
+    no PENDING_REVIEW, no anomaly emission.
+    """
+    parsed = {
+        "unix_user": "audit-collector",
+        "fingerprint": "SHA256:MATCH",
+        "key_type": "ssh-ed25519",
+        "public_key": "ssh-ed25519 AAAA",
+        "comment": "",
+        "key_size_bits": None,
+    }
+    pubkey_path = tmp_path / f"{SERVER_ID}.key.pub"
+    pubkey_path.write_text("ssh-ed25519 AAAA legit-collector\n")
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.SSH_USER = "audit-collector"
+        mock_ssh.PER_SERVER_KEYS_DIR = str(tmp_path)
+        mock_ssh._compute_pubkey_fingerprint.return_value = "SHA256:MATCH"
+        mock_db.query_one.return_value = {"id": KEY_ID}
+        assert actions.try_recognize_collector_key(parsed, SERVER_ID) is True
+        statements = " ".join(c.args[0] for c in mock_db.execute.call_args_list)
+        assert "INSERT INTO ssh_keys" in statements
+        assert "'ACTIVE'" in statements
+        # MUST NOT log an ANOMALY_DETECTED row.
+        assert "ANOMALY_DETECTED" not in statements
 
 
 # ---------------------------------------------------------------------------
@@ -1023,11 +1125,38 @@ def test_actions_revoke_key_global_blocks_when_root_has_key():
     fp = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     with patch("actions.db") as mock_db:
         mock_db.query_one.side_effect = [
-            {"id": "key-uuid"},   # ssh_keys lookup
-            {"1": 1},             # root_auth check → root has this key
+            {"id": "key-uuid"},                # ssh_keys lookup
+            {"unix_user": "root"},             # protected_auth → root holds the key
         ]
         with pytest.raises(UserError, match="root"):
             actions.revoke_key(fp, ADMIN_ID, "test")
+
+
+def test_actions_revoke_key_global_blocks_when_collector_has_key():
+    """Global revoke must also reject when audit-collector holds the key."""
+    fp = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "key-uuid"},
+            {"unix_user": "audit-collector"},
+        ]
+        with pytest.raises(UserError, match="audit-collector"):
+            actions.revoke_key(fp, ADMIN_ID, "test")
+
+
+def test_actions_revoke_key_targeted_blocks_audit_collector():
+    """Targeted revoke must refuse to remove the audit-collector key.
+
+    The only legitimate path to change this key is rotate_collector_key,
+    which does an atomic generate-test-replace.
+    """
+    fp = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": "key-uuid"},   # ssh_keys lookup
+        ]
+        with pytest.raises(UserError, match="Rotate Collector Key"):
+            actions.revoke_key(fp, ADMIN_ID, "test", hostname="srv1", unix_user="audit-collector")
 
 
 def test_actions_revoke_key_global_proceeds_when_no_root_auth():
@@ -1041,6 +1170,69 @@ def test_actions_revoke_key_global_proceeds_when_no_root_auth():
         mock_db.query.return_value = []
         actions.revoke_key(fp, ADMIN_ID, "test")
         mock_db.query.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# rotate_collector_key
+# ---------------------------------------------------------------------------
+
+def test_actions_rotate_collector_key_marks_old_revoked_and_inserts_new_active():
+    """A successful rotation should:
+      - mark the previous audit-collector authorization REVOKED
+      - INSERT the new ssh_keys row + ACTIVE authorization
+      - trigger an async scan
+      - log COLLECTOR_KEY_ROTATED
+    """
+    new_fp = "SHA256:newKEYnewKEYnewKEYnewKEYnewKEYnewKEYnewKEY"
+    with patch("actions.db") as mock_db, \
+         patch("actions.ssh") as mock_ssh, \
+         patch("actions.get_collector_key_for_server") as mock_get, \
+         patch("actions._trigger_initial_scan") as mock_scan:
+        mock_db.query_one.side_effect = [
+            {"id": "srv-1", "ip_address": "10.0.0.1", "ssh_port": 22, "is_active": True},
+            {"id": "key-new-uuid"},
+            {"id": "srv-1", "hostname": "srv1", "ip_address": "10.0.0.1", "ssh_port": 22},
+        ]
+        mock_ssh.SSH_USER = "audit-collector"
+        mock_ssh.rotate_per_server_key.return_value = new_fp
+        mock_get.return_value = {"public_key": f"ssh-ed25519 AAAA {new_fp}"}
+
+        result = actions.rotate_collector_key("srv1", ADMIN_ID)
+        assert result == {"status": "rotated", "fingerprint": new_fp}
+
+        # Three execute calls expected: revoke-old UPDATE, insert-new
+        # INSERT into ssh_keys, INSERT into key_authorizations, audit log INSERT.
+        statements = " ".join(c.args[0] for c in mock_db.execute.call_args_list)
+        assert "UPDATE key_authorizations" in statements
+        assert "Collector key rotated" in statements
+        assert "INSERT INTO ssh_keys" in statements
+        assert "INSERT INTO key_authorizations" in statements
+        assert "COLLECTOR_KEY_ROTATED" in statements
+
+        # Async scan was triggered for fresh state.
+        mock_scan.assert_called_once()
+        assert mock_scan.call_args.kwargs["sync"] is False
+
+
+def test_actions_rotate_collector_key_logs_failure_and_raises_on_ssh_error():
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_db.query_one.return_value = {
+            "id": "srv-1", "ip_address": "10.0.0.1", "ssh_port": 22, "is_active": True,
+        }
+        # Use a real-looking class hierarchy: rotate raises an SSHError.
+        class _SSHError(Exception):
+            pass
+        mock_ssh.SSHError = _SSHError
+        mock_ssh.rotate_per_server_key.side_effect = _SSHError("network unreachable")
+
+        with pytest.raises(UserError, match="Rotation failed"):
+            actions.rotate_collector_key("srv1", ADMIN_ID)
+
+        statements = " ".join(c.args[0] for c in mock_db.execute.call_args_list)
+        assert "COLLECTOR_KEY_ROTATION_FAILED" in statements
+        # No UPDATE / new INSERT happened — the SSHError occurred before
+        # any of our DB mutations.
+        assert "UPDATE key_authorizations" not in statements
 
 
 def test_actions_assign_key_rejects_invalid_fingerprint_format():
@@ -1514,6 +1706,24 @@ def test_actions_bulk_revoke_skips_on_user_error():
     fp2 = "SHA256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     with patch("actions.revoke_key") as mock_revoke:
         mock_revoke.side_effect = [UserError("not found"), None]
+        result = actions.bulk_revoke_keys([fp1, fp2], "audit", ADMIN_ID)
+        assert result["revoked"] == 1
+        assert result["skipped"] == 1
+
+
+def test_actions_bulk_revoke_skips_on_ssh_error():
+    """SSH failure on one fingerprint must not abort the whole bulk operation.
+
+    Without the dedicated except branch, a single network glitch on one
+    server would let ssh.SSHError propagate to the route handler, which
+    would return HTTP 500 to the UI — even though the other fingerprints
+    in the batch were perfectly revocable.
+    """
+    import ssh as ssh_mod
+    fp1 = "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    fp2 = "SHA256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    with patch("actions.revoke_key") as mock_revoke:
+        mock_revoke.side_effect = [ssh_mod.SSHTimeoutError("server2 unreachable"), None]
         result = actions.bulk_revoke_keys([fp1, fp2], "audit", ADMIN_ID)
         assert result["revoked"] == 1
         assert result["skipped"] == 1

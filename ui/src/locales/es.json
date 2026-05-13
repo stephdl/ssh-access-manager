@@ -215,7 +215,9 @@
     "bulk_revoke": "Revocar selección",
     "bulk_clear": "Borrar selección",
     "root_expiry_tooltip": "No se puede fijar expiración para root — la revocación automática causaría pérdida permanente de acceso",
+    "collector_expiry_tooltip": "La clave audit-collector no tiene expiración — su ciclo de vida se gestiona con el botón Rotar clave",
     "root_revoke_tooltip": "Cuenta root protegida — la revocación está desactivada para evitar pérdida de acceso al servidor",
+    "collector_revoke_tooltip": "La clave audit-collector está protegida — use el botón Rotar clave para cambiarla de forma segura",
     "root_protected_badge": "protegido"
   },
   "access": {
@@ -347,6 +349,9 @@
     "col_details": "Detalles",
     "btn_validate": "Validar",
     "btn_revoke": "Revocar",
+    "root_revoke_tooltip": "La cuenta root está protegida — la revocación está deshabilitada para evitar perder el acceso al servidor",
+    "collector_revoke_tooltip": "La clave audit-collector está protegida — use el botón Rotar clave para cambiarla de forma segura",
+    "root_protected_badge": "protegido",
     "no_pending": "No hay claves pendientes de validación.",
     "no_revoked": "No hay revocaciones fuera del sistema en 30 días.",
     "revoke_modal_title": "Revocar clave",

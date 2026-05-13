@@ -215,7 +215,9 @@
     "bulk_revoke": "Revoke selected",
     "bulk_clear": "Clear selection",
     "root_expiry_tooltip": "Cannot set expiry on root — automatic revocation would cause permanent loss of server access",
+    "collector_expiry_tooltip": "Audit-collector key has no expiry — its lifecycle is managed via the Rotate Collector Key button",
     "root_revoke_tooltip": "Root account is protected — revocation is disabled to prevent loss of server access",
+    "collector_revoke_tooltip": "Audit-collector key is protected — use the Rotate Collector Key button to change it safely",
     "root_protected_badge": "protected"
   },
   "access": {
@@ -347,6 +349,9 @@
     "col_details": "Details",
     "btn_validate": "Validate",
     "btn_revoke": "Revoke",
+    "root_revoke_tooltip": "Root account is protected — revocation is disabled to prevent loss of server access",
+    "collector_revoke_tooltip": "Audit-collector key is protected — use the Rotate Collector Key button to change it safely",
+    "root_protected_badge": "protected",
     "no_pending": "No keys awaiting validation.",
     "no_revoked": "No out-of-system revocations in 30 days.",
     "revoke_modal_title": "Revoke key",

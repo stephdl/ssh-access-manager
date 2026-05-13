@@ -680,22 +680,39 @@ function openBulkRevoke(fingerprints) {
 }
 
 async function confirmBulkRevoke() {
-  const res = await apiFetch('/api/keys/bulk-revoke', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fingerprints: [...new Set(bulkRevokeFingerprints.value.map((key) => key.split('|')[0]))],
-      reason: bulkRevokeReason.value,
-    }),
-  })
+  // Per-row TARGETED revoke via /api/keys/revoke/<fp> with hostname +
+  // unix_user in the body — same pattern as Anomalies.vue.
+  //
+  // We deliberately do NOT use /api/keys/bulk-revoke here: the global
+  // revoke it performs refuses any fingerprint also held by root, which
+  // blocks the perfectly legitimate "revoke operator's instance of this
+  // key" when root happens to hold the same key. Targeted per-row
+  // revoke bypasses that defensive global check because it knows the
+  // exact (server, user) tuple to operate on.
+  const entries = bulkRevokeFingerprints.value
   bulkRevokeFingerprints.value = null
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    error.value = data.error || `HTTP ${res.status}`
-    return
+  let revoked = 0
+  let skipped = 0
+  const reason = bulkRevokeReason.value
+  for (const composite of entries) {
+    const [fp, unix_user] = composite.split('|')
+    try {
+      const res = await apiFetch(`/api/keys/revoke/${efp(fp)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hostname,
+          unix_user: unix_user || null,
+          reason,
+        }),
+      })
+      if (res.ok) revoked++
+      else skipped++
+    } catch {
+      skipped++
+    }
   }
-  const data = await res.json()
-  message.value = t('server_detail.bulk_revoked', { revoked: data.revoked, skipped: data.skipped })
+  message.value = t('server_detail.bulk_revoked', { revoked, skipped })
   await load()
 }
 

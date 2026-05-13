@@ -109,14 +109,16 @@
       <tbody>
         <tr
           v-for="k in paginatedItems"
-          :key="k.fingerprint + k.server_hostname"
+          :key="k.fingerprint + '|' + k.server_hostname + '|' + (k.unix_user || '')"
+          :class="{ 'row-root': isProtectedUser(k.unix_user) }"
           :data-testid="`${type}-row-${k.fingerprint}`"
         >
           <td v-if="type === 'pending' && props.currentRole !== 'viewer'" class="td-check">
             <input
+              v-if="isSelectable(k)"
               type="checkbox"
-              :checked="selected.has(k.fingerprint + '|' + k.server_hostname)"
-              @change="toggleSelect(k.fingerprint + '|' + k.server_hostname)"
+              :checked="selected.has(rowKey(k))"
+              @change="toggleSelect(rowKey(k))"
             />
           </td>
           <td class="fp">
@@ -131,7 +133,12 @@
             </router-link>
           </td>
           <td>
-            <code v-if="k.unix_user">{{ k.unix_user }}</code>
+            <span v-if="k.unix_user" class="unix-user-cell">
+              <code>{{ k.unix_user }}</code>
+              <span v-if="isProtectedUser(k.unix_user)" class="badge-root-protected">
+                {{ $t('anomalies.root_protected_badge') }}
+              </span>
+            </span>
             <span v-else>—</span>
           </td>
           <td>{{ formatDate(k[dateField]) }}</td>
@@ -147,9 +154,31 @@
               >
                 {{ $t('anomalies.btn_validate') }}
               </button>
-              <button class="btn-danger" @click="$emit('revoke', k.fingerprint)">
-                {{ $t('anomalies.btn_revoke') }}
-              </button>
+              <span
+                class="btn-tooltip-wrapper"
+                :title="
+                  k.unix_user === 'root'
+                    ? $t('anomalies.root_revoke_tooltip')
+                    : k.unix_user === 'audit-collector'
+                      ? $t('anomalies.collector_revoke_tooltip')
+                      : undefined
+                "
+              >
+                <button
+                  class="btn-danger"
+                  :disabled="isProtectedUser(k.unix_user)"
+                  @click="
+                    !isProtectedUser(k.unix_user) &&
+                    $emit('revoke', {
+                      fingerprint: k.fingerprint,
+                      hostname: k.server_hostname,
+                      unix_user: k.unix_user || null,
+                    })
+                  "
+                >
+                  {{ $t('anomalies.btn_revoke') }}
+                </button>
+              </span>
             </div>
           </td>
           <td v-if="props.currentRole !== 'viewer' && type === 'revoked'">
@@ -238,9 +267,31 @@ watch(filtered, () => {
   selected.value = new Set()
 })
 
-const selectableOnPage = computed(() =>
-  paginatedItems.value.map((k) => k.fingerprint + '|' + k.server_hostname)
-)
+// Per-row identity used by every selection operation. Composite of
+// fingerprint + server + unix_user, matching the DB primary key on
+// key_authorizations (#185). Anything coarser conflates two rows that
+// happen to share a fingerprint on the same server with different unix
+// users — exactly the bug that caused root rows to look "selected"
+// when only operator was clicked, AND let the bulk-revoke send a
+// fingerprint that the backend would refuse globally because root has
+// it.
+function rowKey(k) {
+  return k.fingerprint + '|' + k.server_hostname + '|' + (k.unix_user || '')
+}
+
+// Users whose keys are protected from manual revocation:
+//  - root: revoking would permanently lock the server out
+//  - audit-collector: revoking would cut SAM off from the host; use the
+//    Rotate Collector Key button instead (atomic with rollback)
+const PROTECTED_USERS = ['root', 'audit-collector']
+function isProtectedUser(u) {
+  return PROTECTED_USERS.includes(u)
+}
+function isSelectable(k) {
+  return !isProtectedUser(k.unix_user)
+}
+
+const selectableOnPage = computed(() => paginatedItems.value.filter(isSelectable).map(rowKey))
 
 const allSelectableChecked = computed(
   () =>
@@ -271,19 +322,29 @@ function toggleSelectAll(e) {
 
 function emitBulkValidate() {
   const entries = [...selected.value].map((key) => {
-    const [fp, hostname] = key.split('|')
-    const item =
-      paginatedItems.value.find((k) => k.fingerprint === fp && k.server_hostname === hostname) ||
-      props.anomalies.find((k) => k.fingerprint === fp && k.server_hostname === hostname)
-    return { fingerprint: fp, unix_user: item?.unix_user || null, hostname }
+    const [fp, hostname, unix_user] = key.split('|')
+    return { fingerprint: fp, unix_user: unix_user || null, hostname }
   })
   emit('bulk-validate', entries)
   selected.value = new Set()
 }
 
 function emitBulkRevoke() {
-  const fingerprints = [...selected.value].map((key) => key.split('|')[0])
-  emit('bulk-revoke', fingerprints)
+  // Emit per-row entries so the parent view can issue a TARGETED
+  // revoke (POST /api/keys/revoke/<fp> with hostname + unix_user)
+  // instead of the global revoke that /api/keys/bulk-revoke performs.
+  //
+  // Global revoke is blocked by the backend whenever any row in the
+  // database has the same fingerprint deployed for the root account
+  // — useful as a safety net, but it would refuse the perfectly
+  // legitimate "revoke operator's instance of this key" operation
+  // whenever the same key is also on root, leaving the operator key
+  // un-revokable from this UI.
+  const entries = [...selected.value].map((key) => {
+    const [fp, hostname, unix_user] = key.split('|')
+    return { fingerprint: fp, hostname, unix_user: unix_user || null }
+  })
+  emit('bulk-revoke', entries)
   selected.value = new Set()
 }
 
@@ -361,6 +422,39 @@ function exportCsv() {
   width: 36px;
   text-align: center;
   padding: 0.25rem;
+}
+
+/* Tooltip wrapper around a disabled <button> — disabled buttons do not
+   receive mouse events on most browsers, so the title must live on a
+   wrapping element to render as a hover tooltip. Used here for the
+   root-revoke protection on root keys. */
+.btn-tooltip-wrapper {
+  display: inline-flex;
+}
+
+.row-root {
+  /* Muted background only — see KeyTable.vue for the rationale on why
+     we do NOT apply `opacity` on the <tr>. */
+  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+}
+
+.unix-user-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.badge-root-protected {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: #6c757d;
+  color: #fff;
+  vertical-align: middle;
 }
 
 .filters {

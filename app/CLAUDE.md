@@ -68,7 +68,7 @@ Tracées dans audit_log (SCRIPT_DEPLOYED).
 
 | Constante | Path distant | Droits | Action |
 |-----------|-------------|--------|--------|
-| SAM_COLLECT | /usr/local/bin/sam-collect | root, 750 | Lit toutes les authorized_keys → stdout : `unix_user\tkey_type key_b64 [comment]` |
+| SAM_COLLECT | /usr/local/bin/sam-collect | root, 750 | Lit toutes les authorized_keys → stdout : `unix_user\tkey_type key_b64 [comment]`. Dédoublonné par realpath (`seen_files`) — les comptes système qui partagent un home (ex. `operator:/root` sur RHEL/Rocky) n'émettent pas une 2ᵉ fois le fichier de root. Root est forcé en premier via pre-call explicit (#429) |
 | SAM_REVOKE | /usr/local/bin/sam-revoke \<fp_hex\> | root, 750 | Révoque par fingerprint SHA256 hex. Réécriture atomique mktemp+mv. Préserve ownership (#104) |
 | SAM_ADD | /usr/local/bin/sam-add \<unix_user\> \<pubkey\> | root, 750 | Crée user Unix si absent (`useradd -m -s /bin/bash`), ajoute clé idempotent (#164). À la création : mot de passe temporaire (`openssl rand -base64 12`) via `chpasswd`, `~/README_first_login.txt` (chmod 600), hook de premier login. Le hook est écrit dans le fichier que bash sourcera vraiment, détecté dans l'ordre `~/.bash_profile` → `~/.bash_login` → `~/.profile` (le dernier est créé par `touch` s'il manque) — reproduit l'ordre de résolution de bash et couvre RHEL/Rocky (skel fournit `.bash_profile`), Debian/Ubuntu/openSUSE (`.profile`), Arch (skel vide → `.profile` créé). Pas de `chage -d 0`. `usermod -aG sam-users` — SSH par mot de passe impossible (bloc sshd `Match Group sam-users` par provision-host.sh). Login SSH par clé uniquement (#383, hook multi-distro #390) |
 | SAM_LOCK_USER | /usr/local/bin/sam-lock-user \<unix_user\> | root, 750 | `usermod -L -s /sbin/nologin` — bloque mdp ET shell (#181) |
@@ -189,9 +189,11 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 ### Clés SSH
 - `validate_key(fingerprint, admin_id, unix_user=None, hostname=None)` — sans args : valide toutes PENDING_REVIEW du fingerprint ; avec args : valide uniquement (fingerprint, server, unix_user) (#193)
 - `bulk_validate_keys(fingerprints, admin_id)` — valide en masse une liste de fingerprints PENDING_REVIEW ; retourne `{validated: N, errors: [...]}`
-- `bulk_revoke_keys(fingerprints, reason, admin_id)` — révoque en masse ; retourne `{revoked: N, errors: [...]}` ; les fingerprints liés à root sont automatiquement skippés (UserError catchée → skipped+1)
-- `revoke_key(fingerprint, admin_id, reason, hostname=None, unix_user=None)` — ACTIVE et PENDING_REVIEW (#85) ; refuse si `unix_user == 'root'` (targeted) ou si root a ce fingerprint (global) → UserError
+- `bulk_revoke_keys(fingerprints, reason, admin_id)` — révoque en masse via `revoke_key` global ; catches `UserError` (clés protégées) ET `ssh.SSHError` (SSH timeout/auth/unreachable sur un host) → `skipped+=1`. Sans ce 2ᵉ catch, une seule panne SSH dans la boucle remontait en 500 à l'UI (#429)
+- `revoke_key(fingerprint, admin_id, reason, hostname=None, unix_user=None)` — ACTIVE et PENDING_REVIEW (#85). Mode targeted (hostname + unix_user) : refuse si `unix_user == 'root'` ; refuse si `unix_user == ssh.SSH_USER` (audit-collector — usage du bouton Rotate Collector Key obligatoire) ; **appelle `ssh.ensure_scripts()` avant `ssh.revoke_on_server()`** pour éviter qu'un sam-revoke obsolète sur l'host ignore le 2ᵉ argument et fasse un strip global (régression #429). Mode global (sans hostname/unix_user) : refuse si root OU audit-collector détient le fingerprint (`protected_auth` check)
 - `handle_disappeared_key`, `handle_unknown_key`, `handle_reappeared_key`
+- `handle_pending_disappeared_key(key_id, server_id, hostname, unix_user)` — réconcilie les rows PENDING_REVIEW dont la paire `(fingerprint, unix_user)` a disparu de l'host (scan scenario 2 étendu). Marque REVOKED avec `revocation_justification='Disappeared before validation'` + audit INFO `KEY_REVOKED` (pas d'ANOMALY_DETECTED ni d'email — la clé n'a jamais été validée comme légitime). Sans ça, les PENDING_REVIEW orphelins (ex. user Unix supprimé) s'accumulaient à vie (#429)
+- `try_recognize_collector_key(parsed, server_id) -> bool` — appelée par `collect.scan_server` AVANT scenario 3. Si la ligne est sous `unix_user == ssh.SSH_USER` ET son fingerprint matche `/data/keys/per-server/<server_id>.key.pub` → upsert ssh_keys + INSERT key_authorizations ACTIVE, retourne True. Sinon False et le caller dispatche `handle_unknown_key`. Évite que la clé collector qu'on a soi-même déployée soit flagged PENDING_REVIEW + CRITICAL anomalie au premier scan (#429)
 - `warn_expiring_key`, `assign_key`
 - `set_key_expiry(fingerprint, expires_at, unix_user=None, hostname=None)` — refuse si `unix_user == 'root'` ; global UPDATE exclut `unix_user != 'root'`
 - `remove_key_expiry(fingerprint, unix_user=None, hostname=None)` — refuse si `unix_user == 'root'` ; global UPDATE exclut `unix_user != 'root'`
@@ -206,7 +208,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 - `add_server(hostname, ip, ssh_user, ssh_password, env=None, os_family=None, ssh_port=22, admin_id=None, scan_sync=False)` — provisionnement atomique : génère UUID + per-server keypair (`ssh._generate_keypair`), `_fetch_host_key(ip)` → `ssh.provision_server(..., pubkey=per_server_pubkey)` → INSERT servers (`is_provisioned=TRUE`) → audit SERVER_ADDED + SERVER_PROVISIONED + COLLECTOR_KEY_GENERATED → **scan initial** via `_trigger_initial_scan` (fire-and-forget thread depuis l'API, synchrone depuis la CLI). Si le SSH échoue, le keypair est supprimé du disque et aucune donnée n'est écrite (#299, #301, #402).
 - `register_server(hostname, ip, ssh_port=22, env, os_family, admin_id)` — version sans SSH de `add_server` : génère UUID + per-server keypair, INSERT avec `is_provisioned=FALSE`. Pour bulk bootstrap (workflow 3 étapes : register → push pubkey avec sa propre clé root → activate) (#402).
 - `activate_server(hostname, admin_id, scan_sync=False)` — `_fetch_host_key` + `_connect` avec la per-server key pour valider la connectivité, `is_provisioned=TRUE`, audit SERVER_PROVISIONED, scan initial via `_trigger_initial_scan` (sync depuis CLI, async depuis API) (#402).
-- `rotate_collector_key(hostname, admin_id)` — délègue à `ssh.rotate_per_server_key()` (atomique avec rollback : génère `.key.new`, append pubkey distante, vérifie via re-connect, retire l'ancienne, renomme les fichiers). Audit COLLECTOR_KEY_ROTATED ou COLLECTOR_KEY_ROTATION_FAILED (avec error mais sans hostname/ip). Réservé sysadmin via UI (#402).
+- `rotate_collector_key(hostname, admin_id)` — délègue à `ssh.rotate_per_server_key()` (atomique avec rollback). Après succès : (1) UPDATE les `key_authorizations` audit-collector ACTIVE/PENDING_REVIEW de ce serveur en REVOKED `'Collector key rotated'` ; (2) INSERT du nouveau ssh_keys + key_authorizations ACTIVE — la nouvelle clé apparaît immédiatement dans la UI sans attendre le scan, et le scan suivant ne la marque pas PENDING_REVIEW ; (3) `_trigger_initial_scan(sync=False)` pour rafraîchir last_seen + détecter dérive. Audit COLLECTOR_KEY_ROTATED ou COLLECTOR_KEY_ROTATION_FAILED. Réservé sysadmin via UI (#402, #429).
 - `get_collector_key_for_server(hostname) -> {fingerprint, public_key}` — lecture du `<uuid>.key.pub` per-server (#402).
 - `_trigger_initial_scan(server, admin_id, sync=False)` — helper : lance `collect.scan_server(server, admin_id)` en thread daemon (`sync=False`) ou en synchrone (`sync=True`). CLI doit utiliser `sync=True` car le process se termine sinon avant la fin du scan.
 - `provision_server(hostname, ip, ssh_user, ssh_password, ssh_port)` — re-provisionne un serveur existant (lit la per-server pubkey depuis disque) (#302). Même garantie : ssh password non stocké.
@@ -287,7 +289,7 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 - pytest doit passer avant tout commit
 - `test_schema.py` exerce `sql/schema.sql` contre un vrai Postgres 18 (CI `schema-postgres` job). Auto-skipped si `SCHEMA_TEST_DSN` n'est pas défini — le run local par défaut reste mocké. Pour reproduire localement : `podman run -d --rm -e POSTGRES_PASSWORD=t -p 5432:5432 postgres:18 && SCHEMA_TEST_DSN=postgresql://postgres:t@127.0.0.1:5432/postgres pytest tests/test_schema.py`
 
-Fichiers : conftest.py, test_db.py (7), test_servers.py (10), test_ssh.py (70), test_actions.py (186), test_collect.py (35), test_expire.py (16), test_alerts.py (23), test_web.py (178), test_manage.py (46), test_rbac.py (3), test_schema.py (27 — requiert Postgres 18 réel).
+Fichiers (compteurs approximatifs — `pytest --collect-only` pour la valeur exacte) : conftest.py, test_db.py (7), test_servers.py (10), test_ssh.py (80), test_actions.py (~196), test_collect.py (43), test_expire.py (17), test_alerts.py (23), test_web.py (~201), test_manage.py (46), test_rbac.py (paramétré), test_schema.py (27 — requiert Postgres 18 réel).
 
 Fixtures obligatoires dans conftest.py : `mock_db`, `mock_ssh_client`, `mock_smtp`, `sample_server`, `sample_key`.
 
@@ -312,7 +314,9 @@ ssh <user>@<ip> "sudo bash -s '$PUB' '${SSH_USER}'" \
     < <(podman exec ssh-access-manager cat /app/provision-host.sh)
 ```
 
-Actions : crée l'utilisateur collector, déploie la clé publique (append, chown collector — #86), crée sudoers dynamique avec ${COLLECTOR_USER}.
+Actions : crée l'utilisateur collector, déploie la clé publique, crée sudoers dynamique avec ${COLLECTOR_USER}.
+
+**Strict cleanup d'authorized_keys (#429)** — `provision-host.sh` **réécrit** `~${COLLECTOR_USER}/.ssh/authorized_keys` avec exactement la pubkey passée en argument (printf > tmp + chmod 600 + chown + `mv -f`), au lieu d'append. Le compte audit-collector est dédié SAM (pas de shell humain), donc toute clé pré-existante est soit une résidue d'une install précédente, soit un ajout manuel non géré — dans les deux cas à nettoyer. La rotation `ssh.rotate_per_server_key` applique la même sémantique via `_replace_authorized_keys_remote`.
 
 Permissions appliquées (#260) :
 - `chmod 700 /home/${COLLECTOR_USER}` — home non listable par les autres utilisateurs

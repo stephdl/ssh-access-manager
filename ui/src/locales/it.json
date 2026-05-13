@@ -215,7 +215,9 @@
     "bulk_revoke": "Revoca selezionati",
     "bulk_clear": "Annulla selezione",
     "root_expiry_tooltip": "Impossibile impostare scadenza per root — la revoca automatica causerebbe la perdita permanente dell'accesso",
+    "collector_expiry_tooltip": "La chiave audit-collector non ha scadenza — il suo ciclo di vita è gestito tramite il pulsante Ruota chiave",
     "root_revoke_tooltip": "Account root protetto — la revoca è disabilitata per evitare la perdita di accesso al server",
+    "collector_revoke_tooltip": "La chiave audit-collector è protetta — usa il pulsante Ruota chiave per cambiarla in sicurezza",
     "root_protected_badge": "protetto"
   },
   "access": {
@@ -347,6 +349,9 @@
     "col_details": "Dettagli",
     "btn_validate": "Valida",
     "btn_revoke": "Revoca",
+    "root_revoke_tooltip": "L'account root è protetto — la revoca è disabilitata per evitare la perdita di accesso al server",
+    "collector_revoke_tooltip": "La chiave audit-collector è protetta — usa il pulsante Ruota chiave per cambiarla in sicurezza",
+    "root_protected_badge": "protetto",
     "no_pending": "Nessuna chiave in attesa di validazione.",
     "no_revoked": "Nessuna revoca fuori sistema negli ultimi 30 giorni.",
     "revoke_modal_title": "Revoca chiave",

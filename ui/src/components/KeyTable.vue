@@ -123,7 +123,7 @@
         <tr
           v-for="k in paginatedItems"
           :key="k.fingerprint + '|' + (k.unix_user || '')"
-          :class="{ 'row-root': k.unix_user === 'root' }"
+          :class="{ 'row-root': isProtectedUser(k.unix_user) }"
         >
           <td v-if="currentRole !== 'viewer'" class="td-check">
             <input
@@ -145,7 +145,7 @@
           <td>
             <span v-if="k.unix_user" class="unix-user-cell">
               <code>{{ k.unix_user }}</code>
-              <span v-if="k.unix_user === 'root'" class="badge-root-protected">
+              <span v-if="isProtectedUser(k.unix_user)" class="badge-root-protected">
                 {{ $t('key_table.root_protected_badge') }}
               </span>
             </span>
@@ -176,17 +176,14 @@
                 "
                 class="btn-tooltip-wrapper"
                 :title="
-                  k.unix_user === 'root'
-                    ? $t('key_table.root_revoke_tooltip')
-                    : props.scanOk === false
-                      ? $t('key_table.revoke_unavailable')
-                      : undefined
+                  protectionTooltip(k) ||
+                  (props.scanOk === false ? $t('key_table.revoke_unavailable') : undefined)
                 "
               >
                 <button
                   class="btn-danger"
-                  :disabled="props.scanOk === false || k.unix_user === 'root'"
-                  @click="k.unix_user !== 'root' && $emit('revoke', k)"
+                  :disabled="props.scanOk === false || isProtectedUser(k.unix_user)"
+                  @click="!isProtectedUser(k.unix_user) && $emit('revoke', k)"
                 >
                   {{ $t('key_table.btn_revoke') }}
                 </button>
@@ -201,12 +198,12 @@
               <span
                 v-if="k.status === 'ACTIVE' && props.currentRole !== 'viewer'"
                 class="btn-tooltip-wrapper"
-                :title="k.unix_user === 'root' ? $t('key_table.root_expiry_tooltip') : undefined"
+                :title="expiryTooltip(k)"
               >
                 <button
                   class="btn-warning"
-                  :disabled="k.unix_user === 'root'"
-                  @click="k.unix_user !== 'root' && $emit('set-expiry', k)"
+                  :disabled="isProtectedUser(k.unix_user)"
+                  @click="!isProtectedUser(k.unix_user) && $emit('set-expiry', k)"
                 >
                   {{ $t('key_table.btn_expiry') }}
                 </button>
@@ -289,8 +286,31 @@ watch(filteredKeys, () => {
   selected.value = new Set()
 })
 
+// Users whose keys are protected from manual revocation/expiry:
+//  - root: revoking would permanently lock the server out
+//  - audit-collector: revoking would cut SAM off from the host; the only
+//    legitimate way to change this key is the Rotate button on the
+//    server detail page (atomic with rollback, no window where SAM
+//    loses access)
+const PROTECTED_USERS = ['root', 'audit-collector']
+function isProtectedUser(u) {
+  return PROTECTED_USERS.includes(u)
+}
+
+function protectionTooltip(k) {
+  if (k.unix_user === 'root') return t('key_table.root_revoke_tooltip')
+  if (k.unix_user === 'audit-collector') return t('key_table.collector_revoke_tooltip')
+  return undefined
+}
+
+function expiryTooltip(k) {
+  if (k.unix_user === 'root') return t('key_table.root_expiry_tooltip')
+  if (k.unix_user === 'audit-collector') return t('key_table.collector_expiry_tooltip')
+  return undefined
+}
+
 function isSelectable(k) {
-  return (k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW') && k.unix_user !== 'root'
+  return (k.status === 'ACTIVE' || k.status === 'PENDING_REVIEW') && !isProtectedUser(k.unix_user)
 }
 
 const selectableOnPage = computed(() =>
@@ -494,7 +514,12 @@ function exportCsv() {
 }
 
 .row-root {
-  opacity: 0.65;
+  /* Visual indicator for root-owned rows: muted background only. Do NOT
+     apply `opacity` on the <tr> — it cascades to descendant <button>s
+     and makes ENABLED buttons (Validate, Assign, Unlimited) look as
+     muted as the DISABLED ones (Revoke, Expiry). The native :disabled
+     state already provides the right contrast for the protected buttons
+     via the global `button:disabled { opacity: 0.45 }` rule. */
   background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
 }
 

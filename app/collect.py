@@ -185,6 +185,15 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
         unix_user = parsed["unix_user"]
         collected_pairs.add((fp, unix_user))
 
+        # Recognise our own collector key on the audit-collector account
+        # and insert it ACTIVE directly. Without this short-circuit, the
+        # first scan after add_server / rotate would flag the legitimate
+        # collector key as PENDING_REVIEW + ANOMALY_DETECTED — forcing the
+        # admin to validate a key SAM itself wrote.
+        if actions.try_recognize_collector_key(parsed, server_id):
+            result["known"] += 1
+            continue
+
         existing_key = db.query_one(
             "SELECT id FROM ssh_keys WHERE fingerprint = %s", (fp,)
         )
@@ -235,22 +244,37 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
             else:
                 result["known"] += 1
 
-    # Scenario 2 — detect ACTIVE (fp, unix_user) pairs that disappeared from server
-    active_on_server = db.query(
+    # Scenario 2 — reconcile ACTIVE/PENDING_REVIEW rows whose
+    # (fingerprint, unix_user) pair no longer appears on the server.
+    # ACTIVE → handle_disappeared_key (CRITICAL anomaly + audit log).
+    # PENDING_REVIEW → handle_pending_disappeared_key (silent cleanup,
+    #   no anomaly emission, no email). The key was never validated as
+    #   legitimate, so its disappearance is not a security incident —
+    #   often the underlying Unix user was simply removed from the host.
+    #   Without this branch, PENDING_REVIEW rows from previous scans
+    #   would accumulate in the DB forever and clutter Anomalies.
+    present_on_server = db.query(
         """
-        SELECT ka.key_id, ka.unix_user, sk.fingerprint
+        SELECT ka.key_id, ka.unix_user, ka.status, sk.fingerprint
         FROM key_authorizations ka
         JOIN ssh_keys sk ON sk.id = ka.key_id
-        WHERE ka.server_id = %s AND ka.status = 'ACTIVE'
+        WHERE ka.server_id = %s AND ka.status IN ('ACTIVE', 'PENDING_REVIEW')
         """,
         (server_id,),
     )
-    for row in active_on_server:
-        if (row["fingerprint"], row["unix_user"]) not in collected_pairs:
+    for row in present_on_server:
+        if (row["fingerprint"], row["unix_user"]) in collected_pairs:
+            continue
+        if row["status"] == "ACTIVE":
             info = actions.handle_disappeared_key(
                 row["key_id"], server_id, hostname, ip=ip, unix_user=row["unix_user"]
             )
             result["anomalies"].append(info)
+            result["disappeared"] += 1
+        else:  # PENDING_REVIEW
+            actions.handle_pending_disappeared_key(
+                row["key_id"], server_id, hostname, unix_user=row["unix_user"]
+            )
             result["disappeared"] += 1
 
     # Collect SSH sessions (non-fatal)

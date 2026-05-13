@@ -181,6 +181,15 @@ def bulk_revoke_keys(fingerprints: list, reason: str, admin_id: str) -> dict:
             revoke_key(fp, admin_id, reason)
             revoked += 1
         except UserError:
+            # Root-protected fingerprint, format error, unknown key, no
+            # active authorization — already a user-meaningful skip.
+            skipped += 1
+        except ssh.SSHError:
+            # Network/auth/timeout on one server during a bulk operation
+            # must not 500 the whole call (the route would otherwise let
+            # the exception propagate to the global handler). Skip this
+            # fingerprint and continue — the per-server scan_failed audit
+            # already records the SSH error elsewhere.
             skipped += 1
     return {"revoked": revoked, "skipped": skipped}
 
@@ -210,6 +219,15 @@ def revoke_key(
         # --- Targeted revocation (one user on one server) ---
         if unix_user == "root":
             raise UserError("Cannot revoke the root account's SSH key — this would cause permanent loss of server access")
+        if unix_user == ssh.SSH_USER:
+            # The collector key is rotated, not revoked. A manual revoke
+            # would cut SAM off the host with no way back (the rotation
+            # button does an atomic generate-test-replace flow that
+            # preserves access throughout).
+            raise UserError(
+                f"Cannot revoke the {ssh.SSH_USER} collector key directly — "
+                "use the Rotate Collector Key button on the server detail page"
+            )
         server = db.query_one(
             "SELECT id, ip_address, ssh_port FROM servers WHERE hostname = %s",
             (hostname,),
@@ -229,6 +247,14 @@ def revoke_key(
                 f"No active authorization for {fingerprint} / user {unix_user} on {hostname}"
             )
         key_path = _get_key_path(server["id"])
+        # Critical: refresh sam-* scripts on the host BEFORE invoking
+        # sam-revoke. An older sam-revoke deployed before targeted-mode
+        # support (no second arg handling) would silently ignore the
+        # unix_user argument and run the GLOBAL branch, stripping the
+        # key from every user's authorized_keys (including root). This
+        # ensure_scripts call upgrades the deployed binary first so the
+        # revoke really stays scoped to the requested user.
+        ssh.ensure_scripts(hostname, server["id"], server["ip_address"], port=server["ssh_port"], key_path=key_path)
         ssh.revoke_on_server(hostname, fingerprint, ip=server["ip_address"], unix_user=unix_user, port=server["ssh_port"], key_path=key_path)
         db.execute(
             """
@@ -256,18 +282,20 @@ def revoke_key(
         )
     else:
         # --- Global revocation (all servers, all users) ---
-        root_auth = db.query_one(
+        protected_auth = db.query_one(
             """
-            SELECT 1 FROM key_authorizations
-            WHERE key_id = %s AND unix_user = 'root'
+            SELECT unix_user FROM key_authorizations
+            WHERE key_id = %s AND unix_user IN ('root', %s)
               AND status IN ('ACTIVE', 'PENDING_REVIEW')
+            LIMIT 1
             """,
-            (key["id"],),
+            (key["id"], ssh.SSH_USER),
         )
-        if root_auth:
+        if protected_auth:
+            who = protected_auth["unix_user"]
             raise UserError(
-                "Cannot revoke this key globally — it is deployed for the root account. "
-                "Use targeted revocation for specific non-root users."
+                f"Cannot revoke this key globally — it is deployed for the {who} account. "
+                "Use targeted revocation for specific non-protected users."
             )
         active_auths = db.query(
             """
@@ -342,6 +370,121 @@ def handle_disappeared_key(
     key = db.query_one("SELECT fingerprint FROM ssh_keys WHERE id = %s", (key_id,))
     fp = key["fingerprint"] if key else "unknown"
     return {"type": "disappeared", "fingerprint": fp, "hostname": hostname, "unix_user": unix_user}
+
+
+def handle_pending_disappeared_key(
+    key_id: str, server_id: str, hostname: str, unix_user: str = ""
+) -> dict:
+    """A PENDING_REVIEW row whose (fingerprint, unix_user) pair no longer
+    appears on the server. Mark REVOKED with revoked_automatically=true
+    and a justification — same shape as handle_disappeared_key but
+    INFO-level (no ANOMALY_DETECTED, no CRITICAL email), because the
+    key was never validated as legitimate in the first place. Often the
+    Unix user itself was just removed from the host (the user-reported
+    case), or an admin cleaned up authorized_keys directly before
+    reviewing.
+    """
+    db.execute(
+        """
+        UPDATE key_authorizations
+        SET status = 'REVOKED',
+            revoked_at = now(),
+            revoked_by = NULL,
+            revoked_automatically = true,
+            revocation_justification = 'Disappeared before validation'
+        WHERE key_id = %s AND server_id = %s AND unix_user = %s AND status = 'PENDING_REVIEW'
+        """,
+        (key_id, server_id, unix_user),
+    )
+    db.execute(
+        """
+        INSERT INTO audit_log (action, target_key, target_server, details)
+        VALUES ('KEY_REVOKED', %s, %s, %s::jsonb)
+        """,
+        (
+            key_id,
+            server_id,
+            json.dumps({
+                "reason": "pending_review_disappeared",
+                "hostname": hostname,
+                "unix_user": unix_user,
+            }),
+        ),
+    )
+    key = db.query_one("SELECT fingerprint FROM ssh_keys WHERE id = %s", (key_id,))
+    fp = key["fingerprint"] if key else "unknown"
+    return {
+        "type": "pending_disappeared",
+        "fingerprint": fp,
+        "hostname": hostname,
+        "unix_user": unix_user,
+    }
+
+
+def try_recognize_collector_key(parsed: dict, server_id: str) -> bool:
+    """Recognise our own collector key on the audit-collector account and
+    insert it directly as ACTIVE (no PENDING_REVIEW, no anomaly).
+
+    Called by collect.scan_server BEFORE the scenario-3 unknown-key path.
+    Returns True if the key was recognised and persisted; False otherwise
+    (the caller then falls through to the normal anomaly handling).
+
+    A key is recognised iff:
+      - it sits under unix_user == ssh.SSH_USER ('audit-collector')
+      - its fingerprint matches the local per-server pubkey
+        (/data/keys/per-server/<server_id>.key.pub) that SAM itself
+        generated and deployed via provision-host.sh / rotation
+
+    Without this, the very first scan after add_server / rotate would
+    list our own freshly-deployed collector key as PENDING_REVIEW and
+    raise a CRITICAL anomaly — forcing the admin to validate something
+    we already wrote. That's the bug the user observed in the screenshots.
+    """
+    import os
+    if parsed.get("unix_user") != ssh.SSH_USER:
+        return False
+    pubkey_path = os.path.join(ssh.PER_SERVER_KEYS_DIR, f"{server_id}.key.pub")
+    if not os.path.isfile(pubkey_path):
+        return False
+    try:
+        with open(pubkey_path) as fh:
+            local_pubkey = fh.read().strip()
+        local_fp = ssh._compute_pubkey_fingerprint(local_pubkey)
+    except Exception:
+        return False
+    if local_fp != parsed["fingerprint"]:
+        # Different key on audit-collector — that IS an anomaly, let the
+        # caller handle it via the normal unknown-key path.
+        return False
+
+    # Upsert ssh_keys + key_authorizations as ACTIVE.
+    db.execute(
+        """
+        INSERT INTO ssh_keys (fingerprint, key_type, key_size_bits, public_key, comment)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (fingerprint) DO UPDATE SET
+            last_seen = now(),
+            key_size_bits = EXCLUDED.key_size_bits
+        """,
+        (parsed["fingerprint"], parsed["key_type"], parsed["key_size_bits"],
+         parsed["public_key"], parsed.get("comment") or ""),
+    )
+    key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (parsed["fingerprint"],))
+    db.execute(
+        """
+        INSERT INTO key_authorizations (key_id, server_id, unix_user, status)
+        VALUES (%s, %s, %s, 'ACTIVE')
+        ON CONFLICT (key_id, server_id, unix_user) DO UPDATE SET
+            status = 'ACTIVE',
+            authorized_at = now(),
+            revoked_at = NULL,
+            revoked_by = NULL,
+            revoked_automatically = false,
+            revocation_justification = NULL
+        """,
+        (key["id"], server_id, ssh.SSH_USER),
+    )
+    return True
 
 
 def handle_unknown_key(
@@ -1372,7 +1515,19 @@ def activate_server(hostname: str, admin_id: str | None = None, scan_sync: bool 
 
 
 def rotate_collector_key(hostname: str, admin_id: str) -> dict:
-    """Manual rotation triggered from ServerDetail button."""
+    """Manual rotation triggered from ServerDetail button.
+
+    After ssh.rotate_per_server_key swaps the keypair on the host:
+      - mark the previous audit-collector key_authorization on this
+        server as REVOKED (reason "Collector key rotated") so the UI
+        stops showing it as ACTIVE
+      - INSERT the new ssh_keys row + ACTIVE authorization so the new
+        key appears in the keys list immediately (without waiting for
+        the next scan and without being flagged PENDING_REVIEW as an
+        anomaly)
+      - trigger an async scan to refresh last_seen and detect any
+        unrelated drift introduced during the rotation window
+    """
     server = db.query_one(
         "SELECT id, ip_address, ssh_port, is_active FROM servers WHERE hostname = %s",
         (hostname,),
@@ -1387,11 +1542,75 @@ def rotate_collector_key(hostname: str, admin_id: str) -> dict:
             server["ssh_port"],
             server["id"],
         )
+
+        # Read the freshly-written pubkey on disk to get type + raw content.
+        # ssh.rotate_per_server_key has already renamed <id>.key.new.pub
+        # to <id>.key.pub, so the canonical path now holds the new key.
+        pubkey_info = get_collector_key_for_server(hostname)
+        new_pubkey = pubkey_info["public_key"]
+        # Collector keys are always ed25519 (see ssh._generate_keypair),
+        # so key_size_bits stays NULL — same as the initial insert in
+        # add_server.
+        key_type = new_pubkey.split()[0]
+
+        # Mark previous ACTIVE audit-collector authorizations on this
+        # server as REVOKED. There should be exactly one, but the loop
+        # tolerates degenerate states (e.g. a manual DB tweak).
+        db.execute(
+            """
+            UPDATE key_authorizations
+            SET status = 'REVOKED',
+                revoked_at = now(),
+                revoked_by = %s,
+                revoked_automatically = false,
+                revocation_justification = 'Collector key rotated'
+            WHERE server_id = %s AND unix_user = %s
+              AND status IN ('ACTIVE', 'PENDING_REVIEW')
+            """,
+            (admin_id, server["id"], ssh.SSH_USER),
+        )
+
+        # Insert the new key + its ACTIVE authorization for audit-collector.
+        db.execute(
+            """
+            INSERT INTO ssh_keys (fingerprint, key_type, public_key, comment)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (fingerprint) DO UPDATE SET last_seen = now()
+            """,
+            (new_fp, key_type, new_pubkey, ""),
+        )
+        new_key_row = db.query_one(
+            "SELECT id FROM ssh_keys WHERE fingerprint = %s", (new_fp,)
+        )
+        db.execute(
+            """
+            INSERT INTO key_authorizations (key_id, server_id, unix_user, authorized_by, status)
+            VALUES (%s, %s, %s, %s, 'ACTIVE')
+            ON CONFLICT (key_id, server_id, unix_user) DO UPDATE SET
+                status = 'ACTIVE',
+                authorized_by = EXCLUDED.authorized_by,
+                authorized_at = now(),
+                revoked_at = NULL,
+                revoked_by = NULL,
+                revoked_automatically = false,
+                revocation_justification = NULL
+            """,
+            (new_key_row["id"], server["id"], ssh.SSH_USER, admin_id),
+        )
+
         db.execute(
             """INSERT INTO audit_log (action, performed_by, target_server, details)
                VALUES ('COLLECTOR_KEY_ROTATED', %s, %s, %s::jsonb)""",
             (admin_id, server["id"], json.dumps({"server_id": server["id"], "fingerprint": new_fp})),
         )
+
+        # Refresh the rest of the host's state (last_seen on other keys,
+        # detect any drift introduced during the rotation window).
+        # Fire-and-forget — the caller is an HTTP request that should
+        # return promptly, not block on a multi-second scan.
+        full_server = db.query_one("SELECT * FROM servers WHERE id = %s", (server["id"],))
+        _trigger_initial_scan(full_server, admin_id, sync=False)
+
         return {"status": "rotated", "fingerprint": new_fp}
     except ssh.SSHError as exc:
         db.execute(

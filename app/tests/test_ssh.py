@@ -208,6 +208,70 @@ def test_ssh_revoke_on_server_raises_on_nonzero_exit(sample_key):
 # SAM_COLLECT and SAM_REVOKE — content checks
 # ---------------------------------------------------------------------------
 
+def test_ssh_sam_collect_dedupes_shared_home_directories():
+    """sam-collect must not emit the same authorized_keys file twice
+    when several /etc/passwd entries share a home directory.
+
+    The user-reported scenario: RHEL/Rocky ships a legacy `operator`
+    system account declared as `operator:x:11:0:operator:/root:...`.
+    Without dedup, sam-collect would attribute every key under
+    /root/.ssh/authorized_keys to BOTH root and operator — creating
+    phantom anomaly rows that no admin can remove (the underlying
+    Unix user has no real /home/operator, the key isn't actually on
+    operator's behalf).
+
+    The script tracks `seen_files` and emits the FIRST user it sees
+    for a given path (with root forced first by an explicit pre-call).
+    """
+    import subprocess
+    import tempfile
+    import os
+
+    script_body = ssh.SAM_COLLECT.decode()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Fake `getent passwd` output that contains root + a legacy
+        # operator entry with home=/root, plus a regular user with
+        # its own home.
+        passwd_path = os.path.join(tmpdir, "fake_passwd")
+        with open(passwd_path, "w") as f:
+            f.write(f"root:x:0:0:root:{tmpdir}/root:/bin/bash\n")
+            f.write(f"operator:x:11:0:operator:{tmpdir}/root:/sbin/bash\n")
+            f.write(f"alice:x:1000:1000::{tmpdir}/alice:/bin/bash\n")
+
+        # Populate the two homes
+        for home, key_b64 in [
+            ("root", "AAAAC3RootKey"),
+            ("alice", "AAAAC3AliceKey"),
+        ]:
+            ssh_dir = os.path.join(tmpdir, home, ".ssh")
+            os.makedirs(ssh_dir)
+            with open(os.path.join(ssh_dir, "authorized_keys"), "w") as f:
+                f.write(f"ssh-ed25519 {key_b64} {home}-host\n")
+
+        # Patch the script to use our fake getent + fake /root path
+        adapted = script_body.replace(
+            "getent passwd", f"cat {passwd_path}"
+        ).replace(
+            "/root/.ssh/authorized_keys", f"{tmpdir}/root/.ssh/authorized_keys"
+        )
+
+        proc = subprocess.run(
+            ["sh", "-c", adapted], capture_output=True, text=True, check=True
+        )
+        lines = [ln for ln in proc.stdout.splitlines() if ln]
+
+        # Each authorized_keys file emitted exactly once.
+        users = [ln.split("\t", 1)[0] for ln in lines]
+        # root must appear for /root/.ssh/authorized_keys
+        assert "root" in users, f"root key not emitted: {proc.stdout!r}"
+        # operator must NOT appear (its home=/root is shared with root)
+        assert "operator" not in users, (
+            f"operator key wrongly emitted despite shared home: {proc.stdout!r}"
+        )
+        # alice appears with her own dedicated home
+        assert "alice" in users
+
+
 def test_ssh_sam_collect_is_bytes():
     assert isinstance(ssh.SAM_COLLECT, bytes)
     assert b"authorized_keys" in ssh.SAM_COLLECT
@@ -1325,6 +1389,54 @@ def test_ssh_read_provision_version_empty_string_returns_none():
     with patch("ssh._run", return_value=("   \n\t  ", "", 0)):
         result = ssh._read_provision_version(client)
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _replace_authorized_keys_remote (used by rotate_per_server_key)
+# ---------------------------------------------------------------------------
+
+def test_ssh_replace_authorized_keys_writes_only_the_new_pubkey():
+    """The rotation finalisation must truncate authorized_keys to the new
+    pubkey only — leftover entries from previous (partial) rotations or
+    manual additions must NOT survive a rotation on the audit-collector
+    account.
+    """
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    stdout = MagicMock()
+    stdout.read.return_value = b""
+    stdout.channel.recv_exit_status.return_value = 0
+    client.exec_command.return_value = (MagicMock(), stdout, MagicMock(read=MagicMock(return_value=b"")))
+
+    pubkey = "ssh-ed25519 AAAA+example new-collector"
+    ssh._replace_authorized_keys_remote(client, pubkey)
+
+    cmd = client.exec_command.call_args[0][0]
+    # The pubkey is the only literal content piped into the temp file.
+    assert "authorized_keys.tmp" in cmd
+    assert "chmod 600" in cmd
+    assert "mv " in cmd and "authorized_keys" in cmd
+    # `printf` with a single argument (no grep, no append) guarantees a
+    # one-line file. grep -vxF would leave any other line intact.
+    assert "printf" in cmd
+    assert "grep" not in cmd
+
+
+def test_ssh_replace_authorized_keys_raises_on_nonzero_exit():
+    """Failed write must raise so rotate_per_server_key triggers rollback."""
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    stdout = MagicMock()
+    stderr = MagicMock()
+    stdout.read.return_value = b""
+    stderr.read.return_value = b"permission denied"
+    stdout.channel.recv_exit_status.return_value = 1
+    client.exec_command.return_value = (MagicMock(), stdout, stderr)
+
+    with pytest.raises(ssh.SSHError, match="Failed to replace authorized_keys"):
+        ssh._replace_authorized_keys_remote(client, "ssh-ed25519 AAAA")
 
 
 def test_ssh_apply_provision_update_invokes_correct_command():

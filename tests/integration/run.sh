@@ -92,6 +92,12 @@ assert_file_perms  "$AUTH_KEYS" 600
 assert_file_owner  "$AUTH_KEYS" "${COLLECTOR_USER}:${COLLECTOR_USER}"
 assert_grep "ed25519" "$AUTH_KEYS"
 
+# Strict cleanup: the file must contain EXACTLY one line (only the SAM
+# collector pubkey). Provision replaces, never appends — any pre-existing
+# entry would be a residual security risk.
+line_count=$(wc -l < "$AUTH_KEYS")
+assert_eq "1" "$line_count" "authorized_keys contains exactly one line"
+
 # No leftover .bak after a clean run
 assert_no_bak_residue /etc/sudoers.d
 assert_no_bak_residue /etc/ssh/sshd_config.d
@@ -113,6 +119,26 @@ assert_no_bak_residue /etc/ssh/sshd_config.d
 # authorized_keys must not have grown a duplicate line
 auth_count=$(grep -cF "$PUBKEY" "$AUTH_KEYS" || true)
 assert_eq "1" "$auth_count" "collector key appears exactly once in authorized_keys"
+
+# Strict cleanup of pre-existing entries (regression test for the bug
+# where /home/audit-collector/.ssh/authorized_keys accumulated stale
+# lines from previous installs because provision-host.sh only appended).
+# Inject two unrelated ed25519 lines, re-run provision, assert the file
+# is reset to a single line containing only the current collector pubkey.
+printf '%s\n%s\n' \
+    'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILegacyOne legacy-1@test' \
+    'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILegacyTwo legacy-2@test' \
+    >> "$AUTH_KEYS"
+chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "$AUTH_KEYS"
+
+bash provision-host.sh "$PUBKEY" "$COLLECTOR_USER"
+
+line_count=$(wc -l < "$AUTH_KEYS")
+assert_eq "1" "$line_count" "stale entries scrubbed — only one line remains after re-provision"
+assert_nogrep "LegacyOne" "$AUTH_KEYS"
+assert_nogrep "LegacyTwo" "$AUTH_KEYS"
+assert_file_perms "$AUTH_KEYS" 600
+assert_file_owner "$AUTH_KEYS" "${COLLECTOR_USER}:${COLLECTOR_USER}"
 
 # ---------------------------------------------------------------------------
 # Phase 3 — deploy sam-self-update and run initial provisioning
