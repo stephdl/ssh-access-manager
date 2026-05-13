@@ -326,6 +326,8 @@ Actions : crée l'utilisateur collector, déploie la clé publique, crée sudoer
 
 **Strict cleanup d'authorized_keys (#429)** — `provision-host.sh` **réécrit** `~${COLLECTOR_USER}/.ssh/authorized_keys` avec exactement la pubkey passée en argument (printf > tmp + chmod 600 + chown + `mv -f`), au lieu d'append. Le compte audit-collector est dédié SAM (pas de shell humain), donc toute clé pré-existante est soit une résidue d'une install précédente, soit un ajout manuel non géré — dans les deux cas à nettoyer. La rotation `ssh.rotate_per_server_key` applique la même sémantique via `_replace_authorized_keys_remote`.
 
+**AllowGroups/AllowUsers detection (#438)** — `provision-host.sh` parse `/etc/ssh/sshd_config` + `sshd_config.d/*.conf`, extrait directives `AllowGroups` et `AllowUsers` (insensibles à la casse, supporte multiple). Vérifie que `audit-collector` passe les contraintes (intersection groupes pour AllowGroups, exact match pour AllowUsers). Si échec, exit 1 avec message clair indiquant l'action manuelle requise (usermod -aG ou édition sshd_config). Wildcards AllowGroups (ex: `*admin`) traités comme non-match (false positive accepté — admin voit le message et adapte).
+
 Permissions appliquées (#260) :
 - `chmod 700 /home/${COLLECTOR_USER}` — home non listable par les autres utilisateurs
 - Scripts SAM déployés avec `-m 750` (root:root) — non lisibles/exécutables par les non-root
