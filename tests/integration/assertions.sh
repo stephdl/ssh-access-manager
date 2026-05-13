@@ -63,6 +63,17 @@ assert_grep() {
     fi
 }
 
+assert_grep_fixed() {
+    # assert_grep_fixed <literal-substring> <file>
+    # Use this when the needle contains regex meta-characters (e.g. an SSH
+    # key body, which is base64 with '+' and '/' that ERE would interpret).
+    if grep -qF -- "$1" "$2" 2>/dev/null; then
+        _pass "literal '$1' present in $2"
+    else
+        _fail "literal '$1' not found in $2"
+    fi
+}
+
 assert_nogrep() {
     # assert_nogrep <pattern> <file>
     if grep -qE -- "$1" "$2" 2>/dev/null; then
@@ -126,6 +137,55 @@ assert_no_bak_residue() {
         _pass "no .bak residue in $1"
     else
         _fail ".bak residue found: $found"
+    fi
+}
+
+assert_user_locked() {
+    # assert_user_locked <username>
+    # Reads /etc/shadow directly: a leading '!' in the password field means
+    # `usermod -L` was applied. Works on every shadow-utils-based distro
+    # (RHEL/Debian/openSUSE/Arch) without depending on `passwd -S` (which
+    # differs in output format and exit semantics across distros).
+    local user="$1"
+    local field
+    field=$(awk -F: -v u="$user" '$1==u {print $2; exit}' /etc/shadow 2>/dev/null)
+    case "$field" in
+        '!'*) _pass "$user is locked (shadow starts with '!')" ;;
+        '')   _fail "$user not found in /etc/shadow" ;;
+        *)    _fail "$user shadow does not start with '!' (got: ${field:0:8}…)" ;;
+    esac
+}
+
+assert_user_unlocked() {
+    # assert_user_unlocked <username>
+    local user="$1"
+    local field
+    field=$(awk -F: -v u="$user" '$1==u {print $2; exit}' /etc/shadow 2>/dev/null)
+    case "$field" in
+        '!'*) _fail "$user is still locked (shadow starts with '!')" ;;
+        '')   _fail "$user not found in /etc/shadow" ;;
+        *)    _pass "$user is unlocked" ;;
+    esac
+}
+
+assert_user_shell() {
+    # assert_user_shell <username> <expected-shell-path>
+    local user="$1" expected="$2" actual
+    actual=$(getent passwd "$user" | cut -d: -f7)
+    if [ "$actual" = "$expected" ]; then
+        _pass "$user shell = $expected"
+    else
+        _fail "$user shell — expected $expected, got '$actual'"
+    fi
+}
+
+assert_grep_stdin() {
+    # assert_grep_stdin <pattern> <label>  — reads from stdin
+    local pattern="$1" label="$2"
+    if grep -qE -- "$pattern" -; then
+        _pass "$label matches '$pattern'"
+    else
+        _fail "$label does not match '$pattern'"
     fi
 }
 
