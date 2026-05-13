@@ -70,7 +70,8 @@
       "SSH_SUDO_FAILED": "Provisioning fallito — verificare che l'utente abbia i privilegi sudo.",
       "SSH_SCRIPT_FAILED": "Lo script di provisioning è fallito — consultare i log del server.",
       "SSH_FAILED": "Errore SSH durante il provisioning."
-    }
+    },
+    "show_details_summary": "Mostra errore grezzo"
   },
   "edit_server": {
     "title": "Modifica server",

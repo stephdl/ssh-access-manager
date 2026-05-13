@@ -759,6 +759,51 @@ def test_web_provision_server_ssh_error(auth_client):
         assert resp.status_code == 422
 
 
+def test_web_provision_server_response_includes_raw_details(auth_client):
+    """The 422 payload must carry `details` so the UI can show a
+    collapsible 'Show raw error' block — the translated error_code
+    alone (e.g. SSH_SCRIPT_FAILED) often hides the actionable cause
+    (e.g. 'bash: sudo: command not found').
+    """
+    raw_msg = "Provisioning script failed (exit 127): bash: line 1: sudo: command not found"
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.provision_server.side_effect = ssh.SSHScriptError(raw_msg)
+        resp = auth_client.post(
+            "/api/servers/server-test-01/provision",
+            json={"ssh_user": "root", "ssh_password": "secret", "ssh_port": 22},
+        )
+        assert resp.status_code == 422
+        body = resp.get_json()
+        assert body["error_code"] == "SSH_SCRIPT_FAILED"
+        assert "sudo: command not found" in body["details"]
+        # 500-char clamp keeps the modal compact and avoids large traces.
+        assert len(body["details"]) <= 500
+
+
+def test_web_add_server_response_includes_raw_details(auth_client):
+    """POST /api/servers carries the same details field on SSH failure."""
+    raw_msg = "Provisioning script failed (exit 1): some long stderr " + "x" * 600
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin_row()
+        mock_actions.add_server.side_effect = ssh.SSHScriptError(raw_msg)
+        resp = auth_client.post(
+            "/api/servers",
+            json={
+                "hostname": "srv-new",
+                "ip": "10.0.0.1",
+                "ssh_user": "root",
+                "ssh_password": "secret",
+                "ssh_port": 22,
+            },
+        )
+        assert resp.status_code == 422
+        body = resp.get_json()
+        assert body["error_code"] == "SSH_SCRIPT_FAILED"
+        # Long messages clamped to 500 chars exactly.
+        assert len(body["details"]) == 500
+
+
 def test_web_provision_server_viewer_forbidden(client):
     """Viewers cannot provision servers."""
     viewer_id = str(uuid.uuid4())

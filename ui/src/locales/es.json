@@ -70,7 +70,8 @@
       "SSH_SUDO_FAILED": "Aprovisionamiento fallido — verifique que el usuario tenga privilegios sudo.",
       "SSH_SCRIPT_FAILED": "El script de aprovisionamiento falló — consulte los logs del servidor.",
       "SSH_FAILED": "Error SSH durante el aprovisionamiento."
-    }
+    },
+    "show_details_summary": "Mostrar error sin formato"
   },
   "edit_server": {
     "title": "Editar servidor",

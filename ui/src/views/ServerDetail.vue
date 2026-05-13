@@ -387,7 +387,17 @@
             &#x2715;
           </button>
         </div>
-        <div v-if="reprovisionError" class="alert-error">{{ reprovisionError }}</div>
+        <div v-if="reprovisionError" class="alert-error">
+          <div>{{ reprovisionError }}</div>
+          <details
+            v-if="reprovisionErrorDetails"
+            class="error-details"
+            data-testid="reprovision-error-details"
+          >
+            <summary>{{ $t('add_server.show_details_summary') }}</summary>
+            <pre>{{ reprovisionErrorDetails }}</pre>
+          </details>
+        </div>
         <p class="hint">{{ $t('server_detail.reprovision_hint') }}</p>
 
         <label
@@ -491,6 +501,8 @@ const showDeleteModal = ref(false)
 const showReprovisionModal = ref(false)
 const reprovisioning = ref(false)
 const reprovisionError = ref('')
+// Raw stderr from the backend's SSHScriptError (capped 500 chars).
+const reprovisionErrorDetails = ref('')
 const reprovisionForm = ref({ sshUser: 'root', sshPassword: '', sshPort: 22 })
 const showReprovisionPassword = ref(false)
 
@@ -793,6 +805,7 @@ function openReprovision() {
 async function confirmReprovision() {
   reprovisioning.value = true
   reprovisionError.value = ''
+  reprovisionErrorDetails.value = ''
   try {
     const res = await apiFetch(`/api/servers/${hostname}/provision`, {
       method: 'POST',
@@ -805,6 +818,7 @@ async function confirmReprovision() {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
+      if (data.details) reprovisionErrorDetails.value = data.details
       const i18nKey = `add_server.errors.${data.error_code}`
       throw new Error(
         data.error_code && te(i18nKey) ? t(i18nKey) : data.error || `HTTP ${res.status}`
@@ -981,6 +995,26 @@ dd {
   padding: 0.6rem 1rem;
   border-radius: 4px;
   margin-bottom: 1rem;
+}
+.error-details {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+.error-details summary {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+}
+.error-details pre {
+  margin: 0.4rem 0 0;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 12em;
+  overflow: auto;
 }
 .alert-info {
   background: #d4edda;

@@ -377,7 +377,16 @@ def add_server():
         return jsonify({"error": "Missing required field: hostname and ip are required"}), 400
     except ssh.SSHError as e:
         logging.warning("%s", str(e).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": "SSH operation failed", "error_code": e.error_code}), 422
+        # Include the raw exception message so the UI can offer a
+        # collapsible "Show raw error" panel — the translated error_code
+        # alone (e.g. SSH_SCRIPT_FAILED) often hides the real cause
+        # (e.g. "bash: sudo: command not found"). Clamped to 500 chars
+        # to keep the modal compact and avoid leaking long traces.
+        return jsonify({
+            "error": "SSH operation failed",
+            "error_code": e.error_code,
+            "details": str(e)[:500],
+        }), 422
 
 
 @app.route("/api/servers/<hostname>/provision", methods=["POST"])
@@ -398,7 +407,11 @@ def provision_server_route(hostname):
         return jsonify({"message": "Server provisioned successfully"})
     except ssh.SSHError as exc:
         logging.warning("%s", str(exc).replace("\n", "\\n").replace("\r", "\\r"))
-        return jsonify({"error": "SSH operation failed", "error_code": exc.error_code}), 422
+        return jsonify({
+            "error": "SSH operation failed",
+            "error_code": exc.error_code,
+            "details": str(exc)[:500],
+        }), 422
 
 
 @app.route("/api/servers/<hostname>", methods=["PUT"])

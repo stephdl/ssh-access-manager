@@ -70,7 +70,8 @@
       "SSH_SUDO_FAILED": "Provisioning failed — check that the user has sudo privileges.",
       "SSH_SCRIPT_FAILED": "Provisioning script failed — check the server logs.",
       "SSH_FAILED": "SSH error during provisioning."
-    }
+    },
+    "show_details_summary": "Show raw error"
   },
   "edit_server": {
     "title": "Edit server",

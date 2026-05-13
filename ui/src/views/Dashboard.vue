@@ -61,7 +61,17 @@
           <h3>{{ $t('add_server.title') }}</h3>
           <button class="modal-close" @click="closeAddServer" aria-label="Close">&#x2715;</button>
         </div>
-        <div v-if="addError" class="alert-error">{{ addError }}</div>
+        <div v-if="addError" class="alert-error">
+          <div>{{ addError }}</div>
+          <details
+            v-if="addErrorDetails"
+            class="error-details"
+            data-testid="add-server-error-details"
+          >
+            <summary>{{ $t('add_server.show_details_summary') }}</summary>
+            <pre>{{ addErrorDetails }}</pre>
+          </details>
+        </div>
 
         <div class="form-grid">
           <!-- Hostname + IP -->
@@ -226,6 +236,10 @@ const scanMessage = ref('')
 const showAddServer = ref(false)
 const adding = ref(false)
 const addError = ref('')
+// Raw stderr / exception message from the backend (capped at 500 chars
+// server-side). Shown in a collapsible details block under addError so
+// the admin can diagnose without opening container logs.
+const addErrorDetails = ref('')
 const showAddPassword = ref(false)
 const addForm = ref({
   hostname: '',
@@ -310,11 +324,14 @@ function openAddServer() {
 
 function closeAddServer() {
   showAddServer.value = false
+  addError.value = ''
+  addErrorDetails.value = ''
 }
 
 async function confirmAddServer() {
   adding.value = true
   addError.value = ''
+  addErrorDetails.value = ''
   try {
     const res = await apiFetch('/api/servers', {
       method: 'POST',
@@ -331,6 +348,10 @@ async function confirmAddServer() {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
+      // Preserve the raw backend message for the collapsible details
+      // block — the translated error_code is set as the thrown
+      // Error.message and lands in addError via the catch.
+      if (data.details) addErrorDetails.value = data.details
       const i18nKey = `add_server.errors.${data.error_code}`
       throw new Error(
         data.error_code && te(i18nKey) ? t(i18nKey) : data.error || `HTTP ${res.status}`
@@ -470,6 +491,26 @@ h1 {
   padding: 0.6rem 1rem;
   border-radius: 4px;
   margin-bottom: 1rem;
+}
+.error-details {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+.error-details summary {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+}
+.error-details pre {
+  margin: 0.4rem 0 0;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 12em;
+  overflow: auto;
 }
 .field-error {
   font-size: 0.8rem;

@@ -184,6 +184,14 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
 
 - `UserError(message)` — exception user-safe exposée directement dans les réponses HTTP (400/404/409). Ne pas l'attraper dans web.py : le décorateur `@require_auth` la transforme automatiquement en `{"error": message}`. Résout l'exposition de stack-traces Python dans les réponses API (#314).
 
+## Réponses SSH d'erreur — payload 422 avec `details` (#433)
+
+Les routes `POST /api/servers` et `POST /api/servers/<hostname>/provision` retournent 422 sur `ssh.SSHError` avec :
+```json
+{"error": "SSH operation failed", "error_code": "SSH_SCRIPT_FAILED", "details": "Provisioning script failed (exit 127): bash: line 1: sudo: command not found"}
+```
+Le champ `details` (clamp 500 chars) porte le `str(exc)` brut — destiné à un bloc `<details>` collapsible côté UI pour exposer la vraie cause sans forcer l'admin à lire les logs container. Le password SSH n'apparaît jamais dans stderr (paramiko le passe en handshake, pas via le script).
+
 ## actions.py — fonctions
 
 ### Clés SSH

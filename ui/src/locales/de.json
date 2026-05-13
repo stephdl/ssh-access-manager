@@ -70,7 +70,8 @@
       "SSH_SUDO_FAILED": "Bereitstellung fehlgeschlagen — prüfen Sie die sudo-Rechte des Benutzers.",
       "SSH_SCRIPT_FAILED": "Bereitstellungsskript fehlgeschlagen — Server-Logs prüfen.",
       "SSH_FAILED": "SSH-Fehler während der Bereitstellung."
-    }
+    },
+    "show_details_summary": "Rohausgabe anzeigen"
   },
   "edit_server": {
     "title": "Server bearbeiten",

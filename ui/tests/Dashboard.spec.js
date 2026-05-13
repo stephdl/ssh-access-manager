@@ -297,7 +297,7 @@ describe('Dashboard - Add Server Modal', () => {
           })
         }
         return Promise.resolve({ ok: true, json: () => Promise.resolve(null) })
-      }),
+      })
     )
     const w = mount(Dashboard, { global: { plugins: [i18n, router] } })
     await flushPromises()
@@ -376,5 +376,98 @@ describe('Dashboard - Add Server Modal', () => {
       await w.vm.$nextTick()
       expect(w.vm.addHostnameError).toBe('')
     }
+  })
+
+  it('shows the collapsible raw error details when the backend returns 422 with a details field', async () => {
+    const router = createMockRouter()
+    const fetchSpy = vi.fn((url, options) => {
+      if (url === '/api/servers' && options?.method === 'POST') {
+        return Promise.resolve({
+          ok: false,
+          status: 422,
+          json: () =>
+            Promise.resolve({
+              error: 'SSH operation failed',
+              error_code: 'SSH_SCRIPT_FAILED',
+              details:
+                'Provisioning script failed (exit 127): bash: line 1: sudo: command not found',
+            }),
+        })
+      }
+      if (url === '/api/servers') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SERVERS) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = mount(Dashboard, { global: { plugins: [i18n, router] } })
+    await flushPromises()
+    await w.find('button.btn-secondary').trigger('click')
+    await flushPromises()
+
+    w.vm.addForm = {
+      hostname: 'test-server',
+      ip: '192.168.1.50',
+      environment: 'production',
+      os_family: '',
+      sshUser: 'root',
+      sshPort: 22,
+      sshPassword: 'mypassword',
+    }
+    await w.vm.$nextTick()
+    const submitBtn = w.findAll('button.btn-primary').find((b) => b.text().includes('Add'))
+    await submitBtn.trigger('click')
+    await flushPromises()
+
+    // Modal stays open on error.
+    expect(w.find('.modal').exists()).toBe(true)
+    // Translated error_code is shown as the primary message.
+    expect(w.find('.alert-error').text()).toContain('Provisioning script failed')
+    // Collapsible details block carries the raw stderr.
+    const details = w.find('[data-testid="add-server-error-details"]')
+    expect(details.exists()).toBe(true)
+    // <details> is collapsed by default (no `open` attribute).
+    expect(details.attributes('open')).toBeUndefined()
+    expect(details.find('pre').text()).toContain('sudo: command not found')
+  })
+
+  it('does not render the details block when the backend omits the details field', async () => {
+    const router = createMockRouter()
+    const fetchSpy = vi.fn((url, options) => {
+      if (url === '/api/servers' && options?.method === 'POST') {
+        return Promise.resolve({
+          ok: false,
+          status: 422,
+          json: () => Promise.resolve({ error: 'SSH operation failed', error_code: 'SSH_TIMEOUT' }),
+        })
+      }
+      if (url === '/api/servers') {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SERVERS) })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = mount(Dashboard, { global: { plugins: [i18n, router] } })
+    await flushPromises()
+    await w.find('button.btn-secondary').trigger('click')
+    await flushPromises()
+    w.vm.addForm = {
+      hostname: 'test-server',
+      ip: '192.168.1.50',
+      environment: 'production',
+      os_family: '',
+      sshUser: 'root',
+      sshPort: 22,
+      sshPassword: 'mypassword',
+    }
+    await w.vm.$nextTick()
+    const submitBtn = w.findAll('button.btn-primary').find((b) => b.text().includes('Add'))
+    await submitBtn.trigger('click')
+    await flushPromises()
+
+    expect(w.find('.alert-error').exists()).toBe(true)
+    expect(w.find('[data-testid="add-server-error-details"]').exists()).toBe(false)
   })
 })
