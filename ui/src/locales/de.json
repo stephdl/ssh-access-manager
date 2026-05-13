@@ -470,6 +470,7 @@
     "group_error": "Gruppenänderung fehlgeschlagen: {error}",
     "active_session_tooltip": "Benutzer hat eine aktive Sitzung — Gruppenänderung blockiert",
     "active_session_badge": "Aktive Sitzung",
+    "refreshing_sessions": "Sitzungen werden aktualisiert…",
     "group_success_verified": "Gruppe für {user} auf {server} aktualisiert — Server bestätigt: {groups}",
     "root_user_tooltip": "Der root-Benutzer kann weder gesperrt noch seine Gruppe geändert werden",
     "root_protected_badge": "geschützt"

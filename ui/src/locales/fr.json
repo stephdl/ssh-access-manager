@@ -470,6 +470,7 @@
     "group_error": "Échec du changement de groupe : {error}",
     "active_session_tooltip": "L'utilisateur a une session active — changement de groupe bloqué",
     "active_session_badge": "Session active",
+    "refreshing_sessions": "Actualisation des sessions…",
     "group_success_verified": "Groupe mis à jour pour {user} sur {server} — serveur confirme : {groups}",
     "root_user_tooltip": "L'utilisateur root ne peut pas être verrouillé ni changer de groupe",
     "root_protected_badge": "protégé"
