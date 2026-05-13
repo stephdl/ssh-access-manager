@@ -285,8 +285,9 @@ Configurable sans redémarrage via PUT /api/system/config : login_max_attempts (
   python3 tests/check_coverage_floors.py coverage.json
   ```
 - pytest doit passer avant tout commit
+- `test_schema.py` exerce `sql/schema.sql` contre un vrai Postgres 18 (CI `schema-postgres` job). Auto-skipped si `SCHEMA_TEST_DSN` n'est pas défini — le run local par défaut reste mocké. Pour reproduire localement : `podman run -d --rm -e POSTGRES_PASSWORD=t -p 5432:5432 postgres:18 && SCHEMA_TEST_DSN=postgresql://postgres:t@127.0.0.1:5432/postgres pytest tests/test_schema.py`
 
-Fichiers : conftest.py, test_db.py (7), test_servers.py (10), test_ssh.py (70), test_actions.py (186), test_collect.py (35), test_expire.py (16), test_alerts.py (23), test_web.py (178), test_manage.py (46), test_rbac.py (3).
+Fichiers : conftest.py, test_db.py (7), test_servers.py (10), test_ssh.py (70), test_actions.py (186), test_collect.py (35), test_expire.py (16), test_alerts.py (23), test_web.py (178), test_manage.py (46), test_rbac.py (3), test_schema.py (27 — requiert Postgres 18 réel).
 
 Fixtures obligatoires dans conftest.py : `mock_db`, `mock_ssh_client`, `mock_smtp`, `sample_server`, `sample_key`.
 
