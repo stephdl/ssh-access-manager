@@ -470,6 +470,7 @@
     "group_error": "Modifica gruppo fallita: {error}",
     "active_session_tooltip": "L'utente ha una sessione attiva — modifica gruppo bloccata",
     "active_session_badge": "Sessione attiva",
+    "refreshing_sessions": "Aggiornamento sessioni…",
     "group_success_verified": "Gruppo aggiornato per {user} su {server} — il server conferma: {groups}",
     "root_user_tooltip": "L'utente root non può essere bloccato né cambiare gruppo",
     "root_protected_badge": "protetto"
