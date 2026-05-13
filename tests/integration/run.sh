@@ -458,4 +458,77 @@ else
     _pass "/etc/sam-provision-version not updated (rollback respected)"
 fi
 
+# ---------------------------------------------------------------------------
+# Phase 8 — sshd AllowGroups / AllowUsers detection (#438)
+# ---------------------------------------------------------------------------
+# provision-host.sh must refuse to provision when sshd is configured with
+# AllowGroups or AllowUsers directives that exclude the collector user.
+# These OpenSSH directives are global-only (not overridable in Match blocks),
+# so SAM has no way to bypass them — the admin must edit sshd_config manually.
+section "Phase 8 — sshd AllowGroups / AllowUsers detection"
+
+SSHD_MAIN="/etc/ssh/sshd_config"
+SSHD_BACKUP="/tmp/sam-it/sshd_config.before-phase8"
+cp "$SSHD_MAIN" "$SSHD_BACKUP"
+
+restore_sshd() {
+    cp "$SSHD_BACKUP" "$SSHD_MAIN"
+}
+
+# --- 8a. AllowGroups that excludes audit-collector -----------------------
+# audit-collector belongs only to its own primary group at this point;
+# 'wheel' is unrelated, so detection must trip.
+printf '\nAllowGroups wheel\n' >> "$SSHD_MAIN"
+phase8a_out=$(bash provision-host.sh "$PUBKEY" "$COLLECTOR_USER" 2>&1 1>/dev/null) && phase8a_rc=0 || phase8a_rc=$?
+if [ "$phase8a_rc" -ne 0 ]; then
+    _pass "AllowGroups exclusion → provision-host.sh exited $phase8a_rc (non-zero, as expected)"
+else
+    restore_sshd
+    _fail "AllowGroups exclusion → provision-host.sh unexpectedly exited 0"
+fi
+case "$phase8a_out" in
+    *"AllowGroups"*"restricts SSH access"*) _pass "stderr mentions AllowGroups restriction" ;;
+    *) restore_sshd; _fail "stderr did not include the expected AllowGroups error message: $phase8a_out" ;;
+esac
+case "$phase8a_out" in
+    *"usermod -aG"*) _pass "stderr suggests usermod -aG remediation" ;;
+    *) restore_sshd; _fail "stderr did not include usermod -aG remediation hint" ;;
+esac
+restore_sshd
+
+# --- 8b. AllowGroups that includes a collector group ---------------------
+# Add audit-collector to 'wheel' (creating the group first on distros that
+# do not ship it), then declare 'AllowGroups wheel' — provision must pass.
+if ! getent group wheel >/dev/null 2>&1; then
+    groupadd wheel
+fi
+usermod -aG wheel "$COLLECTOR_USER"
+printf '\nAllowGroups wheel\n' >> "$SSHD_MAIN"
+assert_exit_zero bash provision-host.sh "$PUBKEY" "$COLLECTOR_USER"
+gpasswd -d "$COLLECTOR_USER" wheel >/dev/null 2>&1 || true
+restore_sshd
+
+# --- 8c. AllowUsers that excludes audit-collector ------------------------
+printf '\nAllowUsers root someoneelse\n' >> "$SSHD_MAIN"
+phase8c_out=$(bash provision-host.sh "$PUBKEY" "$COLLECTOR_USER" 2>&1 1>/dev/null) && phase8c_rc=0 || phase8c_rc=$?
+if [ "$phase8c_rc" -ne 0 ]; then
+    _pass "AllowUsers exclusion → provision-host.sh exited $phase8c_rc (non-zero, as expected)"
+else
+    restore_sshd
+    _fail "AllowUsers exclusion → provision-host.sh unexpectedly exited 0"
+fi
+case "$phase8c_out" in
+    *"AllowUsers"*"restricts SSH access"*) _pass "stderr mentions AllowUsers restriction" ;;
+    *) restore_sshd; _fail "stderr did not include the expected AllowUsers error message: $phase8c_out" ;;
+esac
+restore_sshd
+
+# --- 8d. AllowUsers that includes audit-collector ------------------------
+printf '\nAllowUsers root %s\n' "$COLLECTOR_USER" >> "$SSHD_MAIN"
+assert_exit_zero bash provision-host.sh "$PUBKEY" "$COLLECTOR_USER"
+restore_sshd
+
+# --- 8e. No restriction directives — baseline still passes ---------------
+assert_exit_zero bash provision-host.sh "$PUBKEY" "$COLLECTOR_USER"
+
 section "All integration assertions passed on $ID $VERSION_ID"
