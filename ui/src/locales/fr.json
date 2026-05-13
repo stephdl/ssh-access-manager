@@ -70,7 +70,8 @@
       "SSH_SUDO_FAILED": "Provisionnement échoué — vérifiez que l'utilisateur a les droits sudo.",
       "SSH_SCRIPT_FAILED": "Le script de provisionnement a échoué — consultez les logs du serveur.",
       "SSH_FAILED": "Erreur SSH lors du provisionnement."
-    }
+    },
+    "show_details_summary": "Afficher l'erreur brute"
   },
   "edit_server": {
     "title": "Éditer le serveur",

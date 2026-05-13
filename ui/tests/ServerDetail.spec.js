@@ -70,7 +70,10 @@ function setupFetch() {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -134,14 +137,22 @@ describe('ServerDetail — root revoke warning', () => {
 describe('ServerDetail — expiry scoped to unix_user + hostname', () => {
   it('sends unix_user and hostname in set-expiry request', async () => {
     const fetchSpy = vi.fn((url, opts) => {
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys') && !url.includes('set-expiry')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys') &&
+        !url.includes('set-expiry')
+      ) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SERVER) })
       }
       if (url.includes('/api/keys')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -163,14 +174,22 @@ describe('ServerDetail — expiry scoped to unix_user + hostname', () => {
 
   it('sends unix_user and hostname in remove-expiry request', async () => {
     const fetchSpy = vi.fn((url, opts) => {
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys') && !url.includes('remove-expiry')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys') &&
+        !url.includes('remove-expiry')
+      ) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SERVER) })
       }
       if (url.includes('/api/keys')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -191,18 +210,24 @@ describe('ServerDetail — expiry scoped to unix_user + hostname', () => {
 describe('ServerDetail — provision version display', () => {
   it('displays first 8 chars of provision_version with tooltip showing full version', async () => {
     const fetchSpy = vi.fn((url) => {
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys')
+      ) {
         return Promise.resolve({
           ok: true,
-          json: () =>
-            Promise.resolve({ ...MOCK_SERVER, provision_version: 'abcdef1234567890' }),
+          json: () => Promise.resolve({ ...MOCK_SERVER, provision_version: 'abcdef1234567890' }),
         })
       }
       if (url.includes('/api/keys')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -217,7 +242,11 @@ describe('ServerDetail — provision version display', () => {
 
   it('displays — when provision_version is null', async () => {
     const fetchSpy = vi.fn((url) => {
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys')
+      ) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ ...MOCK_SERVER, provision_version: null }),
@@ -227,7 +256,10 @@ describe('ServerDetail — provision version display', () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -240,7 +272,11 @@ describe('ServerDetail — provision version display', () => {
 
   it('displays Re-provision needed badge when provision_drift is true', async () => {
     const fetchSpy = vi.fn((url) => {
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys')
+      ) {
         return Promise.resolve({
           ok: true,
           json: () =>
@@ -255,7 +291,10 @@ describe('ServerDetail — provision version display', () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -276,18 +315,24 @@ describe('ServerDetail — provision version display', () => {
 describe('ServerDetail — Rotate collector key', () => {
   it('shows Rotate button only for sysadmin on active provisioned server', async () => {
     const fetchSpy = vi.fn((url) => {
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys')
+      ) {
         return Promise.resolve({
           ok: true,
-          json: () =>
-            Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
+          json: () => Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
         })
       }
       if (url.includes('/api/keys')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -300,18 +345,24 @@ describe('ServerDetail — Rotate collector key', () => {
 
   it('does not show Rotate button if server is not provisioned', async () => {
     const fetchSpy = vi.fn((url) => {
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys')
+      ) {
         return Promise.resolve({
           ok: true,
-          json: () =>
-            Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: false }),
+          json: () => Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: false }),
         })
       }
       if (url.includes('/api/keys')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -324,18 +375,24 @@ describe('ServerDetail — Rotate collector key', () => {
 
   it('does not show Rotate button if server is inactive', async () => {
     const fetchSpy = vi.fn((url) => {
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys')
+      ) {
         return Promise.resolve({
           ok: true,
-          json: () =>
-            Promise.resolve({ ...MOCK_SERVER, is_active: false, is_provisioned: true }),
+          json: () => Promise.resolve({ ...MOCK_SERVER, is_active: false, is_provisioned: true }),
         })
       }
       if (url.includes('/api/keys')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -348,18 +405,24 @@ describe('ServerDetail — Rotate collector key', () => {
 
   it('opens confirmation modal on Rotate click', async () => {
     const fetchSpy = vi.fn((url) => {
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys')
+      ) {
         return Promise.resolve({
           ok: true,
-          json: () =>
-            Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
+          json: () => Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
         })
       }
       if (url.includes('/api/keys')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -383,18 +446,25 @@ describe('ServerDetail — Rotate collector key', () => {
           json: () => Promise.resolve({ status: 'rotated', fingerprint: 'SHA256:newfingerprint' }),
         })
       }
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys') && !url.includes('/rotate-key')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys') &&
+        !url.includes('/rotate-key')
+      ) {
         return Promise.resolve({
           ok: true,
-          json: () =>
-            Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
+          json: () => Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
         })
       }
       if (url.includes('/api/keys')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -421,18 +491,25 @@ describe('ServerDetail — Rotate collector key', () => {
           json: () => Promise.resolve({ error: 'SSH connection failed' }),
         })
       }
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys') && !url.includes('/rotate-key')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys') &&
+        !url.includes('/rotate-key')
+      ) {
         return Promise.resolve({
           ok: true,
-          json: () =>
-            Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
+          json: () => Promise.resolve({ ...MOCK_SERVER, is_active: true, is_provisioned: true }),
         })
       }
       if (url.includes('/api/keys')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -450,7 +527,11 @@ describe('ServerDetail — Rotate collector key', () => {
 
   it('displays the fingerprint in info grid', async () => {
     const fetchSpy = vi.fn((url) => {
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys')
+      ) {
         return Promise.resolve({
           ok: true,
           json: () =>
@@ -461,7 +542,10 @@ describe('ServerDetail — Rotate collector key', () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -484,10 +568,16 @@ describe('ServerDetail — Rotate collector key', () => {
       if (url.includes('/collector-key')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ fingerprint: 'SHA256:xyz', public_key: 'ssh-ed25519 AAAA...' }),
+          json: () =>
+            Promise.resolve({ fingerprint: 'SHA256:xyz', public_key: 'ssh-ed25519 AAAA...' }),
         })
       }
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys') && !url.includes('/collector-key')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys') &&
+        !url.includes('/collector-key')
+      ) {
         return Promise.resolve({
           ok: true,
           json: () =>
@@ -498,7 +588,10 @@ describe('ServerDetail — Rotate collector key', () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -513,7 +606,11 @@ describe('ServerDetail — Rotate collector key', () => {
 
   it('shows manual provision snippet with correct hostname and IP', async () => {
     const fetchSpy = vi.fn((url) => {
-      if (url.includes('/api/servers/test-server') && !url.includes('/sessions') && !url.includes('/keys')) {
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys')
+      ) {
         return Promise.resolve({
           ok: true,
           json: () =>
@@ -524,7 +621,10 @@ describe('ServerDetail — Rotate collector key', () => {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
       }
       if (url.includes('/sessions')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ active: [], recent: [] }) })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
     })
@@ -534,5 +634,98 @@ describe('ServerDetail — Rotate collector key', () => {
     expect(w.vm.manualProvisionSnippet).toContain('test-server')
     expect(w.vm.manualProvisionSnippet).toContain('10.0.0.1')
     expect(w.vm.manualProvisionSnippet).toContain('podman exec sam-server')
+  })
+
+  it('shows raw stderr in a collapsible block when re-provision fails with details', async () => {
+    const fetchSpy = vi.fn((url, options) => {
+      if (url.includes('/provision') && options?.method === 'POST') {
+        return Promise.resolve({
+          ok: false,
+          status: 422,
+          json: () =>
+            Promise.resolve({
+              error: 'SSH operation failed',
+              error_code: 'SSH_SCRIPT_FAILED',
+              details:
+                'Provisioning script failed (exit 127): bash: line 1: sudo: command not found',
+            }),
+        })
+      }
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys')
+      ) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SERVER) })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    w.vm.showReprovisionModal = true
+    w.vm.reprovisionForm = { sshUser: 'root', sshPassword: 'pw', sshPort: 22 }
+    await w.vm.$nextTick()
+    await w.vm.confirmReprovision()
+    await flushPromises()
+
+    // Modal stays open on error.
+    expect(w.vm.showReprovisionModal).toBe(true)
+    // Translated error code is the primary message.
+    expect(w.vm.reprovisionError).toBeTruthy()
+    // Collapsible block carries the raw stderr.
+    const details = w.find('[data-testid="reprovision-error-details"]')
+    expect(details.exists()).toBe(true)
+    expect(details.attributes('open')).toBeUndefined()
+    expect(details.find('pre').text()).toContain('sudo: command not found')
+  })
+
+  it('does not render the reprovision details block when the backend omits details', async () => {
+    const fetchSpy = vi.fn((url, options) => {
+      if (url.includes('/provision') && options?.method === 'POST') {
+        return Promise.resolve({
+          ok: false,
+          status: 422,
+          json: () => Promise.resolve({ error: 'SSH operation failed', error_code: 'SSH_TIMEOUT' }),
+        })
+      }
+      if (
+        url.includes('/api/servers/test-server') &&
+        !url.includes('/sessions') &&
+        !url.includes('/keys')
+      ) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_SERVER) })
+      }
+      if (url.includes('/api/keys')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_KEYS) })
+      }
+      if (url.includes('/sessions')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ active: [], recent: [] }),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const w = await mountServerDetail()
+    w.vm.showReprovisionModal = true
+    w.vm.reprovisionForm = { sshUser: 'root', sshPassword: 'pw', sshPort: 22 }
+    await w.vm.$nextTick()
+    await w.vm.confirmReprovision()
+    await flushPromises()
+
+    expect(w.vm.reprovisionError).toBeTruthy()
+    expect(w.find('[data-testid="reprovision-error-details"]').exists()).toBe(false)
   })
 })
