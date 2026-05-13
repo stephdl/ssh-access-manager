@@ -2189,6 +2189,49 @@ def test_web_sessions_history_operator_200(client):
         assert res.status_code == 200
 
 
+def test_web_refresh_sessions_ssh_auth_error_422(client):
+    """POST /api/servers/<hostname>/sessions/refresh returns 422 with details on SSH auth error."""
+    import ssh as ssh_mod
+    with patch("web.db") as mock_db, patch("web.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": ADMIN_ID, "username": "op", "role": "operator"},
+            {"id": SERVER_ID, "ip_address": "192.168.1.1", "ssh_port": 22}
+        ]
+        mock_ssh._resolve_key_path.return_value = "/data/keys/per-server/abc.key"
+        mock_ssh.SSHError = ssh_mod.SSHError
+        mock_ssh.collect_sessions_on_server.side_effect = ssh_mod.SSHAuthError("Authentication failed for audit-collector@192.168.1.1:22")
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        res = client.post("/api/servers/server1/sessions/refresh")
+        assert res.status_code == 422
+        data = res.get_json()
+        assert data["error"] == "SSH operation failed"
+        assert data["error_code"] == "SSH_AUTH_FAILED"
+        assert "Authentication failed" in data["details"]
+
+
+def test_web_force_provision_sync_ssh_error_422(client):
+    """POST /api/servers/<hostname>/sync returns 422 with details on SSH error."""
+    import ssh as ssh_mod
+    with patch("web.db") as mock_db, patch("web.ssh") as mock_ssh:
+        mock_db.query_one.side_effect = [
+            {"id": ADMIN_ID, "username": "admin", "role": "sysadmin"},
+            {"id": SERVER_ID, "ip_address": "192.168.1.1", "ssh_port": 22}
+        ]
+        mock_ssh._resolve_key_path.return_value = "/data/keys/per-server/abc.key"
+        mock_ssh.SSHError = ssh_mod.SSHError
+        mock_ssh.PROVISION_VERSION = "test-version"
+        mock_ssh.apply_provision_update.side_effect = ssh_mod.SSHTimeoutError("Connection to 192.168.1.1:22 timed out after 15s")
+        with client.session_transaction() as sess:
+            sess["admin_id"] = ADMIN_ID
+        res = client.post("/api/servers/server1/sync")
+        assert res.status_code == 422
+        data = res.get_json()
+        assert data["error"] == "Provision update failed"
+        assert data["error_code"] == "SSH_TIMEOUT"
+        assert "timed out" in data["details"]
+
+
 # ---------------------------------------------------------------------------
 # GET /api/servers/<hostname>/sshd-audit — hardening audit
 # ---------------------------------------------------------------------------
@@ -2649,8 +2692,8 @@ def test_web_force_provision_sync_viewer_forbidden(client):
         assert resp.status_code == 403
 
 
-def test_web_force_provision_sync_ssh_error_returns_502(auth_client):
-    """POST /api/servers/<hostname>/sync returns 502 when SSH fails."""
+def test_web_force_provision_sync_ssh_error_returns_422(auth_client):
+    """POST /api/servers/<hostname>/sync returns 422 with details when SSH fails."""
     with patch("web.db") as mock_db, patch("web.ssh") as mock_ssh:
         mock_db.query_one.side_effect = [
             _admin_row(),
@@ -2662,10 +2705,12 @@ def test_web_force_provision_sync_ssh_error_returns_502(auth_client):
         mock_ssh.apply_provision_update.side_effect = ssh.SSHSudoError("visudo validation failed")
 
         resp = auth_client.post("/api/servers/server-01/sync")
-        assert resp.status_code == 502
+        assert resp.status_code == 422
         data = resp.get_json()
-        assert "error" in data
-        assert "error_code" in data
+        assert data["error"] == "Provision update failed"
+        assert data["error_code"] == "SSH_SUDO_FAILED"
+        assert "details" in data
+        assert "visudo validation failed" in data["details"]
 
 
 def test_web_force_provision_sync_unknown_server_returns_404(auth_client):

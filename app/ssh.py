@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import shlex
+import socket
 
 import paramiko
 
@@ -1033,11 +1034,30 @@ def _connect(ip: str, port: int = 22, *, key_path: str) -> paramiko.SSHClient:
     """Connect to a remote host using a per-server collector key.
 
     key_path is required (keyword-only) — no global default key.
+    All paramiko exceptions are converted to SSHError subclasses at this single point.
     """
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.RejectPolicy())
     client.load_host_keys(KNOWN_HOSTS)
-    client.connect(hostname=ip, port=port, username=SSH_USER, key_filename=key_path, timeout=15)
+    try:
+        client.connect(hostname=ip, port=port, username=SSH_USER, key_filename=key_path, timeout=15)
+    except paramiko.AuthenticationException:
+        raise SSHAuthError(
+            f"SSH authentication failed for {SSH_USER}@{ip}:{port} — "
+            "check that audit-collector is allowed to log in (sshd AllowGroups/AllowUsers) "
+            "and that the collector key is authorized"
+        )
+    except paramiko.SSHException as exc:
+        raise SSHError(f"SSH protocol error for {ip}:{port}: {exc}")
+    except socket.timeout:
+        raise SSHTimeoutError(f"Connection to {ip}:{port} timed out after 15s")
+    except OSError as exc:
+        msg = str(exc)
+        if "Connection refused" in msg:
+            raise SSHPortRefusedError(
+                f"Connection refused on {ip}:{port} — is sshd running on this port?"
+            )
+        raise SSHUnreachableError(f"Cannot reach {ip}:{port}: {msg}")
     return client
 
 
@@ -1311,20 +1331,8 @@ def audit_sshd_config(hostname: str, ip: str, port: int = 22, *, key_path: str) 
 
 def collect_sessions_on_server(hostname: str, server_id: str, ip: str, port: int = 22, *, key_path: str) -> None:
     """Collect SSH sessions via sam-sessions and upsert into ssh_sessions table."""
-    import socket
     from datetime import datetime, timezone
-    try:
-        client = _connect(ip, port, key_path=key_path)
-    except paramiko.AuthenticationException:
-        raise SSHAuthError("Authentication failed - check collector key authorization")
-    except paramiko.SSHException as exc:
-        raise SSHError(f"SSH error connecting to {hostname}: {exc}")
-    except socket.timeout:
-        raise SSHTimeoutError("Connection timed out - server did not respond within 15 seconds")
-    except OSError as exc:
-        if "Connection refused" in str(exc):
-            raise SSHUnreachableError("Server unreachable - check the IP and network connectivity")
-        raise SSHError(f"Connection failed: {exc}")
+    client = _connect(ip, port, key_path=key_path)
     try:
         out, err, rc = _run(client, f"sudo {SAM_SESSIONS_PATH}")
         if rc != 0:
