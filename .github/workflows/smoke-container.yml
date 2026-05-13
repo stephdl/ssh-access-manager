@@ -39,6 +39,24 @@ jobs:
       - name: Build the image
         run: docker compose build
 
+      - name: Enforce image size budget
+        # 250 MiB ceiling vs ~170 MiB measured at the time this was set —
+        # ~50% headroom for legitimate growth (one new pip dep + one new
+        # apk package). A larger jump indicates someone added a heavy
+        # dependency (apk add postgresql-contrib, pip install pandas, …)
+        # by mistake. Raise the ceiling deliberately if a real need
+        # justifies it.
+        run: |
+          IMG=$(docker compose config --images | head -n1)
+          BYTES=$(docker image inspect "$IMG" --format='{{.Size}}')
+          MIB=$(( BYTES / 1024 / 1024 ))
+          BUDGET_MIB=250
+          echo "Image $IMG is ${MIB} MiB (budget ${BUDGET_MIB} MiB)"
+          if [ "$MIB" -gt "$BUDGET_MIB" ]; then
+            echo "::error::image exceeds ${BUDGET_MIB} MiB budget (${MIB} MiB)"
+            exit 1
+          fi
+
       - name: Start the container
         run: docker compose up -d
 
