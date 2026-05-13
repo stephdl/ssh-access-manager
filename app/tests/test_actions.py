@@ -2409,3 +2409,190 @@ def test_actions_change_group_active_session_blocks(sample_server):
         ]
         with pytest.raises(UserError, match="active session"):
             actions.change_group("alice", sample_server["hostname"], "sam-operator", ADMIN_ID)
+
+
+# ---------------------------------------------------------------------------
+# list_audit_logs
+# ---------------------------------------------------------------------------
+
+def test_actions_list_audit_logs_returns_expected_shape():
+    """list_audit_logs returns {rows, total, facets} structure."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.return_value = []
+        result = actions.list_audit_logs()
+        assert "rows" in result
+        assert "total" in result
+        assert "facets" in result
+        assert "servers" in result["facets"]
+        assert "actions" in result["facets"]
+
+
+def test_actions_list_audit_logs_no_filters():
+    """list_audit_logs without filters queries all records."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 5}
+        mock_db.query.side_effect = [
+            [{"id": "1", "action": "KEY_ADDED", "details": "test"},
+             {"id": "2", "action": "KEY_REVOKED", "details": "test"}],  # main rows
+            [{"hostname": "srv-01"}],  # servers facet
+            [{"action": "KEY_ADDED"}, {"action": "KEY_REVOKED"}],  # actions facet
+        ]
+        result = actions.list_audit_logs()
+        assert result["total"] == 5
+        assert len(result["rows"]) == 2
+        # Main query should not have filter clauses except WHERE 1=1
+        main_sql = mock_db.query.call_args_list[0][0][0]
+        assert "WHERE 1=1" in main_sql
+        assert " AND s.hostname = " not in main_sql
+        assert " AND al.action = " not in main_sql
+
+
+def test_actions_list_audit_logs_filter_server():
+    """list_audit_logs filters by server hostname."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 2}
+        mock_db.query.side_effect = [[], [], []]  # rows, servers facet, actions facet
+        actions.list_audit_logs(server="srv-01")
+        main_sql = mock_db.query.call_args_list[0][0][0]
+        assert " AND s.hostname = " in main_sql
+
+
+def test_actions_list_audit_logs_filter_action():
+    """list_audit_logs filters by action type."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 1}
+        mock_db.query.side_effect = [[], [], []]
+        actions.list_audit_logs(action="KEY_REVOKED")
+        main_sql = mock_db.query.call_args_list[0][0][0]
+        assert " AND al.action = " in main_sql
+
+
+def test_actions_list_audit_logs_filter_since():
+    """list_audit_logs filters by timestamp."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.side_effect = [[], [], []]
+        actions.list_audit_logs(since="2025-01-01T00:00:00Z")
+        main_sql = mock_db.query.call_args_list[0][0][0]
+        assert " AND al.performed_at >= " in main_sql
+
+
+def test_actions_list_audit_logs_fulltext_search_q():
+    """list_audit_logs applies ILIKE OR when q is provided."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 3}
+        mock_db.query.side_effect = [[], [], []]
+        actions.list_audit_logs(q="admin")
+        main_sql = mock_db.query.call_args_list[0][0][0]
+        # details is jsonb in PG → must cast to text before ILIKE (fix bug
+        # where /api/audit?q=g returned 500: "operator does not exist: jsonb ~~* unknown")
+        assert "al.details::text ILIKE" in main_sql
+        assert "al.action ILIKE" in main_sql
+        assert "adm.username ILIKE" in main_sql
+        assert "sk.fingerprint ILIKE" in main_sql
+        assert "s.hostname ILIKE" in main_sql
+
+
+def test_actions_list_audit_logs_q_escapes_wildcards():
+    """list_audit_logs escapes % and _ in q parameter."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.side_effect = [[], [], []]
+        actions.list_audit_logs(q="test%_string")
+        params = mock_db.query.call_args_list[0][0][1]
+        # The pattern should be %test\%\_string% (escaped)
+        assert any("test\\%\\_string" in str(p) for p in params)
+
+
+def test_actions_list_audit_logs_q_case_insensitive():
+    """list_audit_logs uses ILIKE for case-insensitive search."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.side_effect = [[], [], []]
+        actions.list_audit_logs(q="ADMIN")
+        main_sql = mock_db.query.call_args_list[0][0][0]
+        # ILIKE is case-insensitive
+        assert "ILIKE" in main_sql
+        assert "LIKE" in main_sql  # ILIKE contains LIKE
+
+
+def test_actions_list_audit_logs_facets_servers_excludes_server_filter():
+    """facets.servers applies all filters EXCEPT server (filter-minus-self)."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.side_effect = [
+            [],  # main rows
+            [{"hostname": "srv-01"}, {"hostname": "srv-02"}],  # servers facet
+            [],  # actions facet
+        ]
+        result = actions.list_audit_logs(server="srv-01", action="KEY_REVOKED", q="admin")
+        # Facet query should NOT have server filter
+        facet_servers_sql = mock_db.query.call_args_list[1][0][0]
+        assert " AND al.action = " in facet_servers_sql  # action IS applied
+        assert "al.details::text ILIKE" in facet_servers_sql  # q IS applied
+        assert " AND s.hostname = " not in facet_servers_sql  # server NOT applied
+        assert result["facets"]["servers"] == ["srv-01", "srv-02"]
+
+
+def test_actions_list_audit_logs_facets_actions_excludes_action_filter():
+    """facets.actions applies all filters EXCEPT action (filter-minus-self)."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.side_effect = [
+            [],  # main rows
+            [],  # servers facet
+            [{"action": "KEY_ADDED"}, {"action": "KEY_REVOKED"}],  # actions facet
+        ]
+        result = actions.list_audit_logs(server="srv-01", action="KEY_REVOKED", q="admin")
+        # Facet query should NOT have action filter
+        facet_actions_sql = mock_db.query.call_args_list[2][0][0]
+        assert " AND s.hostname = " in facet_actions_sql  # server IS applied
+        assert "al.details::text ILIKE" in facet_actions_sql  # q IS applied
+        assert " AND al.action = " not in facet_actions_sql  # action NOT applied
+        assert result["facets"]["actions"] == ["KEY_ADDED", "KEY_REVOKED"]
+
+
+def test_actions_list_audit_logs_facets_sorted_alphabetically():
+    """facets.servers and facets.actions are sorted alphabetically."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 0}
+        mock_db.query.side_effect = [
+            [],  # main rows
+            [{"hostname": "z-server"}, {"hostname": "a-server"}],  # servers
+            [{"action": "SCAN_COMPLETED"}, {"action": "KEY_ADDED"}],  # actions
+        ]
+        result = actions.list_audit_logs()
+        # Check SQL has ORDER BY
+        facet_servers_sql = mock_db.query.call_args_list[1][0][0]
+        facet_actions_sql = mock_db.query.call_args_list[2][0][0]
+        assert "ORDER BY s.hostname" in facet_servers_sql
+        assert "ORDER BY al.action" in facet_actions_sql
+
+
+def test_actions_list_audit_logs_limit_500():
+    """list_audit_logs limits main query to 500 rows."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 1000}
+        mock_db.query.side_effect = [[], [], []]
+        actions.list_audit_logs()
+        main_sql = mock_db.query.call_args_list[0][0][0]
+        assert "LIMIT 500" in main_sql
+
+
+def test_actions_list_audit_logs_combined_filters():
+    """list_audit_logs applies all filters together."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"n": 1}
+        mock_db.query.side_effect = [[], [], []]
+        actions.list_audit_logs(
+            server="srv-01",
+            action="KEY_REVOKED",
+            since="2025-01-01T00:00:00Z",
+            q="admin"
+        )
+        main_sql = mock_db.query.call_args_list[0][0][0]
+        assert " AND s.hostname = " in main_sql
+        assert " AND al.action = " in main_sql
+        assert " AND al.performed_at >= " in main_sql
+        assert "ILIKE" in main_sql

@@ -250,6 +250,8 @@
     "col_key": "Schlüssel",
     "col_details": "Details",
     "empty": "Keine Audit-Einträge.",
+    "search_label": "Suchen",
+    "search_placeholder": "Audit durchsuchen...",
     "filter_server": "Server",
     "filter_action": "Aktion",
     "filter_all": "Alle",

@@ -250,6 +250,8 @@
     "col_key": "Key",
     "col_details": "Details",
     "empty": "No audit entries.",
+    "search_label": "Search",
+    "search_placeholder": "Search audit logs...",
     "filter_server": "Server",
     "filter_action": "Action",
     "filter_all": "All",

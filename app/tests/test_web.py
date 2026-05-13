@@ -847,34 +847,60 @@ def test_web_provision_server_password_not_logged(auth_client):
 # GET /api/audit
 # ---------------------------------------------------------------------------
 
-def test_web_get_audit_returns_200(auth_client):
-    with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = _admin_row()
-        mock_db.query.return_value = []
-        resp = auth_client.get("/api/audit")
-        assert resp.status_code == 200
+def test_web_get_audit_returns_new_shape(auth_client):
+    """GET /api/audit always returns {rows, total, facets}."""
+    with patch("web.actions.list_audit_logs") as mock_list:
+        mock_list.return_value = {
+            "rows": [],
+            "total": 0,
+            "facets": {"servers": [], "actions": []},
+        }
+        with patch("web.db.query_one", return_value=_admin_row()):
+            resp = auth_client.get("/api/audit")
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert "rows" in data
+            assert "total" in data
+            assert "facets" in data
+            assert "servers" in data["facets"]
+            assert "actions" in data["facets"]
 
 
-def test_web_get_audit_query_aliases(auth_client):
-    with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = _admin_row()
-        mock_db.query.return_value = []
+def test_web_get_audit_calls_actions_with_params(auth_client):
+    """GET /api/audit passes all query params to actions.list_audit_logs."""
+    with patch("web.actions.list_audit_logs") as mock_list, \
+         patch("web.db.query_one", return_value=_admin_row()), \
+         patch("web._parse_datetime", return_value=datetime(2025, 1, 1, tzinfo=timezone.utc)):
+        mock_list.return_value = {
+            "rows": [],
+            "total": 0,
+            "facets": {"servers": [], "actions": []},
+        }
+        auth_client.get("/api/audit?server=srv-01&action=KEY_REVOKED&since=2025-01-01T00:00:00Z&q=admin")
+        mock_list.assert_called_once_with(
+            server="srv-01",
+            action="KEY_REVOKED",
+            since="2025-01-01T00:00:00+00:00",
+            q="admin",
+        )
+
+
+def test_web_get_audit_no_params(auth_client):
+    """GET /api/audit without params passes None for all filters."""
+    with patch("web.actions.list_audit_logs") as mock_list, \
+         patch("web.db.query_one", return_value=_admin_row()):
+        mock_list.return_value = {
+            "rows": [],
+            "total": 0,
+            "facets": {"servers": [], "actions": []},
+        }
         auth_client.get("/api/audit")
-        sql = mock_db.query.call_args[0][0]
-        assert "performed_by_username" in sql
-        assert "server_hostname" in sql
-        assert "key_fingerprint" in sql
-        assert "administrators" in sql
-
-
-def test_web_get_audit_filters_by_action(auth_client):
-    with patch("web.db") as mock_db:
-        mock_db.query_one.return_value = _admin_row()
-        mock_db.query.return_value = []
-        resp = auth_client.get("/api/audit?action=KEY_REVOKED")
-        assert resp.status_code == 200
-        sql = mock_db.query.call_args[0][0]
-        assert "action" in sql
+        mock_list.assert_called_once_with(
+            server=None,
+            action=None,
+            since=None,
+            q=None,
+        )
 
 
 # ---------------------------------------------------------------------------

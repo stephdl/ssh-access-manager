@@ -3,9 +3,16 @@
     <h1>{{ $t('audit.title') }}</h1>
 
     <div v-if="error" class="alert-error">{{ error }}</div>
-    <div v-if="loading" class="loading">{{ $t('common.loading') }}</div>
+    <div v-if="initialLoading" class="loading">{{ $t('common.loading') }}</div>
 
-    <AuditTable v-else :logs="entries" :servers="servers" />
+    <AuditTable
+      v-else
+      :logs="entries"
+      :total="total"
+      :facets="facets"
+      :loading="loading"
+      @fetch="handleFetch"
+    />
   </div>
 </template>
 
@@ -18,25 +25,43 @@ import AuditTable from '../components/AuditTable.vue'
 const { t } = useI18n()
 
 const entries = ref([])
-const servers = ref([])
-const loading = ref(true)
+const total = ref(0)
+const facets = ref({ servers: [], actions: [] })
+const initialLoading = ref(true)
+const loading = ref(false)
 const error = ref('')
 
-async function load() {
+async function load(params = {}) {
   loading.value = true
   error.value = ''
   try {
-    const res = await apiFetch('/api/audit')
+    const queryParams = new URLSearchParams()
+    if (params.q) queryParams.set('q', params.q)
+    if (params.server) queryParams.set('server', params.server)
+    if (params.action) queryParams.set('action', params.action)
+    if (params.since) queryParams.set('since', params.since)
+
+    const url = `/api/audit${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+    const res = await apiFetch(url)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    entries.value = await res.json()
+
+    const data = await res.json()
+    entries.value = data.rows || []
+    total.value = data.total || 0
+    facets.value = data.facets || { servers: [], actions: [] }
   } catch (e) {
     error.value = t('audit.load_error', { error: e.message })
   } finally {
     loading.value = false
+    initialLoading.value = false
   }
 }
 
-onMounted(load)
+function handleFetch(params) {
+  load(params)
+}
+
+onMounted(() => load())
 </script>
 
 <style scoped>

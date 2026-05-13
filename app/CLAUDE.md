@@ -240,6 +240,9 @@ Routes concernées : `POST /api/servers`, `POST /api/servers/<hostname>/provisio
 ### Sessions
 - `check_session_limit(server_id, hostname, session_count, max_sessions)` — envoie alerte WARNING si session_count > max_sessions, avec anti-spam 24h via audit_log (SESSION_LIMIT_EXCEEDED, #360)
 
+### Audit logs (#435)
+- `list_audit_logs(server, action, since, q) -> dict` — liste les logs d'audit avec filtres optionnels et facets dynamiques. Retourne `{rows: [...], total: N, facets: {servers: [...], actions: [...]}}`. Paramètres : `server` (hostname exact), `action` (exact), `since` (ISO 8601), `q` (recherche full-text ILIKE OR sur details, action, username, fingerprint, hostname — échappe % et _). **Note importante** : `audit_log.details` étant de type `jsonb`, l'ILIKE doit caster en text (`al.details::text ILIKE %s`) — sinon PostgreSQL raise `operator does not exist: jsonb ~~* unknown`. Facets : filter-minus-self (servers exclut le filtre server, actions exclut le filtre action). Limit 500 rows.
+
 ### Audit sshd (#392)
 - `audit_server_sshd(hostname, admin_id) -> dict` — récupère IP+port depuis DB, exécute `ssh.audit_sshd_config()`, applique `check_sshd_compliance()`. Lecture seule, pas d'audit_log. Raise NotFoundError(404) si serveur inconnu, UserError(409) si désactivé, UserError(502) si SSH échoue.
 - `check_sshd_compliance(parsed: dict) -> dict` — pure function, applique `SSHD_HARDENING_POLICY` à un dict de directives sshd. Retourne `{"checks": [...], "summary": {ok, warning, critical, info, missing}, "overall": ...}`
