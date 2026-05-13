@@ -35,6 +35,12 @@ COOKIE_JAR="$(mktemp /tmp/sam-smoke-cookies.XXXXXX)"
 RESP_BODY=/tmp/sam-smoke-resp.json
 trap 'rm -f "$COOKIE_JAR" "$RESP_BODY"' EXIT
 
+# Accept self-signed TLS when BASE_URL is https (HTTPS smoke variant).
+case "$BASE_URL" in
+    https://*) CURL_FLAGS="-sk" ;;
+    *)         CURL_FLAGS="-s"  ;;
+esac
+
 if [ -t 1 ]; then
     GREEN=$'\033[32m'; RED=$'\033[31m'; RST=$'\033[0m'
 else
@@ -49,7 +55,7 @@ section "Step 1 — wait for the container to accept HTTP traffic"
 # ---------------------------------------------------------------------------
 echo "Polling ${BASE_URL}/api/auth/me (up to 120 s)…"
 for i in $(seq 1 60); do
-    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "${BASE_URL}/api/auth/me" || true)
+    code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' --max-time 2 "${BASE_URL}/api/auth/me" || true)
     case "$code" in
         401|200) pass "container responds with HTTP $code after ${i} attempt(s)"; break ;;
     esac
@@ -62,12 +68,12 @@ done
 # ---------------------------------------------------------------------------
 section "Step 2 — auth wiring (unauthenticated /me, login, authenticated /me)"
 # ---------------------------------------------------------------------------
-code=$(curl -s -o /dev/null -w '%{http_code}' "${BASE_URL}/api/auth/me")
+code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' "${BASE_URL}/api/auth/me")
 [ "$code" = "401" ] || fail "GET /api/auth/me unauthenticated — expected 401, got $code"
 pass "GET /api/auth/me without session → 401"
 
 login_body=$(printf '{"username":"%s","password":"%s"}' "$ADMIN_USER" "$ADMIN_PASSWORD")
-code=$(curl -s -o "$RESP_BODY" -w '%{http_code}' \
+code=$(curl $CURL_FLAGS -o "$RESP_BODY" -w '%{http_code}' \
     -c "$COOKIE_JAR" \
     -H 'Content-Type: application/json' \
     -X POST -d "$login_body" \
@@ -78,7 +84,7 @@ if [ "$code" != "200" ]; then
 fi
 pass "POST /api/auth/login → 200"
 
-body=$(curl -s -b "$COOKIE_JAR" "${BASE_URL}/api/auth/me")
+body=$(curl $CURL_FLAGS -b "$COOKIE_JAR" "${BASE_URL}/api/auth/me")
 echo "  /api/auth/me payload: $body"
 case "$body" in
     *"\"username\""*"\"$ADMIN_USER\""*"\"role\""*"\"sysadmin\""*|*"\"role\""*"\"sysadmin\""*"\"username\""*"\"$ADMIN_USER\""*)
@@ -93,7 +99,7 @@ section "Step 3 — Flask ↔ Postgres roundtrip (GET /api/servers → [])"
 # Postgres types, no extension missing (gen_random_uuid…). A 500 here
 # means the DB is unreachable from Flask or the query refers to a column
 # that does not exist.
-code=$(curl -s -o "$RESP_BODY" -w '%{http_code}' -b "$COOKIE_JAR" "${BASE_URL}/api/servers")
+code=$(curl $CURL_FLAGS -o "$RESP_BODY" -w '%{http_code}' -b "$COOKIE_JAR" "${BASE_URL}/api/servers")
 [ "$code" = "200" ] || { cat "$RESP_BODY"; echo; fail "GET /api/servers — expected 200, got $code"; }
 body=$(cat "$RESP_BODY")
 case "$body" in
@@ -107,14 +113,14 @@ section "Step 4 — nginx SPA fallback (/, /servers/xyz both return index.html)"
 # Vue-router runs in history mode. Without `try_files $uri $uri/ /index.html`
 # in nginx, a hard-refresh on /servers/server-01 returns 404. This check
 # catches that.
-root_html=$(curl -s "${BASE_URL}/")
+root_html=$(curl $CURL_FLAGS "${BASE_URL}/")
 [ -n "$root_html" ] || fail "GET / returned empty body"
 case "$root_html" in
     *"<html"*|*"<!DOCTYPE"*|*"<!doctype"*) pass "GET / returns HTML (SPA entry point served)" ;;
     *) fail "GET / does not look like HTML: $(printf '%s' "$root_html" | head -c 100)" ;;
 esac
 
-deep_html=$(curl -s "${BASE_URL}/servers/some-future-host")
+deep_html=$(curl $CURL_FLAGS "${BASE_URL}/servers/some-future-host")
 if [ "$root_html" = "$deep_html" ]; then
     pass "GET /servers/some-future-host returns the same HTML (nginx try_files OK)"
 else
@@ -145,11 +151,11 @@ sweep() {
     local method="$1" path="$2" body="${3:-}"
     local code
     if [ -n "$body" ]; then
-        code=$(curl -s -o "$RESP_BODY" -w '%{http_code}' -b "$COOKIE_JAR" \
+        code=$(curl $CURL_FLAGS -o "$RESP_BODY" -w '%{http_code}' -b "$COOKIE_JAR" \
             -H 'Content-Type: application/json' -X "$method" -d "$body" \
             "${BASE_URL}${path}")
     else
-        code=$(curl -s -o "$RESP_BODY" -w '%{http_code}' -b "$COOKIE_JAR" \
+        code=$(curl $CURL_FLAGS -o "$RESP_BODY" -w '%{http_code}' -b "$COOKIE_JAR" \
             -X "$method" "${BASE_URL}${path}")
     fi
     if [ "$code" -ge 500 ]; then
@@ -265,7 +271,7 @@ for tuple in "${OP_USER}|operator|${OP_PW}|op@x" "${VW_USER}|viewer|${VW_PW}|vw@
     user="${tuple%%|*}"; rest="${tuple#*|}"
     role="${rest%%|*}"; rest="${rest#*|}"
     pw="${rest%%|*}"; email="${rest#*|}"
-    code=$(curl -s -o "$RESP_BODY" -w '%{http_code}' -b "$COOKIE_JAR" \
+    code=$(curl $CURL_FLAGS -o "$RESP_BODY" -w '%{http_code}' -b "$COOKIE_JAR" \
         -H 'Content-Type: application/json' -X POST \
         -d "{\"username\":\"${user}\",\"email\":\"${email}\",\"password\":\"${pw}\",\"role\":\"${role}\"}" \
         "${BASE_URL}/api/admins")
@@ -277,14 +283,14 @@ for tuple in "${OP_USER}|operator|${OP_PW}|op@x" "${VW_USER}|viewer|${VW_PW}|vw@
 done
 
 # Login as operator + viewer (separate cookie jars).
-code=$(curl -s -o /dev/null -w '%{http_code}' -c "$COOKIE_OP" \
+code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' -c "$COOKIE_OP" \
     -H 'Content-Type: application/json' -X POST \
     -d "{\"username\":\"${OP_USER}\",\"password\":\"${OP_PW}\"}" \
     "${BASE_URL}/api/auth/login")
 [ "$code" = "200" ] || fail "operator login — expected 200, got $code"
 pass "operator can log in"
 
-code=$(curl -s -o /dev/null -w '%{http_code}' -c "$COOKIE_VW" \
+code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' -c "$COOKIE_VW" \
     -H 'Content-Type: application/json' -X POST \
     -d "{\"username\":\"${VW_USER}\",\"password\":\"${VW_PW}\"}" \
     "${BASE_URL}/api/auth/login")
@@ -300,11 +306,11 @@ rbac_check() {
     local jar="$1" method="$2" path="$3" body="$4" expected="$5" label="$6"
     local code
     if [ -n "$body" ]; then
-        code=$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" \
+        code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' -b "$jar" \
             -H 'Content-Type: application/json' -X "$method" -d "$body" \
             "${BASE_URL}${path}")
     else
-        code=$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" \
+        code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' -b "$jar" \
             -X "$method" "${BASE_URL}${path}")
     fi
     case "$expected" in
@@ -383,12 +389,12 @@ rbac_check "$COOKIE_VW" POST   "/api/servers/${NIL_HOST}/scan"      ""          
 # ---------------------------------------------------------------------------
 section "Step 7 — logout invalidates the session"
 # ---------------------------------------------------------------------------
-code=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIE_JAR" -c "$COOKIE_JAR" \
+code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' -b "$COOKIE_JAR" -c "$COOKIE_JAR" \
     -X POST "${BASE_URL}/api/auth/logout")
 [ "$code" = "200" ] || fail "POST /api/auth/logout — expected 200, got $code"
 pass "POST /api/auth/logout → 200"
 
-code=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIE_JAR" "${BASE_URL}/api/auth/me")
+code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' -b "$COOKIE_JAR" "${BASE_URL}/api/auth/me")
 [ "$code" = "401" ] || fail "GET /api/auth/me after logout — expected 401, got $code (session not invalidated)"
 pass "GET /api/auth/me after logout → 401 (server-side session cleared)"
 
@@ -404,7 +410,7 @@ section "Step 8 — rate limiter triggers HTTP 429 after threshold (#236)"
 # why this step runs last.
 ban_seen=""
 for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-    code=$(curl -s -o /dev/null -w '%{http_code}' \
+    code=$(curl $CURL_FLAGS -o /dev/null -w '%{http_code}' \
         -H 'Content-Type: application/json' -X POST \
         -d '{"username":"ratelimit-probe","password":"wrong-on-purpose"}' \
         "${BASE_URL}/api/auth/login")
