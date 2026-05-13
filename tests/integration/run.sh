@@ -120,7 +120,7 @@ assert_eq "1" "$auth_count" "collector key appears exactly once in authorized_ke
 section "Phase 3 — deploy sam-self-update and run initial provisioning"
 
 # Extract the current SAM_SELF_UPDATE script content from ssh.py
-python3 tests/integration/extract_sam_self_update.py > /tmp/sam-it/sam-self-update.v1
+python3 tests/integration/extract_sam_constant.py SAM_SELF_UPDATE > /tmp/sam-it/sam-self-update.v1
 chmod +x /tmp/sam-it/sam-self-update.v1
 
 # Deploy the script
@@ -181,7 +181,7 @@ assert_no_bak_residue /etc/ssh/sshd_config.d
 section "Phase 4 — upgrade simulation via sam-self-update"
 
 # Extract the current SAM_SELF_UPDATE script content from ssh.py
-python3 tests/integration/extract_sam_self_update.py > /tmp/sam-it/sam-self-update.v1
+python3 tests/integration/extract_sam_constant.py SAM_SELF_UPDATE > /tmp/sam-it/sam-self-update.v1
 chmod +x /tmp/sam-it/sam-self-update.v1
 
 # sam-self-update must be in sudoers for audit-collector
@@ -242,5 +242,194 @@ assert_visudo_ok "/etc/sudoers.d/sam-root"
 assert_sshd_ok
 assert_no_bak_residue /etc/sudoers.d
 assert_no_bak_residue /etc/ssh/sshd_config.d
+
+# ---------------------------------------------------------------------------
+# Phase 6 — exercise SAM_ADD / SAM_COLLECT / SAM_REVOKE / SAM_LOCK / SAM_UNLOCK
+# for real on the host, both as root (direct script logic) and via
+# `su -l audit-collector -c 'sudo …'` (sudoers + NOPASSWD chain).
+# ---------------------------------------------------------------------------
+section "Phase 6 — SAM scripts end-to-end (root + via audit-collector sudoers)"
+
+# Deploy the five scripts to /usr/local/bin with the same mode/owner used in
+# production (mirroring ssh.deploy_script: install -m 750 -o root -g root).
+for const in SAM_COLLECT SAM_REVOKE SAM_ADD SAM_LOCK_USER SAM_UNLOCK_USER; do
+    # SAM_LOCK_USER → /usr/local/bin/sam-lock-user
+    bin_name=$(printf '%s' "$const" | tr '[:upper:]_' '[:lower:]-')
+    out="/tmp/sam-it/${bin_name}"
+    python3 tests/integration/extract_sam_constant.py "$const" > "$out"
+    install -m 750 -o root -g root "$out" "/usr/local/bin/${bin_name}"
+    assert_file_perms "/usr/local/bin/${bin_name}" 750
+    assert_file_owner "/usr/local/bin/${bin_name}" root:root
+done
+
+# Generate a separate keypair for the test target user. We must not reuse the
+# collector key — the goal is to verify that sam-add deploys *this* pubkey to
+# *this* user, distinct from audit-collector.
+ssh-keygen -t ed25519 -f /tmp/sam-it/user_key -N '' -C 'testuser1@sam-it' >/dev/null
+USER_PUBKEY=$(cat /tmp/sam-it/user_key.pub)
+USER_FP=$(ssh-keygen -l -E sha256 -f /tmp/sam-it/user_key.pub | awk '{print $2}')
+
+# --- 6a. sam-add: direct root invocation ----------------------------------
+/usr/local/bin/sam-add testuser1 "$USER_PUBKEY"
+
+assert_exit_zero id testuser1
+TESTUSER_HOME=$(getent passwd testuser1 | cut -d: -f6)
+assert_file_exists "${TESTUSER_HOME}/.ssh/authorized_keys"
+assert_file_perms  "${TESTUSER_HOME}/.ssh/authorized_keys" 600
+assert_file_owner  "${TESTUSER_HOME}/.ssh/authorized_keys" testuser1:testuser1
+assert_grep_fixed "$(printf '%s' "$USER_PUBKEY" | awk '{print $2}')" "${TESTUSER_HOME}/.ssh/authorized_keys"
+
+# Temporary-password README + first-login hook in the right shell rc file
+assert_file_exists "${TESTUSER_HOME}/README_first_login.txt"
+assert_file_perms  "${TESTUSER_HOME}/README_first_login.txt" 600
+# bash login-shell resolution order: .bash_profile → .bash_login → .profile.
+# Distros differ in which file ships in skel (Arch can ship .bash_profile in
+# recent base packages despite our setup script not preinstalling bash skel,
+# Rocky always ships .bash_profile, Debian/openSUSE ship .profile). Assert
+# the hook landed in *exactly one* of the three — whichever bash will read.
+hook_files=0
+for rc in .bash_profile .bash_login .profile; do
+    if [ -f "${TESTUSER_HOME}/${rc}" ] && grep -qF "README_first_login.txt" "${TESTUSER_HOME}/${rc}"; then
+        _pass "first-login hook present in ${rc}"
+        hook_files=$((hook_files + 1))
+    fi
+done
+assert_eq "1" "$hook_files" "first-login hook is in exactly one rc file"
+
+# Membership in sam-users (created by sam-self-update in phase 3)
+assert_exit_zero id -Gn testuser1
+if id -Gn testuser1 | tr ' ' '\n' | grep -qx sam-users; then
+    _pass "testuser1 is a member of sam-users"
+else
+    _fail "testuser1 is NOT a member of sam-users"
+fi
+
+# --- 6b. sam-add: idempotence ---------------------------------------------
+/usr/local/bin/sam-add testuser1 "$USER_PUBKEY"
+auth_count=$(grep -cF "$USER_PUBKEY" "${TESTUSER_HOME}/.ssh/authorized_keys" || true)
+assert_eq "1" "$auth_count" "sam-add is idempotent (key appears exactly once)"
+
+# --- 6c. sam-collect: direct root invocation ------------------------------
+COLLECT_OUT=/tmp/sam-it/collect.out
+/usr/local/bin/sam-collect > "$COLLECT_OUT"
+# Output format: "<unix_user>\t<key_type> <key_b64> [comment]"
+# We assert one line for testuser1 with the expected key body.
+USER_KEY_BODY=$(awk '{print $2}' /tmp/sam-it/user_key.pub)
+# Two-step assertion to avoid regex meta-characters in the base64 key body
+# (the body contains '+' and '/' which ERE would misinterpret).
+testuser_line=$(grep -E '^testuser1[[:space:]]' "$COLLECT_OUT" || true)
+if [ -z "$testuser_line" ]; then
+    _fail "sam-collect produced no line for testuser1 (see $COLLECT_OUT)"
+elif printf '%s' "$testuser_line" | grep -qF -- "$USER_KEY_BODY"; then
+    _pass "sam-collect reports testuser1 with the expected key body"
+else
+    _fail "sam-collect line for testuser1 does not contain the expected key body"
+fi
+# audit-collector's own collector pubkey must also be reported
+if grep -qE "^${COLLECTOR_USER}\s+ssh-ed25519\s+" "$COLLECT_OUT"; then
+    _pass "sam-collect also reports ${COLLECTOR_USER}'s key"
+else
+    _fail "sam-collect did not report ${COLLECTOR_USER}"
+fi
+
+# --- 6d. sam-collect: via audit-collector sudo chain ----------------------
+# Validates that the sudoers rule
+#   audit-collector ALL=(root) NOPASSWD: /usr/local/bin/sam-collect
+# works without TTY and without password. We use `su -l` to get a real login
+# shell for audit-collector; `-c` runs the command in that shell.
+COLLECT_OUT_SUDO=/tmp/sam-it/collect.out.sudo
+su -l "$COLLECTOR_USER" -c 'sudo -n /usr/local/bin/sam-collect' > "$COLLECT_OUT_SUDO"
+if cmp -s "$COLLECT_OUT" "$COLLECT_OUT_SUDO"; then
+    _pass "sam-collect via audit-collector sudoers produces identical output"
+else
+    _fail "sam-collect output differs root vs audit-collector (sudoers chain broken)"
+fi
+
+# --- 6e. sam-revoke: targeted (preserve ownership #104) -------------------
+# Capture ownership + perms before, expect them preserved after rewrite.
+PERMS_BEFORE=$(stat -c '%a %U:%G' "${TESTUSER_HOME}/.ssh/authorized_keys")
+/usr/local/bin/sam-revoke "$USER_FP" testuser1
+PERMS_AFTER=$(stat -c '%a %U:%G' "${TESTUSER_HOME}/.ssh/authorized_keys")
+assert_eq "$PERMS_BEFORE" "$PERMS_AFTER" \
+    "sam-revoke preserves perms+owner on authorized_keys (#104)"
+
+if grep -qF "$USER_KEY_BODY" "${TESTUSER_HOME}/.ssh/authorized_keys"; then
+    _fail "sam-revoke did not remove the targeted key body"
+else
+    _pass "sam-revoke removed the targeted key from authorized_keys"
+fi
+
+# --- 6f. sam-revoke: via audit-collector sudo chain -----------------------
+# Re-add the key first so we can revoke it again through the sudo chain.
+/usr/local/bin/sam-add testuser1 "$USER_PUBKEY"
+assert_grep_fixed "$USER_KEY_BODY" "${TESTUSER_HOME}/.ssh/authorized_keys"
+su -l "$COLLECTOR_USER" -c "sudo -n /usr/local/bin/sam-revoke '${USER_FP}' testuser1"
+if grep -qF "$USER_KEY_BODY" "${TESTUSER_HOME}/.ssh/authorized_keys"; then
+    _fail "sam-revoke via audit-collector did not remove the key"
+else
+    _pass "sam-revoke via audit-collector sudoers chain works"
+fi
+
+# --- 6g. sam-lock-user / sam-unlock-user (#181) ---------------------------
+/usr/local/bin/sam-lock-user testuser1
+assert_user_locked testuser1
+assert_user_shell  testuser1 /sbin/nologin
+
+# Same via sudo chain — unlock through audit-collector to exercise both
+# directions of the sudoers entry.
+su -l "$COLLECTOR_USER" -c 'sudo -n /usr/local/bin/sam-unlock-user testuser1'
+assert_user_unlocked testuser1
+assert_user_shell    testuser1 /bin/bash
+
+# ---------------------------------------------------------------------------
+# Phase 7 — bad sshd drop-in rollback (negative integration test)
+#
+# We extract SAM_SELF_UPDATE, replace the SAM_SSHD_CONF heredoc body with an
+# intentionally invalid directive (`Port not-a-number` is rejected by
+# sshd -t), install the patched script and run it. Expectation: non-zero
+# exit, drop-in restored from .bak, sshd -t still OK, no .bak residue.
+# ---------------------------------------------------------------------------
+section "Phase 7 — bad sshd drop-in must be rejected and rolled back"
+
+GOOD_SSHD_DROPIN=/etc/ssh/sshd_config.d/50-sam-users.conf
+cp "$GOOD_SSHD_DROPIN" /tmp/sam-it/sshd-dropin.before
+
+# sed -z lets the pattern span the multi-line heredoc value.
+python3 tests/integration/extract_sam_constant.py SAM_SELF_UPDATE | \
+    sed -E -z 's|SAM_SSHD_CONF="[^"]*"|SAM_SSHD_CONF="Match Group sam-users\n    Port not-a-number"|' \
+    > /tmp/sam-it/sam-self-update.bad
+
+# Sanity: the substitution must actually inject the bad directive, otherwise
+# we would silently be running the unpatched (valid) script.
+if ! grep -q "Port not-a-number" /tmp/sam-it/sam-self-update.bad; then
+    _fail "sed substitution did not inject 'Port not-a-number' — fixture stale"
+fi
+
+install -m 750 -o root -g root /tmp/sam-it/sam-self-update.bad /usr/local/bin/sam-self-update
+
+set +e
+sudo /usr/local/bin/sam-self-update version-bad-sshd
+bad_rc=$?
+set -e
+
+if [ "$bad_rc" -ne 0 ]; then
+    _pass "sam-self-update with bad sshd directive exits non-zero (rc=$bad_rc)"
+else
+    _fail "sam-self-update unexpectedly exited 0 — rollback path not exercised"
+fi
+
+# After rollback, sshd -t must still pass and the drop-in must be unchanged.
+assert_sshd_ok
+assert_files_equal /tmp/sam-it/sshd-dropin.before "$GOOD_SSHD_DROPIN" \
+    "sshd drop-in restored to its pre-failure state after rollback"
+assert_no_bak_residue /etc/ssh/sshd_config.d
+assert_no_bak_residue /etc/sudoers.d
+
+# Version file must NOT have been updated to the failing version.
+if grep -q "version-bad-sshd" /etc/sam-provision-version 2>/dev/null; then
+    _fail "/etc/sam-provision-version updated despite rollback"
+else
+    _pass "/etc/sam-provision-version not updated (rollback respected)"
+fi
 
 section "All integration assertions passed on $ID $VERSION_ID"
