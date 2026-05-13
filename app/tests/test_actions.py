@@ -2484,7 +2484,9 @@ def test_actions_list_audit_logs_fulltext_search_q():
         mock_db.query.side_effect = [[], [], []]
         actions.list_audit_logs(q="admin")
         main_sql = mock_db.query.call_args_list[0][0][0]
-        assert "al.details ILIKE" in main_sql
+        # details is jsonb in PG → must cast to text before ILIKE (fix bug
+        # where /api/audit?q=g returned 500: "operator does not exist: jsonb ~~* unknown")
+        assert "al.details::text ILIKE" in main_sql
         assert "al.action ILIKE" in main_sql
         assert "adm.username ILIKE" in main_sql
         assert "sk.fingerprint ILIKE" in main_sql
@@ -2527,7 +2529,7 @@ def test_actions_list_audit_logs_facets_servers_excludes_server_filter():
         # Facet query should NOT have server filter
         facet_servers_sql = mock_db.query.call_args_list[1][0][0]
         assert " AND al.action = " in facet_servers_sql  # action IS applied
-        assert "al.details ILIKE" in facet_servers_sql  # q IS applied
+        assert "al.details::text ILIKE" in facet_servers_sql  # q IS applied
         assert " AND s.hostname = " not in facet_servers_sql  # server NOT applied
         assert result["facets"]["servers"] == ["srv-01", "srv-02"]
 
@@ -2545,7 +2547,7 @@ def test_actions_list_audit_logs_facets_actions_excludes_action_filter():
         # Facet query should NOT have action filter
         facet_actions_sql = mock_db.query.call_args_list[2][0][0]
         assert " AND s.hostname = " in facet_actions_sql  # server IS applied
-        assert "al.details ILIKE" in facet_actions_sql  # q IS applied
+        assert "al.details::text ILIKE" in facet_actions_sql  # q IS applied
         assert " AND al.action = " not in facet_actions_sql  # action NOT applied
         assert result["facets"]["actions"] == ["KEY_ADDED", "KEY_REVOKED"]
 

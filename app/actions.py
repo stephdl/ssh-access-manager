@@ -2051,7 +2051,7 @@ def list_audit_logs(
         # Escape wildcards: % and _ in user input should match literally
         escaped_q = q.replace("%", "\\%").replace("_", "\\_")
         sql += """ AND (
-            al.details ILIKE %s OR
+            al.details::text ILIKE %s OR
             al.action ILIKE %s OR
             adm.username ILIKE %s OR
             sk.fingerprint ILIKE %s OR
@@ -2089,7 +2089,7 @@ def list_audit_logs(
     if q:
         escaped_q = q.replace("%", "\\%").replace("_", "\\_")
         facet_servers_sql += """ AND (
-            al.details ILIKE %s OR
+            al.details::text ILIKE %s OR
             al.action ILIKE %s OR
             adm.username ILIKE %s OR
             sk.fingerprint ILIKE %s OR
@@ -2120,7 +2120,7 @@ def list_audit_logs(
     if q:
         escaped_q = q.replace("%", "\\%").replace("_", "\\_")
         facet_actions_sql += """ AND (
-            al.details ILIKE %s OR
+            al.details::text ILIKE %s OR
             al.action ILIKE %s OR
             adm.username ILIKE %s OR
             sk.fingerprint ILIKE %s OR
