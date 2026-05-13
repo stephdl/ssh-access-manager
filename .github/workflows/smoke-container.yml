@@ -6,16 +6,25 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Single job, two phases (HTTP then HTTPS) sharing the same image build.
+# Previous design ran two parallel jobs that each rebuilt the image —
+# ~1 min of CI minutes wasted per PR. Sequential phases trade ~30 s of
+# wall-clock against build deduplication, one diagnostic log, and a
+# single status check on the PR list.
+
 jobs:
   smoke:
     name: docker compose up + REST roundtrip
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Write deterministic .env for the smoke run
+      # =========================================================================
+      # Shared build
+      # =========================================================================
+      - name: Write deterministic .env (HTTP phase)
         run: |
           cat > .env <<'EOF'
           POSTGRES_DB=ssh_manager
@@ -36,7 +45,7 @@ jobs:
           ADMIN_PASSWORD=Sm0keAdmin!Pw
           EOF
 
-      - name: Build the image
+      - name: Build the image (once for both phases)
         run: docker compose build
 
       - name: Enforce image size budget
@@ -57,15 +66,18 @@ jobs:
             exit 1
           fi
 
-      - name: Start the container
+      # =========================================================================
+      # PHASE 1 — HTTP mode (full smoke + Tier 1 + Tier 2 + persistence)
+      # =========================================================================
+      - name: '[HTTP] Start the container'
         run: docker compose up -d
 
-      - name: Run smoke HTTP assertions (first boot)
+      - name: '[HTTP] Run smoke (first boot)'
         env:
           SMOKE_STATE_FILE: /tmp/sam-smoke-state-boot1.txt
         run: bash tests/smoke/run.sh http://127.0.0.1:8080 admin Sm0keAdmin!Pw
 
-      - name: Assert no secret leaks into container logs
+      - name: '[HTTP] Assert no secret leaks into container logs'
         # docker compose logs aggregates supervisord + every service. A
         # debug print(os.environ) or logging.info(config) would dump
         # POSTGRES_PASSWORD or FLASK_SECRET_KEY here — the kind of
@@ -82,7 +94,7 @@ jobs:
           done
           echo "No secret value detected in container logs."
 
-      - name: Assert Postgres port 5432 is NOT reachable from the host
+      - name: '[HTTP] Assert Postgres port 5432 is NOT reachable from the host'
         # A regression on docker-compose.yml (e.g. `ports: "5432:5432"`)
         # would expose the database to the public network. Only the Nginx
         # port should answer on the host.
@@ -97,7 +109,7 @@ jobs:
           fi
           echo "Postgres 5432 closed, Nginx 8080 open — port surface correct."
 
-      - name: Assert /data permissions match CLAUDE.md spec
+      - name: '[HTTP] Assert /data permissions match CLAUDE.md spec'
         # /data/pg                    chmod 700 postgres:postgres   PGDATA, must not be world-readable
         # /data/keys/per-server       chmod 700 nobody:nobody       contains private SSH keys (one per server)
         # /data/keys/known_hosts      chmod 644 nobody:*            public host-key fingerprints
@@ -119,7 +131,7 @@ jobs:
           check /data/keys/per-server 700 nobody
           check /data/keys/known_hosts 644 nobody
 
-      - name: Assert process users (Flask=nobody, postgres=postgres, never root)
+      - name: '[HTTP] Assert process users (Flask=nobody, postgres=postgres, never root)'
         # supervisord.conf declares user=nobody for the flask program and
         # user=postgres for postgresql. A regression removing those lines
         # would make Flask run as root — full container takeover on any
@@ -131,13 +143,11 @@ jobs:
           # USER followed by the binary name, whitespace-separated.
           ps_lines=$(docker compose exec -T sam-server ps -eo user,comm | tail -n +2)
           echo "$ps_lines"
-          # Flask: python3 web.py — must be nobody
           flask_users=$(printf '%s\n' "$ps_lines" | awk '/python3/ {print $1}' | sort -u)
           [ "$flask_users" = "nobody" ] || {
               echo "::error::Flask running as '$flask_users' — expected 'nobody'"
               exit 1
           }
-          # postgres: the main postmaster process must run as postgres
           pg_users=$(printf '%s\n' "$ps_lines" | awk '$2=="postgres" {print $1}' | sort -u)
           [ "$pg_users" = "postgres" ] || {
               echo "::error::postgres running as '$pg_users' — expected 'postgres'"
@@ -145,7 +155,7 @@ jobs:
           }
           echo "Process users OK: flask=nobody, postgres=postgres."
 
-      - name: Assert supervisord shows all 4 services RUNNING
+      - name: '[HTTP] Assert supervisord shows all 4 services RUNNING'
         # postgresql, flask, nginx and crond are all declared in
         # supervisord.conf. Any STARTING/EXITED/FATAL line means the
         # service crash-loops or never came up — exactly the silent
@@ -161,7 +171,7 @@ jobs:
           done
           echo "All 4 supervised services are RUNNING."
 
-      - name: Capture first-boot logs for the idempotence check
+      - name: '[HTTP] Capture first-boot logs for the idempotence check'
         # bootstrap.sh logs "First startup detected." on the very first
         # boot, then "Normal startup (existing data)." on every reboot
         # that finds /data/pg/PG_VERSION already there. The presence of
@@ -178,7 +188,7 @@ jobs:
           fi
           echo "First-boot log shape OK."
 
-      - name: Validate the boot-1 snapshot written by run.sh
+      - name: '[HTTP] Validate the boot-1 snapshot written by run.sh'
         # The smoke writes /tmp/sam-smoke-state-boot1.txt during boot 1
         # BEFORE Step 8 bans the runner's IP. A separate login from the
         # workflow would receive 429 (banned) and produce empty values
@@ -192,7 +202,7 @@ jobs:
           [ "$AUDIT_COUNT" -gt "0" ] || (echo "::error::boot1 audit_log is empty — Step 5d should have created LOGIN_FAILED rows"; exit 1)
           echo "Boot 1 snapshot OK: audit=$AUDIT_COUNT, scan=$SCAN_INTERVAL"
 
-      - name: Restart the container (volume preserved — proves persistence)
+      - name: '[HTTP] Restart the container (volume preserved — proves persistence)'
         # `docker compose down` (no -v) preserves the named volume, so
         # /data/pg/ survives. `up` again must reuse the existing PGDATA,
         # the admin row, the schema and all settings.
@@ -200,7 +210,7 @@ jobs:
           docker compose down
           docker compose up -d
 
-      - name: Wait for the container to come back up + re-run HTTP smoke
+      - name: '[HTTP] Re-run smoke after restart'
         # Same admin credentials must still log in. If bootstrap.sh
         # re-runs initdb / re-applies schema / re-seeds the admin, the
         # smoke either fails (admin password reset to ENV default) or
@@ -210,7 +220,7 @@ jobs:
           SMOKE_STATE_FILE: /tmp/sam-smoke-state-boot2.txt
         run: bash tests/smoke/run.sh http://127.0.0.1:8080 admin Sm0keAdmin!Pw
 
-      - name: Assert second boot took the "Normal startup" branch
+      - name: '[HTTP] Assert second boot took the "Normal startup" branch'
         run: |
           docker compose logs --no-color sam-server > /tmp/second-boot.log
           grep -q "\[bootstrap\] Normal startup (existing data)" /tmp/second-boot.log \
@@ -218,7 +228,7 @@ jobs:
                   tail -80 /tmp/second-boot.log; exit 1)
           echo "Second-boot log confirms bootstrap took the idempotent path."
 
-      - name: Assert audit log + settings persisted across restart
+      - name: '[HTTP] Assert audit log + settings persisted across restart'
         # The second smoke run also wrote /tmp/sam-smoke-state-boot2.txt
         # via the same SMOKE_STATE_FILE mechanism. Compare both files:
         #   - audit count must be >= boot1 (boot2's smoke adds more rows)
@@ -249,38 +259,18 @@ jobs:
             echo "Audit log + settings survived restart."
           )
 
-      - name: Dump container logs on failure
-        if: failure()
+      # =========================================================================
+      # PHASE 2 — HTTPS mode (fresh state, validates the TLS branch)
+      # =========================================================================
+      - name: '[HTTPS] Tear down HTTP and switch to HTTPS configuration'
+        # Drop the volume so the HTTPS phase starts with a clean PGDATA
+        # and a freshly-generated self-signed certificate. Reusing the
+        # HTTP volume would leave admin password_changed_at non-NULL,
+        # masking the first-login flow we exercise in Step 5e of the
+        # smoke script. Rewrite .env with NGINX_TLS_*_PATH so
+        # bootstrap.sh's generate_tls_cert() branch fires.
         run: |
-          echo "::group::docker compose logs"
-          docker compose logs --no-color || true
-          echo "::endgroup::"
-          echo "::group::supervisord status from inside the container"
-          docker compose exec -T sam-server supervisorctl status || true
-          echo "::endgroup::"
-
-      - name: Teardown
-        if: always()
-        run: docker compose down -v
-
-  smoke-https:
-    name: docker compose up + REST roundtrip (HTTPS / self-signed)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    # Same image, different config. Validates nginx.conf.https.template
-    # + the self-signed-cert generation branch of bootstrap.sh — code paths
-    # that the HTTP job never executes. Today this CI gate is the only
-    # automated proof that HTTPS mode boots at all.
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Write deterministic .env for the HTTPS smoke run
-        # NGINX_TLS_*_PATH point inside the data volume (/data/certs/…).
-        # bootstrap.sh's generate_tls_cert() auto-creates a self-signed
-        # certificate at those paths on first boot — no need to provide
-        # one from the runner.
-        run: |
+          docker compose down -v
           cat > .env <<'EOF'
           POSTGRES_DB=ssh_manager
           POSTGRES_USER=ssh_manager
@@ -302,13 +292,10 @@ jobs:
           ADMIN_PASSWORD=Sm0keAdmin!Pw
           EOF
 
-      - name: Build the image
-        run: docker compose build
-
-      - name: Start the container in HTTPS mode
+      - name: '[HTTPS] Start the container'
         run: docker compose up -d
 
-      - name: Assert bootstrap took the TLS branch (logs)
+      - name: '[HTTPS] Assert bootstrap took the TLS branch (logs)'
         # bootstrap.sh logs distinct lines for HTTP-only vs TLS-enabled
         # configurations. The TLS line + the self-signed-cert generation
         # line together prove generate_tls_cert() + the https template
@@ -327,15 +314,17 @@ jobs:
           done
           echo "HTTPS boot log shape OK."
 
-      - name: Run smoke HTTP assertions against https://
+      - name: '[HTTPS] Run smoke against https://'
         # The smoke script detects https:// in BASE_URL and adds curl -k
         # automatically, accepting the self-signed certificate. All other
         # assertions (route sweep, RBAC matrix, rate limiter…) are
         # identical between HTTP and HTTPS — proving the entire stack
         # works the same regardless of TLS termination.
+        env:
+          SMOKE_STATE_FILE: /tmp/sam-smoke-state-https.txt
         run: bash tests/smoke/run.sh https://127.0.0.1:8443 admin Sm0keAdmin!Pw
 
-      - name: Assert HSTS header is present and well-formed
+      - name: '[HTTPS] Assert HSTS header is present and well-formed'
         # The HTTPS template advertises HSTS with a 2-year max-age. A
         # regression on this header would silently downgrade security
         # posture for every browser visit.
@@ -345,11 +334,10 @@ jobs:
           echo "$hsts" | grep -qi 'max-age=63072000' \
               || (echo "::error::HSTS missing or max-age wrong"; exit 1)
 
-      - name: Assert HTTP (port 80) redirects to HTTPS
+      - name: '[HTTPS] Assert HTTP (port 80) redirects to HTTPS'
         # Nginx in TLS mode listens on 80 only to issue a 301 to the
-        # HTTPS endpoint. Verify the redirect target uses https://.
-        # Note: 'docker compose ports' is not exposed by default — we
-        # query the container directly via 'exec' to avoid binding port 80.
+        # HTTPS endpoint. Query from inside the container (port 80 is
+        # not published on the host in HTTPS mode).
         run: |
           code=$(docker compose exec -T sam-server wget -q -O /dev/null \
               --server-response --no-check-certificate \
@@ -357,10 +345,13 @@ jobs:
           echo "HTTP→HTTPS redirect status: $code"
           [ "$code" = "301" ] || (echo "::error::expected 301 from port 80, got $code"; exit 1)
 
+      # =========================================================================
+      # Cleanup & failure diagnostics
+      # =========================================================================
       - name: Dump container logs on failure
         if: failure()
         run: |
-          echo "::group::docker compose logs"
+          echo "::group::docker compose logs (last container state)"
           docker compose logs --no-color || true
           echo "::endgroup::"
           echo "::group::supervisord status"
