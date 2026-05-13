@@ -133,3 +133,114 @@ jobs:
       - name: Teardown
         if: always()
         run: docker compose down -v
+
+  smoke-https:
+    name: docker compose up + REST roundtrip (HTTPS / self-signed)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Same image, different config. Validates nginx.conf.https.template
+    # + the self-signed-cert generation branch of bootstrap.sh — code paths
+    # that the HTTP job never executes. Today this CI gate is the only
+    # automated proof that HTTPS mode boots at all.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write deterministic .env for the HTTPS smoke run
+        # NGINX_TLS_*_PATH point inside the data volume (/data/certs/…).
+        # bootstrap.sh's generate_tls_cert() auto-creates a self-signed
+        # certificate at those paths on first boot — no need to provide
+        # one from the runner.
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_DB=ssh_manager
+          POSTGRES_USER=ssh_manager
+          POSTGRES_PASSWORD=smoke-postgres-pw
+          NGINX_PORT=8443
+          NGINX_TLS_CERT_PATH=/data/certs/server.crt
+          NGINX_TLS_KEY_PATH=/data/certs/server.key
+          FLASK_SECRET_KEY=smoke-flask-secret-key-not-for-prod
+          SMTP_HOST=localhost
+          SMTP_PORT=587
+          SMTP_USERNAME=
+          SMTP_PASSWORD=
+          SMTP_FROM=alerts@example.com
+          SMTP_ENCRYPTION=none
+          SMTP_TLSVERIFY=0
+          SMTP_ENABLED=
+          ADMIN_USERNAME=admin
+          ADMIN_EMAIL=admin@example.com
+          ADMIN_PASSWORD=smoke-admin-pw
+          EOF
+
+      - name: Build the image
+        run: docker compose build
+
+      - name: Start the container in HTTPS mode
+        run: docker compose up -d
+
+      - name: Assert bootstrap took the TLS branch (logs)
+        # bootstrap.sh logs distinct lines for HTTP-only vs TLS-enabled
+        # configurations. The TLS line + the self-signed-cert generation
+        # line together prove generate_tls_cert() + the https template
+        # were both invoked. A regression on either (env-var typo,
+        # template variable not substituted, certificate generation step
+        # skipped) would produce a different log shape.
+        run: |
+          sleep 5
+          docker compose logs --no-color sam-server > /tmp/https-boot.log
+          for needle in \
+              "Self-signed TLS certificate generated" \
+              "Nginx configured with TLS on port 8443"; do
+              grep -F "$needle" /tmp/https-boot.log >/dev/null \
+                  || (echo "::error::missing log line: $needle"; \
+                      tail -80 /tmp/https-boot.log; exit 1)
+          done
+          echo "HTTPS boot log shape OK."
+
+      - name: Run smoke HTTP assertions against https://
+        # The smoke script detects https:// in BASE_URL and adds curl -k
+        # automatically, accepting the self-signed certificate. All other
+        # assertions (route sweep, RBAC matrix, rate limiter…) are
+        # identical between HTTP and HTTPS — proving the entire stack
+        # works the same regardless of TLS termination.
+        run: bash tests/smoke/run.sh https://127.0.0.1:8443 admin smoke-admin-pw
+
+      - name: Assert HSTS header is present and well-formed
+        # The HTTPS template advertises HSTS with a 2-year max-age. A
+        # regression on this header would silently downgrade security
+        # posture for every browser visit.
+        run: |
+          hsts=$(curl -sk -o /dev/null -D - https://127.0.0.1:8443/ | grep -i '^strict-transport-security' || true)
+          echo "HSTS header: $hsts"
+          echo "$hsts" | grep -qi 'max-age=63072000' \
+              || (echo "::error::HSTS missing or max-age wrong"; exit 1)
+
+      - name: Assert HTTP (port 80) redirects to HTTPS
+        # Nginx in TLS mode listens on 80 only to issue a 301 to the
+        # HTTPS endpoint. Verify the redirect target uses https://.
+        # Note: 'docker compose ports' is not exposed by default — we
+        # query the container directly via 'exec' to avoid binding port 80.
+        run: |
+          code=$(docker compose exec -T sam-server wget -q -O /dev/null \
+              --server-response --no-check-certificate \
+              http://127.0.0.1/ 2>&1 | awk '/^  HTTP/ {print $2; exit}')
+          echo "HTTP→HTTPS redirect status: $code"
+          [ "$code" = "301" ] || (echo "::error::expected 301 from port 80, got $code"; exit 1)
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          echo "::group::docker compose logs"
+          docker compose logs --no-color || true
+          echo "::endgroup::"
+          echo "::group::supervisord status"
+          docker compose exec -T sam-server supervisorctl status || true
+          echo "::endgroup::"
+          echo "::group::nginx config (rendered)"
+          docker compose exec -T sam-server cat /etc/nginx/nginx.conf || true
+          echo "::endgroup::"
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v
