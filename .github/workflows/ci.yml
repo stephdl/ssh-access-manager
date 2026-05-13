@@ -23,7 +23,16 @@ jobs:
         run: pip install -r requirements-test.txt
 
       - name: Run pytest
-        run: python3 -m pytest tests/ --cov=actions --cov-fail-under=80 -v
+        run: |
+          python3 -m pytest tests/ \
+            --cov=actions --cov=alerts --cov=collect --cov=db --cov=expire \
+            --cov=manage --cov=servers --cov=ssh --cov=web \
+            --cov-report=term --cov-report=json:coverage.json \
+            --cov-fail-under=80 -v
+        working-directory: app
+
+      - name: Enforce per-module coverage floors
+        run: python3 tests/check_coverage_floors.py coverage.json
         working-directory: app
 
   tests-vue:
