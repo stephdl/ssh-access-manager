@@ -157,6 +157,15 @@ sweep() {
         head -c 500 "$RESP_BODY"; echo
         fail "$method $path → ${code} (server-side crash)"
     fi
+    # The sweep runs with the sysadmin cookie. By definition, sysadmin has
+    # access to every documented route — a 403 here would mean the role
+    # gate erroneously rejects the highest-privileged role, which is a
+    # silent regression: pytest mocks the session and would not catch it.
+    if [ "$code" = "403" ]; then
+        echo "  Response body (first 500 bytes):"
+        head -c 500 "$RESP_BODY"; echo
+        fail "$method $path → 403 (sysadmin rejected — role-gate regression)"
+    fi
     pass "$method $path → $code"
 }
 
@@ -228,7 +237,151 @@ sweep PUT    /api/system/config '{}'
 sweep POST   /api/system/test-smtp '{}'
 
 # ---------------------------------------------------------------------------
-section "Step 6 — logout invalidates the session"
+section "Step 6 — RBAC roundtrip (sysadmin / operator / viewer enforced at runtime)"
+# ---------------------------------------------------------------------------
+# Pytest covers `require_role` with mocks. This step proves the wiring
+# survives in runtime: real session cookie → real DB lookup of the admin
+# row → real role enforcement on real routes. A change that breaks the
+# operator/viewer matrix without touching the unit-tested decorator (e.g.
+# regression on session-load that returns None for role) lands silently
+# in pytest but fails here.
+#
+# Password policy (#62) requires: 8+ chars, 1 upper, 1 lower, 1 digit,
+# 1 special. The two passwords below satisfy it.
+
+COOKIE_OP="$(mktemp /tmp/sam-smoke-cookies-op.XXXXXX)"
+COOKIE_VW="$(mktemp /tmp/sam-smoke-cookies-vw.XXXXXX)"
+trap 'rm -f "$COOKIE_JAR" "$COOKIE_OP" "$COOKIE_VW" "$RESP_BODY"' EXIT
+
+OP_USER="op-smoke"
+OP_PW="Op3rat0rPw!"
+VW_USER="vw-smoke"
+VW_PW="V13werPw!"
+
+# Create operator + viewer via the admin session. The workflow re-runs the
+# full smoke after a container restart on the same volume — by then the
+# rows already exist, so accept either 201 (first run) or 409 (replay).
+for tuple in "${OP_USER}|operator|${OP_PW}|op@x" "${VW_USER}|viewer|${VW_PW}|vw@x"; do
+    user="${tuple%%|*}"; rest="${tuple#*|}"
+    role="${rest%%|*}"; rest="${rest#*|}"
+    pw="${rest%%|*}"; email="${rest#*|}"
+    code=$(curl -s -o "$RESP_BODY" -w '%{http_code}' -b "$COOKIE_JAR" \
+        -H 'Content-Type: application/json' -X POST \
+        -d "{\"username\":\"${user}\",\"email\":\"${email}\",\"password\":\"${pw}\",\"role\":\"${role}\"}" \
+        "${BASE_URL}/api/admins")
+    case "$code" in
+        201) pass "POST /api/admins (${role} ${user}) → 201 (created)" ;;
+        409) pass "POST /api/admins (${role} ${user}) → 409 (already exists from prior run — OK)" ;;
+        *)   cat "$RESP_BODY"; echo; fail "create ${role} ${user} — expected 201 or 409, got $code" ;;
+    esac
+done
+
+# Login as operator + viewer (separate cookie jars).
+code=$(curl -s -o /dev/null -w '%{http_code}' -c "$COOKIE_OP" \
+    -H 'Content-Type: application/json' -X POST \
+    -d "{\"username\":\"${OP_USER}\",\"password\":\"${OP_PW}\"}" \
+    "${BASE_URL}/api/auth/login")
+[ "$code" = "200" ] || fail "operator login — expected 200, got $code"
+pass "operator can log in"
+
+code=$(curl -s -o /dev/null -w '%{http_code}' -c "$COOKIE_VW" \
+    -H 'Content-Type: application/json' -X POST \
+    -d "{\"username\":\"${VW_USER}\",\"password\":\"${VW_PW}\"}" \
+    "${BASE_URL}/api/auth/login")
+[ "$code" = "200" ] || fail "viewer login — expected 200, got $code"
+pass "viewer can log in"
+
+# Assert a single (role, method, path, expected-code-class) tuple.
+#  - "<500" accepts anything 2xx/3xx/4xx other than 403 — for routes
+#    where the body is intentionally incomplete (smoke doesn't care
+#    about 200 vs 400, it cares that the *role* gate didn't reject)
+#  - exact codes (200, 403) tested directly otherwise
+rbac_check() {
+    local jar="$1" method="$2" path="$3" body="$4" expected="$5" label="$6"
+    local code
+    if [ -n "$body" ]; then
+        code=$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" \
+            -H 'Content-Type: application/json' -X "$method" -d "$body" \
+            "${BASE_URL}${path}")
+    else
+        code=$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" \
+            -X "$method" "${BASE_URL}${path}")
+    fi
+    case "$expected" in
+        "not403")
+            if [ "$code" = "403" ]; then
+                fail "$label — expected non-403, got 403 (role gate rejected legitimate access)"
+            elif [ "$code" -ge 500 ]; then
+                fail "$label — expected non-5xx, got $code"
+            else
+                pass "$label → $code (not 403)"
+            fi
+            ;;
+        *)
+            [ "$code" = "$expected" ] || fail "$label — expected $expected, got $code"
+            pass "$label → $code"
+            ;;
+    esac
+}
+
+# RBAC matrix below mirrors app/CLAUDE.md.
+# Each role is exercised on the routes that distinguish it from its
+# neighbours: an operator must be denied the sysadmin-only writes; a viewer
+# must be denied every mutating endpoint regardless of category. Reads that
+# are allowed for every role (GET /api/servers, /api/keys, /api/access,
+# /api/admins, /api/audit, /api/system/status, /api/system/config) are
+# spot-checked here to prove the runtime role-load yields a usable session.
+
+# --- Operator -------------------------------------------------------------
+# Allowed reads (must not 403).
+for path in /api/servers /api/keys /api/access /api/admins /api/audit \
+            /api/system/status /api/system/config /api/access/deployed-users; do
+    rbac_check "$COOKIE_OP" GET "$path" "" not403 "operator GET $path"
+done
+# Allowed writes (operator can scan, validate, deploy, lock/unlock, group-grant
+# for sam-operator/sam-pkg, change a non-root group). Not-403, body may 400.
+rbac_check "$COOKIE_OP" POST /api/system/scan               ""                         not403 "operator POST /api/system/scan"
+rbac_check "$COOKIE_OP" POST /api/keys/bulk-validate        '{"fingerprints":[]}'      not403 "operator POST /api/keys/bulk-validate"
+rbac_check "$COOKIE_OP" POST /api/keys/bulk-revoke          '{"fingerprints":[],"reason":"x"}' not403 "operator POST /api/keys/bulk-revoke"
+rbac_check "$COOKIE_OP" POST /api/access/deploy             '{}'                       not403 "operator POST /api/access/deploy"
+rbac_check "$COOKIE_OP" POST /api/access/lock-user          '{}'                       not403 "operator POST /api/access/lock-user"
+rbac_check "$COOKIE_OP" POST /api/access/unlock-user        '{}'                       not403 "operator POST /api/access/unlock-user"
+rbac_check "$COOKIE_OP" POST /api/access/grant-group        '{"unix_user":"u","hostname":"h","sam_group":"sam-operator"}' not403 "operator POST /api/access/grant-group (sam-operator)"
+rbac_check "$COOKIE_OP" POST /api/system/test-smtp          '{}'                       not403 "operator POST /api/system/test-smtp"
+# Sysadmin-only writes (must be 403, never 400 — role-gate runs first).
+rbac_check "$COOKIE_OP" POST   /api/admins                          '{"username":"x","password":"Aa1!aaaa"}' 403 "operator POST /api/admins (sysadmin-only)"
+rbac_check "$COOKIE_OP" PUT    "/api/admins/${OP_USER}"             '{}'                       403 "operator PUT /api/admins/<user> (sysadmin-only)"
+rbac_check "$COOKIE_OP" PUT    /api/system/config                   '{}'                       403 "operator PUT /api/system/config (sysadmin-only)"
+rbac_check "$COOKIE_OP" POST   /api/servers                         '{}'                       403 "operator POST /api/servers (sysadmin-only)"
+rbac_check "$COOKIE_OP" PUT    "/api/servers/${NIL_HOST}/disable"   ""                         403 "operator PUT /api/servers/<h>/disable (sysadmin-only)"
+rbac_check "$COOKIE_OP" PUT    "/api/servers/${NIL_HOST}/enable"    ""                         403 "operator PUT /api/servers/<h>/enable (sysadmin-only)"
+rbac_check "$COOKIE_OP" DELETE "/api/servers/${NIL_HOST}"           ""                         403 "operator DELETE /api/servers/<h> (sysadmin-only)"
+rbac_check "$COOKIE_OP" POST   "/api/servers/${NIL_HOST}/rotate-key" ""                        403 "operator POST /api/servers/<h>/rotate-key (sysadmin-only)"
+rbac_check "$COOKIE_OP" POST   /api/access/grant-group              '{"unix_user":"u","hostname":"h","sam_group":"sam-root"}'     403 "operator POST /api/access/grant-group (sam-root → sysadmin-only)"
+
+# --- Viewer ---------------------------------------------------------------
+# Reads — all allowed for viewer per CLAUDE.md matrix.
+for path in /api/servers /api/keys /api/access /api/admins /api/audit \
+            /api/system/status /api/system/config /api/access/deployed-users; do
+    rbac_check "$COOKIE_VW" GET "$path" "" 200 "viewer GET $path"
+done
+# Mutating endpoints — every one of these must be 403, not 400, not 500.
+rbac_check "$COOKIE_VW" POST   /api/keys/bulk-validate              '{"fingerprints":[]}'      403 "viewer POST /api/keys/bulk-validate (forbidden)"
+rbac_check "$COOKIE_VW" POST   /api/keys/bulk-revoke                '{"fingerprints":[],"reason":"x"}' 403 "viewer POST /api/keys/bulk-revoke (forbidden)"
+rbac_check "$COOKIE_VW" POST   /api/access/deploy                   '{}'                       403 "viewer POST /api/access/deploy (forbidden)"
+rbac_check "$COOKIE_VW" POST   /api/access/lock-user                '{}'                       403 "viewer POST /api/access/lock-user (forbidden)"
+rbac_check "$COOKIE_VW" POST   /api/access/unlock-user              '{}'                       403 "viewer POST /api/access/unlock-user (forbidden)"
+rbac_check "$COOKIE_VW" POST   /api/access/grant-group              '{"unix_user":"u","hostname":"h","sam_group":"sam-operator"}' 403 "viewer POST /api/access/grant-group (forbidden)"
+rbac_check "$COOKIE_VW" POST   /api/system/scan                     ""                         403 "viewer POST /api/system/scan (forbidden)"
+rbac_check "$COOKIE_VW" POST   /api/admins                          '{"username":"x","password":"Aa1!aaaa"}' 403 "viewer POST /api/admins (forbidden)"
+rbac_check "$COOKIE_VW" PUT    /api/system/config                   '{}'                       403 "viewer PUT /api/system/config (forbidden)"
+rbac_check "$COOKIE_VW" POST   /api/servers                         '{}'                       403 "viewer POST /api/servers (forbidden)"
+rbac_check "$COOKIE_VW" PUT    "/api/servers/${NIL_HOST}/disable"   ""                         403 "viewer PUT /api/servers/<h>/disable (forbidden)"
+rbac_check "$COOKIE_VW" DELETE "/api/servers/${NIL_HOST}"           ""                         403 "viewer DELETE /api/servers/<h> (forbidden)"
+rbac_check "$COOKIE_VW" POST   "/api/servers/${NIL_HOST}/scan"      ""                         403 "viewer POST /api/servers/<h>/scan (forbidden)"
+
+# ---------------------------------------------------------------------------
+section "Step 7 — logout invalidates the session"
 # ---------------------------------------------------------------------------
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIE_JAR" -c "$COOKIE_JAR" \
     -X POST "${BASE_URL}/api/auth/logout")
@@ -238,6 +391,41 @@ pass "POST /api/auth/logout → 200"
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "$COOKIE_JAR" "${BASE_URL}/api/auth/me")
 [ "$code" = "401" ] || fail "GET /api/auth/me after logout — expected 401, got $code (session not invalidated)"
 pass "GET /api/auth/me after logout → 401 (server-side session cleared)"
+
+# ---------------------------------------------------------------------------
+section "Step 8 — rate limiter triggers HTTP 429 after threshold (#236)"
+# ---------------------------------------------------------------------------
+# Default settings.login_max_attempts = 10. The 11th failed attempt from
+# the same IP must return 429 (not another 401). This is in-process
+# state — pytest single-process with mocked DB cannot exercise it.
+#
+# IMPORTANT: this step bans the runner's IP for login_ban_seconds (default
+# 300 s). Anything that needs to log in after this would fail — that's
+# why this step runs last.
+ban_seen=""
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    code=$(curl -s -o /dev/null -w '%{http_code}' \
+        -H 'Content-Type: application/json' -X POST \
+        -d '{"username":"ratelimit-probe","password":"wrong-on-purpose"}' \
+        "${BASE_URL}/api/auth/login")
+    case "$code" in
+        429)
+            ban_seen="$i"
+            break
+            ;;
+        401|400)
+            : # expected pre-ban
+            ;;
+        *)
+            fail "rate limiter probe attempt $i — unexpected code $code (expected 401/400/429)"
+            ;;
+    esac
+done
+
+if [ -z "$ban_seen" ]; then
+    fail "rate limiter never triggered HTTP 429 across 12 wrong logins — #236 regressed"
+fi
+pass "rate limiter triggers 429 at attempt $ban_seen (≤ login_max_attempts+1)"
 
 echo ""
 echo "${GREEN}All smoke assertions passed.${RST}"
