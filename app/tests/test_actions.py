@@ -871,6 +871,17 @@ def test_actions_delete_server_removes_authorizations_and_requests():
         assert any("access_requests" in c for c in delete_calls)
 
 
+def test_actions_delete_server_purges_keys_left_without_authorization():
+    """Keys known only through the deleted server must not survive it."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.return_value = {"id": SERVER_ID}
+        actions.delete_server("server-test-01", ADMIN_ID)
+        delete_calls = [c[0][0] for c in mock_db.execute.call_args_list]
+        purge = [c for c in delete_calls if "DELETE FROM ssh_keys" in c]
+        assert purge, "orphan keys are never purged"
+        assert "NOT EXISTS" in purge[0]
+
+
 def test_actions_delete_server_raises_if_not_found():
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = None
