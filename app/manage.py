@@ -375,8 +375,11 @@ def access_show(request_id):
 @click.option("--server", "hostname", required=True, help="Target server")
 @click.option("--hours", default=None, type=int, help="Duration in hours")
 @click.option("--date", "date_str", default=None, help="Expiration date YYYY-MM-DD HH:MM")
+@click.option("--user", "unix_user", default=None,
+              help="Unix account to grant on. Inferred when the key is authorized "
+                   "for exactly one account on that server, required otherwise.")
 @click.option("--reason", required=True, help="Justification")
-def access_grant(key_fp, hostname, hours, date_str, reason):
+def access_grant(key_fp, hostname, hours, date_str, unix_user, reason):
     """Grant temporary access."""
     if hours and date_str:
         raise click.UsageError("Use --hours OR --date, not both.")
@@ -388,7 +391,8 @@ def access_grant(key_fp, hostname, hours, date_str, reason):
         raise click.UsageError("--hours or --date required.")
     admin_id = _require_admin()
     try:
-        actions.grant_access(key_fp, hostname, expires_at, reason, admin_id)
+        actions.grant_access(key_fp, hostname, expires_at, reason, admin_id,
+                             unix_user=unix_user)
         click.echo(f"Access granted until {expires_at.isoformat()}.")
     except (ValueError, UserError, NotFoundError) as e:
         raise click.ClickException(str(e))
