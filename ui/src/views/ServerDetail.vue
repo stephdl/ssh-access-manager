@@ -177,7 +177,10 @@
             &#x2715;
           </button>
         </div>
-        <p class="warn-text" v-html="$t('server_detail.delete_modal_warning', { hostname: escapeHtml(hostname) })"></p>
+        <p
+          class="warn-text"
+          v-html="$t('server_detail.delete_modal_warning', { hostname: escapeHtml(hostname) })"
+        ></p>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showDeleteModal = false">
             {{ $t('common.cancel') }}
