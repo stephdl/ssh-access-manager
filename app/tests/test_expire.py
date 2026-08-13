@@ -195,6 +195,19 @@ def test_expire_expire_keys_excludes_root_unix_user():
         assert "unix_user != 'root'" in sql
 
 
+def test_expire_expire_keys_excludes_collector_unix_user():
+    """Expiring the collector key would revoke SAM's own access to the server."""
+    with patch("expire.db") as mock_db, \
+         patch("expire.ssh") as mock_ssh, \
+         patch("expire.alerts"):
+        mock_ssh.SSH_USER = "audit-collector"
+        mock_db.query.return_value = []
+        expire.expire_keys()
+        sql, params = mock_db.query.call_args[0]
+        assert "unix_user != %s" in sql
+        assert params == ("audit-collector",)
+
+
 def test_expire_expire_keys_returns_zero_when_no_expired_keys():
     with patch("expire.db") as mock_db, \
          patch("expire.ssh") as mock_ssh, \
