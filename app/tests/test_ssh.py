@@ -944,6 +944,35 @@ def test_ssh_fetch_host_key_single_connection():
         os.unlink(path)
 
 
+def test_ssh_fetch_host_key_replaces_a_changed_key():
+    """Appending left the old key valid, defeating the pinning it protects."""
+    import tempfile
+    from unittest.mock import MagicMock, patch
+
+    mock_key = MagicMock()
+    mock_key.get_name.return_value = "ssh-ed25519"
+    mock_key.get_base64.return_value = "NEWKEYBASE64"
+
+    mock_transport = MagicMock()
+    mock_transport.get_remote_server_key.return_value = mock_key
+
+    with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
+        f.write("192.168.1.10 ssh-ed25519 OLDKEYBASE64\n")
+        f.write("192.168.1.99 ssh-ed25519 OTHERHOSTKEY\n")
+        path = f.name
+    try:
+        with patch("ssh.paramiko.Transport", return_value=mock_transport):
+            ssh._fetch_host_key("192.168.1.10", 22, known_hosts_path=path)
+        with open(path) as f:
+            content = f.read()
+        assert "OLDKEYBASE64" not in content
+        assert "NEWKEYBASE64" in content
+        # Other hosts keep their entry
+        assert "OTHERHOSTKEY" in content
+    finally:
+        os.unlink(path)
+
+
 def test_ssh_fetch_host_key_non_standard_port_brackets():
     """_fetch_host_key uses [ip]:port bracket format for non-22 ports."""
     import tempfile

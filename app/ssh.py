@@ -945,6 +945,9 @@ def rotate_per_server_key(hostname: str, ip: str, port: int, server_id: str) -> 
     new_fingerprint = None
     client_old = None
     client_new = None
+    # True once authorized_keys holds the new key alone: past that point the
+    # old key is dead and the .new files are the only way back into the host.
+    remote_switched = False
 
     try:
         # Step 4: connect with current key
@@ -971,27 +974,34 @@ def rotate_per_server_key(hostname: str, ip: str, port: int, server_id: str) -> 
         # accumulated from previous (partial) rotations or from manual
         # operator additions would otherwise survive forever.
         _replace_authorized_keys_remote(client_new, new_pubkey)
+        remote_switched = True
         client_new.close()
         client_new = None
 
-        # Step 8: atomic file rotation
-        old_backup_path = current_key_path + ".old"
-        old_backup_pub_path = current_pubkey_path + ".old"
-
-        os.rename(current_key_path, old_backup_path)
-        os.rename(current_pubkey_path, old_backup_pub_path)
-        os.rename(new_key_path, current_key_path)
-        os.rename(new_pubkey_path, current_pubkey_path)
-
-        # Cleanup old backup
-        os.remove(old_backup_path)
-        os.remove(old_backup_pub_path)
+        # Step 8: move the new key onto the canonical path.
+        # os.replace overwrites atomically, so the canonical path is never
+        # missing and there is no backup left to clean up. The previous
+        # rename-to-.old dance had a window where a failure deleted the new
+        # private key while the old one was renamed away — with the host
+        # already accepting only the new key, that locked SAM out for good.
+        os.replace(new_key_path, current_key_path)
+        os.replace(new_pubkey_path, current_pubkey_path)
 
         # Step 9: compute and return new fingerprint
         new_fingerprint = _compute_pubkey_fingerprint(new_pubkey)
         return new_fingerprint
 
     except Exception as exc:
+        if remote_switched:
+            # authorized_keys already holds the new key alone. Removing it or
+            # deleting the .new files would leave no usable key at all, so
+            # everything stays where it is and the operator is told where.
+            raise SSHError(
+                f"Key rotation failed after {hostname} was switched to the new key: {exc}. "
+                f"The new key pair is kept at {new_key_path} and must not be deleted — "
+                f"move it to {current_key_path} to restore access."
+            )
+
         # Rollback: try to remove new pubkey from authorized_keys
         try:
             if client_new is None and os.path.isfile(current_key_path):
@@ -1439,8 +1449,24 @@ def _fetch_host_key(ip: str, port: int, known_hosts_path: str | None = None) -> 
             t.close()
     host = f"[{ip}]:{port}" if port != 22 else ip
     path = known_hosts_path if known_hosts_path is not None else KNOWN_HOSTS
-    with open(path, "a") as fh:
-        fh.write(f"{host} {key.get_name()} {key.get_base64()}\n")
+    entry = f"{host} {key.get_name()} {key.get_base64()}\n"
+
+    # Replace the entries for this host instead of appending. Appending left
+    # the previous key valid alongside the new one, so a host key that changed
+    # between two provisionings was silently accepted under either — which is
+    # exactly what the pinning is meant to catch.
+    prefix = f"{host} "
+    try:
+        with open(path, "r") as fh:
+            kept = [line for line in fh if not line.startswith(prefix)]
+    except FileNotFoundError:
+        kept = []
+
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w") as fh:
+        fh.writelines(kept)
+        fh.write(entry)
+    os.replace(tmp_path, path)
 
 
 def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 22, pubkey: str = None) -> None:

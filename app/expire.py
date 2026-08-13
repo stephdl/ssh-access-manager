@@ -63,7 +63,8 @@ def expire_keys() -> int:
     """
     rows = db.query(
         """
-        SELECT DISTINCT ka.key_id, ka.server_id, sk.fingerprint, s.id AS server_id, s.hostname, s.ip_address, s.ssh_port
+        SELECT DISTINCT ka.key_id, ka.server_id, ka.unix_user, sk.fingerprint,
+               s.hostname, s.ip_address, s.ssh_port
         FROM key_authorizations ka
         JOIN ssh_keys sk ON sk.id = ka.key_id
         JOIN servers s ON s.id = ka.server_id
@@ -79,7 +80,13 @@ def expire_keys() -> int:
     for row in rows:
         try:
             key_path = ssh._resolve_key_path(row["server_id"])
-            ssh.revoke_on_server(row["hostname"], row["fingerprint"], ip=row["ip_address"], port=row["ssh_port"], key_path=key_path)
+            # Scoped to the account whose authorization expired. A global
+            # revoke also strips the key from root and from the collector,
+            # the two accounts this query deliberately never selects.
+            ssh.revoke_on_server(
+                row["hostname"], row["fingerprint"], ip=row["ip_address"],
+                unix_user=row["unix_user"], port=row["ssh_port"], key_path=key_path,
+            )
         except Exception as exc:
             alerts.send_alert(
                 "CRITICAL",
@@ -96,9 +103,9 @@ def expire_keys() -> int:
                 revoked_by = NULL,
                 revoked_automatically = true,
                 revocation_justification = 'Scheduled expiration reached'
-            WHERE key_id = %s AND server_id = %s AND status = 'ACTIVE'
+            WHERE key_id = %s AND server_id = %s AND unix_user = %s AND status = 'ACTIVE'
             """,
-            (row["key_id"], row["server_id"]),
+            (row["key_id"], row["server_id"], row["unix_user"]),
         )
         db.execute(
             """
