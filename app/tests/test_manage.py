@@ -60,6 +60,8 @@ def test_manage_servers_update_command(runner):
         "ip_address": "192.168.1.10",
         "environment": "lab",
         "os_family": "rhel",
+        "ssh_port": 2222,
+        "max_sessions": 5,
     }
     with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
         mock_db.query_one.side_effect = [_admin(), current]
@@ -68,8 +70,11 @@ def test_manage_servers_update_command(runner):
             "--ip", "192.168.1.20", "--env", "production",
         ])
         assert result.exit_code == 0
+        # admin_id used to land in ssh_port, and max_sessions fell back to its
+        # default instead of the stored value.
         mock_actions.update_server.assert_called_once_with(
-            HOSTNAME, "192.168.1.20", "production", "rhel", ADMIN_ID
+            HOSTNAME, "192.168.1.20", "production", "rhel",
+            ssh_port=2222, admin_id=ADMIN_ID, max_sessions=5,
         )
 
 
@@ -205,6 +210,24 @@ def test_manage_access_grant_hours(runner):
         ])
         assert result.exit_code == 0
         mock_actions.grant_access.assert_called_once()
+        assert mock_actions.grant_access.call_args.kwargs["unix_user"] is None
+
+
+def test_manage_access_grant_passes_the_explicit_account(runner):
+    """Without --user the CLI could not act on a key held by several accounts."""
+    with patch("manage.db") as mock_db, patch("manage.actions") as mock_actions:
+        mock_db.query_one.return_value = _admin()
+        mock_actions.grant_access.return_value = {
+            "key_id": KEY_ID, "server_id": SERVER_ID,
+            "expires_at": datetime.now(tz=timezone.utc),
+        }
+        result = runner.invoke(manage.cli, [
+            "access", "grant",
+            "--key", FINGERPRINT, "--server", HOSTNAME,
+            "--hours", "8", "--user", "bob", "--reason", "maintenance",
+        ])
+        assert result.exit_code == 0
+        assert mock_actions.grant_access.call_args.kwargs["unix_user"] == "bob"
 
 
 def test_manage_access_approve(runner):

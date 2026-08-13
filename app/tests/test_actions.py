@@ -659,6 +659,8 @@ def test_actions_reject_request_raises_if_not_pending():
 def test_actions_revoke_request_calls_sam_revoke():
     req = {"key_id": KEY_ID, "server_id": SERVER_ID}
     with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.SSH_USER = "audit-collector"
+        mock_db.query.return_value = [{"unix_user": "alice"}]
         mock_db.query_one.side_effect = [
             req,
             {"fingerprint": "SHA256:abc"},
@@ -666,8 +668,39 @@ def test_actions_revoke_request_calls_sam_revoke():
         ]
         actions.revoke_request(REQUEST_ID, ADMIN_ID)
         mock_ssh.revoke_on_server.assert_called_once_with(
-            "server-test-01", "SHA256:abc", ip="192.168.1.10", port=22
-        , key_path=ANY)
+            "server-test-01", "SHA256:abc", ip="192.168.1.10",
+            unix_user="alice", port=22, key_path=ANY,
+        )
+
+
+def test_actions_revoke_request_scopes_the_update_to_the_account():
+    """A global revoke would strip the key from root and the collector too."""
+    req = {"key_id": KEY_ID, "server_id": SERVER_ID}
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.SSH_USER = "audit-collector"
+        mock_db.query.return_value = [{"unix_user": "alice"}]
+        mock_db.query_one.side_effect = [
+            req,
+            {"fingerprint": "SHA256:abc"},
+            {"id": SERVER_ID, "hostname": "server-test-01", "ip_address": "192.168.1.10", "ssh_port": 22},
+        ]
+        actions.revoke_request(REQUEST_ID, ADMIN_ID)
+        update = [c for c in mock_db.execute.call_args_list
+                  if "SET status = 'REVOKED'" in c[0][0]][0]
+        assert "unix_user = %s" in update[0][0]
+        assert "alice" in update[0][1]
+
+
+@pytest.mark.parametrize("account", ["root", "audit-collector"])
+def test_actions_revoke_request_refuses_protected_accounts(account):
+    req = {"key_id": KEY_ID, "server_id": SERVER_ID}
+    with patch("actions.db") as mock_db, patch("actions.ssh") as mock_ssh:
+        mock_ssh.SSH_USER = "audit-collector"
+        mock_db.query.return_value = [{"unix_user": account}]
+        mock_db.query_one.return_value = req
+        with pytest.raises(UserError):
+            actions.revoke_request(REQUEST_ID, ADMIN_ID)
+        mock_ssh.revoke_on_server.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -1137,6 +1170,21 @@ def test_actions_add_server_validates_the_hostname(sample_server):
         with pytest.raises(UserError, match="Invalid hostname"):
             actions.add_server(
                 "<img src=x onerror=alert(1)>", sample_server["ip_address"],
+                admin_id=ADMIN_ID,
+            )
+
+
+def test_actions_deploy_key_refuses_the_collector_account(sample_server, sample_key):
+    """The collector holds NOPASSWD sudo on sam-add: a key there is root."""
+    with patch("actions.db"), patch("actions.ssh") as mock_ssh:
+        mock_ssh.SSH_USER = "audit-collector"
+        with pytest.raises(UserError, match="collector account"):
+            actions.deploy_key(
+                public_key=sample_key["public_key"],
+                unix_user="audit-collector",
+                hostname=sample_server["hostname"],
+                expires_at=None,
+                justification="escalation attempt",
                 admin_id=ADMIN_ID,
             )
 

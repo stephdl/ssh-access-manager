@@ -109,7 +109,7 @@ def test_expire_warn_expiring_keys_no_email_when_all_antispammed():
 
 def test_expire_expire_keys_scenario4_calls_sam_revoke():
     row = {
-        "key_id": KEY_ID, "server_id": SERVER_ID,
+        "key_id": KEY_ID, "server_id": SERVER_ID, "unix_user": "alice",
         "fingerprint": FINGERPRINT, "hostname": HOSTNAME, "ip_address": "192.168.1.10", "ssh_port": 22,
     }
     with patch("expire.db") as mock_db, \
@@ -127,7 +127,7 @@ def test_expire_expire_keys_scenario4_calls_sam_revoke():
 
 def test_expire_expire_keys_scenario4_sets_expired_revoked_automatically():
     row = {
-        "key_id": KEY_ID, "server_id": SERVER_ID,
+        "key_id": KEY_ID, "server_id": SERVER_ID, "unix_user": "alice",
         "fingerprint": FINGERPRINT, "hostname": HOSTNAME, "ip_address": "192.168.1.10", "ssh_port": 22,
     }
     with patch("expire.db") as mock_db, \
@@ -143,7 +143,7 @@ def test_expire_expire_keys_scenario4_sets_expired_revoked_automatically():
 
 def test_expire_expire_keys_scenario4_logs_key_expired():
     row = {
-        "key_id": KEY_ID, "server_id": SERVER_ID,
+        "key_id": KEY_ID, "server_id": SERVER_ID, "unix_user": "alice",
         "fingerprint": FINGERPRINT, "hostname": HOSTNAME, "ip_address": "192.168.1.10", "ssh_port": 22,
     }
     with patch("expire.db") as mock_db, \
@@ -155,10 +155,28 @@ def test_expire_expire_keys_scenario4_logs_key_expired():
         assert "KEY_EXPIRED" in audit_sql
 
 
+def test_expire_expire_keys_scopes_the_revoke_to_the_account():
+    """A global sam-revoke also strips the key from root's authorized_keys."""
+    row = {
+        "key_id": KEY_ID, "server_id": SERVER_ID, "unix_user": "alice",
+        "fingerprint": FINGERPRINT, "hostname": HOSTNAME, "ip_address": "192.168.1.10", "ssh_port": 22,
+    }
+    with patch("expire.db") as mock_db, \
+         patch("expire.ssh") as mock_ssh, \
+         patch("expire.alerts"):
+        mock_db.query.return_value = [row]
+        expire.expire_keys()
+        assert mock_ssh.revoke_on_server.call_args.kwargs["unix_user"] == "alice"
+        update = [c for c in mock_db.execute.call_args_list
+                  if "SET status = 'EXPIRED'" in c[0][0]][0]
+        assert "unix_user = %s" in update[0][0]
+        assert "alice" in update[0][1]
+
+
 def test_expire_expire_keys_scenario4_returns_count():
     rows = [
-        {"key_id": KEY_ID, "server_id": SERVER_ID, "fingerprint": FINGERPRINT, "hostname": HOSTNAME, "ip_address": "192.168.1.10", "ssh_port": 22},
-        {"key_id": str(uuid.uuid4()), "server_id": SERVER_ID, "fingerprint": "SHA256:other", "hostname": HOSTNAME, "ip_address": "192.168.1.10", "ssh_port": 22},
+        {"key_id": KEY_ID, "server_id": SERVER_ID, "unix_user": "alice", "fingerprint": FINGERPRINT, "hostname": HOSTNAME, "ip_address": "192.168.1.10", "ssh_port": 22},
+        {"key_id": str(uuid.uuid4()), "server_id": SERVER_ID, "unix_user": "bob", "fingerprint": "SHA256:other", "hostname": HOSTNAME, "ip_address": "192.168.1.10", "ssh_port": 22},
     ]
     with patch("expire.db") as mock_db, \
          patch("expire.ssh") as mock_ssh, \

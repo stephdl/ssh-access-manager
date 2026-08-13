@@ -2492,6 +2492,39 @@ def test_web_grant_group_operator_cannot_assign_sam_root(client):
         assert resp.status_code == 403
 
 
+def test_web_deploy_operator_cannot_assign_sam_root(client):
+    """deploy took the same route to sam-root that grant-group already gated."""
+    operator_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = operator_id
+        sess["admin_username"] = "operator"
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": operator_id, "username": "operator", "role": "operator"}
+        resp = client.post("/api/access/deploy", json={
+            "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting",
+            "unix_user": "alice", "hostname": "server-01",
+            "justification": "escalation attempt", "sam_group": "sam-root",
+        })
+        assert resp.status_code == 403
+        mock_actions.deploy_key.assert_not_called()
+
+
+def test_web_deploy_sysadmin_may_assign_sam_root(client):
+    sysadmin_id = str(uuid.uuid4())
+    with client.session_transaction() as sess:
+        sess["admin_id"] = sysadmin_id
+        sess["admin_username"] = "admin"
+    with patch("web.db") as mock_db, patch("web.actions") as mock_actions:
+        mock_db.query_one.return_value = {"id": sysadmin_id, "username": "admin", "role": "sysadmin"}
+        mock_actions.deploy_key.return_value = {"fingerprint": "SHA256:abc"}
+        resp = client.post("/api/access/deploy", json={
+            "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting",
+            "unix_user": "alice", "hostname": "server-01",
+            "justification": "maintenance", "sam_group": "sam-root",
+        })
+        assert resp.status_code == 201
+
+
 def test_web_grant_group_viewer_forbidden(client):
     viewer_id = str(uuid.uuid4())
     with client.session_transaction() as sess:

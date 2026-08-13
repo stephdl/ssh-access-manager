@@ -865,6 +865,11 @@ def api_deploy_key():
 
     if not all([public_key, unix_user, hostname, justification]):
         return jsonify({"error": "public_key, unix_user, hostname, justification required"}), 400
+    # Same gate as grant-group and change-group: sam-root maps to
+    # "%sam-root ALL=(ALL) ALL" on the target, so deploying into it is a way
+    # for an operator to hand themselves full root on any managed host.
+    if sam_group == "sam-root" and g.admin_role != "sysadmin":
+        return jsonify({"error": "Only sysadmin can assign sam-root"}), 403
 
     hours = data.get("hours")
     date_str = data.get("expires_at")

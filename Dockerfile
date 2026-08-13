@@ -1,7 +1,7 @@
 # =============================================================================
 # ssh-access-manager — Dockerfile multi-stage
 # Stage 1 : node:24-alpine  → build Vue.js 3 / Vite
-# Stage 2 : alpine:3.23.4   → image finale container unique
+# Stage 2 : alpine:3.24.1   → image finale container unique
 # =============================================================================
 
 # -----------------------------------------------------------------------------

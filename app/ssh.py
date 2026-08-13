@@ -178,6 +178,16 @@ if [ -z "$TARGET_USER" ] || [ -z "$PUBKEY" ]; then
     exit 1
 fi
 
+# Same allowlist as sam-grant-group. Without it, the collector account,
+# which holds NOPASSWD sudo on this script, could add any user to any group
+# on the host, wheel included, straight out of SAM's group model.
+if [ -n "$TARGET_GROUP" ]; then
+    case "$TARGET_GROUP" in
+        sam-operator|sam-pkg|sam-root) ;;
+        *) echo "Error: group must be sam-operator, sam-pkg or sam-root" >&2; exit 1 ;;
+    esac
+fi
+
 TMPPASS=""
 if ! id "$TARGET_USER" >/dev/null 2>&1; then
     useradd -m -s /bin/bash "$TARGET_USER"
@@ -381,9 +391,14 @@ SAM_SELF_UPDATE = b"""#!/bin/sh
 # This script is deployed and invoked by the collector key after initial bootstrap.
 # If version is given, it is written to /etc/sam-provision-version on success.
 
-VERSION="${1}"
+VERSION=""
 DRY_RUN=0
-[ "${2}" = "--dry-run" ] && DRY_RUN=1
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run) DRY_RUN=1 ;;
+        *) [ -z "$VERSION" ] && VERSION="$arg" ;;
+    esac
+done
 
 # Detect sshd binary path
 SSHD_BIN=$(command -v sshd 2>/dev/null || echo /usr/sbin/sshd)
@@ -455,7 +470,7 @@ _install_sudoers() {
 
 # sam-operator sudoers
 OP_FILE="/etc/sudoers.d/sam-operator"
-if [ "$DRY_RUN" -eq 1 ] && [ -f "$OP_FILE" ]; then
+if [ "$DRY_RUN" -eq 1 ]; then
     printf "# ssh-access-manager - sam-operator sudo rights\\n" > "${OP_FILE}.tmp"
     printf "Defaults:%%sam-operator secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${OP_FILE}.tmp"
     _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} restart"
@@ -478,7 +493,7 @@ if [ "$DRY_RUN" -eq 1 ] && [ -f "$OP_FILE" ]; then
         [ -x "$bin_path" ] && _rule "${OP_FILE}.tmp" "sam-operator" "${bin_path}"
     done
     echo "--- ${OP_FILE} diff:"
-    diff -u "$OP_FILE" "${OP_FILE}.tmp" || true
+    diff -u "$OP_FILE" "${OP_FILE}.tmp" 2>/dev/null || diff -u /dev/null "${OP_FILE}.tmp" || true
     rm -f "${OP_FILE}.tmp"
 else
     printf "# ssh-access-manager - sam-operator sudo rights\\n" > "${OP_FILE}.tmp"
@@ -508,7 +523,7 @@ fi
 
 # sam-pkg sudoers
 PKG_FILE="/etc/sudoers.d/sam-pkg"
-if [ "$DRY_RUN" -eq 1 ] && [ -f "$PKG_FILE" ]; then
+if [ "$DRY_RUN" -eq 1 ]; then
     printf "# ssh-access-manager - sam-pkg sudo rights\\n" > "${PKG_FILE}.tmp"
     printf "Defaults:%%sam-pkg secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${PKG_FILE}.tmp"
     _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"
@@ -561,7 +576,7 @@ if [ "$DRY_RUN" -eq 1 ] && [ -f "$PKG_FILE" ]; then
         [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
     done
     echo "--- ${PKG_FILE} diff:"
-    diff -u "$PKG_FILE" "${PKG_FILE}.tmp" || true
+    diff -u "$PKG_FILE" "${PKG_FILE}.tmp" 2>/dev/null || diff -u /dev/null "${PKG_FILE}.tmp" || true
     rm -f "${PKG_FILE}.tmp"
 else
     printf "# ssh-access-manager - sam-pkg sudo rights\\n" > "${PKG_FILE}.tmp"
@@ -621,11 +636,11 @@ fi
 
 # sam-root sudoers
 ROOT_FILE="/etc/sudoers.d/sam-root"
-if [ "$DRY_RUN" -eq 1 ] && [ -f "$ROOT_FILE" ]; then
+if [ "$DRY_RUN" -eq 1 ]; then
     printf "# ssh-access-manager - sam-root sudo rights\\n" > "${ROOT_FILE}.tmp"
     printf "%%sam-root ALL=(ALL) ALL\\n" >> "${ROOT_FILE}.tmp"
     echo "--- ${ROOT_FILE} diff:"
-    diff -u "$ROOT_FILE" "${ROOT_FILE}.tmp" || true
+    diff -u "$ROOT_FILE" "${ROOT_FILE}.tmp" 2>/dev/null || diff -u /dev/null "${ROOT_FILE}.tmp" || true
     rm -f "${ROOT_FILE}.tmp"
 else
     printf "# ssh-access-manager - sam-root sudo rights\\n" > "${ROOT_FILE}.tmp"
@@ -935,6 +950,9 @@ def rotate_per_server_key(hostname: str, ip: str, port: int, server_id: str) -> 
     new_fingerprint = None
     client_old = None
     client_new = None
+    # True once authorized_keys holds the new key alone: past that point the
+    # old key is dead and the .new files are the only way back into the host.
+    remote_switched = False
 
     try:
         # Step 4: connect with current key
@@ -961,27 +979,34 @@ def rotate_per_server_key(hostname: str, ip: str, port: int, server_id: str) -> 
         # accumulated from previous (partial) rotations or from manual
         # operator additions would otherwise survive forever.
         _replace_authorized_keys_remote(client_new, new_pubkey)
+        remote_switched = True
         client_new.close()
         client_new = None
 
-        # Step 8: atomic file rotation
-        old_backup_path = current_key_path + ".old"
-        old_backup_pub_path = current_pubkey_path + ".old"
-
-        os.rename(current_key_path, old_backup_path)
-        os.rename(current_pubkey_path, old_backup_pub_path)
-        os.rename(new_key_path, current_key_path)
-        os.rename(new_pubkey_path, current_pubkey_path)
-
-        # Cleanup old backup
-        os.remove(old_backup_path)
-        os.remove(old_backup_pub_path)
+        # Step 8: move the new key onto the canonical path.
+        # os.replace overwrites atomically, so the canonical path is never
+        # missing and there is no backup left to clean up. The previous
+        # rename-to-.old dance had a window where a failure deleted the new
+        # private key while the old one was renamed away — with the host
+        # already accepting only the new key, that locked SAM out for good.
+        os.replace(new_key_path, current_key_path)
+        os.replace(new_pubkey_path, current_pubkey_path)
 
         # Step 9: compute and return new fingerprint
         new_fingerprint = _compute_pubkey_fingerprint(new_pubkey)
         return new_fingerprint
 
     except Exception as exc:
+        if remote_switched:
+            # authorized_keys already holds the new key alone. Removing it or
+            # deleting the .new files would leave no usable key at all, so
+            # everything stays where it is and the operator is told where.
+            raise SSHError(
+                f"Key rotation failed after {hostname} was switched to the new key: {exc}. "
+                f"The new key pair is kept at {new_key_path} and must not be deleted — "
+                f"move it to {current_key_path} to restore access."
+            )
+
         # Rollback: try to remove new pubkey from authorized_keys
         try:
             if client_new is None and os.path.isfile(current_key_path):
@@ -1085,8 +1110,16 @@ def _deploy_script(
 ) -> None:
     sftp.putfo(io.BytesIO(content), tmp_path)
     sftp.chmod(tmp_path, 0o600)
-    _run(client, f"sudo /usr/bin/install -m 750 -o root -g root {shlex.quote(tmp_path)} {shlex.quote(remote_path)}")
+    # The install exit code was dropped, so a sudoers rule that no longer
+    # matches, or a full disk, still ended with SCRIPT_DEPLOYED in the audit
+    # log while the host kept running the old script.
+    _, err, rc = _run(
+        client,
+        f"sudo /usr/bin/install -m 750 -o root -g root {shlex.quote(tmp_path)} {shlex.quote(remote_path)}",
+    )
     _run(client, f"rm -f {shlex.quote(tmp_path)}")
+    if rc != 0:
+        raise SSHError(f"Failed to install {remote_path}: {err.strip() or f'exit {rc}'}")
 
 
 def ensure_scripts(hostname: str, server_id: str, ip: str, port: int = 22, *, key_path: str) -> None:
@@ -1429,8 +1462,24 @@ def _fetch_host_key(ip: str, port: int, known_hosts_path: str | None = None) -> 
             t.close()
     host = f"[{ip}]:{port}" if port != 22 else ip
     path = known_hosts_path if known_hosts_path is not None else KNOWN_HOSTS
-    with open(path, "a") as fh:
-        fh.write(f"{host} {key.get_name()} {key.get_base64()}\n")
+    entry = f"{host} {key.get_name()} {key.get_base64()}\n"
+
+    # Replace the entries for this host instead of appending. Appending left
+    # the previous key valid alongside the new one, so a host key that changed
+    # between two provisionings was silently accepted under either — which is
+    # exactly what the pinning is meant to catch.
+    prefix = f"{host} "
+    try:
+        with open(path, "r") as fh:
+            kept = [line for line in fh if not line.startswith(prefix)]
+    except FileNotFoundError:
+        kept = []
+
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w") as fh:
+        fh.writelines(kept)
+        fh.write(entry)
+    os.replace(tmp_path, path)
 
 
 def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 22, pubkey: str = None) -> None:
