@@ -682,6 +682,11 @@ def set_key_expiry(
     """
     if unix_user == "root":
         raise UserError("Cannot set an expiry on root's SSH key — this would revoke root access automatically")
+    if unix_user == ssh.SSH_USER:
+        raise UserError(
+            f"Cannot set an expiry on the {ssh.SSH_USER} collector key — "
+            "expiring it would revoke SAM's own access to the server"
+        )
     _check_fingerprint(fingerprint)
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (fingerprint,))
     if not key:
@@ -699,8 +704,9 @@ def set_key_expiry(
     else:
         db.execute(
             "UPDATE key_authorizations SET expires_at = %s"
-            " WHERE key_id = %s AND status = 'ACTIVE' AND unix_user != 'root'",
-            (expires_at, key["id"]),
+            " WHERE key_id = %s AND status = 'ACTIVE'"
+            " AND unix_user != 'root' AND unix_user != %s",
+            (expires_at, key["id"], ssh.SSH_USER),
         )
 
 

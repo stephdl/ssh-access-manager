@@ -71,8 +71,9 @@ def expire_keys() -> int:
           AND ka.expires_at IS NOT NULL
           AND ka.expires_at <= now()
           AND ka.unix_user != 'root'
+          AND ka.unix_user != %s
         """,
-        (),
+        (ssh.SSH_USER,),
     )
     expired = 0
     for row in rows:
