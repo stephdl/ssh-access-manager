@@ -76,6 +76,17 @@ def _parse_key_line(line: str) -> dict | None:
     }
 
 
+def _client_error(exc: Exception) -> str:
+    """Message safe to hand back through the API.
+
+    Scan results are returned verbatim by /api/servers/<h>/scan, so they must
+    carry the exception's own message and not str(exc), which chains the
+    underlying cause and exposes internals. The audit log keeps the full text.
+    """
+    message = exc.args[0] if exc.args else getattr(exc, "error_code", "SCAN_FAILED")
+    return str(message)[:500]
+
+
 def scan_server(server: dict, admin_id: str | None = None) -> dict:
     """
     Scan one server: ensure scripts, collect keys, reconcile with DB.
@@ -93,7 +104,7 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
         key_path = ssh._resolve_key_path(server_id)
     except KeyError as exc:
         # No per-server key — admin must re-add this server
-        result["error"] = str(exc)
+        result["error"] = _client_error(exc)
         db.execute(
             """
             INSERT INTO audit_log (action, target_server, details)
@@ -158,7 +169,7 @@ def scan_server(server: dict, admin_id: str | None = None) -> dict:
 
         raw_lines = ssh.collect_keys(hostname, ip=ip, port=ssh_port, key_path=key_path)
     except Exception as exc:
-        result["error"] = str(exc)
+        result["error"] = _client_error(exc)
         db.execute(
             """
             INSERT INTO audit_log (action, target_server, details)

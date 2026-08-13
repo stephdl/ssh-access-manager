@@ -385,7 +385,7 @@ def add_server():
         return jsonify({
             "error": "SSH operation failed",
             "error_code": e.error_code,
-            "details": str(e)[:500],
+            "details": (e.args[0] if e.args else e.error_code)[:500],
         }), 422
 
 
@@ -410,7 +410,7 @@ def provision_server_route(hostname):
         return jsonify({
             "error": "SSH operation failed",
             "error_code": exc.error_code,
-            "details": str(exc)[:500],
+            "details": (exc.args[0] if exc.args else exc.error_code)[:500],
         }), 422
 
 
