@@ -303,16 +303,22 @@ jobs:
         # template variable not substituted, certificate generation step
         # skipped) would produce a different log shape.
         run: |
-          sleep 5
-          docker compose logs --no-color sam-server > /tmp/https-boot.log
-          for needle in \
-              "Self-signed TLS certificate generated" \
-              "Nginx configured with TLS on port 8443"; do
-              grep -F "$needle" /tmp/https-boot.log >/dev/null \
-                  || (echo "::error::missing log line: $needle"; \
-                      tail -80 /tmp/https-boot.log; exit 1)
+          # Poll instead of sleeping a fixed amount: the TLS lines are emitted
+          # at the very end of bootstrap, after the schema load and the initial
+          # administrator insert, so a flat sleep races the boot and fails with
+          # the log cut mid-bootstrap.
+          for _ in $(seq 1 60); do
+              docker compose logs --no-color sam-server > /tmp/https-boot.log
+              if grep -Fq "Self-signed TLS certificate generated" /tmp/https-boot.log \
+                 && grep -Fq "Nginx configured with TLS on port 8443" /tmp/https-boot.log; then
+                  echo "HTTPS boot log shape OK."
+                  exit 0
+              fi
+              sleep 1
           done
-          echo "HTTPS boot log shape OK."
+          echo "::error::missing TLS log lines after 60s"
+          tail -80 /tmp/https-boot.log
+          exit 1
 
       - name: '[HTTPS] Run smoke against https://'
         # The smoke script detects https:// in BASE_URL and adds curl -k
