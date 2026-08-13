@@ -20,7 +20,7 @@ RUN npm run build
 # -----------------------------------------------------------------------------
 # STAGE 2 — Image finale Alpine 3.23.4
 # -----------------------------------------------------------------------------
-FROM alpine:3.23.4
+FROM alpine:3.24.1
 
 # OCI image annotations (org.opencontainers.image.* — see spec v1.1)
 LABEL org.opencontainers.image.title="ssh-access-manager" \
