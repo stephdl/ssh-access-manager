@@ -2,6 +2,11 @@ name: CodeQL
 
 on:
   pull_request:
+  # Without this, alerts fixed by a merge stay open until the Monday scan:
+  # analysis is per-ref, and PR runs never update the main ref.
+  push:
+    branches:
+      - main
   schedule:
     - cron: '0 6 * * 1'
 
