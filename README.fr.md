@@ -5,6 +5,8 @@ Outil d'audit et de gestion des accès SSH dans un container Alpine Linux unique
 **Stack** : Python 3.12 · Flask · PostgreSQL 18 · Nginx · Vue.js 3 · vue-i18n · Supervisord · Alpine 3.23.4
 
 > 🇬🇧 An English version of this document is available in [README.md](README.md).
+>
+> 📦 Sur NethServer 8, cette application est empaquetée par le module [ns8-ssh-access-manager](https://github.com/stephdl/ns8-ssh-access-manager) : installez-le avec `add-module` plutôt que de suivre les instructions container ci-dessous.
 
 ---
 
@@ -136,7 +138,7 @@ Les durées sont des constantes dans `web.py` — pas de redémarrage nécessair
 
 SAM génère **une paire de clés SSH ed25519 distincte par serveur** (stockée dans `/data/keys/per-server/<uuid>.key{,.pub}`, chmod 600, propriétaire `nobody`, fichier anonyme — pas de commentaire SSH). La compromission d'une clé n'expose qu'un seul hôte, jamais l'ensemble du parc. Le mapping serveur ↔ clé est implicite via le nom de fichier (UUID v4 random) — **pas de fingerprint stocké en base**, pour qu'un vol de la BDD seule ne révèle aucune information cryptographique exploitable.
 
-Cinq workflows d'ajout, du plus simple au plus scriptable :
+Six workflows d'ajout, du plus simple au plus scriptable :
 
 ### A. UI, un serveur, avec mot de passe (le plus simple)
 
