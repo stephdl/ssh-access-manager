@@ -178,6 +178,16 @@ if [ -z "$TARGET_USER" ] || [ -z "$PUBKEY" ]; then
     exit 1
 fi
 
+# Same allowlist as sam-grant-group. Without it, the collector account,
+# which holds NOPASSWD sudo on this script, could add any user to any group
+# on the host, wheel included, straight out of SAM's group model.
+if [ -n "$TARGET_GROUP" ]; then
+    case "$TARGET_GROUP" in
+        sam-operator|sam-pkg|sam-root) ;;
+        *) echo "Error: group must be sam-operator, sam-pkg or sam-root" >&2; exit 1 ;;
+    esac
+fi
+
 TMPPASS=""
 if ! id "$TARGET_USER" >/dev/null 2>&1; then
     useradd -m -s /bin/bash "$TARGET_USER"
