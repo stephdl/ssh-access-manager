@@ -242,6 +242,12 @@ def auth_me():
     admin_id = session.get("admin_id")
     if not admin_id:
         return jsonify({"error": "Unauthorized"}), 401
+    # Same expiry check require_auth applies. Without it an expired session
+    # still described itself as valid, and the UI kept the user signed in.
+    expires_at = session.get("expires_at")
+    if expires_at and datetime.now(timezone.utc).timestamp() > expires_at:
+        session.clear()
+        return jsonify({"error": "Session expired"}), 401
     admin = db.query_one(
         "SELECT username, email, role, password_changed_at FROM administrators WHERE id = %s AND is_active = true",
         (admin_id,),
@@ -425,10 +431,17 @@ def update_server(hostname):
         return jsonify({"error": "max_sessions must be an integer"}), 400
     if max_sessions < 1:
         return jsonify({"error": "max_sessions must be at least 1"}), 400
+    # Both creation routes validate the port; the update route did not.
+    try:
+        ssh_port = int(data.get("ssh_port", 22))
+    except (TypeError, ValueError):
+        return jsonify({"error": "ssh_port must be an integer"}), 400
+    if not (1 <= ssh_port <= 65535):
+        return jsonify({"error": "ssh_port must be between 1 and 65535"}), 400
     try:
         updated = actions.update_server(
             hostname, data["ip"], data.get("environment") or None,
-            data.get("os_family"), data.get("ssh_port", 22), g.admin_id, max_sessions,
+            data.get("os_family"), ssh_port, g.admin_id, max_sessions,
             new_hostname=data.get("hostname"),
         )
         return jsonify({"message": "Server updated", "hostname": updated["hostname"]})

@@ -177,7 +177,10 @@
             &#x2715;
           </button>
         </div>
-        <p class="warn-text" v-html="$t('server_detail.delete_modal_warning', { hostname })"></p>
+        <p
+          class="warn-text"
+          v-html="$t('server_detail.delete_modal_warning', { hostname: escapeHtml(hostname) })"
+        ></p>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showDeleteModal = false">
             {{ $t('common.cancel') }}
@@ -635,6 +638,17 @@ async function scanServer() {
 const scanOk = computed(() => server.value?.last_scan_ok ?? null)
 
 const efp = (fp) => encodeURIComponent(fp)
+
+// The delete warning is rendered with v-html for its <strong> markup, so the
+// hostname interpolated into it must not carry any of its own.
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
 
 async function validateKey(key) {
   await apiAction(

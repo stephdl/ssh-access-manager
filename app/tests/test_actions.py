@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import actions
 import ssh
-from actions import UserError
+from actions import ForbiddenError, UserError
 
 
 ADMIN_ID = str(uuid.uuid4())
@@ -1013,15 +1013,39 @@ def test_actions_enable_admin_raises_if_not_found():
 
 def test_actions_delete_admin_removes_row():
     with patch("actions.db") as mock_db:
-        mock_db.query_one.return_value = {"id": ADMIN_ID}
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "role": "operator", "is_active": True}
         actions.delete_admin("someuser", ADMIN_ID)
+        sqls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert any("DELETE FROM administrators" in s for s in sqls)
+
+
+def test_actions_delete_admin_refuses_last_sysadmin():
+    """disable_admin already refuses it; delete left the instance orphaned."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": ADMIN_ID, "role": "sysadmin", "is_active": True},
+            {"n": 0},
+        ]
+        with pytest.raises(ForbiddenError, match="last active sysadmin"):
+            actions.delete_admin("admin", ADMIN_ID)
+        sqls = [c[0][0] for c in mock_db.execute.call_args_list]
+        assert not any("DELETE FROM administrators" in s for s in sqls)
+
+
+def test_actions_delete_admin_allows_sysadmin_when_another_remains():
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [
+            {"id": ADMIN_ID, "role": "sysadmin", "is_active": True},
+            {"n": 1},
+        ]
+        actions.delete_admin("admin", ADMIN_ID)
         sqls = [c[0][0] for c in mock_db.execute.call_args_list]
         assert any("DELETE FROM administrators" in s for s in sqls)
 
 
 def test_actions_delete_admin_logs_admin_deleted():
     with patch("actions.db") as mock_db:
-        mock_db.query_one.return_value = {"id": ADMIN_ID}
+        mock_db.query_one.return_value = {"id": ADMIN_ID, "role": "operator", "is_active": True}
         actions.delete_admin("someuser", ADMIN_ID)
         sqls = [c[0][0] for c in mock_db.execute.call_args_list]
         assert any("ADMIN_DELETED" in s for s in sqls)
@@ -1122,6 +1146,32 @@ def test_actions_deploy_key_success(sample_server, sample_key):
         assert result["hostname"] == sample_server["hostname"]
         assert result["expires_at"] is None
         mock_ssh.add_key_on_server.assert_called_once()
+
+
+@pytest.mark.parametrize("body", ["not!base64!", "AAAAB3NzaC1yc2E"])
+def test_actions_deploy_key_rejects_malformed_key_as_user_error(sample_server, body):
+    """Bad paste is bad input, not a server fault: it surfaced as a 500."""
+    with patch("actions.db"), patch("actions.ssh") as mock_ssh:
+        mock_ssh.SSH_USER = "audit-collector"
+        with pytest.raises(UserError, match="Invalid key format"):
+            actions.deploy_key(
+                public_key=f"ssh-rsa {body} someone@host",
+                unix_user="alice",
+                hostname=sample_server["hostname"],
+                expires_at=None,
+                justification="typo",
+                admin_id=ADMIN_ID,
+            )
+
+
+def test_actions_add_server_validates_the_hostname(sample_server):
+    """update_server validated it; the creation paths did not."""
+    with patch("actions.db"), patch("actions.ssh"):
+        with pytest.raises(UserError, match="Invalid hostname"):
+            actions.add_server(
+                "<img src=x onerror=alert(1)>", sample_server["ip_address"],
+                admin_id=ADMIN_ID,
+            )
 
 
 def test_actions_deploy_key_refuses_the_collector_account(sample_server, sample_key):
