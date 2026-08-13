@@ -12,6 +12,20 @@ if [ -z "${COLLECTOR_PUBKEY}" ]; then
     exit 1
 fi
 
+# 0. sudo is a hard requirement: every collector operation (sam-collect,
+# sam-revoke, sam-add, …) runs through `sudo` from the unprivileged
+# COLLECTOR_USER account. Without it the host can be provisioned but never
+# scanned, so refuse now with an actionable message instead of failing later.
+if ! command -v sudo >/dev/null 2>&1; then
+    printf "ERROR: 'sudo' is not installed on this host.\n" >&2
+    printf "%s needs sudo to run the sam-* helper scripts as root.\n" "${COLLECTOR_USER}" >&2
+    printf "Install it, then re-run SAM provisioning:\n" >&2
+    printf "    apt install sudo    # Debian/Ubuntu\n" >&2
+    printf "    dnf install sudo    # RHEL/Rocky/Fedora\n" >&2
+    printf "    apk add sudo        # Alpine\n" >&2
+    exit 1
+fi
+
 # 1. Create system user (without interactive shell)
 if ! id "${COLLECTOR_USER}" >/dev/null 2>&1; then
     useradd -r -m -s /bin/bash "${COLLECTOR_USER}"

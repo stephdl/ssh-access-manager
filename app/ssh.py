@@ -1494,14 +1494,23 @@ def provision_server(ip: str, ssh_user: str, ssh_password: str, ssh_port: int = 
         sftp.chmod("/tmp/sam-provision.sh", 0o700)
         sftp.close()
 
-        # Step 5 - execute via sudo -S (password on stdin)
-        cmd = (
-            f"sudo -S bash /tmp/sam-provision.sh "
-            f"{shlex.quote(pubkey)} {shlex.quote(SSH_USER)}"
-        )
+        # Step 5 - execute the script, escalating only when needed.
+        # Minimal images (Debian netinst, Alpine) often ship no sudo at all;
+        # wrapping in sudo there fails with exit 127 even though the SSH user
+        # is already root and needs no escalation.
+        _, id_out, _ = client.exec_command("id -u", timeout=15)
+        is_root = id_out.read().decode(errors="replace").strip() == "0"
+
+        script_args = f"{shlex.quote(pubkey)} {shlex.quote(SSH_USER)}"
+        if is_root:
+            cmd = f"bash /tmp/sam-provision.sh {script_args}"
+        else:
+            cmd = f"sudo -S bash /tmp/sam-provision.sh {script_args}"
+
         stdin, stdout, stderr = client.exec_command(cmd, timeout=60)
-        stdin.write(ssh_password + "\n")
-        stdin.flush()
+        if not is_root:
+            stdin.write(ssh_password + "\n")
+            stdin.flush()
         stdin.channel.shutdown_write()
 
         exit_code = stdout.channel.recv_exit_status()

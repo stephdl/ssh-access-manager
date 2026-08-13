@@ -1067,6 +1067,46 @@ def test_ssh_provision_server_success():
         mock_client.close.assert_called_once()
 
 
+def test_ssh_provision_server_root_skips_sudo():
+    """A root SSH user runs the script directly — minimal images ship no sudo."""
+    from unittest.mock import MagicMock, patch, mock_open
+
+    def mock_open_side_effect(filename, *args, **kwargs):
+        if filename == "/app/provision-host.sh":
+            return mock_open(read_data=b"#!/bin/sh\necho provisioned")()
+        return mock_open(read_data="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...")()
+
+    with patch("ssh._fetch_host_key"), \
+         patch("builtins.open", side_effect=mock_open_side_effect), \
+         patch("ssh.paramiko.SSHClient") as mock_cls, \
+         patch("ssh.paramiko.RejectPolicy"):
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+
+        id_stdout = MagicMock()
+        id_stdout.read.return_value = b"0\n"
+
+        run_stdin, run_stdout, run_stderr = MagicMock(), MagicMock(), MagicMock()
+        run_stdout.channel.recv_exit_status.return_value = 0
+        run_stderr.read.return_value = b""
+
+        def exec_command(cmd, **kwargs):
+            if cmd == "id -u":
+                return (MagicMock(), id_stdout, MagicMock())
+            return (run_stdin, run_stdout, run_stderr)
+
+        mock_client.exec_command.side_effect = exec_command
+        mock_client.open_sftp.return_value = MagicMock()
+
+        ssh.provision_server("192.168.1.10", "root", "password123", 22, pubkey="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTesting")
+
+        run_cmds = [c.args[0] for c in mock_client.exec_command.call_args_list if c.args[0] != "id -u"]
+        assert any(c.startswith("bash /tmp/sam-provision.sh") for c in run_cmds)
+        assert not any("sudo" in c for c in run_cmds)
+        # No password written to stdin: there is nothing to escalate to.
+        assert not run_stdin.write.called
+
+
 def test_ssh_provision_server_uses_paramiko_for_host_key():
     """provision_server calls _fetch_host_key instead of subprocess ssh-keyscan."""
     from unittest.mock import MagicMock, patch, mock_open
