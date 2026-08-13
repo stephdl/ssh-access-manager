@@ -880,7 +880,12 @@ def deploy_key(
         raise UserError(f"Unsupported key type: {key_type}")
 
     import base64, hashlib
-    raw = base64.b64decode(key_b64)
+    # A pasted key that is truncated or not valid base64 is bad input, not a
+    # server fault: without this it surfaced as a 500.
+    try:
+        raw = base64.b64decode(key_b64, validate=True)
+    except Exception:
+        raise UserError("Invalid key format: the key body is not valid base64")
     digest = hashlib.sha256(raw).digest()
     fingerprint = "SHA256:" + base64.b64encode(digest).decode().rstrip("=")
 
@@ -888,14 +893,19 @@ def deploy_key(
     if key_type == "ssh-rsa":
         # parse wire format to get exact modulus bit length
         import struct
-        data = base64.b64decode(key_b64)
         pos = 0
-        while pos < len(data):
-            (length,) = struct.unpack(">I", data[pos:pos+4])
-            pos += 4
-            field = data[pos:pos+length]
-            pos += length
-        key_size_bits = int.from_bytes(field, "big").bit_length()
+        field = None
+        try:
+            while pos < len(raw):
+                (length,) = struct.unpack(">I", raw[pos:pos+4])
+                pos += 4
+                field = raw[pos:pos+length]
+                pos += length
+            if field is None or pos != len(raw):
+                raise ValueError("truncated key")
+            key_size_bits = int.from_bytes(field, "big").bit_length()
+        except (struct.error, ValueError):
+            raise UserError("Invalid key format: truncated RSA key")
 
     server = db.query_one(
         "SELECT id, ip_address, ssh_port FROM servers WHERE hostname = %s AND is_active = true",
@@ -1180,6 +1190,10 @@ def add_server(
     """Add and provision a server atomically. Server is only created in DB if SSH provisioning succeeds."""
     import uuid
     import os
+    # update_server has always validated the hostname; the two creation paths
+    # did not, so anything could be stored and is rendered with v-html on the
+    # server detail page.
+    hostname = _validate_hostname(hostname)
     ip = _validate_ip(ip)
     env = _normalize_environment(env)
     existing = db.query_one(
@@ -1487,6 +1501,10 @@ def register_server(
     """
     import uuid
     import os
+    # update_server has always validated the hostname; the two creation paths
+    # did not, so anything could be stored and is rendered with v-html on the
+    # server detail page.
+    hostname = _validate_hostname(hostname)
     ip = _validate_ip(ip)
     env = _normalize_environment(env)
     existing = db.query_one(
@@ -1883,10 +1901,19 @@ def toggle_alerts(username: str, receive_alerts: bool) -> dict:
 def delete_admin(username: str, admin_id: str | None = None) -> None:
     """Permanently delete an admin. FK references in audit tables are set to NULL. Log ADMIN_DELETED."""
     admin = db.query_one(
-        "SELECT id FROM administrators WHERE username = %s", (username,)
+        "SELECT id, role, is_active FROM administrators WHERE username = %s", (username,)
     )
     if not admin:
         raise NotFoundError(f"Admin not found: {username}")
+    # disable_admin already refuses to remove the last sysadmin; deleting one
+    # outright left the instance with no account able to administer it.
+    if admin["role"] == "sysadmin" and admin["is_active"]:
+        other_sysadmins = db.query_one(
+            "SELECT COUNT(*) AS n FROM administrators WHERE role = 'sysadmin' AND is_active = true AND id != %s",
+            (admin["id"],),
+        )
+        if not other_sysadmins or other_sysadmins["n"] == 0:
+            raise ForbiddenError("Cannot delete last active sysadmin")
     db.execute(
         """
         INSERT INTO audit_log (action, performed_by, details)
