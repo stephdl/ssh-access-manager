@@ -861,6 +861,10 @@ def deploy_key(
     """
     if unix_user == "root":
         raise UserError("Cannot deploy a key for the root account")
+    if unix_user == ssh.SSH_USER:
+        # The collector account carries NOPASSWD sudo on sam-add and the rest
+        # of the sam-* helpers: a key deployed there is root on that host.
+        raise UserError(f"Cannot deploy a key for the {ssh.SSH_USER} collector account")
     if not _UNIX_USER_RE.match(unix_user):
         raise UserError(
             f"Invalid Unix username: '{unix_user}' "
@@ -1146,20 +1150,37 @@ def revoke_request(request_id: str, admin_id: str) -> None:
     if not req:
         raise NotFoundError(f"Request not found or not APPROVED: {request_id}")
 
+    # Scoped to the account the request was approved for. A global revoke here
+    # would strip the key from every account on the host, root and the
+    # collector included — the same accounts revoke_key refuses to touch.
+    unix_user = _resolve_authorization_user(req["key_id"], req["server_id"])
+    if unix_user == "root":
+        raise UserError(
+            "Cannot revoke the root account's SSH key — this would cause permanent loss of server access"
+        )
+    if unix_user == ssh.SSH_USER:
+        raise UserError(
+            f"Cannot revoke the {ssh.SSH_USER} collector key directly — "
+            "use the Rotate Collector Key button on the server detail page"
+        )
+
     key = db.query_one("SELECT fingerprint FROM ssh_keys WHERE id = %s", (req["key_id"],))
     if key:
         server = db.query_one("SELECT id, hostname, ip_address, ssh_port FROM servers WHERE id = %s", (req["server_id"],))
         if server:
             key_path = _get_key_path(server["id"])
-            ssh.revoke_on_server(server["hostname"], key["fingerprint"], ip=server["ip_address"], port=server["ssh_port"], key_path=key_path)
+            ssh.revoke_on_server(
+                server["hostname"], key["fingerprint"], ip=server["ip_address"],
+                unix_user=unix_user, port=server["ssh_port"], key_path=key_path,
+            )
 
     db.execute(
         """
         UPDATE key_authorizations
         SET status = 'REVOKED', revoked_at = now(), revoked_by = %s, revoked_automatically = false
-        WHERE key_id = %s AND server_id = %s
+        WHERE key_id = %s AND server_id = %s AND unix_user = %s
         """,
-        (admin_id, req["key_id"], req["server_id"]),
+        (admin_id, req["key_id"], req["server_id"], unix_user),
     )
     db.execute(
         "UPDATE access_requests SET status = 'EXPIRED' WHERE id = %s",
