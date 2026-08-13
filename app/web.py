@@ -653,7 +653,7 @@ def list_keys():
                ka.revoked_automatically, ka.revoked_by, ka.revoked_at,
                ka.revocation_justification, s.hostname AS server_hostname
         FROM ssh_keys sk
-        LEFT JOIN key_authorizations ka ON ka.key_id = sk.id
+        JOIN key_authorizations ka ON ka.key_id = sk.id
         LEFT JOIN servers s ON s.id = ka.server_id
         WHERE 1=1
     """

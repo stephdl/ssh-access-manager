@@ -1417,6 +1417,20 @@ def delete_server(hostname: str, admin_id: str | None = None) -> None:
     db.execute("DELETE FROM key_authorizations WHERE server_id = %s", (sid,))
     db.execute("DELETE FROM servers WHERE id = %s", (sid,))
 
+    # Keys known only through this server (its collector key, and any key that
+    # was never seen anywhere else) keep no authorization once the rows above
+    # are gone. Left behind they surface as rows with a null server, user and
+    # status. Keys still authorized on another server are untouched.
+    db.execute(
+        """
+        DELETE FROM ssh_keys sk
+        WHERE NOT EXISTS (
+            SELECT 1 FROM key_authorizations ka WHERE ka.key_id = sk.id
+        )
+        """,
+        (),
+    )
+
     # Cleanup per-server keypair files
     for ext in (".key", ".key.pub"):
         try:
