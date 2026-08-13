@@ -531,12 +531,63 @@ def test_actions_grant_access_returns_ids(sample_key, sample_server):
             {"id": KEY_ID},
             {"id": SERVER_ID},
         ]
+        mock_db.query.return_value = [{"unix_user": "alice"}]
         result = actions.grant_access(
             sample_key["fingerprint"], sample_server["hostname"],
             expires_at, "maintenance", ADMIN_ID,
         )
         assert result["key_id"] == KEY_ID
         assert result["server_id"] == SERVER_ID
+
+
+def test_actions_grant_access_infers_the_only_authorized_account(sample_key, sample_server):
+    """key_authorizations is keyed by account, and the payload carries none."""
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, {"id": SERVER_ID}]
+        mock_db.query.return_value = [{"unix_user": "alice"}]
+        actions.grant_access(
+            sample_key["fingerprint"], sample_server["hostname"],
+            _future(), "maintenance", ADMIN_ID,
+        )
+        insert = [c for c in mock_db.execute.call_args_list
+                  if "INSERT INTO key_authorizations" in c[0][0]][0]
+        assert "ON CONFLICT (key_id, server_id, unix_user)" in insert[0][0]
+        assert "alice" in insert[0][1]
+
+
+def test_actions_grant_access_needs_an_account_when_ambiguous(sample_key, sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, {"id": SERVER_ID}]
+        mock_db.query.return_value = [{"unix_user": "alice"}, {"unix_user": "bob"}]
+        with pytest.raises(UserError, match="alice, bob"):
+            actions.grant_access(
+                sample_key["fingerprint"], sample_server["hostname"],
+                _future(), "maintenance", ADMIN_ID,
+            )
+
+
+def test_actions_grant_access_needs_an_account_when_key_unknown(sample_key, sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, {"id": SERVER_ID}]
+        mock_db.query.return_value = []
+        with pytest.raises(UserError, match="not authorized on this server"):
+            actions.grant_access(
+                sample_key["fingerprint"], sample_server["hostname"],
+                _future(), "maintenance", ADMIN_ID,
+            )
+
+
+def test_actions_grant_access_uses_the_explicit_account(sample_key, sample_server):
+    with patch("actions.db") as mock_db:
+        mock_db.query_one.side_effect = [{"id": KEY_ID}, {"id": SERVER_ID}]
+        mock_db.query.return_value = [{"unix_user": "alice"}, {"unix_user": "bob"}]
+        actions.grant_access(
+            sample_key["fingerprint"], sample_server["hostname"],
+            _future(), "maintenance", ADMIN_ID, unix_user="bob",
+        )
+        insert = [c for c in mock_db.execute.call_args_list
+                  if "INSERT INTO key_authorizations" in c[0][0]][0]
+        assert "bob" in insert[0][1]
 
 
 def test_actions_grant_access_raises_if_server_not_found(sample_key):
@@ -557,10 +608,16 @@ def test_actions_approve_request_sets_approved_and_creates_auth():
     }
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = req
+        mock_db.query.return_value = [{"unix_user": "alice"}]
         actions.approve_request(REQUEST_ID, ADMIN_ID)
         calls = [c[0][0] for c in mock_db.execute.call_args_list]
         assert any("APPROVED" in c for c in calls)
         assert any("REQUEST_APPROVED" in c for c in calls)
+        insert = [c for c in mock_db.execute.call_args_list
+                  if "INSERT INTO key_authorizations" in c[0][0]][0]
+        # access_requests carries no account, so it comes from the authorizations
+        assert "ON CONFLICT (key_id, server_id, unix_user)" in insert[0][0]
+        assert "alice" in insert[0][1]
 
 
 def test_actions_approve_request_raises_if_not_pending():
@@ -577,6 +634,7 @@ def test_actions_approve_request_computes_expires_at_from_duration():
     }
     with patch("actions.db") as mock_db:
         mock_db.query_one.return_value = req
+        mock_db.query.return_value = [{"unix_user": "alice"}]
         actions.approve_request(REQUEST_ID, ADMIN_ID)
         update_params = mock_db.execute.call_args_list[0][0][1]
         assert update_params[1] is not None  # expires_at computed

@@ -749,12 +749,41 @@ def remove_key_expiry(
 # Temporary access
 # ---------------------------------------------------------------------------
 
+def _resolve_authorization_user(
+    key_id: str, server_id: str, unix_user: str | None = None
+) -> str:
+    """Pick which authorization row a grant or an approval applies to.
+
+    key_authorizations is keyed by (key_id, server_id, unix_user): one key can
+    be authorized for several accounts on the same server. Neither the grant
+    payload nor access_requests carries the account, so it is resolved from the
+    authorizations already recorded for that key on that server.
+    """
+    if unix_user:
+        return unix_user
+    rows = db.query(
+        "SELECT unix_user FROM key_authorizations WHERE key_id = %s AND server_id = %s",
+        (key_id, server_id),
+    )
+    if len(rows) == 1:
+        return rows[0]["unix_user"]
+    if not rows:
+        raise UserError(
+            "unix_user is required: this key is not authorized on this server yet"
+        )
+    users = ", ".join(sorted(r["unix_user"] for r in rows))
+    raise UserError(
+        f"unix_user is required: this key is authorized for several accounts ({users})"
+    )
+
+
 def grant_access(
     key_fp: str,
     hostname: str,
     expires_at: datetime,
     justification: str,
     admin_id: str,
+    unix_user: str | None = None,
 ) -> dict:
     """Create or update a key_authorization as ACTIVE for a given server."""
     key = db.query_one("SELECT id FROM ssh_keys WHERE fingerprint = %s", (key_fp,))
@@ -766,17 +795,19 @@ def grant_access(
     if not server:
         raise NotFoundError(f"Server not found: {hostname}")
 
+    unix_user = _resolve_authorization_user(key["id"], server["id"], unix_user)
+
     db.execute(
         """
-        INSERT INTO key_authorizations (key_id, server_id, authorized_by, status, expires_at)
-        VALUES (%s, %s, %s, 'ACTIVE', %s)
-        ON CONFLICT (key_id, server_id) DO UPDATE SET
+        INSERT INTO key_authorizations (key_id, server_id, unix_user, authorized_by, status, expires_at)
+        VALUES (%s, %s, %s, %s, 'ACTIVE', %s)
+        ON CONFLICT (key_id, server_id, unix_user) DO UPDATE SET
             status = 'ACTIVE',
             authorized_by = EXCLUDED.authorized_by,
             authorized_at = now(),
             expires_at = EXCLUDED.expires_at
         """,
-        (key["id"], server["id"], admin_id, expires_at),
+        (key["id"], server["id"], unix_user, admin_id, expires_at),
     )
     db.execute(
         """
@@ -1058,17 +1089,19 @@ def approve_request(request_id: str, admin_id: str) -> None:
         """,
         (admin_id, expires_at, request_id),
     )
+    unix_user = _resolve_authorization_user(req["key_id"], req["server_id"])
+
     db.execute(
         """
-        INSERT INTO key_authorizations (key_id, server_id, authorized_by, status, expires_at)
-        VALUES (%s, %s, %s, 'ACTIVE', %s)
-        ON CONFLICT (key_id, server_id) DO UPDATE SET
+        INSERT INTO key_authorizations (key_id, server_id, unix_user, authorized_by, status, expires_at)
+        VALUES (%s, %s, %s, %s, 'ACTIVE', %s)
+        ON CONFLICT (key_id, server_id, unix_user) DO UPDATE SET
             status = 'ACTIVE',
             authorized_by = EXCLUDED.authorized_by,
             authorized_at = now(),
             expires_at = EXCLUDED.expires_at
         """,
-        (req["key_id"], req["server_id"], admin_id, expires_at),
+        (req["key_id"], req["server_id"], unix_user, admin_id, expires_at),
     )
     db.execute(
         """

@@ -829,6 +829,7 @@ def grant_access():
         result = actions.grant_access(
             data["key_fp"], data["hostname"], expires_at,
             data.get("justification", ""), g.admin_id,
+            unix_user=(data.get("unix_user") or "").strip() or None,
         )
         result["expires_at"] = result["expires_at"].isoformat()
         return jsonify(result), 201
