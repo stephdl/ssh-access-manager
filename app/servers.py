@@ -18,9 +18,22 @@ def load_servers_yml(path: str = SERVERS_YML) -> list[dict]:
 
 
 def _hostname_in_known_hosts(hostname: str, known_hosts: str = KNOWN_HOSTS) -> bool:
+    """Match the host field, not a substring of the line.
+
+    A substring test made 192.168.1.1 look present as soon as 192.168.1.10
+    was known, so its host key was never fetched and every later connection
+    failed under RejectPolicy. It also matched inside the base64 key body.
+    """
     try:
         with open(known_hosts) as f:
-            return any(hostname in line for line in f)
+            for line in f:
+                fields = line.split()
+                if not fields or fields[0].startswith("#"):
+                    continue
+                # A single entry may list several comma-separated hosts.
+                if hostname in fields[0].split(","):
+                    return True
+        return False
     except FileNotFoundError:
         return False
 

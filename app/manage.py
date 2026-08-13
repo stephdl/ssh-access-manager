@@ -161,15 +161,23 @@ def servers_update(hostname, ip, env, os_family):
         raise click.UsageError("At least one parameter required: --ip, --env or --os")
     admin_id = _require_admin()
     try:
-        current = db.query_one("SELECT ip_address, environment, os_family FROM servers WHERE hostname = %s", (hostname,))
+        current = db.query_one(
+            "SELECT ip_address, environment, os_family, ssh_port, max_sessions"
+            " FROM servers WHERE hostname = %s",
+            (hostname,),
+        )
         if not current:
             raise click.ClickException(f"Server not found: {hostname}")
+        # Keyword arguments: admin_id used to land in ssh_port positionally,
+        # and max_sessions fell back to its default instead of the stored value.
         actions.update_server(
             hostname,
             ip or current["ip_address"],
             env or current["environment"],
             os_family if os_family is not None else current["os_family"],
-            admin_id,
+            ssh_port=current["ssh_port"],
+            admin_id=admin_id,
+            max_sessions=current["max_sessions"],
         )
         click.echo(f"Server {hostname} updated.")
     except (ValueError, UserError, NotFoundError) as e:
