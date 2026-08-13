@@ -1,34 +1,36 @@
 # ssh-access-manager
 
-Outil d'audit et de gestion des accès SSH dans un container Alpine Linux unique.
+SSH access auditing and management, in a single Alpine Linux container.
 
-**Stack** : Python 3.12 · Flask · PostgreSQL 18 · Nginx · Vue.js 3 · vue-i18n · Supervisord · Alpine 3.23.4
+**Stack**: Python 3.12 · Flask · PostgreSQL 18 · Nginx · Vue.js 3 · vue-i18n · Supervisord · Alpine 3.24.1
+
+> 🇫🇷 Une version française de ce document est disponible dans [README.fr.md](README.fr.md).
 
 ---
 
-## Installation et premier démarrage
+## Installation and first start
 
-### Prérequis
+### Requirements
 
-- Podman ou Docker
-- Un smarthost SMTP accessible (pour les alertes email)
+- Podman or Docker
+- A reachable SMTP smarthost (for email alerts)
 
-### 1. Cloner et configurer
+### 1. Clone and configure
 
 ```bash
 git clone https://github.com/stephdl/ssh-access-manager.git
 cd ssh-access-manager
 cp .env.example .env
-# Éditer .env avec vos valeurs
+# Edit .env with your own values
 ```
 
-### 2. Construire l'image
+### 2. Build the image
 
 ```bash
 podman build -t sam-server .
 ```
 
-### 3. Premier démarrage
+### 3. First start
 
 ```bash
 podman run -d \
@@ -39,49 +41,49 @@ podman run -d \
   sam-server
 ```
 
-Au premier démarrage, le container :
-1. Initialise PostgreSQL et applique le schéma SQL
-2. Crée le répertoire `/data/keys/per-server/` qui contiendra les paires de clés ED25519 générées **par serveur** (une par hôte ajouté)
-3. Insère l'administrateur initial (depuis `ADMIN_USERNAME` et `ADMIN_EMAIL`)
+On first start, the container:
+1. Initialises PostgreSQL and applies the SQL schema
+2. Creates `/data/keys/per-server/`, which will hold the ED25519 key pairs generated **per server** (one per host added)
+3. Inserts the initial administrator (from `ADMIN_USERNAME` and `ADMIN_EMAIL`)
 
-> **Per-server collector keys.** SAM ne génère plus de clé SSH globale. À l'ajout d'un serveur (UI ou CLI), une paire `<uuid>.key{,.pub}` est générée dans `/data/keys/per-server/`. La compromission d'une clé est ainsi cantonnée à un seul hôte. La pubkey d'un serveur est consultable depuis **ServerDetail** ou via `GET /api/servers/<hostname>/collector-key`.
+> **Per-server collector keys.** SAM no longer generates a global SSH key. When a server is added (UI or CLI), a `<uuid>.key{,.pub}` pair is generated in `/data/keys/per-server/`. A compromised key is therefore confined to a single host. A server's public key is available from **ServerDetail** or through `GET /api/servers/<hostname>/collector-key`.
 
-L'interface est accessible sur `http://localhost:8080`. Authentification par session Flask : utilisez les identifiants définis via `ADMIN_USERNAME` / `ADMIN_PASSWORD` au démarrage.
-
----
-
-## Interface utilisateur
-
-L'interface Vue.js 3 est disponible en **5 langues** : Français, Anglais, Espagnol, Italien, Allemand.
-
-La langue est détectée automatiquement depuis le navigateur, avec fallback sur l'anglais. Un sélecteur dans la barre de navigation permet de changer la langue manuellement (choix sauvegardé).
+The interface is served on `http://localhost:8080`. Authentication uses a Flask session: sign in with the credentials set through `ADMIN_USERNAME` / `ADMIN_PASSWORD` at startup.
 
 ---
 
-## Rôles et permissions
+## User interface
 
-Trois rôles sont disponibles pour les administrateurs :
+The Vue.js 3 interface is available in **5 languages**: French, English, Spanish, Italian, German.
 
-| Rôle | Droits |
+The language is detected from the browser, falling back to English. A selector in the navigation bar switches it manually, and the choice is remembered.
+
+---
+
+## Roles and permissions
+
+Three administrator roles are available:
+
+| Role | Rights |
 |---|---|
-| `sysadmin` | Accès complet : gestion des administrateurs, des serveurs, des clés SSH, des accès et de la configuration système |
-| `operator` | Actions SSH : valider, révoquer, déployer des clés, verrouiller/déverrouiller des comptes Unix, lancer des scans |
-| `viewer` | Lecture seule : consultation de toutes les vues sans possibilité d'action |
+| `sysadmin` | Full access: administrators, servers, SSH keys, access and system configuration |
+| `operator` | SSH actions: validate, revoke and deploy keys, lock/unlock Unix accounts, run scans |
+| `viewer` | Read-only: every view is visible, no action is possible |
 
-Le rôle est vérifié **côté backend** (Flask retourne 403 pour les requêtes non autorisées) **et côté frontend** (boutons et formulaires masqués selon le rôle).
+The role is enforced **in the backend** (Flask returns 403 for unauthorised requests) **and in the frontend** (buttons and forms are hidden according to the role).
 
-Un `sysadmin` ne peut pas modifier son propre rôle. Un email est obligatoire à la création.
+A `sysadmin` cannot change their own role. An email address is mandatory at creation.
 
-### Permissions par catégorie
+### Permissions by category
 
-| Catégorie | sysadmin | operator | viewer |
+| Category | sysadmin | operator | viewer |
 |-----------|----------|----------|--------|
-| Lecture (GET — toutes les ressources) | ✓ | ✓ | ✓ |
-| Actions SSH (valider/révoquer clés, scans, déploiement, lock/unlock) | ✓ | ✓ | ✗ |
-| Administration système (serveurs, admins, configuration) | ✓ | ✗ | ✗ |
-| Changement de son propre mot de passe | ✓ | ✓ | ✓ |
+| Read (GET — every resource) | ✓ | ✓ | ✓ |
+| SSH actions (validate/revoke keys, scans, deployment, lock/unlock) | ✓ | ✓ | ✗ |
+| System administration (servers, admins, configuration) | ✓ | ✗ | ✗ |
+| Changing one's own password | ✓ | ✓ | ✓ |
 
-Pour créer un administrateur avec un rôle spécifique (défaut : `operator`) :
+To create an administrator with a specific role (default: `operator`):
 
 ```bash
 $EXEC admin add --username alice --email alice@example.com --password SECRET --role operator
@@ -90,69 +92,69 @@ $EXEC admin update alice --role viewer
 
 ---
 
-## Sécurité — Protection contre les attaques par force brute
+## Security — brute-force protection
 
-Le système intègre une protection contre les tentatives de connexion répétées. En cas de multiples échecs de connexion depuis la même adresse IP, celle-ci est temporairement bannie.
+The system protects against repeated login attempts. After several failures from the same IP address, that address is temporarily banned.
 
-### Fonctionnement
+### How it works
 
-- **Limite de tentatives** : après N échecs de connexion consécutifs, l'IP est bloquée pour M secondes
-- **Réponse HTTP** : `429 Too Many Requests` pendant la durée du bannissement
-- **Configuration** : les deux paramètres sont modifiables à chaud via **Settings → Security** (rôle `sysadmin` requis)
-  - `login_max_attempts` (défaut : 10) — nombre d'échecs avant bannissement
-  - `login_ban_seconds` (défaut : 300) — durée du bannissement en secondes
-- **Aucun redémarrage** : les modifications prennent effet immédiatement
+- **Attempt limit**: after N consecutive failed logins, the IP is blocked for M seconds
+- **HTTP response**: `429 Too Many Requests` for the duration of the ban
+- **Configuration**: both parameters are changed at runtime through **Settings → Security** (`sysadmin` role required)
+  - `login_max_attempts` (default: 10) — failures before a ban
+  - `login_ban_seconds` (default: 300) — ban duration in seconds
+- **No restart**: changes take effect immediately
 
-### Logs stdout — intégration fail2ban / CrowdSec
+### stdout logs — fail2ban / CrowdSec integration
 
-Chaque tentative de connexion échouée et chaque bannissement sont tracés dans stdout (visibles via `podman logs`) au format suivant :
+Every failed login and every ban is written to stdout (visible through `podman logs`) in this format:
 
 ```
 [LOGIN_FAILED] ip=1.2.3.4 username=admin
 [LOGIN_BANNED] ip=1.2.3.4 username=admin ban_seconds=300
 ```
 
-Ces logs structurés facilitent l'intégration avec des systèmes de détection d'intrusion comme **fail2ban** ou **CrowdSec** pour appliquer des règles de bannissement au niveau du pare-feu système.
+These structured logs make it straightforward to plug in an intrusion detection system such as **fail2ban** or **CrowdSec** and apply the ban at the host firewall level.
 
 ---
 
-## Gestion de session
+## Session handling
 
-La durée de session est contrôlée par une checkbox sur la page de connexion :
+Session lifetime is controlled by a checkbox on the login page:
 
-| Mode | Durée |
-|------|-------|
-| Sans coche | 30 minutes |
-| "Keep me logged on this device" | 8 heures |
+| Mode | Lifetime |
+|------|---------|
+| Unchecked | 30 minutes |
+| "Keep me logged on this device" | 8 hours |
 
-À l'expiration, les routes protégées retournent HTTP 401 et l'UI redirige vers `/login`.
-Les durées sont des constantes dans `web.py` — pas de redémarrage nécessaire pour les modifier en dev.
+Once expired, protected routes return HTTP 401 and the UI redirects to `/login`.
+The durations are constants in `web.py` — no restart is needed to change them in development.
 
 ---
 
-## Workflow — Ajout d'un serveur distant
+## Workflow — adding a remote server
 
-SAM génère **une paire de clés SSH ed25519 distincte par serveur** (stockée dans `/data/keys/per-server/<uuid>.key{,.pub}`, chmod 600, propriétaire `nobody`, fichier anonyme — pas de commentaire SSH). La compromission d'une clé n'expose qu'un seul hôte, jamais l'ensemble du parc. Le mapping serveur ↔ clé est implicite via le nom de fichier (UUID v4 random) — **pas de fingerprint stocké en base**, pour qu'un vol de la BDD seule ne révèle aucune information cryptographique exploitable.
+SAM generates **a distinct ed25519 SSH key pair per server** (stored in `/data/keys/per-server/<uuid>.key{,.pub}`, chmod 600, owned by `nobody`, with no SSH comment). A compromised key exposes one host, never the whole estate. The server ↔ key mapping is implicit in the file name (random UUID v4) — **no fingerprint is stored in the database**, so stealing the database alone reveals nothing cryptographically useful.
 
-Cinq workflows d'ajout, du plus simple au plus scriptable :
+Five ways to add a server, from the simplest to the most scriptable:
 
-### A. UI, un serveur, avec mot de passe (le plus simple)
+### A. UI, one server, with a password (simplest)
 
-Dashboard → bouton **+ Ajouter un serveur** → remplir :
+Dashboard → **+ Add server** → fill in:
 
-| Champ | Obligatoire | Description |
+| Field | Required | Description |
 |---|---|---|
-| Hostname | ✓ | Nom RFC 1123 (`server-01`, `web.prod.example.com`) |
-| Adresse IP | ✓ | IPv4 ou IPv6 — doit être unique dans SAM |
-| Utilisateur SSH | ✓ | Compte avec sudo (`root` ou tout compte `sudo ALL`) |
-| Mot de passe SSH | ✓ | Utilisé **une seule fois** pour le provisionnement — jamais stocké en base |
-| Port SSH | — | Défaut : 22 |
-| Environnement | — | `production` / `staging` / `lab` — modifiable ultérieurement |
-| OS | — | Famille d'OS (`rhel`, `debian`…) — modifiable ultérieurement |
+| Hostname | ✓ | RFC 1123 name (`server-01`, `web.prod.example.com`) |
+| IP address | ✓ | IPv4 or IPv6 — must be unique within SAM |
+| SSH user | ✓ | An account with sudo (`root`, or any `sudo ALL` account) |
+| SSH password | ✓ | Used **once** for provisioning — never stored |
+| SSH port | — | Default: 22 |
+| Environment | — | `production` / `staging` / `lab` — changeable later |
+| OS | — | OS family (`rhel`, `debian`…) — changeable later |
 
-À la soumission, SAM : (1) génère la per-server keypair, (2) ouvre une session SSH avec le password, (3) pousse `provision-host.sh` qui crée l'utilisateur `audit-collector`, déploie la pubkey, configure sudoers + groupes SAM + drop-in sshd, (4) INSERT en base avec `is_provisioned=TRUE`, (5) **lance un scan automatique** en arrière-plan (fire-and-forget) pour collecter immédiatement les `authorized_keys` existants. Si le SSH échoue, **aucune donnée n'est écrite**.
+On submit, SAM: (1) generates the per-server key pair, (2) opens an SSH session with the password, (3) pushes `provision-host.sh`, which creates the `audit-collector` user, deploys the public key and configures sudoers, the SAM groups and the sshd drop-in, (4) INSERTs into the database with `is_provisioned=TRUE`, (5) **runs an automatic scan** in the background (fire-and-forget) to collect the existing `authorized_keys` right away. If SSH fails, **nothing is written**.
 
-### B. CLI, un serveur, avec mot de passe
+### B. CLI, one server, with a password
 
 ```bash
 podman exec sam-server python3 /app/app/manage.py servers add \
@@ -161,33 +163,33 @@ podman exec sam-server python3 /app/app/manage.py servers add \
     [--env production] [--os rhel] [--port 22]
 ```
 
-Si `--ssh-password` est absent, il est demandé en interactif (`hide_input=True`). Le scan initial est **synchrone** depuis la CLI (le process meurt sinon avant la fin du thread) — la commande retourne après le scan, typiquement 3–5 sec.
+If `--ssh-password` is omitted, it is prompted for interactively (`hide_input=True`). The initial scan is **synchronous** from the CLI (the process would otherwise die before the thread finishes) — the command returns after the scan, typically 3–5 s.
 
-### C. CLI, un serveur, sans mot de passe (votre propre clé SSH root)
+### C. CLI, one server, without a password (your own root SSH key)
 
-Workflow 3 étapes — utile quand SAM ne doit jamais voir vos credentials :
+A three-step workflow, useful when SAM must never see your credentials:
 
 ```bash
 HOSTNAME=server-prod-01
 IP=192.168.1.10
 
-# 1. register — génère la per-server keypair, INSERT avec is_provisioned=FALSE
+# 1. register — generates the per-server key pair, INSERTs with is_provisioned=FALSE
 podman exec sam-server python3 /app/app/manage.py servers register \
     --hostname "$HOSTNAME" --ip "$IP"
 
-# 2. push la per-server pubkey avec VOTRE clé SSH root
+# 2. push the per-server public key using YOUR root SSH key
 PUB=$(podman exec sam-server python3 /app/app/manage.py servers show "$HOSTNAME" --pubkey)
 ssh root@"$IP" "sudo bash -s '$PUB' 'audit-collector'" \
     < <(podman exec sam-server cat /app/provision-host.sh)
 
-# 3. activate — vérifie connectivité avec la per-server key, passe is_provisioned=TRUE,
-#    déclenche un scan initial synchrone
+# 3. activate — checks connectivity with the per-server key, sets is_provisioned=TRUE,
+#    and triggers a synchronous initial scan
 podman exec sam-server python3 /app/app/manage.py servers activate "$HOSTNAME"
 ```
 
-### D. CLI, plusieurs serveurs en bulk, avec mot de passe
+### D. CLI, several servers in bulk, with a password
 
-Si tous les serveurs partagent le **même** mot de passe root (cas image cloud-init / Ansible fresh) :
+When every server shares the **same** root password (fresh cloud-init / Ansible images):
 
 ```bash
 PASS='SECRET'
@@ -198,9 +200,9 @@ for ip in 192.168.1.{10..15}; do
 done
 ```
 
-Pour des mots de passe différents par hôte, scripte une boucle qui lit un fichier `ip:password` ou un coffre (vault, pass, sops…) — le password n'est passé qu'en argument CLI, jamais persisté.
+For per-host passwords, script a loop reading an `ip:password` file or a vault (vault, pass, sops…) — the password is only ever a CLI argument, never persisted.
 
-### E. CLI, plusieurs serveurs en bulk, sans mot de passe (cloud-init / clé pré-déployée)
+### E. CLI, several servers in bulk, without a password (cloud-init / pre-deployed key)
 
 ```bash
 for ip in 192.168.1.{10..15}; do
@@ -208,144 +210,144 @@ for ip in 192.168.1.{10..15}; do
   # register
   podman exec sam-server python3 /app/app/manage.py servers register \
       --hostname "$hostname" --ip "$ip"
-  # push avec votre clé root
+  # push using your root key
   PUB=$(podman exec sam-server python3 /app/app/manage.py servers show "$hostname" --pubkey)
   ssh root@"$ip" "sudo bash -s '$PUB' 'audit-collector'" \
       < <(podman exec sam-server cat /app/provision-host.sh)
-  # activate (scan initial inclus)
+  # activate (initial scan included)
   podman exec sam-server python3 /app/app/manage.py servers activate "$hostname"
 done
 ```
 
-Parallélisable avec GNU `parallel`, Ansible (`ansible -m shell`), ou tout outil de CM.
+Parallelisable with GNU `parallel`, Ansible (`ansible -m shell`), or any configuration management tool.
 
-### F. Déclaratif via `servers.yml` (legacy — manuel)
+### F. Declarative through `servers.yml` (legacy — manual)
 
 ```yaml
 # /data/config/servers.yml
 servers:
   - hostname: server-prod-01
     ip: 192.168.1.10
-    environment: production   # optionnel
-    os_family: rhel           # optionnel
+    environment: production   # optional
+    os_family: rhel           # optional
 ```
 
-Cette méthode crée l'entrée en base sans provisionnement SSH automatique — équivalent d'un `register` manuel. Il faut ensuite déployer la pubkey et activer comme dans le workflow **C** ci-dessus.
+This method creates the database entry without automatic SSH provisioning — the equivalent of a manual `register`. You then deploy the public key and activate as in workflow **C** above.
 
 ---
 
 ### Provisioning script — interface
 
-`provision-host.sh` accepte deux arguments positionnels :
+`provision-host.sh` takes two positional arguments:
 
 ```bash
 sudo bash provision-host.sh <pubkey> <collector_user>
 ```
 
-Le script est **idempotent** : il peut être rejoué sans risque (rebuild SAM, rotation de clé, mise à jour des règles sudoers). Le bouton **Re-provision** sur la vue détail d'un serveur (rôle `sysadmin`) l'invoque depuis SAM avec saisie d'un nouveau mot de passe SSH ; le snippet manuel est également affiché dans le bloc dépliable **« Provision with your own SSH credentials »** sur chaque ServerDetail.
+The script is **idempotent**: it can be replayed safely (SAM rebuild, key rotation, sudoers rule updates). The **Re-provision** button on a server's detail view (`sysadmin` role) invokes it from SAM after asking for a new SSH password; the manual snippet is also shown in the collapsible **"Provision with your own SSH credentials"** block on every ServerDetail.
 
-> **Note** : Les connexions SSH utilisent toujours l'adresse IP déclarée, jamais la résolution DNS, pour éviter les ambiguïtés réseau et les bans CrowdSec/fail2ban.
-
----
-
-### Rotation manuelle de la clé per-server
-
-Depuis **ServerDetail** (rôle `sysadmin`), le bouton **Rotate collector key** (teal) déclenche une rotation **atomique avec rollback** :
-
-1. Génère un nouveau keypair `<uuid>.key.new` localement
-2. SSH avec l'ancienne clé, append la nouvelle pubkey à `~audit-collector/.ssh/authorized_keys`
-3. Re-connecte avec la **nouvelle** clé pour vérifier
-4. SSH une dernière fois pour retirer l'ancienne pubkey distante
-5. Renomme les fichiers locaux (`.new` → courant, ancien supprimé)
-
-À toute étape, en cas d'échec, l'ancienne clé reste seule active et un audit `COLLECTOR_KEY_ROTATION_FAILED` est écrit (avec le message d'erreur, sans hostname/IP pour minimiser l'info disponible). Le succès écrit `COLLECTOR_KEY_ROTATED` avec le nouveau fingerprint.
+> **Note**: SSH connections always use the declared IP address, never DNS resolution, to avoid network ambiguity and CrowdSec/fail2ban bans.
 
 ---
 
-### Renommage d'un serveur
+### Manual per-server key rotation
 
-Depuis **ServerDetail** (rôle `sysadmin`) → bouton **Edit** → champ Hostname éditable. Le formulaire :
+From **ServerDetail** (`sysadmin` role), the **Rotate collector key** button (teal) performs an **atomic rotation with rollback**:
 
-- Valide le nouveau nom (RFC 1123)
-- Refuse si le nouveau nom est déjà utilisé par un autre serveur
+1. Generates a new key pair `<uuid>.key.new` locally
+2. Connects with the old key and appends the new public key to `~audit-collector/.ssh/authorized_keys`
+3. Reconnects with the **new** key to verify it works
+4. Connects once more to remove the old public key from the remote host
+5. Moves the new key onto the canonical path atomically (`os.replace`), leaving no backup to clean up
 
-Après save, l'UI redirige vers `/servers/<nouveau-hostname>` (le component remount proprement). Un audit `SERVER_RENAMED` enregistre `{old_hostname, new_hostname}` avec l'admin et l'horodatage.
-
-**À propos de l'historique d'audit après renommage**. Trois sources coexistent et chacune répond à une question :
-
-1. La colonne **SERVER** dans la vue Audit affiche toujours le hostname **courant** (JOIN SQL sur l'UUID `target_server`). Un audit qui pointerait vers un nom obsolète serait cassé.
-2. Le champ **`details` JSONB** de chaque entrée garde le hostname **figé au moment de l'événement** (ex : `SCAN_COMPLETED → {hostname: "srv-12-119"}`). Le code ne réécrit jamais l'audit.
-3. Les entrées **`SERVER_RENAMED`** permettent de reconstruire toute la timeline des renommages.
-
-Croiser le `details` d'une entrée avec la chronologie des `SERVER_RENAMED` reconstruit précisément sous quel nom le serveur était connu à un instant T.
+Up to step 4, any failure leaves the old key as the only active one and writes a `COLLECTOR_KEY_ROTATION_FAILED` audit entry (with the error message, without hostname or IP, to keep the exposed information minimal). Past step 4 the host only accepts the new key, so a failure there keeps the new key pair in place and reports where to find it rather than deleting it. Success writes `COLLECTOR_KEY_ROTATED` with the new fingerprint.
 
 ---
 
-## Workflow — Gestion du cycle de vie d'un serveur
+### Renaming a server
 
-Depuis la vue détail d'un serveur (**Dashboard > clic sur hostname**) :
+From **ServerDetail** (`sysadmin` role) → **Edit** → the Hostname field is editable. The form:
 
-| Action | Effet |
+- Validates the new name (RFC 1123)
+- Refuses a name already used by another server
+
+After saving, the UI redirects to `/servers/<new-hostname>` (the component remounts cleanly). A `SERVER_RENAMED` audit entry records `{old_hostname, new_hostname}` with the administrator and the timestamp.
+
+**About audit history after a rename.** Three sources coexist, each answering a different question:
+
+1. The **SERVER** column in the Audit view always shows the **current** hostname (SQL JOIN on the `target_server` UUID). An audit entry pointing at an obsolete name would be broken.
+2. The **`details` JSONB** field of each entry keeps the hostname **frozen at the time of the event** (e.g. `SCAN_COMPLETED → {hostname: "srv-12-119"}`). The code never rewrites audit rows.
+3. The **`SERVER_RENAMED`** entries let you reconstruct the whole rename timeline.
+
+Cross-referencing an entry's `details` with the chronology of `SERVER_RENAMED` tells you exactly which name the server went by at any point in time.
+
+---
+
+## Workflow — server lifecycle
+
+From a server's detail view (**Dashboard > click the hostname**):
+
+| Action | Effect |
 |---|---|
-| **Scan** | Lance un scan immédiat (ne pas attendre le cycle cron). |
-| **Edit** | Modifie hostname, IP, environnement, OS, port SSH ou `max_sessions` (rôle `sysadmin`). Renommer émet un audit `SERVER_RENAMED` et redirige l'UI. |
-| **Disable** | Le serveur n'est plus scanné automatiquement. Indicateur rouge sur Dashboard et bandeau rouge dans ServerDetail. |
-| **Re-provision** | Rejoue `provision-host.sh` à distance avec un nouveau mot de passe (rôle `sysadmin`, serveur actif) — utile après rebuild SAM ou changement de contrat sudoers. |
-| **Rotate collector key** | Génère une nouvelle per-server keypair, la déploie et retire l'ancienne — opération atomique avec rollback (rôle `sysadmin`, serveur actif et provisioned). |
-| **Delete** | Suppression définitive du serveur, de toutes ses clés, autorisations, sessions et de sa per-server keypair (action irréversible). |
+| **Scan** | Runs a scan immediately, without waiting for the cron cycle. |
+| **Edit** | Changes hostname, IP, environment, OS, SSH port or `max_sessions` (`sysadmin` role). A rename emits a `SERVER_RENAMED` audit entry and redirects the UI. |
+| **Disable** | The server is no longer scanned automatically. Red indicator on the Dashboard, red banner in ServerDetail. |
+| **Re-provision** | Replays `provision-host.sh` remotely with a new password (`sysadmin` role, active server) — useful after a SAM rebuild or a change to the sudoers contract. |
+| **Rotate collector key** | Generates a new per-server key pair, deploys it and removes the old one — atomic with rollback (`sysadmin` role, server active and provisioned). |
+| **Delete** | Permanently removes the server, all its keys, authorizations and sessions, and its per-server key pair (irreversible). |
 
 ---
 
-## Workflow — Premier scan
+## Workflow — first scan
 
 ```bash
-# Scan de tous les serveurs actifs
+# Scan every active server
 podman exec sam-server python3 /app/app/manage.py servers scan
 
-# Ou via l'interface web : Dashboard > "Scanner maintenant"
-# Ou via la vue détail d'un serveur : bouton "Scanner"
+# Or from the web interface: Dashboard > "Scan now"
+# Or from a server's detail view: "Scan" button
 ```
 
-Lors du premier scan :
-- Les scripts `sam-collect` et `sam-revoke` sont déployés sur chaque hôte (via SFTP, hash SHA256 vérifié)
-- Toutes les clés présentes dans `authorized_keys` sont importées avec le statut `PENDING_REVIEW`
-- Une alerte email CRITIQUE est envoyée pour chaque clé inconnue détectée
+On the first scan:
+- The `sam-collect` and `sam-revoke` scripts are deployed to each host (over SFTP, SHA256 hash verified)
+- Every key present in `authorized_keys` is imported with the `PENDING_REVIEW` status
+- A CRITICAL email alert is sent for each unknown key found
 
-Si le scan d'un serveur échoue (SSH injoignable, sudo manquant, timeout…), le serveur passe en statut **Scan Failed** :
-- Indicateur 🟠 visible dans le tableau de bord (badge orange)
-- Bandeau orange en haut de la vue détail du serveur
-- Les boutons **Valider** et **Révoquer** sont désactivés jusqu'au prochain scan réussi
-- Une alerte email CRITIQUE est envoyée
+If a server's scan fails (SSH unreachable, sudo missing, timeout…), the server moves to **Scan Failed**:
+- 🟠 indicator in the dashboard (orange badge)
+- Orange banner at the top of the server detail view
+- The **Validate** and **Revoke** buttons are disabled until the next successful scan
+- A CRITICAL email alert is sent
 
 ---
 
-## Mettre à jour SAM
+## Updating SAM
 
-Quand vous mettez à jour SAM (rebuild de l'image, bump de version), trois cas de figure selon le contenu de la mise à jour.
+When you update SAM (image rebuild, version bump), there are three cases depending on what the update contains.
 
-### 1. Mise à jour transparente (cas le plus fréquent)
+### 1. Transparent update (most common)
 
-La plupart des releases ne modifient que la couche applicative Python ou le frontend Vue. Aucun changement côté hôtes gérés, rien à faire — il suffit de redémarrer le container SAM avec la nouvelle image.
+Most releases only touch the Python application layer or the Vue frontend. Nothing changes on the managed hosts and there is nothing to do — restart the SAM container with the new image.
 
-### 2. Mise à jour des scripts SAM_* (sam-collect, sam-revoke, sam-self-update, etc.)
+### 2. Updating the SAM_* scripts (sam-collect, sam-revoke, sam-self-update, etc.)
 
-Si la nouvelle version modifie un script `SAM_*` déployé sur les hôtes (constantes `bytes` dans `app/ssh.py`), `ensure_scripts()` s'en rend compte au prochain scan en comparant les hashes SHA256 et redéploie automatiquement le script via SFTP + `sudo install -m 750`. Visible dans la vue Audit comme `SCRIPT_DEPLOYED`. **Aucune action admin requise.**
+If the new version changes a `SAM_*` script deployed on the hosts (the `bytes` constants in `app/ssh.py`), `ensure_scripts()` notices at the next scan by comparing SHA256 hashes and redeploys the script over SFTP + `sudo install -m 750`. Visible in the Audit view as `SCRIPT_DEPLOYED`. **No administrator action required.**
 
-### 3. Mise à jour du contrat sudoers ou sshd posé par provision-host.sh
+### 3. Updating the sudoers or sshd contract laid down by provision-host.sh
 
-Si la nouvelle version étend `provision-host.sh` (nouvelle règle sudoers, nouveau groupe Unix, durcissement du drop-in sshd…), les serveurs déjà provisionnés ne se mettent **pas** à jour automatiquement. Ils sont signalés par le badge **« Reprovisionnement requis »** sur le Dashboard et listent une entrée `PROVISION_UPDATE_FAILED` dans l'audit log.
+If the new version extends `provision-host.sh` (a new sudoers rule, a new Unix group, a hardened sshd drop-in…), servers already provisioned do **not** update themselves. They are flagged with the **"Reprovisioning required"** badge on the Dashboard and show a `PROVISION_UPDATE_FAILED` entry in the audit log.
 
-**Pourquoi** : `audit-collector` n'a pas le droit de réécrire son propre fichier sudoers (par design — sinon une compromission de la clé donnerait root illimité). Une intervention root sur chaque serveur concerné est nécessaire **une seule fois** ; ensuite `sam-self-update` prend le relais automatiquement à chaque scan.
+**Why**: `audit-collector` is not allowed to rewrite its own sudoers file, by design — otherwise compromising the key would grant unlimited root. A root intervention on each affected server is needed **once**; after that `sam-self-update` takes over automatically at every scan.
 
-Deux voies pour ce re-provisioning :
+Two ways to re-provision:
 
-**Option A — Via l'interface web (pratique pour ~5 serveurs)**
+**Option A — from the web interface (practical for ~5 servers)**
 
-Dashboard → cliquer sur le hostname → bouton **Re-provisionner** (rôle `sysadmin` requis). Le formulaire demande le mot de passe SSH root, qui sert une fois pour rejouer `provision-host.sh` puis n'est jamais stocké.
+Dashboard → click the hostname → **Re-provision** (`sysadmin` role required). The form asks for the root SSH password, which is used once to replay `provision-host.sh` and is never stored.
 
-**Option B — Scripté avec vos propres credentials (pour 50+ serveurs)**
+**Option B — scripted with your own credentials (for 50+ servers)**
 
-Si vous avez déjà une clé SSH d'admin déployée sur vos serveurs, vous pouvez rejouer `provision-host.sh` sans passer par l'UI ni saisir aucun mot de passe :
+If you already have an administrator SSH key deployed on your servers, you can replay `provision-host.sh` without going through the UI and without typing any password:
 
 ```bash
 for ip in 192.168.1.10 192.168.1.11 192.168.1.12; do
@@ -357,210 +359,210 @@ for ip in 192.168.1.10 192.168.1.11 192.168.1.12; do
 done
 ```
 
-Cette commande SSH-e avec **votre** clé / ssh-agent, exécute `provision-host.sh` en root sur la cible, et n'introduit aucun secret côté SAM. Vous pouvez paralléliser avec GNU `parallel`, Ansible (`ansible -m shell -a "..."`), ou tout outil de CM que vous utilisez déjà.
+This SSHes with **your** key or ssh-agent, runs `provision-host.sh` as root on the target, and introduces no secret on the SAM side. You can parallelise it with GNU `parallel`, Ansible (`ansible -m shell -a "..."`), or whatever configuration management tool you already use.
 
-Au prochain scan suivant le re-provisioning, `sam-self-update` réussit, le badge disparaît, audit log écrit `PROVISION_UPDATED`. **Plus aucune action manuelle ne sera nécessaire** pour les mises à jour SAM ultérieures, tant que celles-ci ne changent pas à nouveau le contrat sudoers d'`audit-collector`.
+At the first scan after re-provisioning, `sam-self-update` succeeds, the badge disappears and the audit log records `PROVISION_UPDATED`. **No further manual action will be needed** for later SAM updates, as long as they do not change the `audit-collector` sudoers contract again.
 
 ---
 
-## Audit de la configuration sshd du serveur
+## Auditing the server's sshd configuration
 
-La vue détail d'un serveur affiche un panneau **SSH config audit** qui lit la configuration `sshd` effective de l'hôte (via `sudo sshd -T`, lecture seule, aucune modification effectuée par SAM) et la confronte à une politique de durcissement déclarative. Le panneau est disponible pour tous les rôles (sysadmin, operator, viewer).
+A server's detail view shows an **SSH config audit** panel that reads the host's effective `sshd` configuration (through `sudo sshd -T`, read-only — SAM changes nothing) and compares it against a declarative hardening policy. The panel is available to every role (sysadmin, operator, viewer).
 
-> **Important — périmètre de l'audit** : `sshd -T` retourne la configuration **globale** du démon (hors blocs `Match`). Cet audit décrit donc le comportement de sshd pour les utilisateurs qui ne sont **pas** membres du groupe `sam-users` : `root`, comptes système, comptes créés manuellement par l'administrateur hors SAM. Les utilisateurs SAM, eux, sont déjà couverts par le bloc `Match Group sam-users` posé par `provision-host.sh` (publickey-only, pas de mot de passe, pas de keyboard-interactive — voir section *Authentification SSH — publickey uniquement pour `sam-users`*). En clair : un voyant rouge ici ne met pas en danger les comptes SAM, mais il signale par exemple que `root` ou un compte legacy peut se connecter par mot de passe.
+> **Important — what the audit covers**: `sshd -T` returns the **global** daemon configuration, outside `Match` blocks. This audit therefore describes how sshd behaves for users who are **not** members of the `sam-users` group: `root`, system accounts, and accounts created manually outside SAM. SAM users are already covered by the `Match Group sam-users` block laid down by `provision-host.sh` (publickey only, no password, no keyboard-interactive — see *SSH authentication — publickey only for `sam-users`*). In short: a red light here does not endanger SAM accounts, but it does tell you that, for instance, `root` or a legacy account can still log in with a password.
 
-### Bandeau global
+### Global banner
 
-Trois états possibles, calculés à chaque ouverture du panneau :
+Three possible states, computed each time the panel is opened:
 
-| Bandeau | Couleur | Signification |
+| Banner | Colour | Meaning |
 |---|---|---|
-| ✓ **Compliant** | vert | toutes les directives auditées sont conformes |
-| ⚠ **Hardening needed** | orange | au moins un avertissement ou une directive manquante, sans non-conformité critique |
-| ✗ **Lax configuration** | rouge | au moins une directive critique non conforme |
+| ✓ **Compliant** | green | every audited directive is compliant |
+| ⚠ **Hardening needed** | orange | at least one warning or missing directive, no critical non-compliance |
+| ✗ **Lax configuration** | red | at least one critical directive is non-compliant |
 
-### Directives auditées
+### Audited directives
 
-| Sévérité | Directives | Règle attendue |
+| Severity | Directives | Expected value |
 |---|---|---|
 | **Critical** | PermitRootLogin, PasswordAuthentication, PermitEmptyPasswords, HostbasedAuthentication | `no` |
 | **Critical** | IgnoreRhosts | `yes` |
 | **Warning** | KbdInteractiveAuthentication, ChallengeResponseAuthentication, X11Forwarding | `no` |
-| **Warning** | AllowTcpForwarding | `no` ou `local` |
+| **Warning** | AllowTcpForwarding | `no` or `local` |
 | **Warning** | MaxAuthTries | ≤ 3 |
 | **Warning** | LoginGraceTime | ≤ 60 |
 | **Warning** | UsePAM | `yes` |
 | **Info** | ClientAliveInterval | > 0 |
-| **Info** | LogLevel | `INFO` ou `VERBOSE` |
+| **Info** | LogLevel | `INFO` or `VERBOSE` |
 
-Survoler la cellule **Expected** affiche un tooltip décrivant la directive.
+Hovering the **Expected** cell shows a tooltip describing the directive.
 
-### Filtrage
+### Filtering
 
-La case **Non-compliant only** est cochée par défaut : sur un serveur conforme la table est vide (aucune action requise) ; sur un serveur laxiste seules les lignes problématiques s'affichent. Décocher la case pour voir l'ensemble des directives auditées.
+The **Non-compliant only** checkbox is ticked by default: on a compliant server the table is empty (nothing to do), and on a lax one only the problematic rows show. Untick it to see every audited directive.
 
-### Note sur la politique
+### A note on the policy
 
-Les seuils ci-dessus représentent des valeurs de durcissement OpenSSH généralement attendues. SAM ne prétend pas à une conformité formelle à une norme spécifique (CIS, STIG, ANSSI BP-099 ont des recommandations équivalentes pour la majorité de ces directives, mais c'est une politique déclarative, modifiable dans `app/actions.py` via la constante `SSHD_HARDENING_POLICY`).
+The thresholds above are the OpenSSH hardening values generally expected. SAM makes no claim of formal compliance with a specific standard (CIS, STIG and ANSSI BP-099 have equivalent recommendations for most of these directives, but this is a declarative policy, editable in `app/actions.py` through the `SSHD_HARDENING_POLICY` constant).
 
 ---
 
-## Dépannage — Problèmes de connexion SSH
+## Troubleshooting — SSH connection problems
 
-Si le provisionnement ou le scan d'un serveur distant échoue, les erreurs sont à chercher **dans deux endroits**.
+When provisioning or scanning a remote server fails, the errors are in **two places**.
 
-### 1. Logs du container SAM
+### 1. SAM container logs
 
 ```bash
 podman logs sam-server
-# ou en temps réel
+# or live
 podman logs -f sam-server
 ```
 
-Les erreurs de connexion Paramiko (`AuthenticationException`, `NoValidConnectionsError`, `SSHException`) y sont tracées avec l'adresse IP et le port du serveur concerné.
+Paramiko connection errors (`AuthenticationException`, `NoValidConnectionsError`, `SSHException`) are logged there with the IP address and port of the server concerned.
 
-### 2. Logs SSH sur l'hôte distant
+### 2. SSH logs on the remote host
 
-La connexion SSH est journalisée côté serveur. Selon l'OS :
+The SSH connection is logged on the server side. Depending on the OS:
 
 ```bash
 # systemd (RHEL, Debian, Ubuntu…)
 journalctl -u sshd -f
 
-# Fichier (Alpine, certaines configs custom)
+# File (Alpine, some custom setups)
 tail -f /var/log/auth.log
-# ou
+# or
 tail -f /var/log/secure
 ```
 
-Ces logs indiquent si la connexion a été refusée (mauvaise clé, utilisateur inexistant, `MaxAuthTries` atteint, etc.).
+These logs tell you whether the connection was refused (wrong key, missing user, `MaxAuthTries` reached, and so on).
 
-### 3. Prérequis sudo sur l'hôte distant
+### 3. sudo requirement on the remote host
 
-**`sudo` est obligatoire** pour l'utilisateur `audit-collector` sur chaque serveur géré. Tous les scripts SAM (`sam-collect`, `sam-revoke`, `sam-add`, `sam-lock-user`, `sam-unlock-user`, `sam-sessions`) sont exécutés avec `sudo` via SSH.
+**`sudo` is mandatory** for the `audit-collector` user on every managed server. Every SAM script (`sam-collect`, `sam-revoke`, `sam-add`, `sam-lock-user`, `sam-unlock-user`, `sam-sessions`) runs through `sudo` over SSH.
 
-Le script `provision-host.sh` configure automatiquement les règles sudoers lors du provisionnement. Si sudo n'est pas disponible ou si les règles sont absentes, toutes les opérations distantes échoueront avec `Permission denied`.
+`provision-host.sh` configures the sudoers rules automatically during provisioning. If sudo is unavailable or the rules are missing, every remote operation fails with `Permission denied`.
 
-Pour vérifier la configuration sudoers sur l'hôte distant :
+To check the sudoers configuration on the remote host:
 
 ```bash
-# Sur le serveur distant
+# On the remote server
 sudo -l -U audit-collector
 ```
 
-La sortie doit inclure les commandes SAM (`/usr/local/bin/sam-*`) sans demande de mot de passe (`NOPASSWD`).
+The output must list the SAM commands (`/usr/local/bin/sam-*`) without a password prompt (`NOPASSWD`).
 
-`provision-host.sh` installe également les règles sudoers dédiées aux groupes SAM (`sam-operator`, `sam-pkg`, `sam-root`) — voir section [SAM sudo groups](#workflow--sam-sudo-groups). Toutes ces règles sont validées par `visudo -c` avant installation et exigent `PASSWD:` (jamais NOPASSWD pour les utilisateurs SAM). Le bloc sshd `Match Group sam-users` est aussi posé pour interdire l'authentification par mot de passe aux utilisateurs créés via `sam-add`.
+`provision-host.sh` also installs the sudoers rules for the SAM groups (`sam-operator`, `sam-pkg`, `sam-root`) — see [SAM sudo groups](#workflow--sam-sudo-groups). All of those rules are validated with `visudo -c` before installation and require `PASSWD:` (never NOPASSWD for SAM users). The `Match Group sam-users` sshd block is laid down as well, to forbid password authentication for users created through `sam-add`.
 
 ### 4. Known limitations — sshd AllowGroups/AllowUsers
 
-Si l'hôte distant a configuré les directives `AllowGroups` ou `AllowUsers` dans `/etc/ssh/sshd_config` (ou dans `/etc/ssh/sshd_config.d/*.conf`), le provisionnement de SAM échouera **si `audit-collector` n'est pas autorisé**.
+If the remote host sets `AllowGroups` or `AllowUsers` in `/etc/ssh/sshd_config` (or in `/etc/ssh/sshd_config.d/*.conf`), SAM provisioning fails **when `audit-collector` is not allowed**.
 
-#### Contexte technique
+#### Technical background
 
-Ces directives OpenSSH sont **globales uniquement** et **non overridables via Match blocks**. SAM ne peut donc pas les contourner avec une configuration sshd dédiée. Le script `provision-host.sh` détecte cette limitation automatiquement (#438) et refusera de terminer le provisionnement.
+These OpenSSH directives are **global only** and **cannot be overridden in Match blocks**. SAM therefore cannot work around them with a dedicated sshd configuration. `provision-host.sh` detects the limitation automatically (#438) and refuses to complete provisioning.
 
-#### Symptômes
+#### Symptoms
 
-Dans les logs sshd de l'hôte distant (via `journalctl -u sshd` ou `/var/log/auth.log`) :
+In the remote host's sshd logs (`journalctl -u sshd` or `/var/log/auth.log`):
 
 ```
 User audit-collector from <SAM-IP> not allowed because none of user's groups are listed in AllowGroups
 input_userauth_request: invalid user audit-collector [preauth]
 ```
 
-Côté SAM : le provisionnement initial peut réussir (l'utilisateur est créé), mais **chaque scan échouera immédiatement à l'authentification SSH**. Le serveur est marqué comme `UNREACHABLE` après 3 échecs consécutifs.
+On the SAM side: initial provisioning may succeed (the user is created), but **every scan fails immediately at SSH authentication**. The server is marked `UNREACHABLE` after three consecutive failures.
 
-#### Solution
+#### Fix
 
-**Avant de provisionner** (ou lors du re-provisionnement), un administrateur doit manuellement autoriser `audit-collector` :
+**Before provisioning** (or when re-provisioning), an administrator must allow `audit-collector` manually:
 
-**Option 1 — AllowGroups** : ajouter `audit-collector` à l'un des groupes autorisés
+**Option 1 — AllowGroups**: add `audit-collector` to one of the allowed groups
 
 ```bash
-# Sur l'hôte distant (en root)
+# On the remote host, as root
 usermod -aG <allowed-group> audit-collector
 ```
 
-**Option 2 — AllowUsers** : ajouter `audit-collector` à la liste dans `/etc/ssh/sshd_config`
+**Option 2 — AllowUsers**: add `audit-collector` to the list in `/etc/ssh/sshd_config`
 
 ```bash
-# Éditer /etc/ssh/sshd_config
+# Edit /etc/ssh/sshd_config
 AllowUsers existing-user1 existing-user2 audit-collector
 
-# Recharger sshd
+# Reload sshd
 systemctl reload sshd
 ```
 
-Après modification, relancer le provisionnement SAM (le script détectera que la contrainte est levée et continuera normalement).
+Once changed, run SAM provisioning again (the script will see the constraint is satisfied and carry on).
 
-#### Détection automatique
+#### Automatic detection
 
-Depuis #438, `provision-host.sh` :
-1. Parse `/etc/ssh/sshd_config` et tous les `sshd_config.d/*.conf` (avec fallback gracieux si absents)
-2. Extrait les directives `AllowGroups` et `AllowUsers` (insensible à la casse, supporte multiple directives)
-3. Vérifie que `audit-collector` passe les contraintes (groupe OU utilisateur — les deux sont en AND logique côté OpenSSH)
-4. **Exit 1** avec un message clair si la contrainte n'est pas satisfaite (le message remonte via SSH stderr → API → modal UI)
+Since #438, `provision-host.sh`:
+1. Parses `/etc/ssh/sshd_config` and every `sshd_config.d/*.conf` (degrading gracefully when absent)
+2. Extracts the `AllowGroups` and `AllowUsers` directives (case-insensitive, multiple directives supported)
+3. Checks that `audit-collector` satisfies the constraints (group OR user — OpenSSH ANDs the two together)
+4. **Exits 1** with a clear message when the constraint is not met (the message travels through SSH stderr → API → UI modal)
 
 ---
 
-## Workflow — Traitement des clés PENDING_REVIEW
+## Workflow — handling PENDING_REVIEW keys
 
-Après le premier scan, toutes les clés détectées sont en attente de validation.
+After the first scan, every key found is awaiting validation.
 
-Une clé passe également en `PENDING_REVIEW` si elle était révoquée ou expirée et
-réapparaît physiquement sur un serveur (ex. `ssh-copy-id` après révocation). Ce
-cas est détecté automatiquement au prochain scan et génère une alerte CRITIQUE.
+A key also moves back to `PENDING_REVIEW` when it had been revoked or had expired and
+physically reappears on a server (`ssh-copy-id` after a revocation, for instance). That
+case is detected automatically at the next scan and raises a CRITICAL alert.
 
-### Via l'interface web
+### From the web interface
 
-1. Aller dans **Anomalies**
-2. Pour chaque clé : cliquer **Valider** (clé légitime) ou **Révoquer** (clé à supprimer)
+1. Go to **Anomalies**
+2. For each key: click **Validate** (legitimate key) or **Revoke** (key to remove)
 
-La colonne **Conforme** indique la conformité de chaque clé :
-- ✅ : clé `ssh-ed25519` ou `ssh-rsa ≥ 4096 bits`
-- ⚠️ : clé non conforme — survoler pour voir la raison (ex. *"RSA 2048 bits — minimum 4096 requis"*)
+The **Compliant** column shows each key's compliance:
+- ✅: `ssh-ed25519` or `ssh-rsa ≥ 4096 bits`
+- ⚠️: non-compliant — hover to see why (e.g. *"RSA 2048 bits — 4096 minimum required"*)
 
-### Via la CLI
+### From the CLI
 
 ```bash
-# Lister les clés en attente
+# List pending keys
 podman exec sam-server python3 /app/app/manage.py keys list --status PENDING_REVIEW
 
-# Valider une clé
+# Validate a key
 podman exec sam-server python3 /app/app/manage.py keys validate SHA256:...
 
-# Révoquer une clé
-podman exec sam-server python3 /app/app/manage.py keys revoke SHA256:... --reason "Clé orpheline"
+# Revoke a key
+podman exec sam-server python3 /app/app/manage.py keys revoke SHA256:... --reason "Orphan key"
 ```
 
 ---
 
-## Workflow — Gestion des clés SSH
+## Workflow — managing SSH keys
 
-Depuis la vue détail d'un serveur, les actions disponibles sur chaque clé ACTIVE :
+From a server's detail view, the actions available on each ACTIVE key:
 
-| Action | Effet |
+| Action | Effect |
 |---|---|
-| **Révoquer** | Révocation immédiate avec motif obligatoire — supprime la clé du `authorized_keys` distant |
-| **Assigner** | Associe la clé à un administrateur (visible dans la colonne Propriétaire) |
-| **Expiration** | Définit une date/heure ou une durée en heures — révocation automatique à échéance |
-| **Illimité** | Retire l'expiration d'une clé (visible uniquement si `expires_at` est défini) |
+| **Revoke** | Immediate revocation with a mandatory reason — removes the key from the remote `authorized_keys` |
+| **Assign** | Associates the key with an administrator (shown in the Owner column) |
+| **Expiry** | Sets a date and time, or a duration in hours — automatic revocation when it is reached |
+| **Unlimited** | Removes a key's expiry (only shown when `expires_at` is set) |
 
 ---
 
-## Workflow — Verrouiller / Déverrouiller un compte Unix
+## Workflow — locking and unlocking a Unix account
 
-Après révocation d'une clé, le compte Unix existe toujours sur le serveur. Pour bloquer **toute** connexion SSH (y compris avec une autre clé valide) :
+After a key is revoked, the Unix account still exists on the server. To block **every** SSH login, including with another valid key:
 
-**Via l'interface web** : Accès → section **Verrouiller / Déverrouiller un compte Unix**.
+**From the web interface**: Access → **Lock / unlock a Unix account**.
 
-| Action | Commande distante | Effet |
+| Action | Remote command | Effect |
 |---|---|---|
-| **Verrouiller** | `usermod -L -s /sbin/nologin <user>` | Bloque le mot de passe et interdit le shell — connexion SSH impossible même avec une clé valide |
-| **Déverrouiller** | `usermod -U -s /bin/bash <user>` | Rétablit le compte — connexion SSH de nouveau possible avec une clé valide |
+| **Lock** | `usermod -L -s /sbin/nologin <user>` | Locks the password and denies the shell — SSH login impossible even with a valid key |
+| **Unlock** | `usermod -U -s /bin/bash <user>` | Restores the account — SSH login possible again with a valid key |
 
-**Via la CLI** :
+**From the CLI**:
 ```bash
 $EXEC access lock-user --user alice --server server-prod-01
 $EXEC access unlock-user --user alice --server server-prod-01
@@ -568,135 +570,135 @@ $EXEC access unlock-user --user alice --server server-prod-01
 
 ---
 
-## Workflow — Déployer une clé SSH
+## Workflow — deploying an SSH key
 
-Pour donner accès à un utilisateur sur un serveur depuis l'interface :
+To grant a user access to a server from the interface:
 
-**Via l'interface web** : Accès → section **Déployer une clé SSH**.
+**From the web interface**: Access → **Deploy an SSH key**.
 
-Le formulaire demande :
-- **Utilisateur Unix** — nom du compte à créer sur le serveur cible (créé s'il n'existe pas). Le compte `root` est interdit (#386).
-- **Clé publique** — le contenu de la clé `ssh-ed25519` ou `ssh-rsa` (format authorized_keys)
-- **Serveur cible** — dropdown des serveurs actifs
-- **Groupe SAM** — *optionnel* : `sam-operator`, `sam-pkg` ou `sam-root` (réservé `sysadmin`). Voir section [SAM sudo groups](#workflow--sam-sudo-groups).
-- **Durée** — heures / date précise / illimité
-- **Justification** — obligatoire
+The form asks for:
+- **Unix user** — the account to create on the target server (created when missing). The `root` account is forbidden (#386), and so is the `audit-collector` collector account, whose sudo rules would turn a key deployed there into root on that host.
+- **Public key** — the `ssh-ed25519` or `ssh-rsa` key content (authorized_keys format)
+- **Target server** — dropdown of active servers
+- **SAM group** — *optional*: `sam-operator`, `sam-pkg` or `sam-root` (`sysadmin` only). See [SAM sudo groups](#workflow--sam-sudo-groups).
+- **Duration** — hours / exact date / unlimited
+- **Justification** — mandatory
 
-> **Prérequis sur l'hôte distant** : `bash` et `sudo` doivent être installés. Les utilisateurs SAM sont créés avec `useradd -m -s /bin/bash`, et le hook de premier login dépend du shell de login de bash. Les distributions sans `bash` par défaut (Alpine en configuration minimale, par exemple) doivent installer le paquet `bash` avant d'être provisionnées par SAM.
+> **Requirements on the remote host**: `bash` and `sudo` must be installed. SAM users are created with `useradd -m -s /bin/bash`, and the first-login hook relies on bash being the login shell. Distributions without `bash` by default (a minimal Alpine, for instance) must install the `bash` package before SAM provisions them.
 
-À la soumission, `sam-add` est exécuté sur le serveur distant via SSH :
-1. Crée l'utilisateur Unix s'il n'existe pas (avec `usermod -aG sam-users` — interdit l'authentification SSH par mot de passe)
-2. Si le compte est créé : génère un mot de passe temporaire, le set via `chpasswd`, écrit `~/README_first_login.txt`, et installe un hook qui invoque `passwd` au premier login interactif
-3. Ajoute la clé dans `~/.ssh/authorized_keys`
-4. Si un Groupe SAM est sélectionné : `sam-grant-group` ajoute l'utilisateur au groupe choisi
-5. Enregistre la clé dans la base avec statut `ACTIVE`, l'expiration choisie, et le `sam_group` éventuel
+On submit, `sam-add` runs on the remote server over SSH:
+1. Creates the Unix user when missing (with `usermod -aG sam-users` — which forbids SSH password authentication)
+2. When the account is created: generates a temporary password, sets it with `chpasswd`, writes `~/README_first_login.txt`, and installs a hook that invokes `passwd` at the first interactive login
+3. Adds the key to `~/.ssh/authorized_keys`
+4. When a SAM group is selected: `sam-grant-group` adds the user to it. Only `sam-operator`, `sam-pkg` and `sam-root` are accepted — any other group is refused.
+5. Records the key in the database with the `ACTIVE` status, the chosen expiry and the `sam_group` if any
 
-### Premier login d'un utilisateur SAM
+### A SAM user's first login
 
-Lors du premier login SSH (par clé), l'utilisateur voit le contenu de `~/README_first_login.txt` (mot de passe temporaire), puis `passwd` est invoqué automatiquement pour le forcer à choisir un mot de passe personnel. Ce mot de passe est requis pour `sudo` (les règles sudoers SAM exigent `PASSWD:`).
+At the first SSH login (by key), the user sees the contents of `~/README_first_login.txt` (the temporary password), then `passwd` is invoked automatically to force them to choose their own. That password is required for `sudo` — the SAM sudoers rules all require `PASSWD:`.
 
-Le fichier qui porte ce hook varie selon la distribution. `sam-add` reproduit fidèlement l'ordre que bash utilise lui-même pour choisir son fichier d'init en shell de login : il écrit dans `~/.bash_profile` s'il existe (cas des familles RHEL / Rocky / Alma / CentOS où `/etc/skel/` le fournit), sinon dans `~/.bash_login` (rarissime), sinon dans `~/.profile` (Debian / Ubuntu / openSUSE / Arch — créé si absent). Cette détection garantit que le hook est sourcé sur tous les Linux mainstream sans dépendre de la distribution. Pour qu'elle fonctionne, le shell de l'utilisateur doit rester `bash` ; un changement manuel ultérieur vers `zsh` ou `fish` empêcherait le hook de s'exécuter.
+The file carrying the hook varies by distribution. `sam-add` reproduces exactly the order bash itself uses to pick its init file for a login shell: it writes to `~/.bash_profile` when it exists (the RHEL / Rocky / Alma / CentOS families, where `/etc/skel/` provides it), otherwise `~/.bash_login` (very rare), otherwise `~/.profile` (Debian / Ubuntu / openSUSE / Arch — created when missing). This detection makes the hook load on every mainstream Linux without depending on the distribution. It relies on the user's shell staying `bash`; switching it later to `zsh` or `fish` would stop the hook from running.
 
-### Authentification SSH — publickey uniquement pour `sam-users`
+### SSH authentication — publickey only for `sam-users`
 
-Un utilisateur du groupe `sam-users` ne peut **jamais** se connecter en SSH autrement qu'avec sa clé publique enregistrée dans SAM — ni par mot de passe, ni par mot de passe vide, ni via un mécanisme interactif (PAM keyboard-interactive). Cette règle est appliquée par `provision-host.sh` sur chaque serveur géré, et reste active même si l'authentification par mot de passe est activée globalement sur l'hôte.
+A member of the `sam-users` group can **never** log in over SSH with anything other than the public key registered in SAM — not with a password, not with an empty password, not through an interactive mechanism (PAM keyboard-interactive). `provision-host.sh` enforces this on every managed server, and it holds even when password authentication is enabled globally on the host.
 
-Le mot de passe Unix de l'utilisateur (défini au premier login) sert **uniquement à `sudo`**, jamais à la connexion SSH.
+The user's Unix password, set at first login, exists **only for `sudo`** — never for the SSH login itself.
 
-`provision-host.sh` valide la configuration sshd avant de l'appliquer : si la validation échoue, l'ancienne configuration est restaurée et sshd n'est pas rechargé — aucune configuration invalide ne peut être mise en production par mégarde.
+`provision-host.sh` validates the sshd configuration before applying it: if validation fails, the previous configuration is restored and sshd is not reloaded — an invalid configuration can never reach production by accident.
 
 ---
 
 ## Workflow — SAM sudo groups
 
-Trois groupes Unix prédéfinis sont créés par `provision-host.sh` sur chaque serveur géré : `sam-operator`, `sam-pkg`, `sam-root`. Chaque groupe a un jeu de règles sudoers dédié (validé par `visudo -c` avant installation, exigeant `PASSWD:` — jamais `NOPASSWD:`, avec `secure_path` explicite incluant `/usr/local/bin` pour résoudre les binaires NS8 type `runagent` / `api-cli`).
+`provision-host.sh` creates three predefined Unix groups on every managed server: `sam-operator`, `sam-pkg`, `sam-root`. Each has its own set of sudoers rules (validated with `visudo -c` before installation, requiring `PASSWD:` — never `NOPASSWD:`, with an explicit `secure_path` including `/usr/local/bin` so NS8 binaries such as `runagent` / `api-cli` resolve).
 
-### `sam-operator` — exploitation et diagnostic
+### `sam-operator` — operations and diagnostics
 
-Cible : opérateurs qui doivent superviser et redémarrer des services sans pouvoir installer de paquets ni accéder à des données sensibles. Règles sudoers installées dans `/etc/sudoers.d/sam-operator` :
+Aimed at operators who need to supervise and restart services without installing packages or reaching sensitive data. Rules installed in `/etc/sudoers.d/sam-operator`:
 
-| Catégorie | Commandes autorisées (en tant que `root`, `PASSWD:`) |
+| Category | Allowed commands (as `root`, `PASSWD:`) |
 |---|---|
-| Services systemd | `systemctl restart`, `systemctl reload`, `systemctl status`, `systemctl start` |
-| Journaux | `journalctl -u`, `journalctl -f`, `journalctl -n`, `journalctl --since`, `journalctl -b`, `journalctl -e` |
-| Réseau / processus | `ss -tlnp`, `lsof`, `lsof -i` |
-| Diagnostic noyau | `dmesg` |
-| Disque | `du -sh /var/* /opt/* /home/*` |
-| Outils NS8 (si présents) | `runagent` |
+| systemd services | `systemctl restart`, `systemctl reload`, `systemctl status`, `systemctl start` |
+| Logs | `journalctl -u`, `journalctl -f`, `journalctl -n`, `journalctl --since`, `journalctl -b`, `journalctl -e` |
+| Network / processes | `ss -tlnp`, `lsof`, `lsof -i` |
+| Kernel diagnostics | `dmesg` |
+| Disk | `du -sh /var/* /opt/* /home/*` |
+| NS8 tools (when present) | `runagent` |
 
-`api-cli` est **volontairement absent** de `sam-operator` : cet outil de gestion NS8 dépasse le périmètre d'exploitation et reste réservé à `sam-pkg` (#394).
+`api-cli` is **deliberately absent** from `sam-operator`: this NS8 management tool goes beyond the operations scope and is reserved for `sam-pkg` (#394).
 
-### `sam-pkg` — exploitation + gestion paquets
+### `sam-pkg` — operations plus package management
 
-Cible : utilisateurs qui doivent en plus installer ou mettre à jour des paquets. Hérite **de toutes les commandes `sam-operator`** et ajoute la gestion paquets adaptée à la distribution détectée par `provision-host.sh`. Règles sudoers dans `/etc/sudoers.d/sam-pkg` :
+Aimed at users who also need to install or update packages. Inherits **every `sam-operator` command** and adds package management for the distribution detected by `provision-host.sh`. Rules in `/etc/sudoers.d/sam-pkg`:
 
-| Catégorie | Commandes autorisées (en plus de sam-operator) |
+| Category | Allowed commands (in addition to sam-operator) |
 |---|---|
 | Debian / Ubuntu | `apt install`, `apt upgrade` |
-| RHEL / Rocky / Alma | `dnf install`, `dnf upgrade` (ou `yum install`, `yum update`) |
+| RHEL / Rocky / Alma | `dnf install`, `dnf upgrade` (or `yum install`, `yum update`) |
 | SUSE | `zypper install`, `zypper update` |
 | Alpine | `apk add`, `apk upgrade` |
 | Arch | `pacman -S`, `pacman -Syu`, `pacman -Sy` |
-| Modules NS8 (si présents) | `add-module`, `remove-module` |
-| Outils NS8 (si présents) | `api-cli` |
+| NS8 modules (when present) | `add-module`, `remove-module` |
+| NS8 tools (when present) | `api-cli` |
 
-### `sam-root` — équivalent root
+### `sam-root` — root equivalent
 
-Cible : administrateurs ayant besoin d'un accès root complet. Règles sudoers dans `/etc/sudoers.d/sam-root` :
+Aimed at administrators who need full root access. Rules in `/etc/sudoers.d/sam-root`:
 
 ```
 %sam-root ALL=(ALL) ALL
 ```
 
-Le mot de passe personnel reste exigé (`PASSWD:` implicite — il n'y a pas de `NOPASSWD`). L'attribution du groupe `sam-root` est réservée au rôle `sysadmin` côté API SAM (voir matrice RBAC dans `app/CLAUDE.md`).
+The personal password is still required (`PASSWD:` is implicit — there is no `NOPASSWD`). Granting the `sam-root` group is reserved for the `sysadmin` role on the SAM API side, on every path including key deployment (see the RBAC matrix in `app/CLAUDE.md`).
 
-### Vérifier la configuration sur un serveur
+### Checking the configuration on a server
 
 ```bash
-# Sur le serveur géré
-sudo -l -U alice                   # liste les commandes autorisées pour alice
+# On the managed server
+sudo -l -U alice                   # lists the commands allowed for alice
 getent group sam-operator sam-pkg sam-root sam-users
 cat /etc/sudoers.d/sam-operator
-visudo -c                          # valide tous les fichiers /etc/sudoers.d/
+visudo -c                          # validates every /etc/sudoers.d/ file
 ```
 
-**Assignation du groupe** :
-- À la création de la clé : champ Groupe SAM du formulaire « Déployer une clé SSH »
-- Après création : actions **Promouvoir / Changer / Révoquer le groupe** depuis la vue Accès (rôles autorisés : `operator` pour sam-operator/sam-pkg, `sysadmin` uniquement pour sam-root)
+**Group assignment**:
+- At key creation: the SAM group field of the "Deploy an SSH key" form
+- After creation: the **Promote / Change / Revoke group** actions from the Access view (allowed roles: `operator` for sam-operator/sam-pkg, `sysadmin` only for sam-root)
 
-**Cycle de vie** :
-- Promotion : `POST /api/access/grant-group`
-- Changement : `PUT /api/access/change-group` (révoque l'ancien, assigne le nouveau)
-- Révocation : `POST /api/access/revoke-group` (l'utilisateur Unix reste actif, seul le groupe SAM est retiré)
+**Lifecycle**:
+- Promotion: `POST /api/access/grant-group`
+- Change: `PUT /api/access/change-group` (revokes the old one, assigns the new one)
+- Revocation: `POST /api/access/revoke-group` (the Unix user stays active, only the SAM group is removed)
 
-Tracé en base dans `key_authorizations.sam_group` (audit v4) et dans `audit_log` (`GROUP_GRANTED`, `GROUP_REVOKED`, `GROUP_CHANGED`).
-
----
-
-## Workflow — Révocation hors système
-
-Si un scan détecte qu'une clé `ACTIVE` a disparu de `authorized_keys` sans action dans le système :
-
-1. La clé passe au statut `REVOKED` avec `revoked_automatically = true` et `revoked_by = NULL`
-2. Une entrée `ANOMALY_DETECTED` est créée dans l'audit
-3. Un **email CRITIQUE** est envoyé immédiatement
-4. La clé apparaît dans **Anomalies > Révocations hors système**
-
-Action recommandée : investiguer l'origine de la suppression (accès root direct ? compromission ?).
+Recorded in the database in `key_authorizations.sam_group` (audit v4) and in `audit_log` (`GROUP_GRANTED`, `GROUP_REVOKED`, `GROUP_CHANGED`).
 
 ---
 
-## Alerte dépassement de sessions SSH
+## Workflow — out-of-band revocation
 
-Chaque serveur possède un seuil configurable **`max_sessions`** (défaut : **2**). À la fin de chaque scan, le nombre de sessions SSH actives est comparé à ce seuil.
+When a scan finds that an `ACTIVE` key has disappeared from `authorized_keys` without any action in the system:
 
-### Comportement
+1. The key moves to `REVOKED` with `revoked_automatically = true` and `revoked_by = NULL`
+2. An `ANOMALY_DETECTED` entry is written to the audit log
+3. A **CRITICAL email** is sent immediately
+4. The key shows up in **Anomalies > Out-of-band revocations**
 
-- Si le nombre de sessions actives **dépasse** `max_sessions`, une alerte email **WARNING** est envoyée à tous les administrateurs ayant `receive_alerts=true`.
-- Un **anti-spam 24 h** est appliqué : si une alerte `SESSION_LIMIT_EXCEEDED` a déjà été envoyée dans les dernières 24 heures pour ce serveur, l'email est supprimé. Cela évite de spammer à chaque cycle cron (toutes les 4 heures).
-- L'alerte est tracée dans l'`audit_log` avec l'action `SESSION_LIMIT_EXCEEDED` et les détails `{ hostname, session_count, max_sessions }`.
+Recommended action: investigate where the removal came from (direct root access? a compromise?).
 
-### Contenu de l'email
+---
+
+## SSH session limit alert
+
+Each server has a configurable **`max_sessions`** threshold (default: **2**). At the end of every scan, the number of active SSH sessions is compared against it.
+
+### Behaviour
+
+- When the number of active sessions **exceeds** `max_sessions`, a **WARNING** email alert goes to every administrator with `receive_alerts=true`.
+- A **24 h anti-spam** rule applies: if a `SESSION_LIMIT_EXCEEDED` alert was already sent for that server in the last 24 hours, the email is suppressed. This avoids spamming at every cron cycle (every 4 hours).
+- The alert is recorded in `audit_log` with the `SESSION_LIMIT_EXCEEDED` action and the details `{ hostname, session_count, max_sessions }`.
+
+### Email contents
 
 ```
 [WARNING] [ssh-access-manager] Session limit exceeded on <hostname>
@@ -708,11 +710,11 @@ Configured limit: <max_sessions>
 Please review active connections on this server.
 ```
 
-### Configurer le seuil par serveur
+### Setting the threshold per server
 
-**Via l'interface web** : vue détail du serveur → bouton **Modifier** → champ **Sessions max** (min. 1).
+**From the web interface**: server detail view → **Edit** → **Max sessions** field (minimum 1).
 
-**Via l'API REST** :
+**From the REST API**:
 
 ```bash
 curl -s -X PUT https://<host>/api/servers/<hostname> \
@@ -721,43 +723,44 @@ curl -s -X PUT https://<host>/api/servers/<hostname> \
   -d '{"ip": "192.168.1.10", "environment": "production", "max_sessions": 5}'
 ```
 
-La valeur est retournée dans tous les endpoints `GET /api/servers` et `GET /api/servers/<hostname>`.
+The value is returned by both `GET /api/servers` and `GET /api/servers/<hostname>`.
 
 ---
 
-## Variables d'environnement
+## Environment variables
 
-| Variable | Description | Défaut |
+| Variable | Description | Default |
 |---|---|---|
-| `POSTGRES_DB` | Nom de la base de données | `ssh_manager` |
-| `POSTGRES_USER` | Utilisateur PostgreSQL | `ssh_manager` |
-| `POSTGRES_PASSWORD` | Mot de passe PostgreSQL | — |
-| `NGINX_PORT` | Port d'écoute Nginx | `8080` |
-| `NGINX_TLS_CERT_PATH` | Chemin du certificat TLS (active le mode HTTPS si défini avec `NGINX_TLS_KEY_PATH`) | — |
-| `NGINX_TLS_KEY_PATH` | Chemin de la clé privée TLS (active le mode HTTPS si défini avec `NGINX_TLS_CERT_PATH`) | — |
-| `FLASK_SECRET_KEY` | Clé secrète Flask (sessions) — **obligatoire**, le container refuse de démarrer si absente | — |
-| `SMTP_HOST` | Serveur SMTP | — |
-| `SMTP_PORT` | Port SMTP | `587` |
-| `SMTP_USERNAME` | Utilisateur SMTP — si vide, `auth off` dans msmtp (relay sans authentification) | — |
-| `SMTP_PASSWORD` | Mot de passe SMTP | — |
-| `SMTP_FROM` | Adresse expéditeur | — |
-| `SMTP_ENCRYPTION` | Mode TLS : `none` / `starttls` / `tls` | `starttls` |
-| `SMTP_TLSVERIFY` | Vérification certificat TLS : `1` (on) / `` (off) | `1` |
-| `SMTP_ENABLED` | Active/désactive l'envoi d'emails : `1` / `` (off) | `1` |
-| `SSH_USER` | Utilisateur SSH collecteur | `audit-collector` |
-| `ADMIN_USERNAME` | Username de l'administrateur initial | `admin` |
-| `ADMIN_EMAIL` | Email de l'administrateur initial | — |
-| `ADMIN_PASSWORD` | Mot de passe de l'administrateur initial | — |
+| `POSTGRES_DB` | Database name | `ssh_manager` |
+| `POSTGRES_USER` | PostgreSQL user | `ssh_manager` |
+| `POSTGRES_PASSWORD` | PostgreSQL password | — |
+| `NGINX_PORT` | Nginx listening port | `8080` |
+| `NGINX_TLS_CERT_PATH` | TLS certificate path (enables HTTPS when set together with `NGINX_TLS_KEY_PATH`) | — |
+| `NGINX_TLS_KEY_PATH` | TLS private key path (enables HTTPS when set together with `NGINX_TLS_CERT_PATH`) | — |
+| `FLASK_SECRET_KEY` | Flask secret key for sessions — **mandatory**, the container refuses to start without it | — |
+| `SMTP_HOST` | SMTP server | — |
+| `SMTP_PORT` | SMTP port | `587` |
+| `SMTP_USERNAME` | SMTP user — when empty, msmtp uses `auth off` (relay without authentication) | — |
+| `SMTP_PASSWORD` | SMTP password | — |
+| `SMTP_FROM` | Sender address | — |
+| `SMTP_ENCRYPTION` | TLS mode: `none` / `starttls` / `tls` | `starttls` |
+| `SMTP_TLSVERIFY` | TLS certificate verification: `1` (on) / `` (off) | `1` |
+| `SMTP_ENABLED` | Enables or disables email sending: `1` / `` (off) | `1` |
+| `SCAN_INTERVAL_HOURS` | Cron interval for collect and expire, 1 to 24 hours. Unset or out of range keeps the 5-minute default | — |
+| `SSH_USER` | Collector SSH user | `audit-collector` |
+| `ADMIN_USERNAME` | Initial administrator username | `admin` |
+| `ADMIN_EMAIL` | Initial administrator email | — |
+| `ADMIN_PASSWORD` | Initial administrator password | — |
 
-> **Destinataires des alertes** : les alertes sont envoyées aux administrateurs ayant `receive_alerts=true` (configurable par admin dans l'UI Admins). `SMTP_TO` n'est plus utilisé.
+> **Alert recipients**: alerts go to administrators with `receive_alerts=true` (set per administrator in the Admins UI). `SMTP_TO` is no longer used.
 >
-> **Seuils d'alerte expiration** : `expire_warn_days` (défaut 7) et `expire_warn_days_2` (défaut 2) sont configurables sans redémarrage depuis **Settings → Expiry warnings**.
+> **Expiry warning thresholds**: `expire_warn_days` (default 7) and `expire_warn_days_2` (default 2) are configurable without a restart from **Settings → Expiry warnings**.
 >
-> **Fuseau horaire** : les dates sont stockées en UTC dans PostgreSQL. L'interface web affiche automatiquement les dates dans le fuseau du navigateur.
+> **Time zone**: dates are stored in UTC in PostgreSQL. The web interface displays them in the browser's time zone.
 >
-> **HTTPS (optionnel)** : si `NGINX_TLS_CERT_PATH` et `NGINX_TLS_KEY_PATH` sont tous deux définis, Nginx utilise `nginx.conf.https.template` (TLSv1.2/1.3, ciphers ECDHE, HSTS) et active une redirection `HTTP -> HTTPS` (`301`), y compris si une requête HTTP arrive par erreur sur le port TLS. Ces chemins sont **des chemins internes au conteneur** : vos certificats doivent donc être présents (ou montés) à cet emplacement dans le conteneur. Si les fichiers n'existent pas encore, un certificat auto-signé est généré automatiquement au démarrage. Sans ces variables, Nginx utilise `nginx.conf.http.template` (HTTP pur, aucune directive SSL).
+> **HTTPS (optional)**: when both `NGINX_TLS_CERT_PATH` and `NGINX_TLS_KEY_PATH` are set, Nginx uses `nginx.conf.https.template` (TLSv1.2/1.3, ECDHE ciphers, HSTS) and enables an `HTTP -> HTTPS` redirect (`301`), including when an HTTP request lands on the TLS port by mistake. These paths are **paths inside the container**: your certificates must therefore be present, or mounted, at that location in the container. When the files do not exist yet, a self-signed certificate is generated automatically at startup. Without these variables, Nginx uses `nginx.conf.http.template` (plain HTTP, no SSL directive).
 >
-> **Exemple docker-compose (certificats montés)** :
+> **docker-compose example (mounted certificates)**:
 > ```yaml
 > services:
 >   sam-server:
@@ -768,28 +771,28 @@ La valeur est retournée dans tous les endpoints `GET /api/servers` et `GET /api
 >       - NGINX_TLS_CERT_PATH=/data/certs/server.crt
 >       - NGINX_TLS_KEY_PATH=/data/certs/server.key
 > ```
-> Dans cet exemple, `server.crt` et `server.key` sont stockés sur l'hôte dans `./certs` puis exposés en lecture seule dans le conteneur.
+> Here `server.crt` and `server.key` live on the host in `./certs` and are exposed read-only inside the container.
 
-> **Secrets obligatoires avant un déploiement en production** — ne jamais laisser les valeurs d'exemple :
+> **Secrets to set before a production deployment** — never leave the example values in place:
 > ```bash
-> # Générer FLASK_SECRET_KEY
+> # Generate FLASK_SECRET_KEY
 > python3 -c "import secrets; print(secrets.token_hex(32))"
 > ```
-> Copier la valeur générée dans `.env` :
+> Copy the generated value into `.env`:
 > ```
-> FLASK_SECRET_KEY=<valeur générée>
-> POSTGRES_PASSWORD=<mot de passe fort>
-> ADMIN_PASSWORD=<mot de passe fort>
+> FLASK_SECRET_KEY=<generated value>
+> POSTGRES_PASSWORD=<strong password>
+> ADMIN_PASSWORD=<strong password>
 > ```
 
 ---
 
-## Commandes CLI — référence rapide
+## CLI commands — quick reference
 
 ```bash
 EXEC="podman exec sam-server python3 /app/app/manage.py"
 
-# Serveurs
+# Servers
 $EXEC servers list
 $EXEC servers add --hostname HOST --ip IP --ssh-user USER --ssh-password PASS [--env production] [--os rhel] [--port 22]
 $EXEC servers scan
@@ -798,30 +801,30 @@ $EXEC servers disable HOST
 $EXEC servers enable HOST
 $EXEC servers show HOST
 
-# Clés
+# Keys
 $EXEC keys list --status PENDING_REVIEW
 $EXEC keys show SHA256:...
 $EXEC keys search QUERY
 $EXEC keys validate SHA256:...
-$EXEC keys revoke SHA256:... --reason "Motif"
+$EXEC keys revoke SHA256:... --reason "Reason"
 $EXEC keys assign SHA256:... --owner "Alice Martin"
 $EXEC keys set-expiry SHA256:... --hours 24
 $EXEC keys set-expiry SHA256:... --date "2026-12-31 23:59"
 $EXEC keys remove-expiry SHA256:...
 
-# Accès temporaires
+# Temporary access
 $EXEC access list
-$EXEC access grant --key SHA256:... --server HOST --hours 8 --reason "Motif"
+$EXEC access grant --key SHA256:... --server HOST --hours 8 --reason "Reason" [--user alice]
 $EXEC access approve <id>
 $EXEC access reject <id>
 $EXEC access revoke <id>
 $EXEC access lock-user --user USER --server HOST
 $EXEC access unlock-user --user USER --server HOST
 
-# Administrateurs
+# Administrators
 $EXEC admin list
 $EXEC admin add --username USER --email EMAIL --password PASSWORD [--role ROLE]
-# ROLE : sysadmin | operator (défaut) | viewer
+# ROLE: sysadmin | operator (default) | viewer
 $EXEC admin update <username> [--email EMAIL] [--role ROLE]
 $EXEC admin disable USERNAME
 $EXEC admin enable USERNAME
@@ -832,16 +835,18 @@ $EXEC admin reset-password USERNAME --password NEW_PASSWORD
 $EXEC audit list --action ANOMALY_DETECTED --since 2025-01-01
 $EXEC audit list --server HOST
 
-# Système
+# System
 $EXEC system status
 $EXEC system report
 ```
 
+`access grant` infers the Unix account from the authorizations already recorded for that key on that server. When the key is authorized for several accounts, pass `--user` to say which one.
+
 ---
 
-## Récupération de mot de passe administrateur
+## Recovering an administrator password
 
-Si un administrateur a perdu son mot de passe, un sysadmin ayant accès au container peut le réinitialiser via la CLI sans connexion préalable :
+When an administrator loses their password, a sysadmin with access to the container can reset it from the CLI without signing in first:
 
 ```bash
 # Docker
@@ -851,39 +856,39 @@ docker exec -it ssh-access-manager python3 /app/app/manage.py admin reset-passwo
 podman exec -it sam-server python3 /app/app/manage.py admin reset-password <username> --password <new_password>
 ```
 
-Contraintes :
-- Le mot de passe doit respecter la politique de sécurité (8+ caractères, majuscule, minuscule, chiffre, caractère spécial)
-- Fonctionne même si le compte est désactivé
-- L'opération est tracée dans l'audit log (`PASSWORD_RESET`, `performed_by=NULL`)
+Constraints:
+- The password must satisfy the security policy (8+ characters, uppercase, lowercase, digit, special character)
+- It works even when the account is disabled
+- The operation is recorded in the audit log (`PASSWORD_RESET`, `performed_by=NULL`)
 
 ---
 
 ## Internationalisation
 
-L'interface supporte 5 langues via `vue-i18n`. Les fichiers de traduction se trouvent dans `ui/src/locales/` :
+The interface supports 5 languages through `vue-i18n`. The translation files live in `ui/src/locales/`:
 
-| Fichier | Langue |
+| File | Language |
 |---|---|
-| `en.json` | Anglais (fallback par défaut) |
-| `fr.json` | Français |
-| `es.json` | Espagnol |
-| `it.json` | Italien |
-| `de.json` | Allemand |
+| `en.json` | English (default fallback) |
+| `fr.json` | French |
+| `es.json` | Spanish |
+| `it.json` | Italian |
+| `de.json` | German |
 
-Pour ajouter une nouvelle langue :
-1. Copier `ui/src/locales/en.json` → `ui/src/locales/xx.json` et traduire
-2. Ajouter l'import dans `ui/src/i18n.js`
-3. Ajouter `<option value="xx">XX</option>` dans `ui/src/App.vue`
+To add a language:
+1. Copy `ui/src/locales/en.json` → `ui/src/locales/xx.json` and translate it
+2. Add the import to `ui/src/i18n.js`
+3. Add `<option value="xx">XX</option>` to `ui/src/App.vue`
 
 ---
 
 ## Tests
 
 ```bash
-# Tests backend Python
+# Python backend tests
 cd app && python3 -m pytest tests/ --cov=actions --cov-fail-under=80
 
-# Tests frontend Vitest
+# Vitest frontend tests
 cd ui && npx vitest run
 ```
 
@@ -891,77 +896,77 @@ cd ui && npx vitest run
 
 ## CI/CD & DevOps
 
-### Workflows GitHub Actions
+### GitHub Actions workflows
 
-| Workflow | Déclencheur | Rôle |
+| Workflow | Trigger | Purpose |
 |---|---|---|
-| `ci.yml` | Chaque PR | Tests Python (pytest ≥ 80%), Tests Vue.js (vitest), Prettier, Commitlint |
-| `pr-title.yml` | Ouverture / édition de PR | Validation du titre (Conventional Commits) |
-| `build-pr.yml` | Chaque PR | Build + push image `pr-{N}` + scan Trivy CVE (CRITICAL/HIGH) |
-| `build-main.yml` | Merge sur `main` | Build + push image `:main` sur GHCR |
-| `publish-release.yml` | Push d'un tag git | Build + push image `:vX.Y.Z` (+ `:latest` si stable) |
-| `cleanup-pr.yml` | Fermeture de PR | Suppression de l'image `pr-{N}` sur GHCR |
-| `codeql.yml` | PR + push main + hebdo | Analyse statique sécurité Python (SAST) |
+| `ci.yml` | Every PR | Python tests (pytest ≥ 80%), Vue.js tests (vitest), Prettier, Commitlint |
+| `pr-title.yml` | PR opened / edited | Title validation (Conventional Commits) |
+| `build-pr.yml` | Every PR | Build + push the `pr-{N}` image + Trivy CVE scan (CRITICAL/HIGH) |
+| `build-main.yml` | Merge to `main` | Build + push the `:main` image to GHCR |
+| `publish-release.yml` | Git tag push | Build + push the `:vX.Y.Z` image (+ `:latest` when stable) |
+| `cleanup-pr.yml` | PR closed | Delete the `pr-{N}` image from GHCR |
+| `codeql.yml` | PR + push to main + weekly | Python security static analysis (SAST) |
 
-### Stratégie de tags Docker (GHCR)
+### Docker tag strategy (GHCR)
 
-| Événement | Tag publié |
+| Event | Published tag |
 |---|---|
-| PR ouverte | `pr-{N}` |
-| Merge sur `main` | `main` |
-| Tag git `1.2.0-dev.1` (avec `-`) | `1.2.0-dev.1` uniquement |
-| Tag git `1.2.0` (sans `-`) | `1.2.0` **et** `latest` |
+| PR opened | `pr-{N}` |
+| Merge to `main` | `main` |
+| Git tag `1.2.0-dev.1` (with `-`) | `1.2.0-dev.1` only |
+| Git tag `1.2.0` (without `-`) | `1.2.0` **and** `latest` |
 
-### Convention de commits (Conventional Commits)
+### Commit convention (Conventional Commits)
 
-Tout commit doit respecter le format `type: description courte`.
+Every commit must follow the `type: short description` format.
 
-Types valides : `feat` `fix` `docs` `style` `refactor` `test` `ci` `chore`
+Valid types: `feat` `fix` `docs` `style` `refactor` `test` `ci` `chore`
 
 ```
-feat: formulaire DeployKeyForm dans la vue Accès
-fix: correction calcul expiration clé
-ci: ajout check Prettier
-docs: mise à jour README workflow accès
+feat: DeployKeyForm in the Access view
+fix: key expiry computation
+ci: add the Prettier check
+docs: update the access workflow in the README
 ```
 
-Deux checks CI valident cette convention :
-- **Commit messages** (`ci.yml`) — vérifie chaque commit de la PR via `wagoid/commitlint-github-action`
-- **PR title** (`pr-title.yml`) — vérifie le titre de la PR via script shell `grep -P`
+Two CI checks enforce the convention:
+- **Commit messages** (`ci.yml`) — checks every commit of the PR with `wagoid/commitlint-github-action`
+- **PR title** (`pr-title.yml`) — checks the PR title with a `grep -P` shell script
 
-### Protection de la branche `main`
+### `main` branch protection
 
-- Push direct interdit — toute modification passe obligatoirement par une PR
-- Les 5 checks CI doivent être verts avant le merge : Tests Python, Tests Vue.js, Prettier, Commit messages, Validate PR title
-- Force push bloqué
-- Règle appliquée aux administrateurs du dépôt
+- Direct pushes are forbidden — every change goes through a PR
+- The 5 CI checks must pass before merging: Python tests, Vue.js tests, Prettier, Commit messages, Validate PR title
+- Force pushes are blocked
+- The rule applies to repository administrators too
 
-### Sécurité — Trivy + CodeQL
+### Security — Trivy + CodeQL
 
-**Trivy** scanne chaque image Docker de PR à la recherche de CVE CRITICAL et HIGH (Alpine packages, pip, npm). Les résultats sont uploadés dans l'onglet **Security > Code scanning** de GitHub.
+**Trivy** scans every PR Docker image for CRITICAL and HIGH CVEs (Alpine packages, pip, npm). Results are uploaded to GitHub's **Security > Code scanning** tab.
 
-**CodeQL** analyse le code Python avec les requêtes `security-extended` à chaque PR, merge sur `main`, et chaque lundi matin. Les alertes apparaissent dans **Security > Code scanning**.
+**CodeQL** analyses the Python code with the `security-extended` queries on every PR, on every merge to `main`, and every Monday morning. Alerts show up under **Security > Code scanning**.
 
-### Mises à jour automatiques — Renovate
+### Automatic updates — Renovate
 
-Renovate est configuré via `renovate.json` (racine du projet). Il ouvre des PRs chaque lundi avant 9h pour :
+Renovate is configured through `renovate.json` at the project root. It opens PRs every Monday before 9 a.m. for:
 
-- **npm** (`ui/package.json`) — mises à jour groupées ; patch automerge si CI vert
-- **pip** (`requirements-test.txt`) — PR groupée, merge manuel
-- **Docker** (lignes `FROM` du Dockerfile) — PR groupée, merge manuel
+- **npm** (`ui/package.json`) — grouped updates; patches automerge when CI is green
+- **pip** (`requirements-test.txt`) — grouped PR, manual merge
+- **Docker** (the Dockerfile `FROM` lines) — grouped PR, manual merge
 
-### Formatage du code Vue.js
+### Vue.js code formatting
 
-Prettier est configuré dans `.prettierrc` (racine du projet) :
+Prettier is configured in `.prettierrc` at the project root:
 
 ```json
 { "semi": false, "singleQuote": true, "trailingComma": "es5", "printWidth": 100 }
 ```
 
 ```bash
-# Vérifier (CI)
+# Check (CI)
 cd ui && npm run format:check
 
-# Formater localement avant de commit
+# Format locally before committing
 cd ui && npm run format:write
 ```
