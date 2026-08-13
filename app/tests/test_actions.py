@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import actions
+import ssh
 from actions import UserError
 
 
@@ -387,6 +388,13 @@ def test_actions_assign_key_raises_if_key_not_found():
 def test_actions_set_key_expiry_root_raises():
     with pytest.raises(UserError, match="Cannot set an expiry on root"):
         actions.set_key_expiry("SHA256:abc", datetime.now(), unix_user="root", hostname="server")
+
+
+def test_actions_set_key_expiry_collector_raises():
+    with pytest.raises(UserError, match="collector key"):
+        actions.set_key_expiry(
+            "SHA256:abc", datetime.now(), unix_user=ssh.SSH_USER, hostname="server"
+        )
 
 
 def test_actions_set_key_expiry_updates_active_auths(sample_key):
