@@ -63,7 +63,32 @@ def test_servers_load_yml_missing_file_raises():
 
 def test_servers_add_known_hosts_skips_if_already_present():
     with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
-        f.write("|1|abc= ssh-ed25519 AAAA 192.168.1.10\n")
+        f.write("192.168.1.10 ssh-ed25519 AAAA\n")
+        path = f.name
+    try:
+        with patch("ssh._fetch_host_key") as mock_fetch:
+            servers.add_to_known_hosts("192.168.1.10", known_hosts=path)
+            mock_fetch.assert_not_called()
+    finally:
+        os.unlink(path)
+
+
+def test_servers_add_known_hosts_does_not_match_a_longer_ip():
+    """192.168.1.1 looked present as soon as 192.168.1.10 was known."""
+    with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
+        f.write("192.168.1.10 ssh-ed25519 AAAA\n")
+        path = f.name
+    try:
+        with patch("ssh._fetch_host_key") as mock_fetch:
+            servers.add_to_known_hosts("192.168.1.1", known_hosts=path)
+            mock_fetch.assert_called_once()
+    finally:
+        os.unlink(path)
+
+
+def test_servers_add_known_hosts_matches_one_of_several_hosts_on_a_line():
+    with tempfile.NamedTemporaryFile("w", suffix="known_hosts", delete=False) as f:
+        f.write("server-01,192.168.1.10 ssh-ed25519 AAAA\n")
         path = f.name
     try:
         with patch("ssh._fetch_host_key") as mock_fetch:

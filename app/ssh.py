@@ -381,9 +381,14 @@ SAM_SELF_UPDATE = b"""#!/bin/sh
 # This script is deployed and invoked by the collector key after initial bootstrap.
 # If version is given, it is written to /etc/sam-provision-version on success.
 
-VERSION="${1}"
+VERSION=""
 DRY_RUN=0
-[ "${2}" = "--dry-run" ] && DRY_RUN=1
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run) DRY_RUN=1 ;;
+        *) [ -z "$VERSION" ] && VERSION="$arg" ;;
+    esac
+done
 
 # Detect sshd binary path
 SSHD_BIN=$(command -v sshd 2>/dev/null || echo /usr/sbin/sshd)
@@ -455,7 +460,7 @@ _install_sudoers() {
 
 # sam-operator sudoers
 OP_FILE="/etc/sudoers.d/sam-operator"
-if [ "$DRY_RUN" -eq 1 ] && [ -f "$OP_FILE" ]; then
+if [ "$DRY_RUN" -eq 1 ]; then
     printf "# ssh-access-manager - sam-operator sudo rights\\n" > "${OP_FILE}.tmp"
     printf "Defaults:%%sam-operator secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${OP_FILE}.tmp"
     _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} restart"
@@ -478,7 +483,7 @@ if [ "$DRY_RUN" -eq 1 ] && [ -f "$OP_FILE" ]; then
         [ -x "$bin_path" ] && _rule "${OP_FILE}.tmp" "sam-operator" "${bin_path}"
     done
     echo "--- ${OP_FILE} diff:"
-    diff -u "$OP_FILE" "${OP_FILE}.tmp" || true
+    diff -u "$OP_FILE" "${OP_FILE}.tmp" 2>/dev/null || diff -u /dev/null "${OP_FILE}.tmp" || true
     rm -f "${OP_FILE}.tmp"
 else
     printf "# ssh-access-manager - sam-operator sudo rights\\n" > "${OP_FILE}.tmp"
@@ -508,7 +513,7 @@ fi
 
 # sam-pkg sudoers
 PKG_FILE="/etc/sudoers.d/sam-pkg"
-if [ "$DRY_RUN" -eq 1 ] && [ -f "$PKG_FILE" ]; then
+if [ "$DRY_RUN" -eq 1 ]; then
     printf "# ssh-access-manager - sam-pkg sudo rights\\n" > "${PKG_FILE}.tmp"
     printf "Defaults:%%sam-pkg secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${PKG_FILE}.tmp"
     _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"
@@ -561,7 +566,7 @@ if [ "$DRY_RUN" -eq 1 ] && [ -f "$PKG_FILE" ]; then
         [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
     done
     echo "--- ${PKG_FILE} diff:"
-    diff -u "$PKG_FILE" "${PKG_FILE}.tmp" || true
+    diff -u "$PKG_FILE" "${PKG_FILE}.tmp" 2>/dev/null || diff -u /dev/null "${PKG_FILE}.tmp" || true
     rm -f "${PKG_FILE}.tmp"
 else
     printf "# ssh-access-manager - sam-pkg sudo rights\\n" > "${PKG_FILE}.tmp"
@@ -621,11 +626,11 @@ fi
 
 # sam-root sudoers
 ROOT_FILE="/etc/sudoers.d/sam-root"
-if [ "$DRY_RUN" -eq 1 ] && [ -f "$ROOT_FILE" ]; then
+if [ "$DRY_RUN" -eq 1 ]; then
     printf "# ssh-access-manager - sam-root sudo rights\\n" > "${ROOT_FILE}.tmp"
     printf "%%sam-root ALL=(ALL) ALL\\n" >> "${ROOT_FILE}.tmp"
     echo "--- ${ROOT_FILE} diff:"
-    diff -u "$ROOT_FILE" "${ROOT_FILE}.tmp" || true
+    diff -u "$ROOT_FILE" "${ROOT_FILE}.tmp" 2>/dev/null || diff -u /dev/null "${ROOT_FILE}.tmp" || true
     rm -f "${ROOT_FILE}.tmp"
 else
     printf "# ssh-access-manager - sam-root sudo rights\\n" > "${ROOT_FILE}.tmp"
@@ -1085,8 +1090,16 @@ def _deploy_script(
 ) -> None:
     sftp.putfo(io.BytesIO(content), tmp_path)
     sftp.chmod(tmp_path, 0o600)
-    _run(client, f"sudo /usr/bin/install -m 750 -o root -g root {shlex.quote(tmp_path)} {shlex.quote(remote_path)}")
+    # The install exit code was dropped, so a sudoers rule that no longer
+    # matches, or a full disk, still ended with SCRIPT_DEPLOYED in the audit
+    # log while the host kept running the old script.
+    _, err, rc = _run(
+        client,
+        f"sudo /usr/bin/install -m 750 -o root -g root {shlex.quote(tmp_path)} {shlex.quote(remote_path)}",
+    )
     _run(client, f"rm -f {shlex.quote(tmp_path)}")
+    if rc != 0:
+        raise SSHError(f"Failed to install {remote_path}: {err.strip() or f'exit {rc}'}")
 
 
 def ensure_scripts(hostname: str, server_id: str, ip: str, port: int = 22, *, key_path: str) -> None:
