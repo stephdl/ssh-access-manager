@@ -5,6 +5,8 @@ SSH access auditing and management, in a single Alpine Linux container.
 **Stack**: Python 3.12 · Flask · PostgreSQL 18 · Nginx · Vue.js 3 · vue-i18n · Supervisord · Alpine 3.24.1
 
 > 🇫🇷 Une version française de ce document est disponible dans [README.fr.md](README.fr.md).
+>
+> 📦 On NethServer 8, this application is packaged as the [ns8-ssh-access-manager](https://github.com/stephdl/ns8-ssh-access-manager) module: install it with `add-module` rather than following the container instructions below.
 
 ---
 
@@ -136,7 +138,7 @@ The durations are constants in `web.py` — no restart is needed to change them 
 
 SAM generates **a distinct ed25519 SSH key pair per server** (stored in `/data/keys/per-server/<uuid>.key{,.pub}`, chmod 600, owned by `nobody`, with no SSH comment). A compromised key exposes one host, never the whole estate. The server ↔ key mapping is implicit in the file name (random UUID v4) — **no fingerprint is stored in the database**, so stealing the database alone reveals nothing cryptographically useful.
 
-Five ways to add a server, from the simplest to the most scriptable:
+Six ways to add a server, from the simplest to the most scriptable:
 
 ### A. UI, one server, with a password (simplest)
 
