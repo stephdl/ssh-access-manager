@@ -265,6 +265,83 @@ fi
 usermod -U -s /bin/bash "$USER"
 """
 
+SAM_INSTALL_PKG = b"""#!/bin/sh
+# sam-install-pkg <install|upgrade> [package...] - package management for sam-pkg
+#
+# Why a wrapper rather than a sudoers rule on the package manager itself:
+# a rule like `apt install *` lets any sam-pkg member run
+# `apt install ./payload.deb`, whose maintainer scripts execute as root, or
+# `apt install -o DPkg::Pre-Invoke::=/bin/sh pkg`, which is a root shell
+# outright. Every package manager has an equivalent. Sudoers wildcards
+# cannot express "a package name but not a path or an option", so the
+# distinction has to be made here.
+set -e
+
+ACTION="${1:-}"
+[ $# -gt 0 ] && shift
+
+case "$ACTION" in
+    install|upgrade) ;;
+    *)
+        echo "Usage: sam-install-pkg <install|upgrade> [package...]" >&2
+        exit 1
+        ;;
+esac
+
+# Accept bare package names only. A leading dash is an option; a slash or a
+# package-file extension makes the argument a local file, and installing a
+# local file runs its scripts as root. Dots stay allowed because real
+# package names carry them (python3.11, lib32z1).
+for pkg in "$@"; do
+    case "$pkg" in
+        ''|-*|*/*|*.deb|*.rpm|*.apk|*.pkg.tar.*|*.txz|*[!a-zA-Z0-9._+=-]*)
+            echo "Error: invalid package name '$pkg'" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# `--` on every invocation so a package name can never be read as an option,
+# even if the checks above are ever loosened.
+if command -v apt-get >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    case "$ACTION" in
+        install) apt-get install -y --no-install-recommends -- "$@" ;;
+        upgrade) apt-get upgrade -y ;;
+    esac
+elif command -v dnf >/dev/null 2>&1; then
+    case "$ACTION" in
+        install) dnf install -y -- "$@" ;;
+        upgrade) dnf upgrade -y ;;
+    esac
+elif command -v yum >/dev/null 2>&1; then
+    case "$ACTION" in
+        install) yum install -y -- "$@" ;;
+        upgrade) yum update -y ;;
+    esac
+elif command -v zypper >/dev/null 2>&1; then
+    case "$ACTION" in
+        install) zypper --non-interactive install -- "$@" ;;
+        upgrade) zypper --non-interactive update ;;
+    esac
+elif command -v apk >/dev/null 2>&1; then
+    case "$ACTION" in
+        install) apk add -- "$@" ;;
+        upgrade) apk upgrade ;;
+    esac
+elif command -v pacman >/dev/null 2>&1; then
+    case "$ACTION" in
+        install) pacman -S --noconfirm -- "$@" ;;
+        upgrade) pacman -Syu --noconfirm ;;
+    esac
+else
+    echo "Error: no supported package manager found" >&2
+    exit 1
+fi
+"""
+
+SAM_INSTALL_PKG_PATH = "/usr/local/bin/sam-install-pkg"
+
 SAM_SESSIONS_PATH = "/usr/local/bin/sam-sessions"
 SAM_GRANT_GROUP_PATH = "/usr/local/bin/sam-grant-group"
 SAM_REVOKE_GROUP_PATH = "/usr/local/bin/sam-revoke-group"
@@ -515,10 +592,6 @@ printf "%%sam-operator ALL=(root) PASSWD: ${DMESG}\\n"                       >> 
 printf "%%sam-operator ALL=(root) PASSWD: ${LSOF}\\n"                        >> "$OP_TMP"
 printf "%%sam-operator ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "$OP_TMP"
 printf "%%sam-operator ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "$OP_TMP"
-for bin in runagent; do
-    bin_path=$(_bin "$bin")
-    [ -x "$bin_path" ] && _rule "$OP_TMP" "sam-operator" "${bin_path}"
-done
 _finish_sudoers "$OP_FILE" "$OP_TMP"
 
 # sam-pkg sudoers
@@ -541,36 +614,12 @@ printf "%%sam-pkg ALL=(root) PASSWD: ${DMESG}\\n"                       >> "$PKG
 printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF}\\n"                        >> "$PKG_TMP"
 printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "$PKG_TMP"
 printf "%%sam-pkg ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "$PKG_TMP"
-for bin in runagent api-cli; do
-    bin_path=$(_bin "$bin")
-    [ -x "$bin_path" ] && _rule "$PKG_TMP" "sam-pkg" "${bin_path}"
-done
-if command -v apt >/dev/null 2>&1; then
-    APT=$(_bin apt)
-    _rule "$PKG_TMP" "sam-pkg" "${APT} install"
-    _rule "$PKG_TMP" "sam-pkg" "${APT} upgrade"
-elif command -v dnf >/dev/null 2>&1; then
-    DNF=$(_bin dnf)
-    _rule "$PKG_TMP" "sam-pkg" "${DNF} install"
-    _rule "$PKG_TMP" "sam-pkg" "${DNF} upgrade"
-elif command -v yum >/dev/null 2>&1; then
-    YUM=$(_bin yum)
-    _rule "$PKG_TMP" "sam-pkg" "${YUM} install"
-    _rule "$PKG_TMP" "sam-pkg" "${YUM} update"
-elif command -v zypper >/dev/null 2>&1; then
-    ZYPPER=$(_bin zypper)
-    _rule "$PKG_TMP" "sam-pkg" "${ZYPPER} install"
-    _rule "$PKG_TMP" "sam-pkg" "${ZYPPER} update"
-elif command -v apk >/dev/null 2>&1; then
-    APK=$(_bin apk)
-    _rule "$PKG_TMP" "sam-pkg" "${APK} add"
-    _rule "$PKG_TMP" "sam-pkg" "${APK} upgrade"
-elif command -v pacman >/dev/null 2>&1; then
-    PACMAN=$(_bin pacman)
-    _rule "$PKG_TMP" "sam-pkg" "${PACMAN} -S"
-    _rule "$PKG_TMP" "sam-pkg" "${PACMAN} -Syu"
-    _rule "$PKG_TMP" "sam-pkg" "${PACMAN} -Sy"
-fi
+# Package management goes through sam-install-pkg, never the package
+# manager directly: `apt install *` and every equivalent accept a local
+# package file or a hook option, both of which run code as root and turn
+# sam-pkg into sam-root. The wrapper validates its arguments; a bare Cmnd
+# with no argument list lets it receive them.
+printf "%%sam-pkg ALL=(root) PASSWD: /usr/local/bin/sam-install-pkg\\n" >> "$PKG_TMP"
 for bin in add-module remove-module; do
     bin_path="/usr/local/bin/$bin"
     [ -x "$bin_path" ] && _rule "$PKG_TMP" "sam-pkg" "${bin_path}"
@@ -1072,6 +1121,7 @@ def ensure_scripts(hostname: str, server_id: str, ip: str, port: int = 22, *, ke
             (SAM_LOCK_USER, SAM_LOCK_USER_PATH),
             (SAM_UNLOCK_USER, SAM_UNLOCK_USER_PATH),
             (SAM_SESSIONS, SAM_SESSIONS_PATH),
+            (SAM_INSTALL_PKG, SAM_INSTALL_PKG_PATH),
             (SAM_GRANT_GROUP, SAM_GRANT_GROUP_PATH),
             (SAM_REVOKE_GROUP, SAM_REVOKE_GROUP_PATH),
             (SAM_SELF_UPDATE, SAM_SELF_UPDATE_PATH),

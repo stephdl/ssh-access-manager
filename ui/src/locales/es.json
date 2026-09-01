@@ -529,8 +529,8 @@
     "sam-pkg": "sam-pkg",
     "sam-root": "sam-root",
     "warn_none": "Elimina todos los privilegios sudo de este usuario.",
-    "warn_operator": "El grupo operador permite: diagnóstico de solo lectura (logs, estado systemctl, journalctl). No puede modificar el estado del sistema.",
-    "warn_pkg": "El grupo pkg permite la gestión de paquetes (instalar, actualizar, eliminar) y todos los comandos de operador. Usar con cuidado.",
+    "warn_operator": "El grupo operador permite diagnósticos (logs, journalctl, ss, lsof) y reiniciar o recargar servicios. No puede instalar paquetes ni ejecutar comandos arbitrarios.",
+    "warn_pkg": "El grupo pkg permite instalar y actualizar paquetes por su nombre, además de todos los comandos de operador. Se rechazan los archivos de paquete y las opciones de comando.",
     "warn_root": "ADVERTENCIA: El grupo root otorga acceso root completo mediante sudo. Solo asignar a administradores de confianza."
   },
   "ssh_audit": {

@@ -112,6 +112,7 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
     local_hash_lock = ssh._sha256(ssh.SAM_LOCK_USER)
     local_hash_unlock = ssh._sha256(ssh.SAM_UNLOCK_USER)
     local_hash_sessions = ssh._sha256(ssh.SAM_SESSIONS)
+    local_hash_install_pkg = ssh._sha256(ssh.SAM_INSTALL_PKG)
     local_hash_grant_group = ssh._sha256(ssh.SAM_GRANT_GROUP)
     local_hash_revoke_group = ssh._sha256(ssh.SAM_REVOKE_GROUP)
     local_hash_self_update = ssh._sha256(ssh.SAM_SELF_UPDATE)
@@ -127,12 +128,13 @@ def test_ssh_ensure_scripts_skips_when_hash_identical(sample_server):
         hashes = [
             local_hash_collect, local_hash_revoke, local_hash_add,
             local_hash_lock, local_hash_unlock, local_hash_sessions,
-            local_hash_grant_group, local_hash_revoke_group, local_hash_self_update,
+            local_hash_install_pkg, local_hash_grant_group, local_hash_revoke_group,
+            local_hash_self_update,
         ]
 
         def exec_side_effect(cmd):
             stdout = MagicMock()
-            h = hashes[call_count[0] % 9]
+            h = hashes[call_count[0] % len(hashes)]
             stdout.read.return_value = f"{h}  path\n".encode()
             stdout.channel.recv_exit_status.return_value = 0
             call_count[0] += 1
@@ -356,6 +358,7 @@ def test_ssh_ensure_scripts_install_uses_exact_destination(sample_server):
             "/usr/local/bin/sam-lock-user",
             "/usr/local/bin/sam-unlock-user",
             "/usr/local/bin/sam-sessions",
+            "/usr/local/bin/sam-install-pkg",
             "/usr/local/bin/sam-grant-group",
             "/usr/local/bin/sam-revoke-group",
             "/usr/local/bin/sam-self-update",

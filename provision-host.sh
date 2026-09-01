@@ -49,7 +49,8 @@ _sudoers_rules() {
     # Self-update: SAM uploads each helper to the collector home, then
     # installs it with these pinned `install` invocations.
     for _helper in sam-collect sam-revoke sam-add sam-lock-user sam-unlock-user \
-                   sam-sessions sam-grant-group sam-revoke-group sam-self-update; do
+                   sam-sessions sam-install-pkg sam-grant-group sam-revoke-group \
+                   sam-self-update; do
         printf '%s ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/%s/%s /usr/local/bin/%s\n' \
             "${_user}" "${_user}" "${_helper}" "${_helper}"
     done

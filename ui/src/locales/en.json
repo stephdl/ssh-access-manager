@@ -529,8 +529,8 @@
     "sam-pkg": "sam-pkg",
     "sam-root": "sam-root",
     "warn_none": "This will remove all sudo privileges for this user.",
-    "warn_operator": "The operator group allows: read-only diagnostics (logs, systemctl status, journalctl). Cannot modify system state.",
-    "warn_pkg": "The pkg group allows package management (install, upgrade, remove) and all operator commands. Use with care.",
+    "warn_operator": "The operator group allows diagnostics (logs, journalctl, ss, lsof) and restarting or reloading services. It cannot install packages or run arbitrary commands.",
+    "warn_pkg": "The pkg group allows installing and upgrading packages by name, plus all operator commands. Package files and command options are refused.",
     "warn_root": "WARNING: The root group grants full root access via sudo. Only assign to trusted sysadmins."
   },
   "ssh_audit": {
