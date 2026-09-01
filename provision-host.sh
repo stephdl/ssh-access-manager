@@ -1,5 +1,6 @@
 #!/bin/sh
-# Usage: bash provision-host.sh "<collector_key.pub content>"
+# Usage: bash provision-host.sh "<collector_key.pub content>" [collector_user]
+#        bash provision-host.sh --print-sudoers [collector_user]
 # Prepares a remote host for SSH collection by audit-collector.
 set -e
 
@@ -7,8 +8,68 @@ COLLECTOR_PUBKEY="${1}"
 COLLECTOR_USER="${2:-audit-collector}"
 SUDOERS_FILE="/etc/sudoers.d/${COLLECTOR_USER}"
 
+# The collector name is interpolated into sudoers rules and into a printf
+# format string. A `%` would be consumed as a conversion specifier and a
+# space or newline would forge an extra rule, so reject anything that is
+# not a plain Unix account name before it reaches either.
+case "${COLLECTOR_USER}" in
+    ''|*[!a-z0-9_-]*)
+        printf "ERROR: invalid collector user '%s' (lowercase letters, digits, _ and - only).\n" "${COLLECTOR_USER}" >&2
+        exit 1
+        ;;
+esac
+
+# Detect sshd binary path (typically /usr/sbin/sshd on Debian/RHEL/Alpine)
+SSHD=$(command -v sshd 2>/dev/null || echo /usr/sbin/sshd)
+
+# visudo ships with sudo, which step 0 makes a hard requirement, but it lives
+# in /usr/sbin and may sit outside PATH depending on how the script is invoked.
+VISUDO=$(command -v visudo 2>/dev/null || echo /usr/sbin/visudo)
+
+# Emit the collector sudoers rules on stdout. Every value is passed as a
+# printf argument, never interpolated into the format string.
+#
+# printf with an explicit \n rather than echo: resistant to the \r\n that
+# sudo's PTY introduces when the script is piped in over SSH.
+#
+# The bare rules carry no argument list on purpose: sudoers grants any
+# arguments when a Cmnd is listed without them, which is what sam-add,
+# sam-revoke and friends need. Rules that do list an argument are pinned
+# to it exactly, hence the separate wildcard variants below.
+_sudoers_rules() {
+    _user="$1"
+    _sshd="$2"
+
+    printf '# ssh-access-manager — sudo rights for %s\n' "${_user}"
+    for _helper in sam-collect sam-revoke sam-add sam-lock-user sam-unlock-user sam-sessions; do
+        printf '%s ALL=(root) NOPASSWD: /usr/local/bin/%s\n' "${_user}" "${_helper}"
+    done
+    printf '%s ALL=(root) NOPASSWD: %s -T\n' "${_user}" "${_sshd}"
+
+    # Self-update: SAM uploads each helper to the collector home, then
+    # installs it with these pinned `install` invocations.
+    for _helper in sam-collect sam-revoke sam-add sam-lock-user sam-unlock-user \
+                   sam-sessions sam-grant-group sam-revoke-group sam-self-update; do
+        printf '%s ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/%s/%s /usr/local/bin/%s\n' \
+            "${_user}" "${_user}" "${_helper}" "${_helper}"
+    done
+
+    printf '%s ALL=(root) NOPASSWD: /usr/local/bin/sam-grant-group *\n' "${_user}"
+    printf '%s ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke-group *\n' "${_user}"
+    printf '%s ALL=(root) NOPASSWD: /usr/local/bin/sam-self-update\n' "${_user}"
+    printf '%s ALL=(root) NOPASSWD: /usr/local/bin/sam-self-update *\n' "${_user}"
+}
+
+# Inspection mode: print the rules that would be installed and exit. Lets an
+# operator (or a test) pipe them through `visudo -c -f -` without touching
+# the host.
+if [ "${COLLECTOR_PUBKEY}" = "--print-sudoers" ]; then
+    _sudoers_rules "${COLLECTOR_USER}" "${SSHD}"
+    exit 0
+fi
+
 if [ -z "${COLLECTOR_PUBKEY}" ]; then
-    echo "Usage: $0 \"<collector_key.pub content>\"" >&2
+    echo "Usage: $0 \"<collector_key.pub content>\" [collector_user]" >&2
     exit 1
 fi
 
@@ -61,34 +122,33 @@ chown "${COLLECTOR_USER}:${COLLECTOR_USER}" "${TMP_AUTH_KEYS}"
 mv -f "${TMP_AUTH_KEYS}" "${AUTH_KEYS}"
 echo "[provision] Public key deployed in ${AUTH_KEYS} (file replaced — only the SAM collector key remains)."
 
-# 4. Create sudoers file
-# Detect sshd binary path (typically /usr/sbin/sshd on Debian/RHEL/Alpine)
-SSHD=$(command -v sshd 2>/dev/null || echo /usr/sbin/sshd)
+# 4. Install the sudoers file
+# Atomic via tmp + visudo + install, same reasoning as authorized_keys above
+# but with a sharper failure mode: this file has no dot in its name, so sudo
+# parses it on every invocation. A truncated write or a malformed rule breaks
+# sudo host-wide, including the sudo needed to repair it. Validate first, and
+# never leave the live file in a half-written state.
+#
+# The `.tmp` staging name does contain a dot, which sudo ignores, so the
+# in-progress file is inert even while it sits in /etc/sudoers.d.
+SUDOERS_TMP="${SUDOERS_FILE}.tmp"
+_sudoers_rules "${COLLECTOR_USER}" "${SSHD}" > "${SUDOERS_TMP}"
 
-# printf with explicit \n: resistant to \r\n introduced by sudo PTY during pipe
-printf "# ssh-access-manager — sudo rights for ${COLLECTOR_USER}\n" > "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-collect\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-add\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-lock-user\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-unlock-user\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-sessions\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: ${SSHD} -T\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-collect /usr/local/bin/sam-collect\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-revoke /usr/local/bin/sam-revoke\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-add /usr/local/bin/sam-add\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-lock-user /usr/local/bin/sam-lock-user\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-unlock-user /usr/local/bin/sam-unlock-user\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-sessions /usr/local/bin/sam-sessions\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-grant-group /usr/local/bin/sam-grant-group\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-revoke-group /usr/local/bin/sam-revoke-group\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-grant-group *\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-revoke-group *\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/bin/install -m 750 -o root -g root /home/${COLLECTOR_USER}/sam-self-update /usr/local/bin/sam-self-update\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-self-update\n" >> "${SUDOERS_FILE}"
-printf "${COLLECTOR_USER} ALL=(root) NOPASSWD: /usr/local/bin/sam-self-update *\n" >> "${SUDOERS_FILE}"
+if [ -x "${VISUDO}" ]; then
+    if ! "${VISUDO}" -c -f "${SUDOERS_TMP}" >/dev/null 2>&1; then
+        printf "ERROR: generated sudoers for %s is invalid — aborting.\n" "${COLLECTOR_USER}" >&2
+        "${VISUDO}" -c -f "${SUDOERS_TMP}" >&2 || true
+        rm -f "${SUDOERS_TMP}"
+        exit 1
+    fi
+else
+    # Not fatal: the atomic install below is already safer than appending to
+    # the live file, which is what this script used to do.
+    printf "WARNING: visudo not found, installing %s without syntax validation.\n" "${SUDOERS_FILE}" >&2
+fi
 
-chmod 440 "${SUDOERS_FILE}"
+install -m 440 -o root -g root "${SUDOERS_TMP}" "${SUDOERS_FILE}"
+rm -f "${SUDOERS_TMP}"
 echo "[provision] Sudoers configured in ${SUDOERS_FILE}."
 
 # 5. Check sshd AllowGroups/AllowUsers directives
