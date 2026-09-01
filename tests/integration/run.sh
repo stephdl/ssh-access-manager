@@ -177,11 +177,18 @@ done
 assert_grep "PASSWD:" "/etc/sudoers.d/sam-operator"
 assert_grep "PASSWD:" "/etc/sudoers.d/sam-pkg"
 
-# api-cli must NOT be in sam-operator (#394), but if api-cli is present must be in sam-pkg
-if command -v api-cli >/dev/null 2>&1; then
-    assert_nogrep "api-cli" "/etc/sudoers.d/sam-operator"
-    assert_grep   "api-cli" "/etc/sudoers.d/sam-pkg"
-fi
+# runagent and api-cli are granted to no SAM group (#468): both execute
+# arbitrary commands as root, which would make the group root-equivalent.
+for sam_group in sam-operator sam-pkg; do
+    assert_nogrep "runagent" "/etc/sudoers.d/${sam_group}"
+    assert_nogrep "api-cli"  "/etc/sudoers.d/${sam_group}"
+done
+
+# Package management goes through the wrapper, never the package manager.
+assert_grep "/usr/local/bin/sam-install-pkg" "/etc/sudoers.d/sam-pkg"
+for pkg_cmd in "apt install" "dnf install" "yum install" "zypper install" "apk add" "pacman -S"; do
+    assert_nogrep "$pkg_cmd" "/etc/sudoers.d/sam-pkg"
+done
 
 # Verify sshd drop-in created
 assert_file_exists "/etc/ssh/sshd_config.d/50-sam-users.conf"
@@ -214,10 +221,19 @@ chmod +x /tmp/sam-it/sam-self-update.v1
 assert_grep "sam-self-update" "/etc/sudoers.d/${COLLECTOR_USER}"
 
 # Simulate an upgrade by injecting a new version of sam-self-update
-# For this test, we add a marker rule to sam-pkg sudoers
+# For this test, we add a marker rule to sam-pkg sudoers. Anchor on the line
+# that closes the sam-pkg block rather than on one particular rule, so the
+# fixture survives changes to the rule set itself.
 cat /tmp/sam-it/sam-self-update.v1 | \
-    sed 's|_rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"|_rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"\n    _rule "${PKG_FILE}.tmp" "sam-pkg" "/usr/bin/echo upgrade-marker"|' \
+    sed 's|^_finish_sudoers "$PKG_FILE" "$PKG_TMP"|_rule "$PKG_TMP" "sam-pkg" "/usr/bin/echo upgrade-marker"\n_finish_sudoers "$PKG_FILE" "$PKG_TMP"|' \
     > /tmp/sam-it/sam-self-update.v2
+
+# Sanity: the substitution must actually inject the marker, otherwise we would
+# silently be running the unpatched script and the assertion below would fail
+# for the wrong reason.
+if ! grep -q "upgrade-marker" /tmp/sam-it/sam-self-update.v2; then
+    _fail "sed substitution did not inject 'upgrade-marker' — fixture stale"
+fi
 
 # Deploy the upgraded script
 install -m 750 -o root -g root /tmp/sam-it/sam-self-update.v2 /usr/local/bin/sam-self-update
@@ -406,6 +422,48 @@ assert_user_shell  testuser1 /sbin/nologin
 su -l "$COLLECTOR_USER" -c 'sudo -n /usr/local/bin/sam-unlock-user testuser1'
 assert_user_unlocked testuser1
 assert_user_shell    testuser1 /bin/bash
+
+# --- 6h. sam-install-pkg: package management cannot reach root ------------
+# A sudoers rule on the package manager itself would be root-equivalent, so
+# sam-pkg gets the wrapper instead. Only the refusals are exercised here:
+# they are the security property, they need no network, and they behave the
+# same on every distribution.
+python3 tests/integration/extract_sam_constant.py SAM_INSTALL_PKG > /tmp/sam-it/sam-install-pkg
+install -m 750 -o root -g root /tmp/sam-it/sam-install-pkg /usr/local/bin/sam-install-pkg
+assert_file_perms "/usr/local/bin/sam-install-pkg" 750
+assert_file_owner "/usr/local/bin/sam-install-pkg" root:root
+
+for bad_arg in "./payload.deb" "payload.deb" "/tmp/payload.rpm" "-o" "--allow-untrusted" "pkg;id"; do
+    set +e
+    out=$(/usr/local/bin/sam-install-pkg install "$bad_arg" 2>&1)
+    rc=$?
+    set -e
+    assert_eq "0" "$([ "$rc" -ne 0 ] && echo 0 || echo 1)" \
+        "sam-install-pkg refuses '$bad_arg' (rc=$rc)"
+    case "$out" in
+        *"invalid package name"*) _pass "sam-install-pkg rejects '$bad_arg' by name" ;;
+        *) _fail "sam-install-pkg rejected '$bad_arg' for the wrong reason: $out" ;;
+    esac
+done
+
+# An action other than install/upgrade is refused outright.
+set +e
+/usr/local/bin/sam-install-pkg remove nginx >/dev/null 2>&1
+rc=$?
+set -e
+assert_eq "0" "$([ "$rc" -ne 0 ] && echo 0 || echo 1)" \
+    "sam-install-pkg refuses the 'remove' action (rc=$rc)"
+
+# A well-formed name must clear validation and reach the package manager,
+# which then fails on its own because the package does not exist. Asserting
+# on the absence of the validation error keeps this offline.
+set +e
+out=$(/usr/local/bin/sam-install-pkg install sam-no-such-package-xyz 2>&1)
+set -e
+case "$out" in
+    *"invalid package name"*) _fail "sam-install-pkg rejected a well-formed package name" ;;
+    *) _pass "sam-install-pkg accepts a well-formed package name" ;;
+esac
 
 # ---------------------------------------------------------------------------
 # Phase 7 — bad sshd drop-in rollback (negative integration test)
