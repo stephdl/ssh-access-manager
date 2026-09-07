@@ -613,7 +613,7 @@ The user's Unix password, set at first login, exists **only for `sudo`** — nev
 
 ## Workflow — SAM sudo groups
 
-`provision-host.sh` creates three predefined Unix groups on every managed server: `sam-operator`, `sam-pkg`, `sam-root`. Each has its own set of sudoers rules (validated with `visudo -c` before installation, requiring `PASSWD:` — never `NOPASSWD:`, with an explicit `secure_path` including `/usr/local/bin` so NS8 binaries such as `runagent` / `api-cli` resolve).
+`provision-host.sh` creates three predefined Unix groups on every managed server: `sam-operator`, `sam-pkg`, `sam-root`. Each has its own set of sudoers rules (validated with `visudo -c` before installation, requiring `PASSWD:` — never `NOPASSWD:`, with an explicit `secure_path` including `/usr/local/bin` so the SAM helpers resolve).
 
 ### `sam-operator` — operations and diagnostics
 
@@ -626,9 +626,8 @@ Aimed at operators who need to supervise and restart services without installing
 | Network / processes | `ss -tlnp`, `lsof`, `lsof -i` |
 | Kernel diagnostics | `dmesg` |
 | Disk | `du -sh /var/* /opt/* /home/*` |
-| NS8 tools (when present) | `runagent` |
 
-`api-cli` is **deliberately absent** from `sam-operator`: this NS8 management tool goes beyond the operations scope and is reserved for `sam-pkg` (#394).
+`runagent` and `api-cli` are **deliberately absent** from every SAM group (#468). Both execute arbitrary commands as `root`, so granting either would make the group root-equivalent and erase the distinction the three tiers exist to draw.
 
 ### `sam-pkg` — operations plus package management
 
@@ -636,13 +635,20 @@ Aimed at users who also need to install or update packages. Inherits **every `sa
 
 | Category | Allowed commands (in addition to sam-operator) |
 |---|---|
-| Debian / Ubuntu | `apt install`, `apt upgrade` |
-| RHEL / Rocky / Alma | `dnf install`, `dnf upgrade` (or `yum install`, `yum update`) |
-| SUSE | `zypper install`, `zypper update` |
-| Alpine | `apk add`, `apk upgrade` |
-| Arch | `pacman -S`, `pacman -Syu`, `pacman -Sy` |
+| Packages | `sam-install-pkg install <package…>`, `sam-install-pkg upgrade` |
 | NS8 modules (when present) | `add-module`, `remove-module` |
-| NS8 tools (when present) | `api-cli` |
+
+#### Why a wrapper and not `apt install`
+
+`sam-pkg` gets sudo on `sam-install-pkg`, never on the package manager itself. A rule such as `apt install *` is root-equivalent, and so is its counterpart on every other distribution:
+
+```bash
+sudo apt install ./payload.deb                        # maintainer scripts run as root
+sudo apt install -o DPkg::Pre-Invoke::=/bin/sh nginx  # root shell, no package involved
+sudo dnf install /tmp/payload.rpm                     # same, %pre and %post run as root
+```
+
+Sudoers wildcards cannot express "a package name but not a path or an option", so the check has to live in a script. `sam-install-pkg` accepts `install` or `upgrade`, refuses any argument that starts with `-`, contains a `/`, or carries a package-file extension, and passes `--` to the package manager so a name can never be read as an option. The sudoers rule carries no argument list, which is what lets the wrapper receive the package names (#468).
 
 ### `sam-root` — root equivalent
 

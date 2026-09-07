@@ -40,6 +40,8 @@ Nginx : `/api/` → proxy Flask, `/` → /app/static (SPA). Pas de Basic Auth (s
 
 Trois groupes Unix dédiés sont créés par `provision-host.sh` sur chaque serveur géré : `sam-operator`, `sam-pkg`, `sam-root`. Les règles sudoers SAM associées (chmod 440, validées avec `visudo -c`) exigent `PASSWD:` (jamais NOPASSWD) et fixent `secure_path` incluant `/usr/local/bin`.
 
+Les trois paliers doivent rester réellement distincts (#468). `sam-pkg` n'a **jamais** de règle sudoers sur le gestionnaire de paquets lui-même : `apt install *` (et son équivalent sur chaque distribution) accepte un fichier `.deb` local ou une option de hook, deux chemins qui exécutent du code en root. Le groupe reçoit sudo sur le wrapper `sam-install-pkg`, qui valide ses arguments. Pour la même raison `runagent` et `api-cli` ne sont accordés à aucun groupe SAM.
+
 Un quatrième groupe `sam-users` regroupe tous les utilisateurs Unix créés via `sam-add`. Le bloc sshd `Match Group sam-users` interdit l'authentification par mot de passe — ces utilisateurs ne peuvent se connecter qu'avec leur clé SSH publique. À la création, `sam-add` génère un mot de passe temporaire (`openssl rand -base64 12`), le set via `chpasswd`, écrit `~/README_first_login.txt` (chmod 600) et `~/.profile` invoque `passwd` automatiquement au premier login pour forcer le changement.
 
 Le compte `root` est protégé : non-déployable, non-révocable, non-promotable en groupe SAM. La colonne `key_authorizations.sam_group` (VARCHAR(20), CHECK IN sam-operator/sam-pkg/sam-root, audit v4) trace le groupe assigné. Routes : `POST /api/access/grant-group`, `POST /api/access/revoke-group`, `PUT /api/access/change-group`. La promotion en `sam-root` est réservée au rôle `sysadmin`.
