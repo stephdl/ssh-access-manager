@@ -265,6 +265,83 @@ fi
 usermod -U -s /bin/bash "$USER"
 """
 
+SAM_INSTALL_PKG = b"""#!/bin/sh
+# sam-install-pkg <install|upgrade> [package...] - package management for sam-pkg
+#
+# Why a wrapper rather than a sudoers rule on the package manager itself:
+# a rule like `apt install *` lets any sam-pkg member run
+# `apt install ./payload.deb`, whose maintainer scripts execute as root, or
+# `apt install -o DPkg::Pre-Invoke::=/bin/sh pkg`, which is a root shell
+# outright. Every package manager has an equivalent. Sudoers wildcards
+# cannot express "a package name but not a path or an option", so the
+# distinction has to be made here.
+set -e
+
+ACTION="${1:-}"
+[ $# -gt 0 ] && shift
+
+case "$ACTION" in
+    install|upgrade) ;;
+    *)
+        echo "Usage: sam-install-pkg <install|upgrade> [package...]" >&2
+        exit 1
+        ;;
+esac
+
+# Accept bare package names only. A leading dash is an option; a slash or a
+# package-file extension makes the argument a local file, and installing a
+# local file runs its scripts as root. Dots stay allowed because real
+# package names carry them (python3.11, lib32z1).
+for pkg in "$@"; do
+    case "$pkg" in
+        ''|-*|*/*|*.deb|*.rpm|*.apk|*.pkg.tar.*|*.txz|*[!a-zA-Z0-9._+=-]*)
+            echo "Error: invalid package name '$pkg'" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# `--` on every invocation so a package name can never be read as an option,
+# even if the checks above are ever loosened.
+if command -v apt-get >/dev/null 2>&1; then
+    export DEBIAN_FRONTEND=noninteractive
+    case "$ACTION" in
+        install) apt-get install -y --no-install-recommends -- "$@" ;;
+        upgrade) apt-get upgrade -y ;;
+    esac
+elif command -v dnf >/dev/null 2>&1; then
+    case "$ACTION" in
+        install) dnf install -y -- "$@" ;;
+        upgrade) dnf upgrade -y ;;
+    esac
+elif command -v yum >/dev/null 2>&1; then
+    case "$ACTION" in
+        install) yum install -y -- "$@" ;;
+        upgrade) yum update -y ;;
+    esac
+elif command -v zypper >/dev/null 2>&1; then
+    case "$ACTION" in
+        install) zypper --non-interactive install -- "$@" ;;
+        upgrade) zypper --non-interactive update ;;
+    esac
+elif command -v apk >/dev/null 2>&1; then
+    case "$ACTION" in
+        install) apk add -- "$@" ;;
+        upgrade) apk upgrade ;;
+    esac
+elif command -v pacman >/dev/null 2>&1; then
+    case "$ACTION" in
+        install) pacman -S --noconfirm -- "$@" ;;
+        upgrade) pacman -Syu --noconfirm ;;
+    esac
+else
+    echo "Error: no supported package manager found" >&2
+    exit 1
+fi
+"""
+
+SAM_INSTALL_PKG_PATH = "/usr/local/bin/sam-install-pkg"
+
 SAM_SESSIONS_PATH = "/usr/local/bin/sam-sessions"
 SAM_GRANT_GROUP_PATH = "/usr/local/bin/sam-grant-group"
 SAM_REVOKE_GROUP_PATH = "/usr/local/bin/sam-revoke-group"
@@ -440,9 +517,20 @@ LSOF=$(_bin lsof)
 DU=$(_bin du)
 
 # Step 3: Build and install sudoers files with transactional rollback
+#
+# Each candidate is staged as <name>.tmp before it is validated. A dry run
+# stages in a private temp dir instead, so it never writes into
+# /etc/sudoers.d: inspecting the configuration must not touch the host.
+if [ "$DRY_RUN" -eq 1 ]; then
+    SUDOERS_STAGE=$(mktemp -d /tmp/sam-sudoers-XXXXXX)
+    trap 'rm -rf "$SUDOERS_STAGE"' EXIT
+else
+    SUDOERS_STAGE="/etc/sudoers.d"
+fi
+
 _install_sudoers() {
     local target="$1"
-    local tmp="${target}.tmp"
+    local tmp="$2"
     local backup="${target}.bak"
     local had_previous=0
 
@@ -460,6 +548,7 @@ _install_sudoers() {
         else
             rm -f "$target"
         fi
+        rm -f "$tmp"
         exit 1
     fi
 
@@ -468,186 +557,81 @@ _install_sudoers() {
     rm -f "$backup" "$tmp"
 }
 
+# Show what a candidate would change, or install it. Both modes consume the
+# same staged file, so --dry-run can never disagree with what a real run
+# installs.
+_finish_sudoers() {
+    local target="$1" tmp="$2"
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo "--- ${target} diff:"
+        diff -u "$target" "$tmp" 2>/dev/null || diff -u /dev/null "$tmp" || true
+        rm -f "$tmp"
+    else
+        _install_sudoers "$target" "$tmp"
+        echo "[sam-self-update] Sudoers $(basename "$target") configured."
+    fi
+}
+
 # sam-operator sudoers
 OP_FILE="/etc/sudoers.d/sam-operator"
-if [ "$DRY_RUN" -eq 1 ]; then
-    printf "# ssh-access-manager - sam-operator sudo rights\\n" > "${OP_FILE}.tmp"
-    printf "Defaults:%%sam-operator secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${OP_FILE}.tmp"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} restart"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} reload"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} status"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} start"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -u"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -f"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -n"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} --since"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -b"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -e"
-    printf "%%sam-operator ALL=(root) PASSWD: ${SS} -tlnp\\n"                    >> "${OP_FILE}.tmp"
-    printf "%%sam-operator ALL=(root) PASSWD: ${DMESG}\\n"                       >> "${OP_FILE}.tmp"
-    printf "%%sam-operator ALL=(root) PASSWD: ${LSOF}\\n"                        >> "${OP_FILE}.tmp"
-    printf "%%sam-operator ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "${OP_FILE}.tmp"
-    printf "%%sam-operator ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "${OP_FILE}.tmp"
-    for bin in runagent; do
-        bin_path=$(_bin "$bin")
-        [ -x "$bin_path" ] && _rule "${OP_FILE}.tmp" "sam-operator" "${bin_path}"
-    done
-    echo "--- ${OP_FILE} diff:"
-    diff -u "$OP_FILE" "${OP_FILE}.tmp" 2>/dev/null || diff -u /dev/null "${OP_FILE}.tmp" || true
-    rm -f "${OP_FILE}.tmp"
-else
-    printf "# ssh-access-manager - sam-operator sudo rights\\n" > "${OP_FILE}.tmp"
-    printf "Defaults:%%sam-operator secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${OP_FILE}.tmp"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} restart"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} reload"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} status"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${SYSTEMCTL} start"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -u"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -f"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -n"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} --since"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -b"
-    _rule "${OP_FILE}.tmp" "sam-operator" "${JOURNALCTL} -e"
-    printf "%%sam-operator ALL=(root) PASSWD: ${SS} -tlnp\\n"                    >> "${OP_FILE}.tmp"
-    printf "%%sam-operator ALL=(root) PASSWD: ${DMESG}\\n"                       >> "${OP_FILE}.tmp"
-    printf "%%sam-operator ALL=(root) PASSWD: ${LSOF}\\n"                        >> "${OP_FILE}.tmp"
-    printf "%%sam-operator ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "${OP_FILE}.tmp"
-    printf "%%sam-operator ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "${OP_FILE}.tmp"
-    for bin in runagent; do
-        bin_path=$(_bin "$bin")
-        [ -x "$bin_path" ] && _rule "${OP_FILE}.tmp" "sam-operator" "${bin_path}"
-    done
-    _install_sudoers "$OP_FILE"
-    echo "[sam-self-update] Sudoers sam-operator configured."
-fi
+OP_TMP="${SUDOERS_STAGE}/sam-operator.tmp"
+printf "# ssh-access-manager - sam-operator sudo rights\\n" > "$OP_TMP"
+printf "Defaults:%%sam-operator secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "$OP_TMP"
+_rule "$OP_TMP" "sam-operator" "${SYSTEMCTL} restart"
+_rule "$OP_TMP" "sam-operator" "${SYSTEMCTL} reload"
+_rule "$OP_TMP" "sam-operator" "${SYSTEMCTL} status"
+_rule "$OP_TMP" "sam-operator" "${SYSTEMCTL} start"
+_rule "$OP_TMP" "sam-operator" "${JOURNALCTL} -u"
+_rule "$OP_TMP" "sam-operator" "${JOURNALCTL} -f"
+_rule "$OP_TMP" "sam-operator" "${JOURNALCTL} -n"
+_rule "$OP_TMP" "sam-operator" "${JOURNALCTL} --since"
+_rule "$OP_TMP" "sam-operator" "${JOURNALCTL} -b"
+_rule "$OP_TMP" "sam-operator" "${JOURNALCTL} -e"
+printf "%%sam-operator ALL=(root) PASSWD: ${SS} -tlnp\\n"                    >> "$OP_TMP"
+printf "%%sam-operator ALL=(root) PASSWD: ${DMESG}\\n"                       >> "$OP_TMP"
+printf "%%sam-operator ALL=(root) PASSWD: ${LSOF}\\n"                        >> "$OP_TMP"
+printf "%%sam-operator ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "$OP_TMP"
+printf "%%sam-operator ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "$OP_TMP"
+_finish_sudoers "$OP_FILE" "$OP_TMP"
 
 # sam-pkg sudoers
 PKG_FILE="/etc/sudoers.d/sam-pkg"
-if [ "$DRY_RUN" -eq 1 ]; then
-    printf "# ssh-access-manager - sam-pkg sudo rights\\n" > "${PKG_FILE}.tmp"
-    printf "Defaults:%%sam-pkg secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${PKG_FILE}.tmp"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} reload"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} status"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} start"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -u"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -f"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -n"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} --since"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -b"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -e"
-    printf "%%sam-pkg ALL=(root) PASSWD: ${SS} -tlnp\\n"                    >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) PASSWD: ${DMESG}\\n"                       >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF}\\n"                        >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "${PKG_FILE}.tmp"
-    for bin in runagent api-cli; do
-        bin_path=$(_bin "$bin")
-        [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
-    done
-    if command -v apt >/dev/null 2>&1; then
-        APT=$(_bin apt)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APT} install"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APT} upgrade"
-    elif command -v dnf >/dev/null 2>&1; then
-        DNF=$(_bin dnf)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${DNF} install"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${DNF} upgrade"
-    elif command -v yum >/dev/null 2>&1; then
-        YUM=$(_bin yum)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${YUM} install"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${YUM} update"
-    elif command -v zypper >/dev/null 2>&1; then
-        ZYPPER=$(_bin zypper)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${ZYPPER} install"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${ZYPPER} update"
-    elif command -v apk >/dev/null 2>&1; then
-        APK=$(_bin apk)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APK} add"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APK} upgrade"
-    elif command -v pacman >/dev/null 2>&1; then
-        PACMAN=$(_bin pacman)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -S"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -Syu"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -Sy"
-    fi
-    for bin in add-module remove-module; do
-        bin_path="/usr/local/bin/$bin"
-        [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
-    done
-    echo "--- ${PKG_FILE} diff:"
-    diff -u "$PKG_FILE" "${PKG_FILE}.tmp" 2>/dev/null || diff -u /dev/null "${PKG_FILE}.tmp" || true
-    rm -f "${PKG_FILE}.tmp"
-else
-    printf "# ssh-access-manager - sam-pkg sudo rights\\n" > "${PKG_FILE}.tmp"
-    printf "Defaults:%%sam-pkg secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "${PKG_FILE}.tmp"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} restart"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} reload"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} status"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${SYSTEMCTL} start"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -u"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -f"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -n"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} --since"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -b"
-    _rule "${PKG_FILE}.tmp" "sam-pkg" "${JOURNALCTL} -e"
-    printf "%%sam-pkg ALL=(root) PASSWD: ${SS} -tlnp\\n"                    >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) PASSWD: ${DMESG}\\n"                       >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF}\\n"                        >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "${PKG_FILE}.tmp"
-    printf "%%sam-pkg ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "${PKG_FILE}.tmp"
-    for bin in runagent api-cli; do
-        bin_path=$(_bin "$bin")
-        [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
-    done
-    if command -v apt >/dev/null 2>&1; then
-        APT=$(_bin apt)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APT} install"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APT} upgrade"
-    elif command -v dnf >/dev/null 2>&1; then
-        DNF=$(_bin dnf)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${DNF} install"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${DNF} upgrade"
-    elif command -v yum >/dev/null 2>&1; then
-        YUM=$(_bin yum)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${YUM} install"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${YUM} update"
-    elif command -v zypper >/dev/null 2>&1; then
-        ZYPPER=$(_bin zypper)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${ZYPPER} install"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${ZYPPER} update"
-    elif command -v apk >/dev/null 2>&1; then
-        APK=$(_bin apk)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APK} add"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${APK} upgrade"
-    elif command -v pacman >/dev/null 2>&1; then
-        PACMAN=$(_bin pacman)
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -S"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -Syu"
-        _rule "${PKG_FILE}.tmp" "sam-pkg" "${PACMAN} -Sy"
-    fi
-    for bin in add-module remove-module; do
-        bin_path="/usr/local/bin/$bin"
-        [ -x "$bin_path" ] && _rule "${PKG_FILE}.tmp" "sam-pkg" "${bin_path}"
-    done
-    _install_sudoers "$PKG_FILE"
-    echo "[sam-self-update] Sudoers sam-pkg configured."
-fi
+PKG_TMP="${SUDOERS_STAGE}/sam-pkg.tmp"
+printf "# ssh-access-manager - sam-pkg sudo rights\\n" > "$PKG_TMP"
+printf "Defaults:%%sam-pkg secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\\n" >> "$PKG_TMP"
+_rule "$PKG_TMP" "sam-pkg" "${SYSTEMCTL} restart"
+_rule "$PKG_TMP" "sam-pkg" "${SYSTEMCTL} reload"
+_rule "$PKG_TMP" "sam-pkg" "${SYSTEMCTL} status"
+_rule "$PKG_TMP" "sam-pkg" "${SYSTEMCTL} start"
+_rule "$PKG_TMP" "sam-pkg" "${JOURNALCTL} -u"
+_rule "$PKG_TMP" "sam-pkg" "${JOURNALCTL} -f"
+_rule "$PKG_TMP" "sam-pkg" "${JOURNALCTL} -n"
+_rule "$PKG_TMP" "sam-pkg" "${JOURNALCTL} --since"
+_rule "$PKG_TMP" "sam-pkg" "${JOURNALCTL} -b"
+_rule "$PKG_TMP" "sam-pkg" "${JOURNALCTL} -e"
+printf "%%sam-pkg ALL=(root) PASSWD: ${SS} -tlnp\\n"                    >> "$PKG_TMP"
+printf "%%sam-pkg ALL=(root) PASSWD: ${DMESG}\\n"                       >> "$PKG_TMP"
+printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF}\\n"                        >> "$PKG_TMP"
+printf "%%sam-pkg ALL=(root) PASSWD: ${LSOF} -i\\n"                     >> "$PKG_TMP"
+printf "%%sam-pkg ALL=(root) PASSWD: ${DU} -sh /var/* /opt/* /home/*\\n" >> "$PKG_TMP"
+# Package management goes through sam-install-pkg, never the package
+# manager directly: `apt install *` and every equivalent accept a local
+# package file or a hook option, both of which run code as root and turn
+# sam-pkg into sam-root. The wrapper validates its arguments; a bare Cmnd
+# with no argument list lets it receive them.
+printf "%%sam-pkg ALL=(root) PASSWD: /usr/local/bin/sam-install-pkg\\n" >> "$PKG_TMP"
+for bin in add-module remove-module; do
+    bin_path="/usr/local/bin/$bin"
+    [ -x "$bin_path" ] && _rule "$PKG_TMP" "sam-pkg" "${bin_path}"
+done
+_finish_sudoers "$PKG_FILE" "$PKG_TMP"
 
 # sam-root sudoers
 ROOT_FILE="/etc/sudoers.d/sam-root"
-if [ "$DRY_RUN" -eq 1 ]; then
-    printf "# ssh-access-manager - sam-root sudo rights\\n" > "${ROOT_FILE}.tmp"
-    printf "%%sam-root ALL=(ALL) ALL\\n" >> "${ROOT_FILE}.tmp"
-    echo "--- ${ROOT_FILE} diff:"
-    diff -u "$ROOT_FILE" "${ROOT_FILE}.tmp" 2>/dev/null || diff -u /dev/null "${ROOT_FILE}.tmp" || true
-    rm -f "${ROOT_FILE}.tmp"
-else
-    printf "# ssh-access-manager - sam-root sudo rights\\n" > "${ROOT_FILE}.tmp"
-    printf "%%sam-root ALL=(ALL) ALL\\n" >> "${ROOT_FILE}.tmp"
-    _install_sudoers "$ROOT_FILE"
-    echo "[sam-self-update] Sudoers sam-root configured."
-fi
+ROOT_TMP="${SUDOERS_STAGE}/sam-root.tmp"
+printf "# ssh-access-manager - sam-root sudo rights\\n" > "$ROOT_TMP"
+printf "%%sam-root ALL=(ALL) ALL\\n" >> "$ROOT_TMP"
+_finish_sudoers "$ROOT_FILE" "$ROOT_TMP"
 
 # Step 4: sshd drop-in configuration
 SAM_SSHD_CONF="Match Group sam-users
@@ -1137,6 +1121,7 @@ def ensure_scripts(hostname: str, server_id: str, ip: str, port: int = 22, *, ke
             (SAM_LOCK_USER, SAM_LOCK_USER_PATH),
             (SAM_UNLOCK_USER, SAM_UNLOCK_USER_PATH),
             (SAM_SESSIONS, SAM_SESSIONS_PATH),
+            (SAM_INSTALL_PKG, SAM_INSTALL_PKG_PATH),
             (SAM_GRANT_GROUP, SAM_GRANT_GROUP_PATH),
             (SAM_REVOKE_GROUP, SAM_REVOKE_GROUP_PATH),
             (SAM_SELF_UPDATE, SAM_SELF_UPDATE_PATH),

@@ -529,8 +529,8 @@
     "sam-pkg": "sam-pkg",
     "sam-root": "sam-root",
     "warn_none": "Entfernt alle Sudo-Rechte für diesen Benutzer.",
-    "warn_operator": "Die Operator-Gruppe erlaubt: schreibgeschützte Diagnose (Logs, systemctl-Status, journalctl). Kann den Systemzustand nicht ändern.",
-    "warn_pkg": "Die pkg-Gruppe ermöglicht die Paketverwaltung (installieren, aktualisieren, entfernen) und alle Operator-Befehle. Mit Vorsicht verwenden.",
+    "warn_operator": "Die Operator-Gruppe erlaubt Diagnose (Logs, journalctl, ss, lsof) sowie das Neustarten oder Neuladen von Diensten. Sie kann keine Pakete installieren und keine beliebigen Befehle ausführen.",
+    "warn_pkg": "Die pkg-Gruppe erlaubt das Installieren und Aktualisieren von Paketen anhand ihres Namens sowie alle Operator-Befehle. Paketdateien und Befehlsoptionen werden abgelehnt.",
     "warn_root": "WARNUNG: Die Root-Gruppe gewährt vollen Root-Zugriff über sudo. Nur vertrauenswürdigen Systemadministratoren zuweisen."
   },
   "ssh_audit": {
